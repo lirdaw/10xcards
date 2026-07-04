@@ -35,13 +35,7 @@ npm install
 
 3. Set up Supabase and configure environment variables — see [Supabase Configuration](#supabase-configuration) below.
 
-4. Create a `.dev.vars` file for local Cloudflare dev secrets:
-
-```bash
-cp .env .dev.vars
-```
-
-5. Run the development server:
+4. Run the development server:
 
 ```bash
 npm run dev
@@ -74,6 +68,8 @@ npm run dev
 
 This project uses [Supabase](https://supabase.com/) for authentication. Environment variables are declared via Astro's `astro:env` schema and are treated as **server-only secrets** — they are never exposed to the client.
 
+> **Local secrets live in `.env` only.** With Astro 6 + `@astrojs/cloudflare`, `npm run dev` runs on the real Cloudflare `workerd` runtime and reads `.env` directly. Do **not** also create a `.dev.vars` file — if both exist, Cloudflare ignores `.env` and reads `.dev.vars` (they are mutually exclusive). Production secrets are set separately via `npx wrangler secret put` (see [Deployment](#deployment)).
+
 ### First-time setup (local, no cloud project needed)
 
 Requires [Docker](https://www.docker.com/) and ~7 GB RAM.
@@ -96,7 +92,7 @@ npx supabase init
 npx supabase start
 ```
 
-4. Copy the credentials printed by the CLI into your `.env` and `.dev.vars`:
+4. Copy the credentials printed by the CLI into your `.env` file:
 
 ```
 SUPABASE_URL=http://127.0.0.1:54321
@@ -115,7 +111,7 @@ No database tables or migrations are required — this project uses Supabase Aut
 
 ### Using a cloud Supabase project instead
 
-If you prefer to use a hosted Supabase project, add these variables to your `.env` and `.dev.vars` files:
+If you prefer to use a hosted Supabase project, add these variables to your `.env` file:
 
 | Variable       | Description                                                |
 | -------------- | ---------------------------------------------------------- |
