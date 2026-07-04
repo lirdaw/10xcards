@@ -52,14 +52,14 @@ scoped API tokenu, założenie projektu Supabase, toggle potwierdzania e-mail, z
   osierociłaby stary Worker pod innym URL).
 
 ### ☑ Faza 1 — Konto Cloudflare + autoryzacja wrangler *(bramka manualna)* — UKOŃCZONA
-- [x] Konto Cloudflare istnieje (`lirdaw@gmail.com`, account ID `e7ec9236…0cbc5`), plan Free.
+- [x] Konto Cloudflare istnieje (konto właściciela, account ID zredagowany), plan Free.
 - [x] CLI zautoryzowane OAuth Tokenem (już zalogowane — `wrangler login` niepotrzebne).
 - [x] Weryfikacja: `npx wrangler whoami` zwraca konto; scope `workers (write)` obecny.
 - Uwaga (hardening na później): OAuth token ma szeroki scope; docelowo scoped API token tylko
   *Workers Scripts:Edit* przy przejściu na CI.
 
 ### ☑ Faza 2 — Provisioning chmurowego Supabase *(integracja zewnętrzna, bramka manualna)* — UKOŃCZONA
-- [x] Projekt Supabase w chmurze utworzony (`https://bhwnautkdfzrhepkuozx.supabase.co`).
+- [x] Projekt Supabase w chmurze utworzony (`https://<twój-ref>.supabase.co`).
 - [x] **Region:** potwierdzony przez użytkownika jako blisko docelowych użytkowników (PL) —
   ryzyko latencji z rejestru rozbrojone.
 - [x] `Project URL` (→ `SUPABASE_URL`) i klucz **publishable** (`sb_publishable_…`, → `SUPABASE_KEY`)
