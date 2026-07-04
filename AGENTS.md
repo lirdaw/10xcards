@@ -6,7 +6,6 @@
 
 - Import via `@/*` (maps to `src/*`, see @tsconfig.json); do not use deep relative paths like `../../lib`.
 - Read env only through `astro:env/server` (`SUPABASE_URL`, `SUPABASE_KEY`) — never `import.meta.env` or `process.env`. Both are optional server secrets; `createClient` in @src/lib/supabase.ts returns `null` when unset, so every caller must null-check before use (see @src/pages/api/auth/signin.ts).
-- CI (@.github/workflows/ci.yml) triggers only on `master`; the working branch is `main`. Target `master` for PRs or CI will not gate them.
 - Run `npx astro sync` after changing routes or content before `lint`/`build` — CI runs it and lint fails on stale generated types.
 
 ## Project Structure
