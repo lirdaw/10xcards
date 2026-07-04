@@ -110,23 +110,25 @@ Live URL: **https://10xcards.lirdaw.workers.dev** (Version `d53c71a2-b5c4-4bc3-a
   (user zapisany w `auth.users` w Supabase).
 - [ ] *(opcjonalnie, nie zrobione)* `npx wrangler tail` podczas klikania — podgląd logów runtime.
 
-### ☐ Faza 7 — Próba rollbacku (zanim będzie potrzebny) — ODROCZONA
-> Historia wersji istnieje (m.in. `e214b51b`, `edd8116d` z 13:39–13:41), ale to wersje **sprzed**
-> naprawy bindingu KV (powstały głównie przy `wrangler secret put`) — rollback do nich mógłby zepsuć
-> live. Czysty rollback-drill zrób po **drugim znanym-dobrym deployu** (cofasz good-v2 → good-v1 bez
-> ryzyka). `deployments list` (odczyt) już wykonany: aktywna `d53c71a2`.
-- [ ] `npx wrangler deployments list` → weź poprzednie **znane-dobre** `version-id`.
-- [ ] `npx wrangler rollback [version-id]` (bez id = poprzednia wersja) → potwierdź powrót.
-- [ ] **Caveat:** rollback cofa tylko Workera; zmiany schematu/danych Supabase NIE cofają się z nim.
+### ☑ Faza 7 — Próba rollbacku (zanim będzie potrzebny) — UKOŃCZONA
+Wykonana po tym, jak CI dostarczyło drugą znaną-dobrą wersję. Drill w obie strony, zweryfikowany curl-em:
+- [x] `npx wrangler rollback d53c71a2…` → live wróciło do „10x Astro Starter" (deployment `Rollback`, 100%).
+- [x] `npx wrangler rollback 5b2abf67…` (roll-forward) → live wróciło do „10xCards" / „Astro 6".
+- [x] **Caveat potwierdzony:** rollback cofa tylko kod Workera; dane/schemat Supabase się nie cofają.
 
-### ☐ Faza 8 — Poza zakresem tego wdrożenia (świadomie odroczone)
-- [ ] **CI auto-deploy-on-merge** — dodanie kroku `wrangler deploy` do `ci.yml` + `CLOUDFLARE_API_TOKEN`
-  w GitHub secrets. Osobna faza na życzenie (stack zakłada `auto-deploy-on-merge`, ale infra-research
-  formalnie nie obejmuje CI/CD).
-- [ ] **OpenRouter / generacja fiszek** — niezaimplementowane. Gdy ruszy: dodać
-  `OPENROUTER_API_KEY: envField.string({ context:"server", access:"secret" })` do schematu
-  `astro:env` w `astro.config.mjs`, `wrangler secret put OPENROUTER_API_KEY`, endpoint np.
-  `src/pages/api/cards/generate.ts`. **Wtedy** aktywują się ryzyka CPU 10ms / bundle 3MB z rejestru.
+### ◧ Faza 8 — Rozszerzenia — CZĘŚCIOWO
+- [x] **CI auto-deploy-on-merge — ZROBIONE.** `.github/workflows/ci.yml` ma job `deploy`
+  (`cloudflare/wrangler-action@v4`, `wranglerVersion: 4.90.0`) odpalany na push do `main`, `needs: ci`.
+  Sekrety GitHub: `CLOUDFLARE_API_TOKEN` (scoped „Edit Cloudflare Workers") + `CLOUDFLARE_ACCOUNT_ID`.
+  Repo publiczne: **https://github.com/lirdaw/10xcards**. Zweryfikowane: 2 czyste przebiegi push→deploy.
+  - **Zgrzyt (rozwiązany):** Cloudflare Workers Builds (natywny CI) był równolegle podpięty do repo i
+    failował („build token deleted or rolled"). Odłączony w dashboardzie — został **jeden** pipeline
+    (GitHub Actions). Wniosek: nie mieszać Workers Builds z GitHub Actions dla tego samego Workera.
+  - *(opcjonalnie na później)* `paths-ignore` dla zmian docs (teraz każdy push do `main`, także
+    dokumentacyjny, wyzwala pełny deploy); bump `actions/*` z Node 20 (nieblokujące ostrzeżenie).
+- [ ] **OpenRouter / generacja fiszek** — niezaimplementowane (bez zmian; osobny temat implementacji).
+  Gdy ruszy: `OPENROUTER_API_KEY` do schematu `astro:env`, `wrangler secret put`, endpoint generacji.
+  **Wtedy** aktywują się ryzyka CPU 10ms / bundle 3MB z rejestru.
 
 ---
 
