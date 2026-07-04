@@ -4,6 +4,9 @@
   "main": "@astrojs/cloudflare/entrypoints/server",
   "compatibility_date": "2026-05-08",
   "compatibility_flags": ["nodejs_compat"],
+  "kv_namespaces": [
+    { "binding": "SESSION", "id": "16e4d72e277c48b2a1cf20b8e1934c88", "preview_id": "16e4d72e277c48b2a1cf20b8e1934c88" },
+  ],
   "assets": {
     "binding": "ASSETS",
     "directory": "./dist",
