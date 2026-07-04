@@ -5,7 +5,7 @@ project_name: 10xcards
 hints:
   language_family: js
   team_size: solo
-  deployment_target: cloudflare-pages
+  deployment_target: cloudflare-workers
   ci_provider: github-actions
   ci_default_flow: auto-deploy-on-merge
   bootstrapper_confidence: first-class
@@ -30,7 +30,7 @@ PostgreSQL plus email/password auth with row-level security, which maps directly
 onto the PRD's hard per-account data-isolation and privacy guardrails. The LLM
 flashcard generation (has_ai) runs as an API call with visible progress to honor
 the ~200 ms / >2 s feedback guardrail; payments and realtime are out of scope per
-the PRD non-goals, so those flags stay false. Deployment lands on Cloudflare Pages
+the PRD non-goals, so those flags stay false. Deployment lands on Cloudflare Workers
 (the starter default) with GitHub Actions auto-deploy-on-merge — the shape the
 starter ships with. Bootstrapper confidence is first-class: expect mostly-smooth
 scaffolding with occasional manual steps.
