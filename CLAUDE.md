@@ -6,6 +6,11 @@ Po angielsku zostają wyłącznie: kod, nazwy identyfikatorów (zmienne, funkcje
 
 Always communicate with me in Polish. Keep only code, identifiers, skill-generated artifacts, and commands in English.
 
+## Agent onboarding
+
+This file guides AI agents working in this repo. Project conventions live in AGENTS.md:
+@AGENTS.md
+
 <!-- BEGIN @przeprogramowani/10x-cli -->
 
 ## 10xDevs AI Toolkit — Module 1, Lesson 4
