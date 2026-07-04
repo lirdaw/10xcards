@@ -95,14 +95,15 @@ wykluczają się — obecność `.dev.vars` cicho nadpisuje `.env`; reguła „e
 - [ ] Zanotuj wypisany URL `https://10xcards.<subdomena>.workers.dev`.
 - [ ] `npx wrangler deployments list` — potwierdza, że wersja jest aktywna.
 
-### ☐ Faza 6 — Weryfikacja po deployu (na żywym URL)
-- [ ] Strona główna odpowiada (200), UI po polsku renderuje się.
-- [ ] `/auth/signup` → rejestracja; zachowanie zależne od toggla e-mail (Faza 2).
-- [ ] `/auth/signin` → logowanie ustawia cookie sesji; `/dashboard` pokazuje e-mail zalogowanego.
-- [ ] `/dashboard` bez sesji → redirect na `/auth/signin` (guard z `src/middleware.ts` działa na edge).
-- [ ] `npx wrangler tail` podczas klikania — brak runtime errorów; potwierdza logi read-only dla agenta.
-- [ ] **Kontrola sekretów:** gdyby dashboard/logowanie „cicho" nie działało → prawdopodobnie brak
-  sekretu (`createClient`→`null`, auth wyłączone bez błędu). Sprawdź `wrangler secret list`.
+### ◧ Faza 6 — Weryfikacja po deployu (na żywym URL) — CZĘŚCIOWO
+Live URL: **https://10xcards.lirdaw.workers.dev** (Version `d53c71a2-b5c4-4bc3-a006-993a6e123b37`)
+- [x] Strona główna 200, UI renderuje się (SSR na workerd), ~283 ms.
+- [x] Brak banera „Supabase nie skonfigurowany" → sekrety załadowane na prod (`nodejs_compat`×Supabase OK).
+- [x] `/dashboard` bez sesji → 302 na `/auth/signin` (guard `src/middleware.ts` działa na edge).
+- [x] `/auth/signin` i `/auth/signup` → 200.
+- [ ] *(przeglądarka)* pełny round-trip: `/auth/signup` → konto testowe → `/auth/signin` →
+  `/dashboard` pokazuje e-mail. Zachowanie po signup zależne od toggla „Confirm email" (Faza 2).
+- [ ] *(opcjonalnie)* `npx wrangler tail` podczas klikania — podgląd logów runtime read-only.
 
 ### ☐ Faza 7 — Próba rollbacku (zanim będzie potrzebny)
 - [ ] `npx wrangler deployments list` → weź poprzednie `version-id`.
