@@ -432,13 +432,13 @@ izolacji został zapisany, zanim zamkniesz zmianę.
 
 #### Automated
 
-- [x] 3.1 `npm run db:types` generuje `src/db/database.types.ts` z 3 tabelami
-- [x] 3.2 Typy kompilują się: `npm run lint`
-- [x] 3.3 Build przechodzi: `npm run build`
-- [x] 3.4 `npx astro check` bez błędu (realny typecheck generyka `<Database>`)
+- [x] 3.1 `npm run db:types` generuje `src/db/database.types.ts` z 3 tabelami — c36b49c
+- [x] 3.2 Typy kompilują się: `npm run lint` — c36b49c
+- [x] 3.3 Build przechodzi: `npm run build` — c36b49c
+- [x] 3.4 `npx astro check` bez błędu (realny typecheck generyka `<Database>`) — c36b49c
 
 #### Manual
 
-- [ ] 3.5 Dowód izolacji zapisany w `rls-verification.md` (A nie widzi danych B)
-- [ ] 3.6 Odczyt zwraca `public_id`, nie bigint `id` (kontrakt „ukryte ID")
-- [ ] 3.7 `anon` nie widzi żadnych danych aplikacyjnych
+- [x] 3.5 Dowód izolacji zapisany w `rls-verification.md` (A nie widzi danych B) — c36b49c
+- [x] 3.6 Odczyt zwraca `public_id`, nie bigint `id` (kontrakt „ukryte ID") — c36b49c
+- [x] 3.7 `anon` nie widzi żadnych danych aplikacyjnych — c36b49c
