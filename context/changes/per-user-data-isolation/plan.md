@@ -402,16 +402,16 @@ izolacji został zapisany, zanim zamkniesz zmianę.
 
 #### Automated
 
-- [ ] 1.1 Migracja stosuje się czysto: `npx supabase db reset`
-- [ ] 1.2 Tabele istnieją, identity startuje od 100000
-- [ ] 1.3 Seed `flashcard_state` zwraca 1/2/3
-- [ ] 1.4 Lint/typy przechodzą: `npm run lint`
+- [x] 1.1 Migracja stosuje się czysto: `npx supabase db reset`
+- [x] 1.2 Tabele istnieją, identity startuje od 100000
+- [x] 1.3 Seed `flashcard_state` zwraca 1/2/3
+- [x] 1.4 Lint/typy przechodzą: `npm run lint`
 
 #### Manual
 
-- [ ] 1.5 Duplikat nazwy talii dla jednego usera odrzucony (unikalność)
-- [ ] 1.6 Pusty `front`/`back` odrzucony (CHECK)
-- [ ] 1.7 `UPDATE` talii podbija `updated_at` (trigger)
+- [x] 1.5 Duplikat nazwy talii dla jednego usera odrzucony (unikalność)
+- [x] 1.6 Pusty `front`/`back` odrzucony (CHECK)
+- [x] 1.7 `UPDATE` talii podbija `updated_at` (trigger)
 
 ### Phase 2: Polityki RLS + grants
 
