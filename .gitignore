@@ -116,3 +116,6 @@ supabase/.branches/
 
 # Bootstrapper scratch directory (re-created if bootstrap is re-run)
 .bootstrap-scaffold/
+
+supabase/snippets/
+supabase/.temp/
