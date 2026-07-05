@@ -402,31 +402,31 @@ izolacji został zapisany, zanim zamkniesz zmianę.
 
 #### Automated
 
-- [x] 1.1 Migracja stosuje się czysto: `npx supabase db reset`
-- [x] 1.2 Tabele istnieją, identity startuje od 100000
-- [x] 1.3 Seed `flashcard_state` zwraca 1/2/3
-- [x] 1.4 Lint/typy przechodzą: `npm run lint`
+- [x] 1.1 Migracja stosuje się czysto: `npx supabase db reset` — 134a4b8
+- [x] 1.2 Tabele istnieją, identity startuje od 100000 — 134a4b8
+- [x] 1.3 Seed `flashcard_state` zwraca 1/2/3 — 134a4b8
+- [x] 1.4 Lint/typy przechodzą: `npm run lint` — 134a4b8
 
 #### Manual
 
-- [x] 1.5 Duplikat nazwy talii dla jednego usera odrzucony (unikalność)
-- [x] 1.6 Pusty `front`/`back` odrzucony (CHECK)
-- [x] 1.7 `UPDATE` talii podbija `updated_at` (trigger)
+- [x] 1.5 Duplikat nazwy talii dla jednego usera odrzucony (unikalność) — 134a4b8
+- [x] 1.6 Pusty `front`/`back` odrzucony (CHECK) — 134a4b8
+- [x] 1.7 `UPDATE` talii podbija `updated_at` (trigger) — 134a4b8
 
 ### Phase 2: Polityki RLS + grants
 
 #### Automated
 
-- [ ] 2.1 Migracja z politykami stosuje się czysto: `npx supabase db reset`
-- [ ] 2.2 RLS włączony na 3 tabelach (`relrowsecurity = true`)
-- [ ] 2.3 `anon` bez dostępu do `deck`/`flashcard`
-- [ ] 2.4 Lint przechodzi: `npm run lint`
+- [x] 2.1 Migracja z politykami stosuje się czysto: `npx supabase db reset`
+- [x] 2.2 RLS włączony na 3 tabelach (`relrowsecurity = true`)
+- [x] 2.3 `anon` bez dostępu do `deck`/`flashcard`
+- [x] 2.4 Lint przechodzi: `npm run lint`
 
 #### Manual
 
-- [ ] 2.5 Użytkownik A widzi tylko talie A (SELECT)
-- [ ] 2.6 Wstawienie karty do cudzej talii odrzucone przez `WITH CHECK`
-- [ ] 2.7 `flashcard_state` czytelny, niezapisywalny
+- [x] 2.5 Użytkownik A widzi tylko talie A (SELECT)
+- [x] 2.6 Wstawienie karty do cudzej talii odrzucone przez `WITH CHECK`
+- [x] 2.7 `flashcard_state` czytelny, niezapisywalny
 
 ### Phase 3: Zastosowanie + typy + weryfikacja izolacji
 

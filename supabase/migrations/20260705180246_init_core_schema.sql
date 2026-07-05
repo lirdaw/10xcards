@@ -79,3 +79,71 @@ create trigger deck_set_updated_at
 create trigger flashcard_set_updated_at
   before update on flashcard
   for each row execute function extensions.moddatetime (updated_at);
+
+-- ============================================================================
+-- Row-Level Security (RLS) + grants  [Faza 2]
+-- ============================================================================
+-- Twarda izolacja per-konto na poziomie bazy, niezalezna od poprawnosci kodu
+-- aplikacji. Deny-by-default: wlaczony RLS bez pasujacej polityki = zero dostepu.
+-- RLS chroni tylko dopoki zapytania ida jako zalogowany uzytkownik (klucz anon,
+-- JWT usera). Nie wolno wprowadzac klienta service-role dla sciezek uzytkownika.
+
+alter table deck            enable row level security;
+alter table flashcard       enable row level security;
+alter table flashcard_state enable row level security;
+
+-- Granty: anon bez dostepu; authenticated pelny CRUD na deck/flashcard,
+-- tylko odczyt slownika stanow. Uzycie sekwencji identity nie wymaga grantu.
+revoke all on deck            from anon;
+revoke all on flashcard       from anon;
+revoke all on flashcard_state from anon;
+
+grant select, insert, update, delete on deck      to authenticated;
+grant select, insert, update, delete on flashcard to authenticated;
+grant select                          on flashcard_state to authenticated;
+
+-- ----------------------------------------------------------------------------
+-- deck: filtrowanie po wlascicielu. (select auth.uid()) liczone jako initPlan
+-- raz na zapytanie (zalecenie wydajnosciowe Supabase dot. RLS).
+-- ----------------------------------------------------------------------------
+create policy deck_select on deck for select to authenticated
+  using (user_id = (select auth.uid()));
+
+create policy deck_insert on deck for insert to authenticated
+  with check (user_id = (select auth.uid()));
+
+create policy deck_update on deck for update to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
+
+create policy deck_delete on deck for delete to authenticated
+  using (user_id = (select auth.uid()));
+
+-- ----------------------------------------------------------------------------
+-- flashcard: przynaleznosc przez wlasna talie (join). Predykat WITH CHECK na
+-- insert/update blokuje wstawienie/przeniesienie karty do cudzej talii.
+-- ----------------------------------------------------------------------------
+create policy flashcard_select on flashcard for select to authenticated
+  using (exists (select 1 from deck d
+                 where d.id = flashcard.deck_id and d.user_id = (select auth.uid())));
+
+create policy flashcard_insert on flashcard for insert to authenticated
+  with check (exists (select 1 from deck d
+                      where d.id = flashcard.deck_id and d.user_id = (select auth.uid())));
+
+create policy flashcard_update on flashcard for update to authenticated
+  using (exists (select 1 from deck d
+                 where d.id = flashcard.deck_id and d.user_id = (select auth.uid())))
+  with check (exists (select 1 from deck d
+                      where d.id = flashcard.deck_id and d.user_id = (select auth.uid())));
+
+create policy flashcard_delete on flashcard for delete to authenticated
+  using (exists (select 1 from deck d
+                 where d.id = flashcard.deck_id and d.user_id = (select auth.uid())));
+
+-- ----------------------------------------------------------------------------
+-- flashcard_state: dane referencyjne, czytelne dla zalogowanego. Brak polityk
+-- zapisu = brak zapisu (deny-by-default).
+-- ----------------------------------------------------------------------------
+create policy flashcard_state_select on flashcard_state for select to authenticated
+  using (true);
