@@ -36,3 +36,38 @@
 - **Problem**: `.env` and `.dev.vars` are mutually exclusive in Cloudflare's local tooling — if `.dev.vars` exists, `.env` is silently ignored. Keeping both (e.g. via the legacy `cp .env .dev.vars`) means edits to `.env` don't take effect; `astro dev` runs on real workerd and reads either, so the staleness is invisible until values drift.
 - **Rule**: Keep exactly one local secrets file. For this stack use `.env` as the single source; do not create `.dev.vars`. Production secrets go via `wrangler secret put`, independent of both.
 - **Applies to**: implement, impl-review
+
+## Cloud migration is a separate step from app deploy
+
+- **Context**: any change carrying a database migration / schema change targeting cloud Supabase; the deploy/ship phase.
+- **Problem**: Merge to main deploys the Worker but does NOT apply migrations to the cloud database — a "shipped" app then runs against an un-migrated schema.
+- **Rule**: Treat cloud migration as a step distinct from app deploy. "Shipped" = app deploy AND `db push`: `supabase login` (access-token, separate from the keys in `.env`) → `supabase link --project-ref <ref>` → `supabase db push`.
+- **Applies to**: implement, impl-review
+
+## Add RETURNING to RLS write-isolation tests in Supabase Studio
+
+- **Context**: testing RLS write isolation (DELETE/UPDATE) via the Supabase Studio SQL editor.
+- **Problem**: In Studio, DELETE/UPDATE without RETURNING always reports "No rows returned" — whether it touched 0 or 1 rows — so a policy failure reads as a PASS (false positive).
+- **Rule**: Add RETURNING to DELETE/UPDATE in RLS write-isolation tests so "no rows" truly means 0 rows affected. In psql this is explicit anyway (DELETE 0 vs DELETE 1); in Studio, RETURNING is what makes the distinction visible.
+- **Applies to**: implement, impl-review
+
+## RLS tests need role + JWT claims AND a positive control
+
+- **Context**: testing RLS policies for per-user data isolation.
+- **Problem**: `SET ROLE authenticated` alone leaves `auth.uid() = NULL`, so every policy denies everything — the user sees 0 others' rows AND 0 of their own. That looks like isolation but is actually a broken policy. Testing as `postgres` (superuser) bypasses RLS entirely.
+- **Rule**: An RLS test must set the role AND the JWT claims (`set local request.jwt.claims` with a `sub`), AND include a positive control: `count(*) > 0` for the user's own data. Never test RLS as `postgres`.
+- **Applies to**: implement, impl-review
+
+## Put commit conventions in AGENTS.md, not context memory
+
+- **Context**: git commit conventions in an agent-driven repo.
+- **Problem**: A freshly-cleared agent won't follow a convention that lives only in conversation/context memory — it will commit inconsistently.
+- **Rule**: Encode commit conventions (English + Jira-number scope, e.g. `feat(C10X-1): …`, one line, imperative) in AGENTS.md so a cleared agent commits correctly on its own. When a convention matters, write it into the rules file — don't rely on context memory.
+- **Applies to**: all
+
+## Keep main linear after a GitHub PR merge
+
+- **Context**: local `main` after merging a PR on GitHub, when local `main` still had un-pushed commits.
+- **Problem**: `git pull` wants to create an ugly merge-commit because local `main` diverged from `origin/main`.
+- **Rule**: To keep linear history: `git reset --hard origin/main` → `git cherry-pick <local-sha>` → `git push`.
+- **Applies to**: implement
