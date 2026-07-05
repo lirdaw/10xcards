@@ -1,10 +1,10 @@
 ---
 change_id: per-user-data-isolation
 title: Twarda izolacja danych per-konto (RLS) + rdzenne tabele
-status: impl_reviewed
+status: archived
 created: 2026-07-05
 updated: 2026-07-05
-archived_at: null
+archived_at: 2026-07-05T19:53:28Z
 ---
 
 ## Notes

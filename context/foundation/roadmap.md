@@ -3,7 +3,7 @@ project: 10xcards
 version: 1
 status: draft
 created: 2026-07-04
-updated: 2026-07-04
+updated: 2026-07-05
 prd_version: 1
 main_goal: quality
 top_blocker: capacity
@@ -43,7 +43,7 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 
 | ID    | Change ID                | Outcome (użytkownik może …)                                   | Prerequisites  | PRD refs                                   | Status   |
 | ----- | ------------------------ | ------------------------------------------------------------- | -------------- | ------------------------------------------ | -------- |
-| F-01  | per-user-data-isolation  | (foundation) twarda izolacja danych per-konto (RLS) + rdzenne tabele | —              | Access Control, Guardrails, NFR: prywatność | ready    |
+| F-01  | per-user-data-isolation  | (foundation) twarda izolacja danych per-konto (RLS) + rdzenne tabele | —              | Access Control, Guardrails, NFR: prywatność | done     |
 | F-02  | srs-library-choice       | (foundation) decyzja: gotowa biblioteka SRS + skala oceny przypomnienia | —              | Non-Goals (gotowy SRS), Open Questions #2  | ready    |
 | S-01  | deck-workspace           | tworzyć i nazywać własne talie (prywatna przestrzeń)          | F-01           | US-03, FR-017, FR-001, FR-002              | proposed |
 | F-03  | verification-harness     | (foundation) harness testowy + test-plan.md dla dwóch ryzyk   | S-01           | Guardrails, NFR: trwałość harmonogramu     | proposed |
@@ -91,7 +91,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Sekwencjonowana pierwsza, bo cel `quality` nie pozwala odłożyć izolacji za funkcje — błąd tu (wyciek cudzych kart) łamie twardy guardrail. Zakres minimalny: tylko wzorzec RLS + tabele Deck/Flashcard, których potrzebuje S-01/S-02; GenerationSession dochodzi w S-04, pola harmonogramu SRS w S-03 (progresywne odsłanianie). S-01 od razu integruje i ćwiczy tę warstwę realną funkcją.
-- **Status:** ready
+- **Status:** done
 
 ### F-02: Wybór gotowej biblioteki SRS (skala oceny)
 
@@ -231,3 +231,5 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 ## Done
 
 (Pusto przy pierwszej generacji. `/10x-archive` dopisuje tu wpis — i przełącza Status elementu na `done` — gdy zarchiwizowana zostanie zmiana, której `Change ID` pasuje do elementu. NIE wypełniać ręcznie.)
+
+- **F-01: (foundation) ustanowiona polityka izolacji per-user (Supabase RLS) wraz z minimalnymi rdzennymi tabelami Deck i Flashcard, tak że każdy slice poniżej dziedziczy twardą granicę "żaden użytkownik nie widzi cudzych danych".** — Archived 2026-07-05 → `context/archive/2026-07-05-per-user-data-isolation/`. Lesson: —.
