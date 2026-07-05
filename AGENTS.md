@@ -33,4 +33,4 @@
 
 ## Commits
 
-Conventional Commits (`chore:`, `feat:`, `fix:`) as seen in `git log`. No test suite is configured yet — add one before relying on `npm test`.
+Conventional Commits (`chore:`, `feat:`, `fix:`) as seen in `git log`. When a Jira ticket exists (it almost always does), put its key in the scope: `feat(C10X-1): <summary>`. One line, imperative mood, no multi-line body. **Commit messages MUST be in English — non-negotiable, no exceptions** (even though UI copy is Polish). Never bypass hooks with `--no-verify`. No test suite is configured yet — add one before relying on `npm test`.
