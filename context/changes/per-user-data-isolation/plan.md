@@ -417,25 +417,25 @@ izolacji został zapisany, zanim zamkniesz zmianę.
 
 #### Automated
 
-- [x] 2.1 Migracja z politykami stosuje się czysto: `npx supabase db reset`
-- [x] 2.2 RLS włączony na 3 tabelach (`relrowsecurity = true`)
-- [x] 2.3 `anon` bez dostępu do `deck`/`flashcard`
-- [x] 2.4 Lint przechodzi: `npm run lint`
+- [x] 2.1 Migracja z politykami stosuje się czysto: `npx supabase db reset` — 2b8abc7
+- [x] 2.2 RLS włączony na 3 tabelach (`relrowsecurity = true`) — 2b8abc7
+- [x] 2.3 `anon` bez dostępu do `deck`/`flashcard` — 2b8abc7
+- [x] 2.4 Lint przechodzi: `npm run lint` — 2b8abc7
 
 #### Manual
 
-- [x] 2.5 Użytkownik A widzi tylko talie A (SELECT)
-- [x] 2.6 Wstawienie karty do cudzej talii odrzucone przez `WITH CHECK`
-- [x] 2.7 `flashcard_state` czytelny, niezapisywalny
+- [x] 2.5 Użytkownik A widzi tylko talie A (SELECT) — 2b8abc7
+- [x] 2.6 Wstawienie karty do cudzej talii odrzucone przez `WITH CHECK` — 2b8abc7
+- [x] 2.7 `flashcard_state` czytelny, niezapisywalny — 2b8abc7
 
 ### Phase 3: Zastosowanie + typy + weryfikacja izolacji
 
 #### Automated
 
-- [ ] 3.1 `npm run db:types` generuje `src/db/database.types.ts` z 3 tabelami
-- [ ] 3.2 Typy kompilują się: `npm run lint`
-- [ ] 3.3 Build przechodzi: `npm run build`
-- [ ] 3.4 `npx astro check` bez błędu (realny typecheck generyka `<Database>`)
+- [x] 3.1 `npm run db:types` generuje `src/db/database.types.ts` z 3 tabelami
+- [x] 3.2 Typy kompilują się: `npm run lint`
+- [x] 3.3 Build przechodzi: `npm run build`
+- [x] 3.4 `npx astro check` bez błędu (realny typecheck generyka `<Database>`)
 
 #### Manual
 
