@@ -65,6 +65,8 @@ Desktop.ini
 .claude/
 CLAUDE.md.scaffold
 context/session_lessons*
+# Jira workflow map — lokalna podpowiedz dla skilli jira-*; regenerowalna, zywe API = zrodlo prawdy
+context/foundation/jira-workflow.md
 
 # =============================================================================
 # Edytor / tymczasowe
@@ -114,3 +116,6 @@ supabase/.branches/
 
 # Bootstrapper scratch directory (re-created if bootstrap is re-run)
 .bootstrap-scaffold/
+
+supabase/snippets/
+supabase/.temp/
