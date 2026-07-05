@@ -251,6 +251,24 @@ reach only sign-up / sign-in; all flashcard and study routes are gated.
   their owner; no sharing, publishing, or collaboration. Consistent with the per-account
   data-isolation guardrail.
 
+## Architektura informacji (nawigacja)
+
+Po zalogowaniu aplikacja ma stałą nawigację po lewej stronie. Pozycje menu
+odpowiadają głównym przepływom produktu:
+
+- **Talie** — lista własnych talii; wejście w talię pokazuje jej fiszki.
+  Widok startowy.
+- **Generuj fiszki** — wklejenie tekstu źródłowego, generacja kandydatów AI,
+  a następnie ich przegląd (akceptacja / edycja / odrzucenie) przed zapisem
+  do talii.
+- **Nauka** — wybór talii, po czym rusza sesja powtórek SRS: karty należne
+  dziś i ocena przypomnienia na każdej.
+
+Sama nawigacja i pierwszy widok („Talie") powstają z pierwszym slice'em
+produktowym; kolejne pozycje włączają się wraz z dostarczeniem
+odpowiadającego im przepływu. Szczegóły każdego ekranu (układ, komponenty)
+należą do planu danego slice'a, nie do PRD.
+
 ## Open Questions
 
 1. **Exact maximum source-text length** — a limit is decided (FR-003); the concrete value is tuned
