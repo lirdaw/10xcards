@@ -13,47 +13,47 @@ This file guides AI agents working in this repo. Project conventions live in AGE
 
 <!-- BEGIN @przeprogramowani/10x-cli -->
 
-## 10xDevs AI Toolkit - Module 2, Lesson 1
+## 10xDevs AI Toolkit - Module 2, Lesson 5
 
-Move from sprint-zero setup to project orchestration with the **roadmap chain**:
+Scale the single-change cycle into parallel work with **worktrees, goal-directed delegation, and multi-session orchestration**:
 
 ```
-(Module 1 foundation docs) -> /10x-roadmap -> backlog-ready roadmap items
+worktree per change -> /goal or claude -p -> PR -> review -> merge
 ```
 
-`/10x-roadmap` is the lesson focus. `/10x-new` is intentionally introduced in Module 2, Lesson 2, when a selected roadmap item becomes an implementation change folder.
+The lesson focus is safe throughput: isolated contexts, choosing the right execution mode, and capping parallelism at review capacity.
 
 ### Task Router - Where to start
 
 | Skill | Use it when |
 | --- | --- |
-| **Roadmap (lesson focus)** | |
-| `/10x-roadmap` | You have `context/foundation/prd.md` and a scaffolded project baseline, and you need a vertical-first MVP roadmap. The skill reads the PRD, inspects the code baseline, uses available foundation docs such as `tech-stack.md`, `infrastructure.md`, and `deploy-plan.md`, then writes `context/foundation/roadmap.md`. Use it BEFORE creating per-change folders or implementation plans. |
-| **Re-run upstream if needed** | |
-| `/10x-shape` / `/10x-prd` / `/10x-tech-stack-selector` / `/10x-bootstrapper` / `/10x-agents-md` / `/10x-infra-research` | Bundled from Module 1 so foundation contracts can be fixed before roadmap sequencing. If roadmap generation exposes a PRD gap, repair the PRD before pretending the backlog is ready. |
+| **Code isolation** | |
+| `git worktree add` | You need a separate working directory for a parallel change. One change per worktree, one fresh agent context per worktree. |
+| **Complex changes** | |
+| `/10x-implement <change-id> phase <n>` | The change has multiple phases, needs manual gates, or benefits from interactive decision-making during execution. |
+| **Simple changes** | |
+| `/goal` | You have a clear, bounded task and want goal-directed delegation. The agent works autonomously toward the stated goal with a stop condition. |
+| `claude -p` | You want headless execution for a well-defined task. The Ralph Wiggum loop (run, check, retry) is the universal autonomous pattern. |
+| **Multi-session orchestration** | |
+| Superset / Conductor / Antigravity / VS Code Agent View | You are running multiple agent sessions in parallel and need visibility, coordination, or session management across them. |
 
-### How the chain hands off
+### Parallel work rules
 
-- `/10x-roadmap` bridges product and implementation. It does not choose frameworks, design schemas, or write a per-change implementation plan.
-- The output is `context/foundation/roadmap.md`: ordered milestones, vertical slices, bounded foundations, dependencies, unknowns, risk, and backlog handoff fields.
-- Roadmap items should receive stable human-readable identifiers in backlog tools. The actual `context/changes/<change-id>/` folder is created in Lesson 2 with `/10x-new`.
+- One change per worktree or isolated workspace. One fresh agent context per change.
+- Choose interactive `/10x-implement` for complex changes, `/goal` or `claude -p` for simple ones.
+- Parallelism is capped by review capacity. More agents without review means more unreviewed code, not higher throughput.
+- The quality pain from faster shipping is intentional — it bridges into Module 3 testing gates.
 
-### Roadmap boundaries
+### Lesson boundaries
 
-- Default to vertical slices: user-visible outcomes that cross UI, data, business logic, and integrations.
-- Horizontal work is allowed only as a bounded enabler that names the downstream vertical milestone it unlocks.
-- Avoid orphan horizontal work such as "build the whole database", "build all API endpoints", or "design the whole UI" before the first user-visible flow.
-- Roadmap is not a calendar estimate. Do not invent dates, story points, or sprint velocity unless the user explicitly asks for a separate planning artifact.
+- Do not reteach interactive `/10x-implement` or `/10x-impl-review`; those are Lessons 2 and 3.
+- Do not introduce testing strategy here. The quality pain is the motivation for Module 3.
+- Worktrees are a mechanism for isolation, not the topic of a full git tutorial.
 
-### Foundation paths used by this lesson
+### Paths used by this lesson
 
-- `context/foundation/prd.md` - input
-- `context/foundation/tech-stack.md` - optional input
-- `context/foundation/infrastructure.md` - optional input
-- `context/deployment/deploy-plan.md` - optional input
-- `context/foundation/roadmap.md` - output
-- `context/foundation/lessons.md` - recurring rules and pitfalls
-- `docs/reference/contract-surfaces.md` - load-bearing names registry
+- `context/changes/<change-id>/` - active change folder
+- `context/changes/<change-id>/plan.md` - implementation input for any execution mode
 
 Skills must not write to `context/archive/`. Archived changes are immutable; if a resolved target path starts with `context/archive/`, abort with: "This change is archived. Open a new change with `/10x-new` instead."
 
