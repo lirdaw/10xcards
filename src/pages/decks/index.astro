@@ -1,20 +1,46 @@
 ---
 import AuthenticatedLayout from "@/layouts/AuthenticatedLayout.astro";
-import ModalDemo from "@/components/decks/ModalDemo";
+import CreateDeckModal from "@/components/decks/CreateDeckModal";
+import { createClient } from "@/lib/supabase";
+import { listDecks } from "@/lib/decks";
+
+const supabase = createClient(Astro.request.headers, Astro.cookies);
+const { data: decks } = supabase ? await listDecks(supabase) : { data: [] };
+
+const error = Astro.url.searchParams.get("error");
+const openCreate = Astro.url.searchParams.get("open") === "create";
 ---
 
 <AuthenticatedLayout title="Talie" activeItem="decks">
   <div class="mx-auto max-w-4xl">
-    <h1
-      class="mb-6 bg-gradient-to-r from-blue-200 to-purple-200 bg-clip-text text-2xl font-bold tracking-tight text-transparent"
-    >
-      Talie
-    </h1>
-    <div class="rounded-2xl border border-white/10 bg-white/10 p-8 text-white backdrop-blur-xl">
-      <p class="text-blue-100/70">Lista talii pojawi się w kolejnej fazie.</p>
-      <div class="mt-6">
-        <ModalDemo client:load />
-      </div>
+    <div class="mb-6 flex items-center justify-between">
+      <h1
+        class="bg-gradient-to-r from-blue-200 to-purple-200 bg-clip-text text-2xl font-bold tracking-tight text-transparent"
+      >
+        Talie
+      </h1>
+      <CreateDeckModal defaultOpen={openCreate} serverError={error} client:load />
     </div>
+
+    {
+      decks && decks.length > 0 ? (
+        <ul class="grid gap-3 sm:grid-cols-2">
+          {decks.map((deck) => (
+            <li>
+              <a
+                href={`/decks/${deck.public_id}`}
+                class="flex min-h-28 min-w-0 items-center overflow-hidden rounded-2xl border border-white/10 bg-white/10 p-5 text-white backdrop-blur-xl transition-colors hover:border-white/20 hover:bg-white/15"
+              >
+                <span class="line-clamp-3 block font-medium break-words">{deck.name}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div class="rounded-2xl border border-white/10 bg-white/10 p-8 text-center text-white backdrop-blur-xl">
+          <p class="text-blue-100/70">Nie masz jeszcze talii — utwórz pierwszą.</p>
+        </div>
+      )
+    }
   </div>
 </AuthenticatedLayout>

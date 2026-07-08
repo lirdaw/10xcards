@@ -16,7 +16,7 @@ const { user } = Astro.locals;
     <Sidebar activeItem={activeItem} />
     <div class="flex min-w-0 flex-1 flex-col">
       <header
-        class="mt-4 mr-4 flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm"
+        class="mt-4 mr-4 flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-base"
       >
         <span class="text-blue-100/70">{user?.email}</span>
         <form method="POST" action="/api/auth/signout">
@@ -25,7 +25,7 @@ const { user } = Astro.locals;
           </button>
         </form>
       </header>
-      <main class="flex-1 px-8 py-8">
+      <main class="flex-1 overflow-x-hidden px-8 py-8">
         <slot />
       </main>
     </div>

@@ -422,34 +422,34 @@ Brak zmian schematu — warstwa danych z F-01 wystarcza. Nie dotykamy `supabase/
 
 #### Automated
 
-- [x] 1.1 Typy tras zsynchronizowane: `npx astro sync`
-- [x] 1.2 Linting przechodzi: `npm run lint`
-- [x] 1.3 Build przechodzi: `npm run build`
+- [x] 1.1 Typy tras zsynchronizowane: `npx astro sync` — 2fea28e
+- [x] 1.2 Linting przechodzi: `npm run lint` — 2fea28e
+- [x] 1.3 Build przechodzi: `npm run build` — 2fea28e
 
 #### Manual
 
-- [x] 1.4 Niezalogowany na `/decks` → redirect `/auth/signin`
-- [x] 1.5 Po zalogowaniu ląduje na `/decks` z lewym sidebarem
-- [x] 1.6 `/` dla zalogowanego → `/decks`; gość → landing
-- [x] 1.7 „Generuj"/„Nauka" wyłączone i nieklikalne; „Talie" aktywne
-- [x] 1.8 Modal otwiera/zamyka się `Esc` i kliknięciem w tło; fokus wraca
+- [x] 1.4 Niezalogowany na `/decks` → redirect `/auth/signin` — 2fea28e
+- [x] 1.5 Po zalogowaniu ląduje na `/decks` z lewym sidebarem — 2fea28e
+- [x] 1.6 `/` dla zalogowanego → `/decks`; gość → landing — 2fea28e
+- [x] 1.7 „Generuj"/„Nauka" wyłączone i nieklikalne; „Talie" aktywne — 2fea28e
+- [x] 1.8 Modal otwiera/zamyka się `Esc` i kliknięciem w tło; fokus wraca — 2fea28e
 
 ### Phase 2: Lista + tworzenie + strona talii
 
 #### Automated
 
-- [ ] 2.1 Typy tras zsynchronizowane: `npx astro sync`
-- [ ] 2.2 Linting przechodzi: `npm run lint`
-- [ ] 2.3 Build przechodzi: `npm run build`
+- [x] 2.1 Typy tras zsynchronizowane: `npx astro sync`
+- [x] 2.2 Linting przechodzi: `npm run lint`
+- [x] 2.3 Build przechodzi: `npm run build`
 
 #### Manual
 
-- [ ] 2.4 Nowy użytkownik widzi stan pusty z działającym CTA
-- [ ] 2.5 Utworzenie talii przez modal dodaje ją do listy
-- [ ] 2.6 Pusta nazwa / >100 znaków odrzucone z komunikatem PL; modal wraca otwarty
-- [ ] 2.7 Duplikat nazwy → „Talia o tej nazwie już istnieje"
-- [ ] 2.8 Klik talii → `/decks/[publicId]` stan pusty; obcy/nieistniejący `public_id` → 404
-- [ ] 2.9 Stan pending widoczny podczas zapisu
+- [x] 2.4 Nowy użytkownik widzi stan pusty z działającym CTA
+- [x] 2.5 Utworzenie talii przez modal dodaje ją do listy
+- [x] 2.6 Pusta nazwa / >100 znaków odrzucone z komunikatem PL; modal wraca otwarty
+- [x] 2.7 Duplikat nazwy → „Talia o tej nazwie już istnieje"
+- [x] 2.8 Klik talii → `/decks/[publicId]` stan pusty; obcy/nieistniejący `public_id` → 404
+- [x] 2.9 Stan pending widoczny podczas zapisu
 
 ### Phase 3: Zmiana nazwy + usuwanie + weryfikacja
 
