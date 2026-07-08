@@ -78,3 +78,17 @@
 - **Problem**: `git pull` wants to create an ugly merge-commit because local `main` diverged from `origin/main`.
 - **Rule**: To keep linear history: `git reset --hard origin/main` → `git cherry-pick <local-sha>` → `git push`.
 - **Applies to**: implement
+
+## Nie rób top-level `return` we frontmatterze .astro
+
+- **Context**: Strony/endpointy Astro SSR robiące przekierowanie lub odpowiedź statusową we frontmatterze `.astro` (redirect gościa/zalogowanego, 404 na brak zasobu).
+- **Problem**: Top-level `return Astro.redirect(...)` albo `return new Response(null, {status})` we frontmatterze wykłada regułę `@typescript-eslint/no-misused-promises` — implicit async wrapper frontmattera ma null parent, więc reguła rzuca wyjątek w trakcie trawersacji i kładzie CAŁY lint; `eslint-disable-next-line` nie pomaga (crash jest przed filtrowaniem raportu). Ugryzło dwa razy: redirect „/"→"/decks" oraz 404 na obcy public_id.
+- **Rule**: Nie rób top-level `return` we frontmatterze `.astro`. Przekierowania przenoś do `src/middleware.ts` (`context.redirect(...)`); dla statusu ustaw `Astro.response.status = ...` + render warunkowy, zamiast zwracać `Response` z frontmattera.
+- **Applies to**: implement, impl-review
+
+## Błąd formularza POST wraca do modala, nie w tle
+
+- **Context**: Formularze natywny POST → redirect (tworzenie/zmiana nazwy talii; przyszłe formularze fiszek), gdzie błąd walidacji/serwera ma wrócić do modala.
+- **Problem**: Natywny POST przeładowuje stronę, więc błąd serwera (np. duplikat nazwy) łatwo ląduje jako baner W TLE, a re-otwarty modal jest pusty; do tego parametry `?error=` zostają w URL i F5 odtwarza modal ze starym błędem oraz wpisaną nazwą.
+- **Rule**: Round-trip błędu przez `?error=<msg>&open=<modal>`; strona przekazuje `serverError` do wyspy React, która pokazuje go WEWNĄTRZ modala (nie baner w tle) i seeduje nim stan błędu. Na mount wyczyść `open`/`error` z URL (`history.replaceState`), przy zamknięciu wyzeruj pole+błąd, `autoComplete="off"` na polu nazwy.
+- **Applies to**: plan, implement, impl-review
