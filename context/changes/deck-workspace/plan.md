@@ -455,13 +455,13 @@ Brak zmian schematu — warstwa danych z F-01 wystarcza. Nie dotykamy `supabase/
 
 #### Automated
 
-- [x] 3.1 Typy tras zsynchronizowane: `npx astro sync`
-- [x] 3.2 Linting przechodzi: `npm run lint`
-- [x] 3.3 Build przechodzi: `npm run build`
+- [x] 3.1 Typy tras zsynchronizowane: `npx astro sync` — 2174440
+- [x] 3.2 Linting przechodzi: `npm run lint` — 2174440
+- [x] 3.3 Build przechodzi: `npm run build` — 2174440
 
 #### Manual
 
-- [x] 3.4 Rename działa i widać na liście; kolizja nazwy → komunikat o duplikacie
-- [x] 3.5 Delete po potwierdzeniu znika z listy; anulowanie nic nie zmienia
-- [x] 3.6 Nawigacja i modale obsługiwalne klawiaturą; czytnik ogłasza etykiety
-- [x] 3.7 Udokumentowany dowód izolacji A/B (lista + URL) + pozytywna kontrola własnych
+- [x] 3.4 Rename działa i widać na liście; kolizja nazwy → komunikat o duplikacie — 2174440
+- [x] 3.5 Delete po potwierdzeniu znika z listy; anulowanie nic nie zmienia — 2174440
+- [x] 3.6 Nawigacja i modale obsługiwalne klawiaturą; czytnik ogłasza etykiety — 2174440
+- [x] 3.7 Udokumentowany dowód izolacji A/B (lista + URL) + pozytywna kontrola własnych — 2174440
