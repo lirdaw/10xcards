@@ -1,0 +1,20 @@
+---
+import AuthenticatedLayout from "@/layouts/AuthenticatedLayout.astro";
+import ModalDemo from "@/components/decks/ModalDemo";
+---
+
+<AuthenticatedLayout title="Talie" activeItem="decks">
+  <div class="mx-auto max-w-4xl">
+    <h1
+      class="mb-6 bg-gradient-to-r from-blue-200 to-purple-200 bg-clip-text text-2xl font-bold tracking-tight text-transparent"
+    >
+      Talie
+    </h1>
+    <div class="rounded-2xl border border-white/10 bg-white/10 p-8 text-white backdrop-blur-xl">
+      <p class="text-blue-100/70">Lista talii pojawi się w kolejnej fazie.</p>
+      <div class="mt-6">
+        <ModalDemo client:load />
+      </div>
+    </div>
+  </div>
+</AuthenticatedLayout>

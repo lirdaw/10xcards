@@ -422,17 +422,17 @@ Brak zmian schematu — warstwa danych z F-01 wystarcza. Nie dotykamy `supabase/
 
 #### Automated
 
-- [ ] 1.1 Typy tras zsynchronizowane: `npx astro sync`
-- [ ] 1.2 Linting przechodzi: `npm run lint`
-- [ ] 1.3 Build przechodzi: `npm run build`
+- [x] 1.1 Typy tras zsynchronizowane: `npx astro sync`
+- [x] 1.2 Linting przechodzi: `npm run lint`
+- [x] 1.3 Build przechodzi: `npm run build`
 
 #### Manual
 
-- [ ] 1.4 Niezalogowany na `/decks` → redirect `/auth/signin`
-- [ ] 1.5 Po zalogowaniu ląduje na `/decks` z lewym sidebarem
-- [ ] 1.6 `/` dla zalogowanego → `/decks`; gość → landing
-- [ ] 1.7 „Generuj"/„Nauka" wyłączone i nieklikalne; „Talie" aktywne
-- [ ] 1.8 Modal otwiera/zamyka się `Esc` i kliknięciem w tło; fokus wraca
+- [x] 1.4 Niezalogowany na `/decks` → redirect `/auth/signin`
+- [x] 1.5 Po zalogowaniu ląduje na `/decks` z lewym sidebarem
+- [x] 1.6 `/` dla zalogowanego → `/decks`; gość → landing
+- [x] 1.7 „Generuj"/„Nauka" wyłączone i nieklikalne; „Talie" aktywne
+- [x] 1.8 Modal otwiera/zamyka się `Esc` i kliknięciem w tło; fokus wraca
 
 ### Phase 2: Lista + tworzenie + strona talii
 

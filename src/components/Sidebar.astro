@@ -1,0 +1,54 @@
+---
+interface Props {
+  activeItem?: "decks" | "generate" | "study";
+}
+
+const { activeItem = "decks" } = Astro.props;
+
+const items = [
+  { key: "decks", label: "Talie", href: "/decks", enabled: true },
+  { key: "generate", label: "Generuj fiszki", href: null, enabled: false },
+  { key: "study", label: "Nauka", href: null, enabled: false },
+] as const;
+---
+
+<aside
+  class="m-4 flex w-[22.5rem] shrink-0 flex-col rounded-2xl border border-white/10 bg-white/5 text-white backdrop-blur-xl"
+>
+  <div class="px-6 py-5">
+    <a
+      href="/decks"
+      class="bg-gradient-to-r from-blue-200 to-purple-200 bg-clip-text text-lg font-bold tracking-tight text-transparent"
+      >10xCards</a
+    >
+  </div>
+  <nav aria-label="Główna nawigacja" class="flex flex-col gap-1 px-3">
+    {
+      items.map((item) =>
+        item.enabled ? (
+          <a
+            href={item.href}
+            aria-current={activeItem === item.key ? "page" : undefined}
+            class:list={[
+              "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              activeItem === item.key
+                ? "bg-white/15 text-white"
+                : "text-blue-100/70 hover:bg-white/10 hover:text-white",
+            ]}
+          >
+            {item.label}
+          </a>
+        ) : (
+          <span
+            aria-disabled="true"
+            tabindex="-1"
+            title="Dostępne wkrótce"
+            class="cursor-not-allowed rounded-lg px-3 py-2 text-sm font-medium text-blue-100/40 select-none"
+          >
+            {item.label}
+          </span>
+        ),
+      )
+    }
+  </nav>
+</aside>
