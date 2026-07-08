@@ -4,13 +4,17 @@ import { deckNameExists, renameDeck } from "@/lib/decks";
 
 const NAME_TAKEN = "Talia o tej nazwie już istnieje";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // Rename the signed-in user's deck. Same validation and duplicate handling as
 // create (`api/decks/index.ts`). On error we round-trip back to the deck page
 // with `?error=<msg>&open=rename` so it re-opens its own rename modal with the
 // typed name prefilled — the context is already scoped to one deck.
 export const POST: APIRoute = async (context) => {
   const { publicId } = context.params;
-  if (!publicId) {
+  // Validate the route param as a UUID before it ever lands in a redirect
+  // `Location` header. A malformed id can't match any deck anyway → 404.
+  if (!publicId || !UUID_RE.test(publicId)) {
     return new Response(null, { status: 404 });
   }
   const errorUrl = (msg: string) => `/decks/${publicId}?error=${encodeURIComponent(msg)}&open=rename`;

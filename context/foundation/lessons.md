@@ -65,6 +65,13 @@
 - **Rule**: Encode commit conventions (English + Jira-number scope, e.g. `feat(C10X-1): …`, one line, imperative) in AGENTS.md so a cleared agent commits correctly on its own. When a convention matters, write it into the rules file — don't rely on context memory.
 - **Applies to**: all
 
+## Loadery SSR rozróżniają błąd zapytania od braku danych
+
+- **Context**: Astro SSR page-loadery odczytujące dane z Supabase w `.astro` frontmatter (np. `decks/index.astro`, `decks/[publicId]/index.astro`) — faza implement/impl-review.
+- **Problem**: Loadery czytały tylko `{ data }` z zapytania i pomijały `{ error }`. Przejściowy błąd Supabase/DB renderował się wtedy jako stan pusty („Nie masz jeszcze talii") albo 404 — awaria bazy podszywała się pod brak danych / nieistnienie, myląc diagnostykę.
+- **Rule**: W loaderach SSR zawsze rozgałęziaj na `error` z zapytania i renderuj odrębny stan błędu („coś poszło nie tak"), zamiast utożsamiać błąd z pustym wynikiem lub 404.
+- **Applies to**: implement, impl-review
+
 ## Keep main linear after a GitHub PR merge
 
 - **Context**: local `main` after merging a PR on GitHub, when local `main` still had un-pushed commits.

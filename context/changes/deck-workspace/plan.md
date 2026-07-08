@@ -414,6 +414,21 @@ Brak zmian schematu — warstwa danych z F-01 wystarcza. Nie dotykamy `supabase/
 - Ochrona tras + locals: `src/middleware.ts`, `src/env.d.ts`
 - Lekcje: `context/foundation/lessons.md` (RLS role+JWT, cloud migration, branch = main)
 
+## As-built addendum
+
+Świadome odstępstwa od tekstu planu, wychwycone w impl-review (2026-07-08). Wszystkie
+funkcjonalnie równe-lub-lepsze; izolacja i konwencje zachowane.
+
+- **Redirect „/" → `/decks`** żyje w `src/middleware.ts` (przekierowanie przed renderem), a
+  nie w `src/pages/index.astro` (Faza 1 §4) — `index.astro` pozostaje nietknięty.
+- **404 dla obcej/nieistniejącej talii** (`src/pages/decks/[publicId]/index.astro`) ustawia
+  `Astro.response.status = 404` i renderuje wystylizowaną polską stronę 404, zamiast
+  `return new Response(null, { status: 404 })` — top-level `return` we frontmatter narusza
+  `typescript-eslint no-misused-promises`; efekt jest bogatszy niż planowany bare-404. Nadal
+  404 (nie 403) — istota izolacji zachowana.
+- **Błąd walidacji create** jest pokazywany wewnątrz `CreateDeckModal` (`serverError`), a nie
+  jako baner na stronie `/decks` (Faza 2 §3) — błędy tworzenia należą do modala tworzenia.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.

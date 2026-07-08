@@ -35,10 +35,10 @@ Cel: potwierdzić twardą izolację per-konto na realnej funkcji (RLS + 404 na o
 
 ### Wynik
 
-- [ ] Data testu: __________  (tester: __________)
-- [ ] A nie widzi talii B na `/decks`
-- [ ] `/decks/<public_id_B>` jako A → 404
-- [ ] Kontrola pozytywna: A widzi własną talię na `/decks/<public_id_A>`
+- [x] Data testu: 2026-07-08  (tester: Dawid)
+- [x] Konto B nie widzi talii A na `/decks`
+- [x] `/decks/<public_id_A>` jako B → 404
+- [x] Kontrola pozytywna: B widzi własne talie na `/decks`
 
 > Uwaga: automatyczny test izolacji to F-03 (harness). Tu izolację weryfikujemy ręcznie zgodnie
 > z zakresem S-01 (patrz `plan.md` → What We're NOT Doing).
