@@ -1,0 +1,84 @@
+---
+import AuthenticatedLayout from "@/layouts/AuthenticatedLayout.astro";
+import DeckActions from "@/components/decks/DeckActions";
+import { createClient } from "@/lib/supabase";
+import { getDeckByPublicId } from "@/lib/decks";
+
+const { publicId } = Astro.params;
+const supabase = createClient(Astro.request.headers, Astro.cookies);
+
+// `null` means the deck does not exist OR RLS hid someone else's — either way a
+// hard 404, never 403, so we don't reveal that another user's deck exists. The
+// bare, unstyled 404 is an accepted MVP tradeoff (no src/pages/404.astro yet);
+// a Polish-copy 404 page is deferred UX polish. We set the status rather than
+// returning a Response because a top-level `return` in Astro frontmatter crashes
+// the typescript-eslint no-misused-promises rule.
+const { data: deck } = supabase && publicId ? await getDeckByPublicId(supabase, publicId) : { data: null };
+if (!deck) {
+  Astro.response.status = 404;
+}
+
+// Mutation round-trip (rename/delete). Rename errors carry `open=rename` and are
+// shown inside the re-opened modal by DeckActions; other errors (e.g. delete)
+// surface as a page-level banner.
+const error = Astro.url.searchParams.get("error");
+const openRename = Astro.url.searchParams.get("open") === "rename";
+const bannerError = error && !openRename ? error : null;
+---
+
+{
+  deck ? (
+    <AuthenticatedLayout title={deck.name} activeItem="decks">
+      <div class="mx-auto max-w-4xl">
+        <div class="mb-6 flex items-center gap-3">
+          <a href="/decks" aria-label="Wróć do talii" class="text-purple-300 transition-colors hover:text-purple-100">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m12 19-7-7 7-7" />
+              <path d="M19 12H5" />
+            </svg>
+          </a>
+          <h1 class="min-w-0 flex-1 bg-gradient-to-r from-blue-200 to-purple-200 bg-clip-text text-2xl font-bold tracking-tight break-words text-transparent">
+            {deck.name}
+          </h1>
+          <DeckActions
+            publicId={deck.public_id}
+            name={deck.name}
+            defaultOpenRename={openRename}
+            serverError={openRename ? error : null}
+            client:load
+          />
+        </div>
+        {bannerError && (
+          <p class="mb-4 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-900/30 px-3 py-2 text-sm text-red-300">
+            {bannerError}
+          </p>
+        )}
+        <div class="rounded-2xl border border-white/10 bg-white/10 p-8 text-center text-white backdrop-blur-xl">
+          <p class="text-blue-100/70">Brak fiszek w tej talii.</p>
+        </div>
+      </div>
+    </AuthenticatedLayout>
+  ) : (
+    <AuthenticatedLayout title="Nie znaleziono" activeItem="decks">
+      <div class="mx-auto max-w-4xl">
+        <div class="rounded-2xl border border-white/10 bg-white/10 p-8 text-center text-white backdrop-blur-xl">
+          <p class="text-blue-100/70">Nie znaleziono talii.</p>
+          <a href="/decks" class="mt-4 inline-block text-purple-300 transition-colors hover:text-purple-100">
+            Wróć do talii
+          </a>
+        </div>
+      </div>
+    </AuthenticatedLayout>
+  )
+}
