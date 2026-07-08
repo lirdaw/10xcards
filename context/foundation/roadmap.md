@@ -3,7 +3,7 @@ project: 10xcards
 version: 1
 status: draft
 created: 2026-07-04
-updated: 2026-07-05
+updated: 2026-07-08
 prd_version: 1
 main_goal: quality
 top_blocker: capacity
@@ -45,7 +45,7 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 | ----- | ------------------------ | ------------------------------------------------------------- | -------------- | ------------------------------------------ | -------- |
 | F-01  | per-user-data-isolation  | (foundation) twarda izolacja danych per-konto (RLS) + rdzenne tabele | —              | Access Control, Guardrails, NFR: prywatność | done     |
 | F-02  | srs-library-choice       | (foundation) decyzja: gotowa biblioteka SRS + skala oceny przypomnienia | —              | Non-Goals (gotowy SRS), Open Questions #2  | ready    |
-| S-01  | deck-workspace           | tworzyć i nazywać własne talie (prywatna przestrzeń)          | F-01           | US-03, FR-017, FR-001, FR-002              | proposed |
+| S-01  | deck-workspace           | tworzyć i nazywać własne talie (prywatna przestrzeń)          | F-01           | US-03, FR-017, FR-001, FR-002              | done     |
 | F-03  | verification-harness     | (foundation) harness testowy + test-plan.md dla dwóch ryzyk   | S-01           | Guardrails, NFR: trwałość harmonogramu     | proposed |
 | S-02  | manual-card-crud         | ręcznie tworzyć, przeglądać, edytować i usuwać fiszki w talii | S-01           | US-03, FR-007, FR-008, FR-009, FR-010      | proposed |
 | S-03  | srs-study-session        | uczyć się talii w sesji SRS z oceną przypomnienia (gwiazda)   | F-01, F-02, S-02 | US-02, FR-011, FR-012                     | proposed |
@@ -131,7 +131,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Pierwszy pionowy slice, który stawia bramkowane auth (present) w realnym użyciu produktowym i ćwiczy izolację z F-01; mały zakres ogranicza ryzyko. Zła granica per-user tutaj ujawni się natychmiast — i jest łapana testem z F-03, który powstaje zaraz po tym slice.
-- **Status:** proposed
+- **Status:** done
 
 ### S-02: Ręczne CRUD fiszek w talii
 
@@ -233,3 +233,4 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 (Pusto przy pierwszej generacji. `/10x-archive` dopisuje tu wpis — i przełącza Status elementu na `done` — gdy zarchiwizowana zostanie zmiana, której `Change ID` pasuje do elementu. NIE wypełniać ręcznie.)
 
 - **F-01: (foundation) ustanowiona polityka izolacji per-user (Supabase RLS) wraz z minimalnymi rdzennymi tabelami Deck i Flashcard, tak że każdy slice poniżej dziedziczy twardą granicę "żaden użytkownik nie widzi cudzych danych".** — Archived 2026-07-05 → `context/archive/2026-07-05-per-user-data-isolation/`. Lesson: —.
+- **S-01: użytkownik po zalogowaniu tworzy i nazywa własne talie i widzi je jako prywatną przestrzeń.** — Archived 2026-07-08 → `context/archive/2026-07-07-deck-workspace/`. Lesson: —.

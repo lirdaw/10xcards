@@ -1,10 +1,10 @@
 ---
 change_id: deck-workspace
 title: Tworzenie i nazywanie własnych talii (prywatna przestrzeń)
-status: impl_reviewed
+status: archived
 created: 2026-07-07
 updated: 2026-07-08
-archived_at: null
+archived_at: 2026-07-08T22:26:41Z
 ---
 
 ## Notes
