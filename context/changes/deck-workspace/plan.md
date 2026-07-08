@@ -438,30 +438,30 @@ Brak zmian schematu — warstwa danych z F-01 wystarcza. Nie dotykamy `supabase/
 
 #### Automated
 
-- [x] 2.1 Typy tras zsynchronizowane: `npx astro sync`
-- [x] 2.2 Linting przechodzi: `npm run lint`
-- [x] 2.3 Build przechodzi: `npm run build`
+- [x] 2.1 Typy tras zsynchronizowane: `npx astro sync` — 34551a6
+- [x] 2.2 Linting przechodzi: `npm run lint` — 34551a6
+- [x] 2.3 Build przechodzi: `npm run build` — 34551a6
 
 #### Manual
 
-- [x] 2.4 Nowy użytkownik widzi stan pusty z działającym CTA
-- [x] 2.5 Utworzenie talii przez modal dodaje ją do listy
-- [x] 2.6 Pusta nazwa / >100 znaków odrzucone z komunikatem PL; modal wraca otwarty
-- [x] 2.7 Duplikat nazwy → „Talia o tej nazwie już istnieje"
-- [x] 2.8 Klik talii → `/decks/[publicId]` stan pusty; obcy/nieistniejący `public_id` → 404
-- [x] 2.9 Stan pending widoczny podczas zapisu
+- [x] 2.4 Nowy użytkownik widzi stan pusty z działającym CTA — 34551a6
+- [x] 2.5 Utworzenie talii przez modal dodaje ją do listy — 34551a6
+- [x] 2.6 Pusta nazwa / >100 znaków odrzucone z komunikatem PL; modal wraca otwarty — 34551a6
+- [x] 2.7 Duplikat nazwy → „Talia o tej nazwie już istnieje" — 34551a6
+- [x] 2.8 Klik talii → `/decks/[publicId]` stan pusty; obcy/nieistniejący `public_id` → 404 — 34551a6
+- [x] 2.9 Stan pending widoczny podczas zapisu — 34551a6
 
 ### Phase 3: Zmiana nazwy + usuwanie + weryfikacja
 
 #### Automated
 
-- [ ] 3.1 Typy tras zsynchronizowane: `npx astro sync`
-- [ ] 3.2 Linting przechodzi: `npm run lint`
-- [ ] 3.3 Build przechodzi: `npm run build`
+- [x] 3.1 Typy tras zsynchronizowane: `npx astro sync`
+- [x] 3.2 Linting przechodzi: `npm run lint`
+- [x] 3.3 Build przechodzi: `npm run build`
 
 #### Manual
 
-- [ ] 3.4 Rename działa i widać na liście; kolizja nazwy → komunikat o duplikacie
-- [ ] 3.5 Delete po potwierdzeniu znika z listy; anulowanie nic nie zmienia
-- [ ] 3.6 Nawigacja i modale obsługiwalne klawiaturą; czytnik ogłasza etykiety
-- [ ] 3.7 Udokumentowany dowód izolacji A/B (lista + URL) + pozytywna kontrola własnych
+- [x] 3.4 Rename działa i widać na liście; kolizja nazwy → komunikat o duplikacie
+- [x] 3.5 Delete po potwierdzeniu znika z listy; anulowanie nic nie zmienia
+- [x] 3.6 Nawigacja i modale obsługiwalne klawiaturą; czytnik ogłasza etykiety
+- [x] 3.7 Udokumentowany dowód izolacji A/B (lista + URL) + pozytywna kontrola własnych
