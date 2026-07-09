@@ -1,10 +1,10 @@
 ---
 change_id: srs-library-choice
 title: Wybór gotowej biblioteki SRS i skali oceny przypomnienia
-status: preparing
+status: archived
 created: 2026-07-09
 updated: 2026-07-09
-archived_at: null
+archived_at: 2026-07-09T19:51:22Z
 ---
 
 ## Notes

@@ -3,7 +3,7 @@ project: 10xcards
 version: 1
 status: draft
 created: 2026-07-04
-updated: 2026-07-08
+updated: 2026-07-09
 prd_version: 1
 main_goal: quality
 top_blocker: capacity
@@ -44,7 +44,7 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 | ID    | Change ID                | Outcome (użytkownik może …)                                   | Prerequisites  | PRD refs                                   | Status   |
 | ----- | ------------------------ | ------------------------------------------------------------- | -------------- | ------------------------------------------ | -------- |
 | F-01  | per-user-data-isolation  | (foundation) twarda izolacja danych per-konto (RLS) + rdzenne tabele | —              | Access Control, Guardrails, NFR: prywatność | done     |
-| F-02  | srs-library-choice       | (foundation) decyzja: gotowa biblioteka SRS + skala oceny przypomnienia | —              | Non-Goals (gotowy SRS), Open Questions #2  | ready    |
+| F-02  | srs-library-choice       | (foundation) decyzja: gotowa biblioteka SRS + skala oceny przypomnienia | —              | Non-Goals (gotowy SRS), Open Questions #2  | done     |
 | S-01  | deck-workspace           | tworzyć i nazywać własne talie (prywatna przestrzeń)          | F-01           | US-03, FR-017, FR-001, FR-002              | done     |
 | F-03  | verification-harness     | (foundation) harness testowy + test-plan.md dla dwóch ryzyk   | S-01           | Guardrails, NFR: trwałość harmonogramu     | proposed |
 | S-02  | manual-card-crud         | ręcznie tworzyć, przeglądać, edytować i usuwać fiszki w talii | S-01           | US-03, FR-007, FR-008, FR-009, FR-010      | proposed |
@@ -105,7 +105,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Wydzielona z S-03, by jedyna decyzja blokująca gwiazdę stała się jawną, sekwencjonowaną i „ready" jednostką (brak prerekwizytów — można podjąć od razu). Ryzyko: wybór przesądza skalę oceny i pola harmonogramu, więc zła biblioteka = przeróbka S-03. To rozstrzygnięcie buy-vs-build na „buy" (PRD §Non-Goals), nie budowa algorytmu — dlatego foundation, nie slice.
-- **Status:** ready
+- **Status:** done
 
 ### F-03: Harness weryfikacyjny + test-plan (test izolacji)
 
@@ -235,3 +235,4 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 
 - **F-01: (foundation) ustanowiona polityka izolacji per-user (Supabase RLS) wraz z minimalnymi rdzennymi tabelami Deck i Flashcard, tak że każdy slice poniżej dziedziczy twardą granicę "żaden użytkownik nie widzi cudzych danych".** — Archived 2026-07-05 → `context/archive/2026-07-05-per-user-data-isolation/`. Lesson: —.
 - **S-01: użytkownik po zalogowaniu tworzy i nazywa własne talie i widzi je jako prywatną przestrzeń.** — Archived 2026-07-08 → `context/archive/2026-07-07-deck-workspace/`. Lesson: —.
+- **F-02: (foundation) rozstrzygnięta i zaakceptowana decyzja: która gotowa biblioteka spaced-repetition oraz jaka skala oceny przypomnienia — pojedyncza decyzja determinująca pola harmonogramu i skalę oceny dla sesji nauki. Bez kodu produktowego (decyzja typu buy, nie warstwa).** — Archived 2026-07-09 → `context/archive/2026-07-09-srs-library-choice/`. Lesson: —.
