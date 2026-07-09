@@ -96,6 +96,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 ### F-02: Wybór gotowej biblioteki SRS (skala oceny)
 
 - **Outcome:** (foundation) rozstrzygnięta i zaakceptowana decyzja: która gotowa biblioteka spaced-repetition oraz jaka skala oceny przypomnienia — pojedyncza decyzja determinująca pola harmonogramu i skalę oceny dla sesji nauki. Bez kodu produktowego (decyzja typu buy, nie warstwa).
+- **Decision (resolved):** Biblioteka SRS = `ts-fsrs` (FSRS-6), MIT, zero zależności — wybór „buy". Skala oceny = 4-stopniowa Again/Hard/Good/Easy. Pola harmonogramu do modelu w S-03: `stability, difficulty, due, state, reps, lapses, last_review`. Domyślne parametry: `request_retention = 0.9`, `maximum_interval = 36500`. Constraint: FSRS-`state` (New/Learning/Review/Relearning) to OSOBNA kolumna niż istniejące `flashcard.state_id` (generated/accepted/rejected) — nie łączyć. Źródło: `context/changes/srs-library-choice/srs-library-research.md`.
 - **Change ID:** srs-library-choice
 - **PRD refs:** PRD §Non-Goals (gotowy SRS zamiast własnego algorytmu), PRD Open Questions #2 (skala oceny przypomnienia)
 - **Unlocks:** S-03 — odblokowuje gwiazdę przewodnią; wybór biblioteki determinuje pola harmonogramu (due / interwał / ease) oraz skalę oceny, których S-03 potrzebuje, by dało się go zaplanować.
