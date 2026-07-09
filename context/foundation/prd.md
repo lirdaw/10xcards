@@ -275,6 +275,9 @@ należą do planu danego slice'a, nie do PRD.
    during the downstream stack / generation step. Owner: downstream stack step.
 2. **Exact recall-rating scale** — the rating scale will follow the chosen ready-made scheduling
    approach (FR-012); the concrete scale is pinned at stack selection. Owner: downstream stack step.
+   > Resolved (F-02): 4-button scale — Again / Hard / Good / Easy (FSRS via ts-fsrs). Why: FSRS's
+   > native 4-grade scale maps directly onto FR-012's "rate recall" without the overhead of SM-2's
+   > 0–5. See context/changes/srs-library-choice/srs-library-research.md.
 3. **Cards produced per generation** — a fixed target count vs. letting the generator decide based
    on the input. Likely depends on the chosen generation approach; deferred to the downstream stack
    step. Owner: downstream stack step.
