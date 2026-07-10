@@ -69,6 +69,7 @@ export type Database = {
           front: string
           id: number
           public_id: string
+          source_id: number
           state_id: number
           updated_at: string
         }
@@ -79,6 +80,7 @@ export type Database = {
           front: string
           id?: never
           public_id?: string
+          source_id: number
           state_id: number
           updated_at?: string
         }
@@ -89,6 +91,7 @@ export type Database = {
           front?: string
           id?: never
           public_id?: string
+          source_id?: number
           state_id?: number
           updated_at?: string
         }
@@ -101,6 +104,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "flashcard_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "flashcard_source"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "flashcard_state_id_fkey"
             columns: ["state_id"]
             isOneToOne: false
@@ -108,6 +118,21 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      flashcard_source: {
+        Row: {
+          code: string
+          id: number
+        }
+        Insert: {
+          code: string
+          id: number
+        }
+        Update: {
+          code?: string
+          id?: number
+        }
+        Relationships: []
       }
       flashcard_state: {
         Row: {

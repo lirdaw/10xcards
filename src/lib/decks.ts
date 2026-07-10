@@ -13,7 +13,9 @@ export function listDecks(supabase: Client) {
 }
 
 export function getDeckByPublicId(supabase: Client, publicId: string) {
-  return supabase.from("deck").select("public_id, name").eq("public_id", publicId).maybeSingle();
+  // `id` (internal bigint) is consumed only server-side (loader frontmatter,
+  // create/mutation endpoints) and is never passed to a React island.
+  return supabase.from("deck").select("id, public_id, name").eq("public_id", publicId).maybeSingle();
 }
 
 export function deckNameExists(supabase: Client, name: string) {
