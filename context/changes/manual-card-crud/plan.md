@@ -516,16 +516,16 @@ project.
 
 #### Automated
 
-- [x] 2.1 `npx astro sync` clean
-- [x] 2.2 `npm run lint` passes
-- [x] 2.3 `npm run build` passes
+- [x] 2.1 `npx astro sync` clean — 58684f1
+- [x] 2.2 `npm run lint` passes — 58684f1
+- [x] 2.3 `npm run build` passes — 58684f1
 
 #### Manual
 
-- [x] 2.4 Empty deck shows empty copy; simulated query error shows distinct error state
-- [x] 2.5 Add-card modal creates a card and lists it (newest first)
-- [x] 2.6 Over-length/empty front/back rejected client- and server-side (error in re-opened modal)
-- [x] 2.7 Created card is `accepted` + `manual` in Studio
+- [x] 2.4 Empty deck shows empty copy; simulated query error shows distinct error state — 58684f1
+- [x] 2.5 Add-card modal creates a card and lists it (newest first) — 58684f1
+- [x] 2.6 Over-length/empty front/back rejected client- and server-side (error in re-opened modal) — 58684f1
+- [x] 2.7 Created card is `accepted` + `manual` in Studio — 58684f1
 
 ### Phase 3: Inline edit + single delete + close-out
 

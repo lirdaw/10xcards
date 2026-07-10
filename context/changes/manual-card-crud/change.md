@@ -3,7 +3,7 @@ change_id: manual-card-crud
 title: Manual flashcard CRUD within a deck
 status: implementing
 created: 2026-07-09
-updated: 2026-07-10
+updated: 2026-07-11
 archived_at: null
 ---
 
