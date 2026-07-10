@@ -9,6 +9,33 @@ import type { Database } from "@/db/database.types";
 
 type Client = SupabaseClient<Database>;
 
+// The card shape passed from the loader to the React island. Only public-facing
+// fields — the internal bigint `deck.id` never leaves the server. Dates are
+// preformatted server-side (see formatCardDate) so the island stays presentational
+// and there is no server/client timezone hydration mismatch.
+export interface FlashcardView {
+  publicId: string;
+  front: string;
+  back: string;
+  createdAtLabel: string;
+  updatedAtLabel: string;
+  // True when the card was edited after creation (updated_at differs from
+  // created_at) — lets the UI show the modification date only when meaningful.
+  edited: boolean;
+}
+
+// Polish date+time with a fixed Warsaw timezone so the string is identical whether
+// it renders on the server (Cloudflare, UTC) or the client — no hydration drift.
+const cardDateFmt = new Intl.DateTimeFormat("pl-PL", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "Europe/Warsaw",
+});
+
+export function formatCardDate(iso: string) {
+  return cardDateFmt.format(new Date(iso));
+}
+
 // Pinned lookup IDs — see supabase/migrations/20260705180246_init_core_schema.sql
 // (flashcard_state) and 20260710195327_manual_card_source.sql (flashcard_source).
 // Referenced as constants rather than re-querying the lookup on every insert.
@@ -32,7 +59,7 @@ export function deckIdByPublicId(supabase: Client, deckPublicId: string) {
 export function listFlashcards(supabase: Client, deckId: number) {
   return supabase
     .from("flashcard")
-    .select("public_id, front, back, created_at")
+    .select("public_id, front, back, created_at, updated_at")
     .eq("deck_id", deckId)
     .order("created_at", { ascending: false });
 }

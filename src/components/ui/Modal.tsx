@@ -28,9 +28,19 @@ export function Modal({ open = false, title, children, onClose, className }: Mod
     onClose?.();
   }
 
-  // Clicking the backdrop lands on the <dialog> element itself (children are wrapped).
+  // Backdrop-close must require BOTH the press and the release to land on the
+  // <dialog> itself (children are wrapped). Without the mousedown guard a drag
+  // that starts inside the content — resizing a textarea, selecting text — and
+  // releases over the backdrop fires a `click` whose target is the dialog, which
+  // would wrongly close the modal.
+  const pressedOnBackdrop = React.useRef(false);
+
+  function handleMouseDown(e: React.MouseEvent<HTMLDialogElement>) {
+    pressedOnBackdrop.current = e.target === dialogRef.current;
+  }
+
   function handleClick(e: React.MouseEvent<HTMLDialogElement>) {
-    if (e.target === dialogRef.current) {
+    if (e.target === dialogRef.current && pressedOnBackdrop.current) {
       dialogRef.current.close();
     }
   }
@@ -40,6 +50,7 @@ export function Modal({ open = false, title, children, onClose, className }: Mod
       ref={dialogRef}
       aria-labelledby={titleId}
       onClose={handleClose}
+      onMouseDown={handleMouseDown}
       onClick={handleClick}
       className={cn(
         "m-auto w-full max-w-md rounded-2xl border border-white/10 bg-[#0f1529] p-6 text-white shadow-lg backdrop:bg-black/60",

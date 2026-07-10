@@ -1,8 +1,10 @@
 ---
 import AuthenticatedLayout from "@/layouts/AuthenticatedLayout.astro";
 import DeckActions from "@/components/decks/DeckActions";
+import FlashcardWorkspace from "@/components/flashcards/FlashcardWorkspace";
 import { createClient } from "@/lib/supabase";
 import { getDeckByPublicId } from "@/lib/decks";
+import { listFlashcards, formatCardDate, type FlashcardView } from "@/lib/flashcards";
 
 const { publicId } = Astro.params;
 const supabase = createClient(Astro.request.headers, Astro.cookies);
@@ -18,18 +20,42 @@ if (!deck) {
   Astro.response.status = 404;
 }
 
-// Mutation round-trip (rename/delete). Rename errors carry `open=rename` and are
-// shown inside the re-opened modal by DeckActions; other errors (e.g. delete)
-// surface as a page-level banner.
+// Load the deck's cards once the deck is resolved, reusing the internal `id` from
+// the deck fetch (never passed to the island). Branch on the query error so a
+// transient DB failure renders a distinct error state, never a silent empty list
+// (lessons: SSR error-vs-empty).
+let cards: FlashcardView[] = [];
+let cardsError = false;
+if (deck && supabase) {
+  const { data, error: listError } = await listFlashcards(supabase, deck.id);
+  if (listError) {
+    cardsError = true;
+  } else {
+    cards = data.map((c) => ({
+      publicId: c.public_id,
+      front: c.front,
+      back: c.back,
+      createdAtLabel: formatCardDate(c.created_at),
+      updatedAtLabel: formatCardDate(c.updated_at),
+      edited: c.updated_at !== c.created_at,
+    }));
+  }
+}
+
+// Mutation round-trips. Rename errors carry `open=rename` (shown in DeckActions'
+// modal); card-create errors carry `open=create-card` (shown in the workspace's
+// create modal); anything else (e.g. deck delete) surfaces as a page-level banner.
 const error = Astro.url.searchParams.get("error");
-const openRename = Astro.url.searchParams.get("open") === "rename";
-const bannerError = error && !openRename ? error : null;
+const open = Astro.url.searchParams.get("open");
+const openRename = open === "rename";
+const openCreateCard = open === "create-card";
+const bannerError = error && !openRename && !openCreateCard ? error : null;
 ---
 
 {
   deck ? (
     <AuthenticatedLayout title={deck.name} activeItem="decks">
-      <div class="mx-auto max-w-4xl">
+      <div class="mx-auto w-full max-w-[3600px]">
         <div class="mb-6 flex items-center gap-3">
           <a href="/decks" aria-label="Wróć do talii" class="text-purple-300 transition-colors hover:text-purple-100">
             <svg
@@ -64,9 +90,14 @@ const bannerError = error && !openRename ? error : null;
             {bannerError}
           </p>
         )}
-        <div class="rounded-2xl border border-white/10 bg-white/10 p-8 text-center text-white backdrop-blur-xl">
-          <p class="text-blue-100/70">Brak fiszek w tej talii.</p>
-        </div>
+        <FlashcardWorkspace
+          deckPublicId={deck.public_id}
+          cards={cards}
+          cardsError={cardsError}
+          defaultOpenCreate={openCreateCard}
+          serverError={openCreateCard ? error : null}
+          client:load
+        />
       </div>
     </AuthenticatedLayout>
   ) : (

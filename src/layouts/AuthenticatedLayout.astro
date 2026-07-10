@@ -12,7 +12,7 @@ const { user } = Astro.locals;
 ---
 
 <Layout title={title}>
-  <div class="bg-cosmic flex min-h-screen text-white">
+  <div class="bg-cosmic flex h-screen overflow-hidden text-white">
     <Sidebar activeItem={activeItem} />
     <div class="flex min-w-0 flex-1 flex-col">
       <header
@@ -25,7 +25,12 @@ const { user } = Astro.locals;
           </button>
         </form>
       </header>
-      <main class="flex-1 overflow-x-hidden px-8 py-8">
+      {
+        /* `main` is the scroll container (shell is locked to the viewport height),
+          so the sidebar and header stay put and the content scrolls with the
+          cosmic-themed custom-scrollbar instead of the default viewport bar. */
+      }
+      <main class="custom-scrollbar flex-1 overflow-x-hidden overflow-y-auto px-8 py-8">
         <slot />
       </main>
     </div>

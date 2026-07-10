@@ -502,30 +502,30 @@ project.
 
 #### Automated
 
-- [x] 1.1 Migration applies cleanly on a reset local stack: `npx supabase db reset`
-- [x] 1.2 Generated types include `flashcard_source` and `flashcard.source_id`: `npx astro sync`
-- [x] 1.3 Type checking passes: `npm run lint`
-- [x] 1.4 Production build passes: `npm run build`
+- [x] 1.1 Migration applies cleanly on a reset local stack: `npx supabase db reset` — c4a839e
+- [x] 1.2 Generated types include `flashcard_source` and `flashcard.source_id`: `npx astro sync` — c4a839e
+- [x] 1.3 Type checking passes: `npm run lint` — c4a839e
+- [x] 1.4 Production build passes: `npm run build` — c4a839e
 
 #### Manual
 
-- [x] 1.5 `flashcard_source` seeded `(1,manual)`/`(2,ai)`; `flashcard` has `NOT NULL source_id` FK; front/back keep only the non-empty check (no max) (Studio)
-- [x] 1.6 `flashcard_source` selectable as authenticated, denied to `anon`
+- [x] 1.5 `flashcard_source` seeded `(1,manual)`/`(2,ai)`; `flashcard` has `NOT NULL source_id` FK; front/back keep only the non-empty check (no max) (Studio) — c4a839e
+- [x] 1.6 `flashcard_source` selectable as authenticated, denied to `anon` — c4a839e
 
 ### Phase 2: Card list workspace + create card
 
 #### Automated
 
-- [ ] 2.1 `npx astro sync` clean
-- [ ] 2.2 `npm run lint` passes
-- [ ] 2.3 `npm run build` passes
+- [x] 2.1 `npx astro sync` clean
+- [x] 2.2 `npm run lint` passes
+- [x] 2.3 `npm run build` passes
 
 #### Manual
 
-- [ ] 2.4 Empty deck shows empty copy; simulated query error shows distinct error state
-- [ ] 2.5 Add-card modal creates a card and lists it (newest first)
-- [ ] 2.6 Over-length/empty front/back rejected client- and server-side (error in re-opened modal)
-- [ ] 2.7 Created card is `accepted` + `manual` in Studio
+- [x] 2.4 Empty deck shows empty copy; simulated query error shows distinct error state
+- [x] 2.5 Add-card modal creates a card and lists it (newest first)
+- [x] 2.6 Over-length/empty front/back rejected client- and server-side (error in re-opened modal)
+- [x] 2.7 Created card is `accepted` + `manual` in Studio
 
 ### Phase 3: Inline edit + single delete + close-out
 
