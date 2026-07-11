@@ -3,7 +3,7 @@ project: 10xcards
 version: 1
 status: draft
 created: 2026-07-04
-updated: 2026-07-09
+updated: 2026-07-11
 prd_version: 1
 main_goal: quality
 top_blocker: capacity
@@ -47,7 +47,7 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 | F-02  | srs-library-choice       | (foundation) decyzja: gotowa biblioteka SRS + skala oceny przypomnienia | —              | Non-Goals (gotowy SRS), Open Questions #2  | done     |
 | S-01  | deck-workspace           | tworzyć i nazywać własne talie (prywatna przestrzeń)          | F-01           | US-03, FR-017, FR-001, FR-002              | done     |
 | F-03  | verification-harness     | (foundation) harness testowy + test-plan.md dla dwóch ryzyk   | S-01           | Guardrails, NFR: trwałość harmonogramu     | proposed |
-| S-02  | manual-card-crud         | ręcznie tworzyć, przeglądać, edytować i usuwać fiszki w talii | S-01           | US-03, FR-007, FR-008, FR-009, FR-010      | proposed |
+| S-02  | manual-card-crud         | ręcznie tworzyć, przeglądać, edytować i usuwać fiszki w talii | S-01           | US-03, FR-007, FR-008, FR-009, FR-010      | done     |
 | S-03  | srs-study-session        | uczyć się talii w sesji SRS z oceną przypomnienia (gwiazda)   | F-01, F-02, S-02 | US-02, FR-011, FR-012                     | proposed |
 | S-04  | ai-candidate-generation  | wkleić tekst i wygenerować kandydatów AI z postępem i retry   | F-01, S-01     | US-01, FR-003, FR-004, FR-006, FR-018      | proposed |
 | S-05  | candidate-review         | przeglądać kandydatów i akceptować/edytować/odrzucać (bulk)   | S-04           | US-01, FR-005, FR-006                       | proposed |
@@ -144,7 +144,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Najtańsza ścieżka do istnienia kart nadających się do nauki (karty ręczne wchodzą w standardowy cykl statusów), więc odblokowuje gwiazdę S-03 bez czekania na gałąź AI. Reject ≠ delete — dwie odrębne operacje, pilnować spójności ze statusem.
-- **Status:** proposed
+- **Status:** done
 
 ### S-03: Sesja nauki SRS (gwiazda przewodnia)
 
@@ -236,3 +236,4 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **F-01: (foundation) ustanowiona polityka izolacji per-user (Supabase RLS) wraz z minimalnymi rdzennymi tabelami Deck i Flashcard, tak że każdy slice poniżej dziedziczy twardą granicę "żaden użytkownik nie widzi cudzych danych".** — Archived 2026-07-05 → `context/archive/2026-07-05-per-user-data-isolation/`. Lesson: —.
 - **S-01: użytkownik po zalogowaniu tworzy i nazywa własne talie i widzi je jako prywatną przestrzeń.** — Archived 2026-07-08 → `context/archive/2026-07-07-deck-workspace/`. Lesson: —.
 - **F-02: (foundation) rozstrzygnięta i zaakceptowana decyzja: która gotowa biblioteka spaced-repetition oraz jaka skala oceny przypomnienia — pojedyncza decyzja determinująca pola harmonogramu i skalę oceny dla sesji nauki. Bez kodu produktowego (decyzja typu buy, nie warstwa).** — Archived 2026-07-09 → `context/archive/2026-07-09-srs-library-choice/`. Lesson: —.
+- **S-02: użytkownik ręcznie tworzy fiszkę (front/back), przegląda listę fiszek w talii, edytuje i trwale usuwa dowolną fiszkę.** — Archived 2026-07-11 → `context/archive/2026-07-09-manual-card-crud/`. Lesson: —.
