@@ -237,3 +237,17 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **S-01: użytkownik po zalogowaniu tworzy i nazywa własne talie i widzi je jako prywatną przestrzeń.** — Archived 2026-07-08 → `context/archive/2026-07-07-deck-workspace/`. Lesson: —.
 - **F-02: (foundation) rozstrzygnięta i zaakceptowana decyzja: która gotowa biblioteka spaced-repetition oraz jaka skala oceny przypomnienia — pojedyncza decyzja determinująca pola harmonogramu i skalę oceny dla sesji nauki. Bez kodu produktowego (decyzja typu buy, nie warstwa).** — Archived 2026-07-09 → `context/archive/2026-07-09-srs-library-choice/`. Lesson: —.
 - **S-02: użytkownik ręcznie tworzy fiszkę (front/back), przegląda listę fiszek w talii, edytuje i trwale usuwa dowolną fiszkę.** — Archived 2026-07-11 → `context/archive/2026-07-09-manual-card-crud/`. Lesson: —.
+
+## Parked ideas (post-MVP → Jira "Pomysł")
+
+Known, deferred, tracked in Jira — do NOT re-propose as new, do NOT build into an MVP slice.
+If a slice touches one, note it and defer to its ticket. Detail lives in Jira; this is a pointer index only.
+
+- C10X-14 — Soft-delete / trash / recovery for decks and flashcards
+- C10X-15 — Shared responsive view template + component library (PARENT)
+- C10X-16 — Keyboard-driven UX + selection model (selection-driven toolbar)
+- C10X-17 — Manual ordering (position/Lp.) + flashcard view sorting
+- C10X-18 — Deck list view: parity with flashcard view + per-deck metadata (relates → C10X-15)
+- C10X-19 — Polish UI: finish copy translation (landing + sign-in/sign-up)
+- C10X-20 — Auth landing: inline sign-in/sign-up form below hero
+- C10X-21 — Full-height scrollbar + sticky header/footer (shell restructure) (relates → C10X-15)
