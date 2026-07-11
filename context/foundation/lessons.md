@@ -92,3 +92,10 @@
 - **Problem**: Natywny POST przeładowuje stronę, więc błąd serwera (np. duplikat nazwy) łatwo ląduje jako baner W TLE, a re-otwarty modal jest pusty; do tego parametry `?error=` zostają w URL i F5 odtwarza modal ze starym błędem oraz wpisaną nazwą.
 - **Rule**: Round-trip błędu przez `?error=<msg>&open=<modal>`; strona przekazuje `serverError` do wyspy React, która pokazuje go WEWNĄTRZ modala (nie baner w tle) i seeduje nim stan błędu. Na mount wyczyść `open`/`error` z URL (`history.replaceState`), przy zamknięciu wyzeruj pole+błąd, `autoComplete="off"` na polu nazwy.
 - **Applies to**: plan, implement, impl-review
+
+## Poleruj tylko własne komponenty slice'a — zakres sąsiednich rozstrzygaj przed budową
+
+- **Context**: Faza implementacji dowolnego slice'a, w momencie polerki/poprawek UI — zwłaszcza gdy edycja dotyka komponentów spoza plików, które ten slice tworzy: współdzielone prymitywy (`src/components/ui/*`), powłoka (`Sidebar.astro`, `AuthenticatedLayout.astro`), `global.css`. Typowy wyzwalacz: batch uwag zbieranych po fazie („przy okazji popraw X").
+- **Problem**: Oportunistyczna polerka UI na sąsiednich/współdzielonych komponentach („jestem tu, to od razu poprawię") po cichu rozszerza zakres slice'a. W S-02 (manual-card-crud) commit p3 wwiózł Sidebar collapse, stopkę-mock i restyle przycisków poza zakresem card-CRUD — wyłapane dopiero w impl-review (F2), gdy było już zbudowane i zacommitowane, więc nie dało się tanio odłożyć.
+- **Rule**: Poleruj tylko własne, nowe komponenty slice'a, w miejscu. Zanim dotkniesz komponentu, którego slice nie stworzył (powłoka, wspólny prymityw używany gdzie indziej), rozstrzygnij zakres PRZED budową: w zakresie → rób; poza → zapisz jako Deferred idea i odłóż. Nie rozstrzygaj tego po fakcie.
+- **Applies to**: implement, plan-review, impl-review, plan
