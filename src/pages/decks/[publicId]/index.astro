@@ -15,8 +15,14 @@ const supabase = createClient(Astro.request.headers, Astro.cookies);
 // a Polish-copy 404 page is deferred UX polish. We set the status rather than
 // returning a Response because a top-level `return` in Astro frontmatter crashes
 // the typescript-eslint no-misused-promises rule.
-const { data: deck } = supabase && publicId ? await getDeckByPublicId(supabase, publicId) : { data: null };
-if (!deck) {
+const { data: deck, error: deckError } =
+  supabase && publicId ? await getDeckByPublicId(supabase, publicId) : { data: null, error: null };
+// A transient DB error is not a missing deck — surface a distinct error state
+// (never a 404), so a database hiccup doesn't masquerade as "talia nie istnieje"
+// (lessons: SSR error-vs-empty). The card fetch below does the same.
+if (deckError) {
+  Astro.response.status = 500;
+} else if (!deck) {
   Astro.response.status = 404;
 }
 
@@ -59,7 +65,18 @@ const bannerError = error && !openRename && !openCreateCard && !editId ? error :
 ---
 
 {
-  deck ? (
+  deckError ? (
+    <AuthenticatedLayout title="Błąd" activeItem="decks">
+      <div class="mx-auto max-w-4xl">
+        <div class="rounded-2xl border border-red-500/30 bg-red-900/20 p-8 text-center text-white backdrop-blur-xl">
+          <p class="text-red-200/90">Coś poszło nie tak podczas ładowania talii. Spróbuj ponownie.</p>
+          <a href="/decks" class="mt-4 inline-block text-purple-300 transition-colors hover:text-purple-100">
+            Wróć do talii
+          </a>
+        </div>
+      </div>
+    </AuthenticatedLayout>
+  ) : deck ? (
     <AuthenticatedLayout title={deck.name} activeItem="decks">
       <div class="mx-auto w-full max-w-[3600px]">
         {/* Sticky deck header: stays put while the card list scrolls, so the deck

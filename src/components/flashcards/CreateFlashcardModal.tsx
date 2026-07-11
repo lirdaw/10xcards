@@ -21,10 +21,13 @@ interface Props {
 // Live character counter shown under a field: muted grey normally, red once the
 // entered length passes the limit, so the user sees how much room is left.
 function CharCount({ value, max }: { value: string; max: number }) {
-  const over = value.length > max;
+  // Count the trimmed length so the counter agrees with the length the submit
+  // handler and the endpoint validate (both trim first) — not the raw value.
+  const len = value.trim().length;
+  const over = len > max;
   return (
     <p className={cn("text-right text-xs tabular-nums", over ? "text-red-400" : "text-blue-100/50")}>
-      {value.length} / {max}
+      {len} / {max}
     </p>
   );
 }

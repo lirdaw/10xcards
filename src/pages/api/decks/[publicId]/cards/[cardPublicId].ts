@@ -31,22 +31,25 @@ export const POST: APIRoute = async (context) => {
   const front = ((form.get("front") as string | null) ?? "").trim();
   const back = ((form.get("back") as string | null) ?? "").trim();
 
-  if (front.length < 1 || front.length > FRONT_MAX) {
-    return context.redirect(errorUrl(`Przód fiszki musi mieć od 1 do ${FRONT_MAX} znaków`));
-  }
-  if (back.length < 1 || back.length > BACK_MAX) {
-    return context.redirect(errorUrl(`Tył fiszki musi mieć od 1 do ${BACK_MAX} znaków`));
-  }
-
-  // Resolve public_id → internal deck.id. Branch on the query error first so a
-  // transient DB failure isn't masked as a 404 (lessons: SSR error-vs-empty).
-  // Only a genuine null (no row — absent or RLS-hidden) is a real not-found → 404.
+  // Resolve public_id → internal deck.id before validating field lengths, so a
+  // nonexistent/foreign deck always resolves to a clean 404 rather than bouncing
+  // through a validation redirect into the (deck-null) 404 render. Branch on the
+  // query error first so a transient DB failure isn't masked as a 404 (lessons:
+  // SSR error-vs-empty). Only a genuine null (no row — absent or RLS-hidden) is a
+  // real not-found → 404.
   const { data: deck, error: deckError } = await deckIdByPublicId(supabase, publicId);
   if (deckError) {
     return context.redirect(errorUrl("Nie udało się zapisać zmian"));
   }
   if (!deck) {
     return new Response(null, { status: 404 });
+  }
+
+  if (front.length < 1 || front.length > FRONT_MAX) {
+    return context.redirect(errorUrl(`Przód fiszki musi mieć od 1 do ${FRONT_MAX} znaków`));
+  }
+  if (back.length < 1 || back.length > BACK_MAX) {
+    return context.redirect(errorUrl(`Tył fiszki musi mieć od 1 do ${BACK_MAX} znaków`));
   }
 
   // Scoped by deck_id so a card from a different (even owned) deck can't be hit;

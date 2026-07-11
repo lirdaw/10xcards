@@ -98,6 +98,26 @@ user B cannot read, edit, or delete user A's cards.
 - **No soft-delete / undo / trash** — deletion is permanent (C10X-14 is the future home).
 - **No SRS scheduling fields** — those arrive with S-03.
 
+### Also changed (addendum — shell UX polish beyond the plan)
+
+Recorded post-implementation (impl-review F2). The p3 commit shipped app-shell UX
+alongside the card CRUD, none of it touching data or security surface:
+
+- **`ui/Modal.tsx`** — in-scope bugfix: a `mousedown` guard so a drag that starts
+  inside modal content (e.g. resizing the new card Textareas) and releases on the
+  backdrop no longer closes the modal.
+- **`Sidebar.astro`** — collapsible icon-rail with `localStorage` persistence + per-item
+  icons (widest scope stretch; app-shell only).
+- **`AuthenticatedLayout.astro`** — full-height flex shell + footer with mock/placeholder
+  roadmap links (Pomoc/Prywatność/Kontakt as non-navigable `<span>`s, visual only) — this
+  does NOT satisfy FR-013; FR-013 remains open.
+- **`ui/button.tsx`, `auth/SubmitButton.tsx`, `decks/CreateDeckModal.tsx`** — destructive/
+  purple restyle for visual consistency with the new card controls.
+- **`global.css`** — cosmetic `custom-scrollbar` + `flashcard-panel` utilities
+  (`prefers-reduced-motion`-disabled).
+
+The full-height-scrollbar shell restructure remains deferred (see change.md → Deferred ideas).
+
 ## Implementation Approach
 
 Build bottom-up, mirroring S-01's "schema → data helper → read/create → mutate" arc, but
