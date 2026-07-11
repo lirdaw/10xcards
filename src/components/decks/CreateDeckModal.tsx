@@ -49,7 +49,7 @@ export default function CreateDeckModal({ defaultOpen = false, serverError = nul
   return (
     <>
       <Button
-        className="bg-purple-600 text-white hover:bg-purple-500"
+        className="border border-purple-400/50 bg-purple-600/50 text-white shadow-lg shadow-purple-500/20 hover:bg-purple-600/70"
         onClick={() => {
           setOpen(true);
         }}

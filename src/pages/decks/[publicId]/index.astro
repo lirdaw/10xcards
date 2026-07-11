@@ -1,8 +1,10 @@
 ---
 import AuthenticatedLayout from "@/layouts/AuthenticatedLayout.astro";
 import DeckActions from "@/components/decks/DeckActions";
+import FlashcardWorkspace from "@/components/flashcards/FlashcardWorkspace";
 import { createClient } from "@/lib/supabase";
 import { getDeckByPublicId } from "@/lib/decks";
+import { listFlashcards, formatCardDate, type FlashcardView } from "@/lib/flashcards";
 
 const { publicId } = Astro.params;
 const supabase = createClient(Astro.request.headers, Astro.cookies);
@@ -13,24 +15,79 @@ const supabase = createClient(Astro.request.headers, Astro.cookies);
 // a Polish-copy 404 page is deferred UX polish. We set the status rather than
 // returning a Response because a top-level `return` in Astro frontmatter crashes
 // the typescript-eslint no-misused-promises rule.
-const { data: deck } = supabase && publicId ? await getDeckByPublicId(supabase, publicId) : { data: null };
-if (!deck) {
+const { data: deck, error: deckError } =
+  supabase && publicId ? await getDeckByPublicId(supabase, publicId) : { data: null, error: null };
+// A transient DB error is not a missing deck — surface a distinct error state
+// (never a 404), so a database hiccup doesn't masquerade as "talia nie istnieje"
+// (lessons: SSR error-vs-empty). The card fetch below does the same.
+if (deckError) {
+  Astro.response.status = 500;
+} else if (!deck) {
   Astro.response.status = 404;
 }
 
-// Mutation round-trip (rename/delete). Rename errors carry `open=rename` and are
-// shown inside the re-opened modal by DeckActions; other errors (e.g. delete)
-// surface as a page-level banner.
+// Load the deck's cards once the deck is resolved, reusing the internal `id` from
+// the deck fetch (never passed to the island). Branch on the query error so a
+// transient DB failure renders a distinct error state, never a silent empty list
+// (lessons: SSR error-vs-empty).
+let cards: FlashcardView[] = [];
+let cardsError = false;
+if (deck && supabase) {
+  const { data, error: listError } = await listFlashcards(supabase, deck.id);
+  if (listError) {
+    cardsError = true;
+  } else {
+    cards = data.map((c) => ({
+      publicId: c.public_id,
+      front: c.front,
+      back: c.back,
+      createdAtLabel: formatCardDate(c.created_at),
+      updatedAtLabel: formatCardDate(c.updated_at),
+      edited: c.updated_at !== c.created_at,
+    }));
+  }
+}
+
+// Mutation round-trips. Rename errors carry `open=rename` (shown in DeckActions'
+// modal); card-create errors carry `open=create-card` (shown in the workspace's
+// create modal); card-edit errors carry `edit=<cardPublicId>` (re-enters that
+// card's inline-edit form); anything else (e.g. deck/card delete) surfaces as a
+// page-level banner.
 const error = Astro.url.searchParams.get("error");
-const openRename = Astro.url.searchParams.get("open") === "rename";
-const bannerError = error && !openRename ? error : null;
+const open = Astro.url.searchParams.get("open");
+const editId = Astro.url.searchParams.get("edit");
+// The card whose edit just saved — the workspace plays a one-shot settle
+// animation on it (the read-only counterpart of the edit-form entrance).
+const savedId = Astro.url.searchParams.get("saved");
+const openRename = open === "rename";
+const openCreateCard = open === "create-card";
+const bannerError = error && !openRename && !openCreateCard && !editId ? error : null;
 ---
 
 {
-  deck ? (
-    <AuthenticatedLayout title={deck.name} activeItem="decks">
+  deckError ? (
+    <AuthenticatedLayout title="Błąd" activeItem="decks">
       <div class="mx-auto max-w-4xl">
-        <div class="mb-6 flex items-center gap-3">
+        <div class="rounded-2xl border border-red-500/30 bg-red-900/20 p-8 text-center text-white backdrop-blur-xl">
+          <p class="text-red-200/90">Coś poszło nie tak podczas ładowania talii. Spróbuj ponownie.</p>
+          <a href="/decks" class="mt-4 inline-block text-purple-300 transition-colors hover:text-purple-100">
+            Wróć do talii
+          </a>
+        </div>
+      </div>
+    </AuthenticatedLayout>
+  ) : deck ? (
+    <AuthenticatedLayout title={deck.name} activeItem="decks">
+      <div class="mx-auto w-full max-w-[3600px]">
+        {/* Sticky deck header: stays put while the card list scrolls, so the deck
+            name and rename/delete actions are always reachable. Fixed h-16 pairs
+            with the toolbar's `top-16` so the two bars stick as one contiguous
+            block (no gap — a gap would let cards show through and make the toolbar
+            visibly "jump" up as it catches). bg-cosmic matches the page background
+            and occludes cards scrolling underneath. The `::before` cap extends that
+            opaque background UP over `main`'s top padding (py-8), so cards never
+            peek through the strip between this header and the user bar above. */}
+        <div class="bg-cosmic sticky top-0 z-20 flex h-16 items-center gap-3 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-8 before:bg-[#0a0e1a] before:content-['']">
           <a href="/decks" aria-label="Wróć do talii" class="text-purple-300 transition-colors hover:text-purple-100">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -48,7 +105,7 @@ const bannerError = error && !openRename ? error : null;
               <path d="M19 12H5" />
             </svg>
           </a>
-          <h1 class="min-w-0 flex-1 bg-gradient-to-r from-blue-200 to-purple-200 bg-clip-text text-2xl font-bold tracking-tight break-words text-transparent">
+          <h1 class="min-w-0 flex-1 truncate bg-gradient-to-r from-blue-200 to-purple-200 bg-clip-text text-2xl font-bold tracking-tight text-transparent">
             {deck.name}
           </h1>
           <DeckActions
@@ -64,9 +121,17 @@ const bannerError = error && !openRename ? error : null;
             {bannerError}
           </p>
         )}
-        <div class="rounded-2xl border border-white/10 bg-white/10 p-8 text-center text-white backdrop-blur-xl">
-          <p class="text-blue-100/70">Brak fiszek w tej talii.</p>
-        </div>
+        <FlashcardWorkspace
+          deckPublicId={deck.public_id}
+          cards={cards}
+          cardsError={cardsError}
+          defaultOpenCreate={openCreateCard}
+          serverError={openCreateCard ? error : null}
+          editId={editId}
+          editError={editId ? error : null}
+          savedId={savedId}
+          client:load
+        />
       </div>
     </AuthenticatedLayout>
   ) : (
