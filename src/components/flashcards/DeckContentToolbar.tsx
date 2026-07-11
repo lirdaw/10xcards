@@ -12,10 +12,13 @@ interface Props {
 // will mount alongside them here — no search input ships in S-02.
 export function DeckContentToolbar({ onAddCard }: Props) {
   return (
-    <div className="mb-4 flex items-center justify-between gap-3">
+    <div className="flex items-center justify-between gap-3">
       <h2 className="text-lg font-semibold text-white">Fiszki</h2>
       {/* S-06 (C10X-9): keyword search input mounts in this row (FR-015). */}
-      <Button className="bg-purple-600 text-white hover:bg-purple-500" onClick={onAddCard}>
+      <Button
+        className="border border-purple-400/50 bg-purple-600/50 text-white shadow-lg shadow-purple-500/20 hover:bg-purple-600/70"
+        onClick={onAddCard}
+      >
         <Plus className="size-4" />
         Dodaj fiszkę
       </Button>

@@ -12,27 +12,62 @@ const { user } = Astro.locals;
 ---
 
 <Layout title={title}>
-  <div class="bg-cosmic flex h-screen overflow-hidden text-white">
-    <Sidebar activeItem={activeItem} />
-    <div class="flex min-w-0 flex-1 flex-col">
-      <header
-        class="mt-4 mr-4 flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-base"
-      >
-        <span class="text-blue-100/70">{user?.email}</span>
-        <form method="POST" action="/api/auth/signout">
-          <button type="submit" class="text-purple-300 transition-colors hover:text-purple-100 hover:underline">
-            Wyloguj
-          </button>
-        </form>
-      </header>
+  {
+    /* Vertical shell: full-width top bar and footer span the entire viewport width,
+      with the sidebar + content sitting in the middle band BETWEEN them (rather than
+      the sidebar running edge-to-edge on the left). */
+  }
+  <div class="bg-cosmic flex h-screen flex-col overflow-hidden text-white">
+    <header
+      class="mx-4 mt-4 flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-base"
+    >
+      <span class="text-blue-100/70">{user?.email}</span>
+      <form method="POST" action="/api/auth/signout">
+        <button type="submit" class="text-purple-300 transition-colors hover:text-purple-100 hover:underline">
+          Wyloguj
+        </button>
+      </form>
+    </header>
+
+    {/* Middle band: sidebar on the left, scrollable content on the right. */}
+    <div class="flex min-h-0 flex-1">
+      <Sidebar activeItem={activeItem} />
       {
-        /* `main` is the scroll container (shell is locked to the viewport height),
-          so the sidebar and header stay put and the content scrolls with the
-          cosmic-themed custom-scrollbar instead of the default viewport bar. */
+        /* `main` is the scroll container (the band is height-locked), so the sidebar,
+          top bar and footer stay put and only the content scrolls with the cosmic
+          custom-scrollbar. The overlay is a bottom fade (mirror of the sticky toolbar's
+          top fade): content melts into the cosmic background as it scrolls toward the
+          footer, so a long list never butts hard against the bottom. */
       }
-      <main class="custom-scrollbar flex-1 overflow-x-hidden overflow-y-auto px-8 py-8">
-        <slot />
-      </main>
+      <div class="relative min-w-0 flex-1">
+        <main class="custom-scrollbar h-full overflow-x-hidden overflow-y-auto px-8 py-8">
+          <slot />
+        </main>
+        {
+          /* Stops 10px short of the right edge (the `custom-scrollbar` width) so the
+            fade never overlaps main's scrollbar — the bar stays clean top-to-bottom,
+            independent of any overlay to its left. */
+        }
+        <div
+          class="pointer-events-none absolute right-2.5 bottom-0 left-0 h-8 bg-gradient-to-b from-transparent to-[#0a0e1a]"
+        >
+        </div>
+      </div>
     </div>
+
+    <footer
+      class="mx-4 mb-4 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-blue-100/60"
+    >
+      <span>© 2026 10xCards — wersja 0.1 (MVP)</span>
+      {
+        /* Mock roadmap links — non-navigable placeholders for now (rendered as
+          spans so they don't advertise a destination that doesn't exist yet). */
+      }
+      <div class="flex items-center gap-4">
+        <span class="cursor-default transition-colors hover:text-blue-100">Pomoc</span>
+        <span class="cursor-default transition-colors hover:text-blue-100">Prywatność</span>
+        <span class="cursor-default transition-colors hover:text-blue-100">Kontakt</span>
+      </div>
+    </footer>
   </div>
 </Layout>

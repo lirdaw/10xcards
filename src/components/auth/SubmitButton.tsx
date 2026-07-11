@@ -25,7 +25,7 @@ export function SubmitButton({ pendingText, icon, children, variant, className }
         "w-full",
         variant === "destructive"
           ? "px-4 py-2 font-medium"
-          : "rounded-lg bg-purple-600 px-4 py-2 font-medium text-white transition-colors hover:bg-purple-500",
+          : "rounded-lg border border-purple-400/50 bg-purple-600/50 px-4 py-2 font-medium text-white shadow-lg shadow-purple-500/20 transition-colors hover:bg-purple-600/70",
         className,
       )}
     >

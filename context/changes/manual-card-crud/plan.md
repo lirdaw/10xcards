@@ -531,15 +531,15 @@ project.
 
 #### Automated
 
-- [ ] 3.1 `npx astro sync` clean
-- [ ] 3.2 `npm run lint` passes
-- [ ] 3.3 `npm run build` passes
+- [x] 3.1 `npx astro sync` clean
+- [x] 3.2 `npm run lint` passes
+- [x] 3.3 `npm run build` passes
 
 #### Manual
 
-- [ ] 3.4 Inline edit saves and persists across reload; over-length edit re-enters edit mode with error
-- [ ] 3.5 Cancel discards edits, restores read-only view
-- [ ] 3.6 Single delete requires modal confirm; card removed after confirm
-- [ ] 3.7 Deleted card gone in Studio
-- [ ] 3.8 A11y: modals trap focus + Esc-close; controls labelled; all copy Polish
-- [ ] 3.9 `isolation-check.md` "Wynik" filled with a real two-account run (date + tester)
+- [x] 3.4 Inline edit saves and persists across reload; over-length edit re-enters edit mode with error
+- [x] 3.5 Cancel discards edits, restores read-only view
+- [x] 3.6 Single delete requires modal confirm; card removed after confirm
+- [x] 3.7 Deleted card gone in Studio
+- [x] 3.8 A11y: modals trap focus + Esc-close; controls labelled; all copy Polish
+- [x] 3.9 `isolation-check.md` "Wynik" filled with a real two-account run (date + tester)

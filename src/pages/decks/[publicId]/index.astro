@@ -44,19 +44,33 @@ if (deck && supabase) {
 
 // Mutation round-trips. Rename errors carry `open=rename` (shown in DeckActions'
 // modal); card-create errors carry `open=create-card` (shown in the workspace's
-// create modal); anything else (e.g. deck delete) surfaces as a page-level banner.
+// create modal); card-edit errors carry `edit=<cardPublicId>` (re-enters that
+// card's inline-edit form); anything else (e.g. deck/card delete) surfaces as a
+// page-level banner.
 const error = Astro.url.searchParams.get("error");
 const open = Astro.url.searchParams.get("open");
+const editId = Astro.url.searchParams.get("edit");
+// The card whose edit just saved — the workspace plays a one-shot settle
+// animation on it (the read-only counterpart of the edit-form entrance).
+const savedId = Astro.url.searchParams.get("saved");
 const openRename = open === "rename";
 const openCreateCard = open === "create-card";
-const bannerError = error && !openRename && !openCreateCard ? error : null;
+const bannerError = error && !openRename && !openCreateCard && !editId ? error : null;
 ---
 
 {
   deck ? (
     <AuthenticatedLayout title={deck.name} activeItem="decks">
       <div class="mx-auto w-full max-w-[3600px]">
-        <div class="mb-6 flex items-center gap-3">
+        {/* Sticky deck header: stays put while the card list scrolls, so the deck
+            name and rename/delete actions are always reachable. Fixed h-16 pairs
+            with the toolbar's `top-16` so the two bars stick as one contiguous
+            block (no gap — a gap would let cards show through and make the toolbar
+            visibly "jump" up as it catches). bg-cosmic matches the page background
+            and occludes cards scrolling underneath. The `::before` cap extends that
+            opaque background UP over `main`'s top padding (py-8), so cards never
+            peek through the strip between this header and the user bar above. */}
+        <div class="bg-cosmic sticky top-0 z-20 flex h-16 items-center gap-3 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-8 before:bg-[#0a0e1a] before:content-['']">
           <a href="/decks" aria-label="Wróć do talii" class="text-purple-300 transition-colors hover:text-purple-100">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -74,7 +88,7 @@ const bannerError = error && !openRename && !openCreateCard ? error : null;
               <path d="M19 12H5" />
             </svg>
           </a>
-          <h1 class="min-w-0 flex-1 bg-gradient-to-r from-blue-200 to-purple-200 bg-clip-text text-2xl font-bold tracking-tight break-words text-transparent">
+          <h1 class="min-w-0 flex-1 truncate bg-gradient-to-r from-blue-200 to-purple-200 bg-clip-text text-2xl font-bold tracking-tight text-transparent">
             {deck.name}
           </h1>
           <DeckActions
@@ -96,6 +110,9 @@ const bannerError = error && !openRename && !openCreateCard ? error : null;
           cardsError={cardsError}
           defaultOpenCreate={openCreateCard}
           serverError={openCreateCard ? error : null}
+          editId={editId}
+          editError={editId ? error : null}
+          savedId={savedId}
           client:load
         />
       </div>
