@@ -1,7 +1,7 @@
 ---
 change_id: deck-keyword-search
 title: Wyszukiwanie fiszek w talii po słowie kluczowym
-status: implementing
+status: implemented
 created: 2026-07-11
 updated: 2026-07-12
 archived_at: null

@@ -353,15 +353,15 @@ na chmurę (lessons: „Cloud migration is a separate step from app deploy"): `s
 
 #### Automated
 
-- [x] 2.1 `npx astro sync` + `npm run lint` przechodzą
-- [x] 2.2 `npm run build` przechodzi
+- [x] 2.1 `npx astro sync` + `npm run lint` przechodzą — 7263f95
+- [x] 2.2 `npm run build` przechodzi — 7263f95
 
 #### Manual
 
-- [x] 2.3 Fraza + Enter zawęża listę; URL ma `?q=`
-- [x] 2.4 Fraza bez ogonków znajduje kartę z ogonkami („zaba" → „żaba")
-- [x] 2.5 Zero trafień: komunikat „Brak fiszek pasujących…" + „Wyczyść" wraca do pełnej listy
-- [x] 2.6 Licznik ma poprawną polską odmianę dla 1 / 2 / 5 trafień
-- [x] 2.7 Pusta/spacjowa fraza pokazuje pełną listę
-- [x] 2.8 Mutacja karty przy aktywnym wyszukiwaniu wraca do pełnej, niefiltrowanej listy
-- [x] 2.9 Wyszukiwanie na pustej talii pokazuje „Brak fiszek w tej talii."
+- [x] 2.3 Fraza + Enter zawęża listę; URL ma `?q=` — 7263f95
+- [x] 2.4 Fraza bez ogonków znajduje kartę z ogonkami („zaba" → „żaba") — 7263f95
+- [x] 2.5 Zero trafień: komunikat „Brak fiszek pasujących…" + „Wyczyść" wraca do pełnej listy — 7263f95
+- [x] 2.6 Licznik ma poprawną polską odmianę dla 1 / 2 / 5 trafień — 7263f95
+- [x] 2.7 Pusta/spacjowa fraza pokazuje pełną listę — 7263f95
+- [x] 2.8 Mutacja karty przy aktywnym wyszukiwaniu wraca do pełnej, niefiltrowanej listy — 7263f95
+- [x] 2.9 Wyszukiwanie na pustej talii pokazuje „Brak fiszek w tej talii." — 7263f95
