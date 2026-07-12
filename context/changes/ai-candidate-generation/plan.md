@@ -600,9 +600,9 @@ kandydatów AI.
 
 #### Automated
 
-- [x] 5.1 `npm run lint`, `npm run build`, `npx astro sync` przechodzą
+- [x] 5.1 `npm run lint`, `npm run build`, `npx astro sync` przechodzą — a2bdf29
 
 #### Manual
 
-- [x] 5.2 Karty ręczne (`accepted`) nadal widoczne na domyślnej liście (brak regresji manual-card-crud)
-- [x] 5.3 Kandydaci `generated`/`rejected` niewidoczni na domyślnej liście talii
+- [x] 5.2 Karty ręczne (`accepted`) nadal widoczne na domyślnej liście (brak regresji manual-card-crud) — a2bdf29
+- [x] 5.3 Kandydaci `generated`/`rejected` niewidoczni na domyślnej liście talii — a2bdf29
