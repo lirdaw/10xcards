@@ -339,29 +339,29 @@ na chmurę (lessons: „Cloud migration is a separate step from app deploy"): `s
 
 #### Automated
 
-- [x] 1.1 Migracja aplikuje się czysto: `supabase db reset` bez błędów
-- [x] 1.2 Typy zregenerowane zawierają `search_flashcards_in_deck` w `src/db/database.types.ts`
-- [x] 1.3 Typecheck przechodzi: `npm run lint` (po `npx astro sync`)
+- [x] 1.1 Migracja aplikuje się czysto: `supabase db reset` bez błędów — 043504e
+- [x] 1.2 Typy zregenerowane zawierają `search_flashcards_in_deck` w `src/db/database.types.ts` — 043504e
+- [x] 1.3 Typecheck przechodzi: `npm run lint` (po `npx astro sync`) — 043504e
 
 #### Manual
 
-- [x] 1.4 SQL: `search_flashcards_in_deck(<deck_id>, 'zaba')` zwraca „żaba" tylko z tej talii
-- [x] 1.5 Zapytanie z metaznakami (`50%`, `a_b`, `x(y`) nie rzuca błędu i dopasowuje dosłownie
-- [x] 1.6 Inny użytkownik (JWT) nie widzi cudzych kart przez RPC (RLS)
+- [x] 1.4 SQL: `search_flashcards_in_deck(<deck_id>, 'zaba')` zwraca „żaba" tylko z tej talii — 043504e
+- [x] 1.5 Zapytanie z metaznakami (`50%`, `a_b`, `x(y`) nie rzuca błędu i dopasowuje dosłownie — 043504e
+- [x] 1.6 Inny użytkownik (JWT) nie widzi cudzych kart przez RPC (RLS) — 043504e
 
 ### Phase 2: Loader + UI (parametr q, toolbar, licznik/brak wyników)
 
 #### Automated
 
-- [ ] 2.1 `npx astro sync` + `npm run lint` przechodzą
-- [ ] 2.2 `npm run build` przechodzi
+- [x] 2.1 `npx astro sync` + `npm run lint` przechodzą
+- [x] 2.2 `npm run build` przechodzi
 
 #### Manual
 
-- [ ] 2.3 Fraza + Enter zawęża listę; URL ma `?q=`
-- [ ] 2.4 Fraza bez ogonków znajduje kartę z ogonkami („zaba" → „żaba")
-- [ ] 2.5 Zero trafień: komunikat „Brak fiszek pasujących…" + „Wyczyść" wraca do pełnej listy
-- [ ] 2.6 Licznik ma poprawną polską odmianę dla 1 / 2 / 5 trafień
-- [ ] 2.7 Pusta/spacjowa fraza pokazuje pełną listę
-- [ ] 2.8 Mutacja karty przy aktywnym wyszukiwaniu wraca do pełnej, niefiltrowanej listy
-- [ ] 2.9 Wyszukiwanie na pustej talii pokazuje „Brak fiszek w tej talii."
+- [x] 2.3 Fraza + Enter zawęża listę; URL ma `?q=`
+- [x] 2.4 Fraza bez ogonków znajduje kartę z ogonkami („zaba" → „żaba")
+- [x] 2.5 Zero trafień: komunikat „Brak fiszek pasujących…" + „Wyczyść" wraca do pełnej listy
+- [x] 2.6 Licznik ma poprawną polską odmianę dla 1 / 2 / 5 trafień
+- [x] 2.7 Pusta/spacjowa fraza pokazuje pełną listę
+- [x] 2.8 Mutacja karty przy aktywnym wyszukiwaniu wraca do pełnej, niefiltrowanej listy
+- [x] 2.9 Wyszukiwanie na pustej talii pokazuje „Brak fiszek w tej talii."

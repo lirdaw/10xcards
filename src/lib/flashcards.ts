@@ -76,6 +76,13 @@ export function searchFlashcards(supabase: Client, deckId: number, query: string
     .order("created_at", { ascending: false });
 }
 
+// Count of ALL cards in a deck (unfiltered, head-only — no rows fetched). Used only
+// to tell a genuinely empty deck apart from a search that matched nothing, so the
+// empty state can show the right copy ("deck is empty" vs "no matches for <q>").
+export function countFlashcards(supabase: Client, deckId: number) {
+  return supabase.from("flashcard").select("*", { count: "exact", head: true }).eq("deck_id", deckId);
+}
+
 export function createFlashcard(supabase: Client, deckId: number, front: string, back: string) {
   return supabase
     .from("flashcard")

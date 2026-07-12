@@ -5,10 +5,25 @@ import { FlashcardItem } from "./FlashcardItem";
 import { CreateFlashcardModal } from "./CreateFlashcardModal";
 import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
 
+// Polish plural for "wynik" (result): 1 → wynik; 2-4 (except the 12-14 teens) →
+// wyniki; everything else → wyników. Slice-local until a test runner exists (F-03).
+function pluralizeWyniki(n: number): string {
+  if (n === 1) return "wynik";
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "wyniki";
+  return "wyników";
+}
+
 interface Props {
   deckPublicId: string;
   // Server-loaded cards in the helper's default order (created_at desc).
   cards: FlashcardView[];
+  // The active keyword query (already trimmed by the loader). Empty = not searching.
+  query: string;
+  // Whether the deck holds ANY card (unfiltered) — distinguishes an empty deck from
+  // a search that matched nothing, so the zero-cards state shows the right copy.
+  deckHasCards: boolean;
   // Re-open the create modal after a server round-trip error (?open=create-card).
   defaultOpenCreate?: boolean;
   // Server-side create error, shown inside the re-opened create modal.
@@ -35,6 +50,8 @@ interface Props {
 export default function FlashcardWorkspace({
   deckPublicId,
   cards,
+  query,
+  deckHasCards,
   defaultOpenCreate = false,
   serverError = null,
   editId = null,
@@ -47,6 +64,9 @@ export default function FlashcardWorkspace({
   const [activeEditId, setActiveEditId] = React.useState<string | null>(editId);
   // Which card is pending delete confirmation (null = modal closed).
   const [deleteCard, setDeleteCard] = React.useState<FlashcardView | null>(null);
+  // Whether a keyword search is active — drives the count line and the distinct
+  // "no matches" empty state (vs. the plain "deck is empty" copy).
+  const isSearching = query.length > 0;
 
   // Consume the round-trip params once and strip them so a reload doesn't reopen
   // a stale modal/edit (as CreateDeckModal does).
@@ -79,6 +99,8 @@ export default function FlashcardWorkspace({
           "melt" into the toolbar instead of vanishing at a hard edge. */}
       <div className="bg-cosmic sticky top-16 z-10 pt-3 pb-2 after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-6 after:bg-gradient-to-b after:from-[#0a0e1a] after:to-transparent after:content-['']">
         <DeckContentToolbar
+          deckPublicId={deckPublicId}
+          query={query}
           onAddCard={() => {
             setCreateOpen(true);
           }}
@@ -96,34 +118,53 @@ export default function FlashcardWorkspace({
             <p className="text-red-300">Nie udało się wczytać fiszek. Spróbuj ponownie później.</p>
           </div>
         ) : cards.length === 0 ? (
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-white">
-            <p className="text-blue-100/70">Brak fiszek w tej talii.</p>
-          </div>
+          isSearching && deckHasCards ? (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-white">
+              <p className="text-blue-100/70">Brak fiszek pasujących do „{query}”.</p>
+              <a
+                href={`/decks/${deckPublicId}`}
+                className="mt-4 inline-block text-purple-300 transition-colors hover:text-purple-100"
+              >
+                Wyczyść
+              </a>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-white">
+              <p className="text-blue-100/70">Brak fiszek w tej talii.</p>
+            </div>
+          )
         ) : (
-          // Row-major grid; columns scale with viewport width: 3 at ~half a 4K
-          // screen (≥xl), doubling to 6 on a full 3840px display.
-          <ul className="grid grid-cols-1 gap-3 min-[2560px]:grid-cols-4 min-[3200px]:grid-cols-5 min-[3800px]:grid-cols-6 md:grid-cols-2 xl:grid-cols-3">
-            {cards.map((card, i) => (
-              <FlashcardItem
-                key={card.publicId}
-                card={card}
-                index={i + 1}
-                deckPublicId={deckPublicId}
-                editing={activeEditId === card.publicId}
-                serverError={activeEditId === card.publicId ? editError : null}
-                justSaved={savedId === card.publicId}
-                onEdit={() => {
-                  setActiveEditId(card.publicId);
-                }}
-                onCancelEdit={() => {
-                  setActiveEditId(null);
-                }}
-                onDelete={() => {
-                  setDeleteCard(card);
-                }}
-              />
-            ))}
-          </ul>
+          <>
+            {isSearching && (
+              <p className="mb-3 text-sm text-blue-100/70">
+                {cards.length} {pluralizeWyniki(cards.length)}
+              </p>
+            )}
+            {/* Row-major grid; columns scale with viewport width: 3 at ~half a 4K
+                screen (≥xl), doubling to 6 on a full 3840px display. */}
+            <ul className="grid grid-cols-1 gap-3 min-[2560px]:grid-cols-4 min-[3200px]:grid-cols-5 min-[3800px]:grid-cols-6 md:grid-cols-2 xl:grid-cols-3">
+              {cards.map((card, i) => (
+                <FlashcardItem
+                  key={card.publicId}
+                  card={card}
+                  index={i + 1}
+                  deckPublicId={deckPublicId}
+                  editing={activeEditId === card.publicId}
+                  serverError={activeEditId === card.publicId ? editError : null}
+                  justSaved={savedId === card.publicId}
+                  onEdit={() => {
+                    setActiveEditId(card.publicId);
+                  }}
+                  onCancelEdit={() => {
+                    setActiveEditId(null);
+                  }}
+                  onDelete={() => {
+                    setDeleteCard(card);
+                  }}
+                />
+              ))}
+            </ul>
+          </>
         )}
       </section>
 
