@@ -58,6 +58,12 @@ export function isOpenRouterConfigured() {
   return Boolean(OPENROUTER_API_KEY);
 }
 
+// The model that generateCandidates would use. The endpoint needs it to stamp the
+// `model` (NOT NULL) column on a FAILED session, where no GenerateResult exists.
+export function resolveModel() {
+  return OPENROUTER_MODEL ?? DEFAULT_MODEL;
+}
+
 // JSON schema forcing the model to return exactly { cards: [{ front, back }] }.
 // strict:true requires additionalProperties:false and every property required.
 function responseSchema() {

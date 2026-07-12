@@ -558,28 +558,28 @@ kandydatów AI.
 
 #### Automated
 
-- [x] 2.1 `npm run lint` i `npm run build` przechodzą (Zod dołączony)
-- [x] 2.2 `npx astro sync` typuje nowe zmienne `astro:env/server`
+- [x] 2.1 `npm run lint` i `npm run build` przechodzą (Zod dołączony) — 836aad2
+- [x] 2.2 `npx astro sync` typuje nowe zmienne `astro:env/server` — 836aad2
 
 #### Manual
 
-- [x] 2.3 Z kluczem: `generateCandidates` zwraca poprawne karty w wybranym języku, w limitach
-- [x] 2.4 Bez klucza: tryb mock działa offline
-- [x] 2.5 Za długa/wadliwa karta → pominięta (fallback), reszta zapisana; bez re-calla
+- [x] 2.3 Z kluczem: `generateCandidates` zwraca poprawne karty w wybranym języku, w limitach — 836aad2
+- [x] 2.4 Bez klucza: tryb mock działa offline — 836aad2
+- [x] 2.5 Za długa/wadliwa karta → pominięta (fallback), reszta zapisana; bez re-calla — 836aad2
 
 ### Phase 3: Endpoint /api/generate
 
 #### Automated
 
-- [ ] 3.1 `npm run lint` i `npm run build` przechodzą
-- [ ] 3.2 `npx astro sync` czysty (nowa trasa)
+- [x] 3.1 `npm run lint` i `npm run build` przechodzą
+- [x] 3.2 `npx astro sync` czysty (nowa trasa)
 
 #### Manual
 
-- [ ] 3.3 POST zwraca JSON; karty w DB `state=1/source=2/generation_id`; sesja zapisana
-- [ ] 3.4 `newDeckName` tworzy talię i zapisuje kandydatów
-- [ ] 3.5 Błąd OpenRouter → JSON error + sesja `failed` z `error_message`
-- [ ] 3.6 Niezalogowany → 401; obcy `deckPublicId` → 404 bez wycieku
+- [x] 3.3 POST zwraca JSON; karty w DB `state=1/source=2/generation_id`; sesja zapisana
+- [x] 3.4 `newDeckName` tworzy talię i zapisuje kandydatów
+- [x] 3.5 Błąd OpenRouter → JSON error + sesja `failed` z `error_message`
+- [x] 3.6 Niezalogowany → 401; obcy `deckPublicId` → 404 bez wycieku
 - [ ] 3.7 Smoke-test realnego calla na deployed preview (edge/workerd)
 
 ### Phase 4: Strona generatora + wyspa + nav
