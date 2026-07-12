@@ -544,28 +544,28 @@ kandydatów AI.
 
 #### Automated
 
-- [x] 1.1 Migracja aplikuje się czysto (`supabase migration up` / `db reset`)
-- [x] 1.2 Typy DB zregenerowane (`gen types`), diff pokazuje `generation_session` + `generation_id`
-- [x] 1.3 `npx astro sync` bez błędów
-- [x] 1.4 `npm run lint` przechodzi
+- [x] 1.1 Migracja aplikuje się czysto (`supabase migration up` / `db reset`) — 5a64b96
+- [x] 1.2 Typy DB zregenerowane (`gen types`), diff pokazuje `generation_session` + `generation_id` — 5a64b96
+- [x] 1.3 `npx astro sync` bez błędów — 5a64b96
+- [x] 1.4 `npm run lint` przechodzi — 5a64b96
 
 #### Manual
 
-- [x] 1.5 RLS `generation_session` zweryfikowane (rola+JWT+RETURNING, kontrola pozytywna)
-- [x] 1.6 `flashcard.generation_id` nullable + FK `ON DELETE SET NULL` działa
+- [x] 1.5 RLS `generation_session` zweryfikowane (rola+JWT+RETURNING, kontrola pozytywna) — 5a64b96
+- [x] 1.6 `flashcard.generation_id` nullable + FK `ON DELETE SET NULL` działa — 5a64b96
 
 ### Phase 2: Klient LLM + env + Zod
 
 #### Automated
 
-- [ ] 2.1 `npm run lint` i `npm run build` przechodzą (Zod dołączony)
-- [ ] 2.2 `npx astro sync` typuje nowe zmienne `astro:env/server`
+- [x] 2.1 `npm run lint` i `npm run build` przechodzą (Zod dołączony)
+- [x] 2.2 `npx astro sync` typuje nowe zmienne `astro:env/server`
 
 #### Manual
 
-- [ ] 2.3 Z kluczem: `generateCandidates` zwraca poprawne karty w wybranym języku, w limitach
-- [ ] 2.4 Bez klucza: tryb mock działa offline
-- [ ] 2.5 Za długa/wadliwa karta → pominięta (fallback), reszta zapisana; bez re-calla
+- [x] 2.3 Z kluczem: `generateCandidates` zwraca poprawne karty w wybranym języku, w limitach
+- [x] 2.4 Bez klucza: tryb mock działa offline
+- [x] 2.5 Za długa/wadliwa karta → pominięta (fallback), reszta zapisana; bez re-calla
 
 ### Phase 3: Endpoint /api/generate
 
