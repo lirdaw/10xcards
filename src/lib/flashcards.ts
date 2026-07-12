@@ -56,11 +56,16 @@ export function deckIdByPublicId(supabase: Client, deckPublicId: string) {
   return supabase.from("deck").select("id").eq("public_id", deckPublicId).maybeSingle();
 }
 
+// Default deck list shows only ACCEPTED cards, so AI candidates (`generated`) and
+// rejected cards never leak into the deck view. Signature unchanged — no stateId
+// param; browsing candidates by state is S-05 (candidate-review). Manual cards are
+// inserted `accepted` (createFlashcard below), so this hides only AI candidates.
 export function listFlashcards(supabase: Client, deckId: number) {
   return supabase
     .from("flashcard")
     .select("public_id, front, back, created_at, updated_at")
     .eq("deck_id", deckId)
+    .eq("state_id", STATE_ACCEPTED)
     .order("created_at", { ascending: false });
 }
 

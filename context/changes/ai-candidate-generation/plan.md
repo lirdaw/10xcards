@@ -586,23 +586,23 @@ kandydatów AI.
 
 #### Automated
 
-- [x] 4.1 `npm run lint`, `npm run build`, `npx astro sync` przechodzą
+- [x] 4.1 `npm run lint`, `npm run build`, `npx astro sync` przechodzą — 6828827
 
 #### Manual
 
-- [x] 4.2 Happy-path w UI: tekst → wybór → postęp → lista wyników; karty w DB
-- [x] 4.3 Nowa talia z generatora działa; nazwa zajęta → błąd w formularzu (nie baner w tle)
-- [x] 4.4 Błąd/timeout → komunikat + „Ponów"; podwójny klik zablokowany
-- [x] 4.5 Nav „Generuj fiszki" aktywny i podświetlony; strona chroniona
-- [x] 4.6 A11y: label/focus/keyboard, czytelny licznik znaków
+- [x] 4.2 Happy-path w UI: tekst → wybór → postęp → lista wyników; karty w DB — 6828827
+- [x] 4.3 Nowa talia z generatora działa; nazwa zajęta → błąd w formularzu (nie baner w tle) — 6828827
+- [x] 4.4 Błąd/timeout → komunikat + „Ponów"; podwójny klik zablokowany — 6828827
+- [x] 4.5 Nav „Generuj fiszki" aktywny i podświetlony; strona chroniona — 6828827
+- [x] 4.6 A11y: label/focus/keyboard, czytelny licznik znaków — 6828827
 
 ### Phase 5: Domyślny filtr accepted w liście talii (bez UI)
 
 #### Automated
 
-- [ ] 5.1 `npm run lint`, `npm run build`, `npx astro sync` przechodzą
+- [x] 5.1 `npm run lint`, `npm run build`, `npx astro sync` przechodzą
 
 #### Manual
 
-- [ ] 5.2 Karty ręczne (`accepted`) nadal widoczne na domyślnej liście (brak regresji manual-card-crud)
-- [ ] 5.3 Kandydaci `generated`/`rejected` niewidoczni na domyślnej liście talii
+- [x] 5.2 Karty ręczne (`accepted`) nadal widoczne na domyślnej liście (brak regresji manual-card-crud)
+- [x] 5.3 Kandydaci `generated`/`rejected` niewidoczni na domyślnej liście talii
