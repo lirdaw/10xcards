@@ -571,30 +571,30 @@ kandydatów AI.
 
 #### Automated
 
-- [x] 3.1 `npm run lint` i `npm run build` przechodzą
-- [x] 3.2 `npx astro sync` czysty (nowa trasa)
+- [x] 3.1 `npm run lint` i `npm run build` przechodzą — 083bd42
+- [x] 3.2 `npx astro sync` czysty (nowa trasa) — 083bd42
 
 #### Manual
 
-- [x] 3.3 POST zwraca JSON; karty w DB `state=1/source=2/generation_id`; sesja zapisana
-- [x] 3.4 `newDeckName` tworzy talię i zapisuje kandydatów
-- [x] 3.5 Błąd OpenRouter → JSON error + sesja `failed` z `error_message`
-- [x] 3.6 Niezalogowany → 401; obcy `deckPublicId` → 404 bez wycieku
-- [ ] 3.7 Smoke-test realnego calla na deployed preview (edge/workerd)
+- [x] 3.3 POST zwraca JSON; karty w DB `state=1/source=2/generation_id`; sesja zapisana — 083bd42
+- [x] 3.4 `newDeckName` tworzy talię i zapisuje kandydatów — 083bd42
+- [x] 3.5 Błąd OpenRouter → JSON error + sesja `failed` z `error_message` — 083bd42
+- [x] 3.6 Niezalogowany → 401; obcy `deckPublicId` → 404 bez wycieku — 083bd42
+- [ ] 3.7 Smoke-test realnego calla na deployed preview (edge/workerd) — odłożone do /ship
 
 ### Phase 4: Strona generatora + wyspa + nav
 
 #### Automated
 
-- [ ] 4.1 `npm run lint`, `npm run build`, `npx astro sync` przechodzą
+- [x] 4.1 `npm run lint`, `npm run build`, `npx astro sync` przechodzą
 
 #### Manual
 
-- [ ] 4.2 Happy-path w UI: tekst → wybór → postęp → lista wyników; karty w DB
-- [ ] 4.3 Nowa talia z generatora działa; nazwa zajęta → błąd w formularzu (nie baner w tle)
-- [ ] 4.4 Błąd/timeout → komunikat + „Ponów"; podwójny klik zablokowany
-- [ ] 4.5 Nav „Generuj fiszki" aktywny i podświetlony; strona chroniona
-- [ ] 4.6 A11y: label/focus/keyboard, czytelny licznik znaków
+- [x] 4.2 Happy-path w UI: tekst → wybór → postęp → lista wyników; karty w DB
+- [x] 4.3 Nowa talia z generatora działa; nazwa zajęta → błąd w formularzu (nie baner w tle)
+- [x] 4.4 Błąd/timeout → komunikat + „Ponów"; podwójny klik zablokowany
+- [x] 4.5 Nav „Generuj fiszki" aktywny i podświetlony; strona chroniona
+- [x] 4.6 A11y: label/focus/keyboard, czytelny licznik znaków
 
 ### Phase 5: Domyślny filtr accepted w liście talii (bez UI)
 

@@ -1,0 +1,37 @@
+---
+import AuthenticatedLayout from "@/layouts/AuthenticatedLayout.astro";
+import { GeneratorForm } from "@/components/generate/GeneratorForm";
+import { createClient } from "@/lib/supabase";
+import { listDecks } from "@/lib/decks";
+
+// Load the user's decks for the target selector. Branch on the query error vs empty
+// (lessons: SSR error-vs-empty) so a transient DB failure renders an error state
+// rather than silently offering only "Nowa talia". Route guard is in middleware —
+// no top-level return in the frontmatter (lessons).
+const supabase = createClient(Astro.request.headers, Astro.cookies);
+const { data, error: loadError } = supabase ? await listDecks(supabase) : { data: [], error: null };
+const decks = (data ?? []).map((d) => ({ publicId: d.public_id, name: d.name }));
+---
+
+<AuthenticatedLayout title="Generuj fiszki" activeItem="generate">
+  <div class="mx-auto max-w-4xl">
+    <h1
+      class="mb-2 bg-gradient-to-r from-blue-200 to-purple-200 bg-clip-text text-2xl font-bold tracking-tight text-transparent"
+    >
+      Generuj fiszki
+    </h1>
+    <p class="mb-6 text-blue-100/70">
+      Wklej tekst źródłowy, wybierz talię, język i liczbę kart — AI przygotuje kandydatów do przeglądu.
+    </p>
+
+    {
+      loadError ? (
+        <div class="rounded-2xl border border-red-500/30 bg-red-900/20 p-8 text-center text-red-200">
+          <p>Nie udało się wczytać Twoich talii. Spróbuj odświeżyć stronę.</p>
+        </div>
+      ) : (
+        <GeneratorForm decks={decks} client:load />
+      )
+    }
+  </div>
+</AuthenticatedLayout>
