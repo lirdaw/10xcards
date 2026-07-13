@@ -22,8 +22,12 @@ export function deckNameExists(supabase: Client, name: string) {
   return supabase.from("deck").select("public_id").eq("name", name).maybeSingle();
 }
 
+// RETURNING id + public_id: the AI-generation endpoint needs the new deck's bigint
+// `id` (to insert candidates) and `public_id` (to echo back to the island) in one
+// round-trip — public_id is DB-generated, so without RETURNING it'd need a second
+// select. Backward compatible: the form-POST caller reads only `error`.
 export function createDeck(supabase: Client, userId: string, name: string) {
-  return supabase.from("deck").insert({ user_id: userId, name });
+  return supabase.from("deck").insert({ user_id: userId, name }).select("id, public_id").single();
 }
 
 export function renameDeck(supabase: Client, publicId: string, name: string) {

@@ -67,6 +67,7 @@ export type Database = {
           created_at: string
           deck_id: number
           front: string
+          generation_id: number | null
           id: number
           public_id: string
           source_id: number
@@ -78,6 +79,7 @@ export type Database = {
           created_at?: string
           deck_id: number
           front: string
+          generation_id?: number | null
           id?: never
           public_id?: string
           source_id: number
@@ -89,6 +91,7 @@ export type Database = {
           created_at?: string
           deck_id?: number
           front?: string
+          generation_id?: number | null
           id?: never
           public_id?: string
           source_id?: number
@@ -101,6 +104,13 @@ export type Database = {
             columns: ["deck_id"]
             isOneToOne: false
             referencedRelation: "deck"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flashcard_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "generation_session"
             referencedColumns: ["id"]
           },
           {
@@ -146,6 +156,57 @@ export type Database = {
         Update: {
           code?: string
           id?: number
+        }
+        Relationships: []
+      }
+      generation_session: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          generated_count: number
+          id: number
+          language: string
+          model: string
+          public_id: string
+          request_payload: Json | null
+          requested_count: number
+          response_payload: Json | null
+          saved_count: number
+          source_text: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          generated_count: number
+          id?: never
+          language: string
+          model: string
+          public_id?: string
+          request_payload?: Json | null
+          requested_count: number
+          response_payload?: Json | null
+          saved_count: number
+          source_text: string
+          status: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          generated_count?: number
+          id?: never
+          language?: string
+          model?: string
+          public_id?: string
+          request_payload?: Json | null
+          requested_count?: number
+          response_payload?: Json | null
+          saved_count?: number
+          source_text?: string
+          status?: string
+          user_id?: string
         }
         Relationships: []
       }
