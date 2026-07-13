@@ -1,10 +1,10 @@
 ---
 change_id: ai-candidate-generation
 title: Generacja kandydatów fiszek AI z wklejonego tekstu
-status: impl_reviewed
+status: archived
 created: 2026-07-11
-updated: 2026-07-12
-archived_at: null
+updated: 2026-07-13
+archived_at: 2026-07-13T19:38:15Z
 ---
 
 ## Notes

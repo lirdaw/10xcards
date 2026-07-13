@@ -49,7 +49,7 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 | F-03  | verification-harness     | (foundation) harness testowy + test-plan.md dla dwóch ryzyk   | S-01           | Guardrails, NFR: trwałość harmonogramu     | proposed |
 | S-02  | manual-card-crud         | ręcznie tworzyć, przeglądać, edytować i usuwać fiszki w talii | S-01           | US-03, FR-007, FR-008, FR-009, FR-010      | done     |
 | S-03  | srs-study-session        | uczyć się talii w sesji SRS z oceną przypomnienia (gwiazda)   | F-01, F-02, S-02 | US-02, FR-011, FR-012                     | proposed |
-| S-04  | ai-candidate-generation  | wkleić tekst i wygenerować kandydatów AI z postępem i retry   | F-01, S-01     | US-01, FR-003, FR-004, FR-006, FR-018      | proposed |
+| S-04  | ai-candidate-generation  | wkleić tekst i wygenerować kandydatów AI z postępem i retry   | F-01, S-01     | US-01, FR-003, FR-004, FR-006, FR-018      | done     |
 | S-05  | candidate-review         | przeglądać kandydatów i akceptować/edytować/odrzucać (bulk)   | S-04           | US-01, FR-005, FR-006                       | proposed |
 | S-06  | deck-keyword-search      | wyszukiwać fiszki w talii po słowie kluczowym                 | S-02           | FR-015                                      | done |
 
@@ -170,7 +170,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
   - Wybór dostawcy/modelu LLM (np. OpenRouter) generującego dobrze w językach użytkowników (PL + inne). Owner: downstream stack step. Block: no.
   - Maksymalna długość tekstu źródłowego (OQ#1) i liczba kart na generację (OQ#3) — tuning, sensowne domyślne wartości możliwe. Owner: downstream stack step. Block: no.
 - **Risk:** Rdzeń tezy produktu (metryka 75% akceptacji), ale świadomie za gwiazdą SRS zgodnie z Twoim wyborem north star. Wprowadza tabelę GenerationSession pod tym slice'em (progresywne odsłanianie). Ryzyko: jakość generacji i responsywność (guardrail ~200 ms / >2 s). **Obsługa błędu/timeout + retry (FR-018) jest twardym kryterium odbioru („done") tego slice'a, nie osobnym przyrostem — przy celu `quality` ścieżka błędu jest częścią ukończenia generacji.**
-- **Status:** proposed
+- **Status:** done
 
 ### S-05: Przegląd i kuracja kandydatów
 
@@ -238,6 +238,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **F-02: (foundation) rozstrzygnięta i zaakceptowana decyzja: która gotowa biblioteka spaced-repetition oraz jaka skala oceny przypomnienia — pojedyncza decyzja determinująca pola harmonogramu i skalę oceny dla sesji nauki. Bez kodu produktowego (decyzja typu buy, nie warstwa).** — Archived 2026-07-09 → `context/archive/2026-07-09-srs-library-choice/`. Lesson: —.
 - **S-02: użytkownik ręcznie tworzy fiszkę (front/back), przegląda listę fiszek w talii, edytuje i trwale usuwa dowolną fiszkę.** — Archived 2026-07-11 → `context/archive/2026-07-09-manual-card-crud/`. Lesson: —.
 - **S-06: użytkownik wpisuje frazę i zatwierdza (Enter); dopasowanie to proste wyszukiwanie podłańcucha w `front` i `back` kart w danej talii.** — Archived 2026-07-13 → `context/archive/2026-07-11-deck-keyword-search/`. Lesson: —.
+- **S-04: użytkownik wkleja tekst źródłowy (do zdefiniowanego maksimum), uruchamia generację AI z widocznym postępem, a przy błędzie/timeoucie widzi jasny komunikat i może ponowić; kandydaci trafiają do bazy ze statusem `generated`, powiązani z sesją generacji.** — Archived 2026-07-13 → `context/archive/2026-07-11-ai-candidate-generation/`. Lesson: —.
 
 ## Parked ideas (post-MVP → Jira "Pomysł")
 
