@@ -99,3 +99,10 @@
 - **Problem**: Oportunistyczna polerka UI na sąsiednich/współdzielonych komponentach („jestem tu, to od razu poprawię") po cichu rozszerza zakres slice'a. W S-02 (manual-card-crud) commit p3 wwiózł Sidebar collapse, stopkę-mock i restyle przycisków poza zakresem card-CRUD — wyłapane dopiero w impl-review (F2), gdy było już zbudowane i zacommitowane, więc nie dało się tanio odłożyć.
 - **Rule**: Poleruj tylko własne, nowe komponenty slice'a, w miejscu. Zanim dotkniesz komponentu, którego slice nie stworzył (powłoka, wspólny prymityw używany gdzie indziej), rozstrzygnij zakres PRZED budową: w zakresie → rób; poza → zapisz jako Deferred idea i odłóż. Nie rozstrzygaj tego po fakcie.
 - **Applies to**: implement, plan-review, impl-review, plan
+
+## Klient↔serwer timeouty + „Ponów" wymagają idempotencji zapisu
+
+- **Context**: Endpointy wołające zewnętrzne, płatne API (LLM) z timeoutem po stronie serwera ORAZ klienta, plus retriable przycisk „Ponów" (FR-018). Ścieżka: `src/pages/api/generate.ts` (timeouty), `src/components/generate/GeneratorForm.tsx` (klient + retry).
+- **Problem**: Nawet przy poprawnej kolejności timeoutów (klient 55s > serwer 40s) zostaje wąskie okno: gdy zapisy po stronie serwera (sesja + karty) przeciągną się po odpowiedzi modelu, klient abortuje na 55s i pokazuje „Ponów", a serwer i tak commituje. „Ponów" dokłada drugi komplet → duplikaty. Sam ordering timeoutów NIE eliminuje wyścigu — tylko go zawęża.
+- **Rule**: Gdy zapis stanu jest wyzwalany przez wywołanie z timeoutem klient+serwer i retriable „Ponów", zaprojektuj zapis idempotentnie (idempotency key / dedup po identyfikatorze żądania), zamiast polegać wyłącznie na różnicy timeoutów. Jeśli idempotencja jest odłożona, zapisz to jawnie jako znany tradeoff i domknij, gdy pojawi się warstwa dedupu.
+- **Applies to**: plan, implement, impl-review

@@ -22,6 +22,17 @@ export function createGenerationSession(supabase: Client, row: TablesInsert<"gen
   return supabase.from("generation_session").insert(row).select("id, public_id").single();
 }
 
+// Compensating update: flips an already-persisted `succeeded` session to `failed`
+// when the follow-up card insert fails, so `saved_count` never over-reports cards
+// that didn't land (impl-review F2). The writes aren't a single transaction (the card
+// insert needs the session's FK id first), so this closes the audit gap best-effort.
+export function failGenerationSession(supabase: Client, id: number, message: string) {
+  return supabase
+    .from("generation_session")
+    .update({ status: "failed", saved_count: 0, error_message: message })
+    .eq("id", id);
+}
+
 // Bulk-inserts validated candidates into a deck, stamping state/source/generation link.
 // Only called on success with a non-empty list (the endpoint guards saved_count > 0).
 export function insertCandidates(

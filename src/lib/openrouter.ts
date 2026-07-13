@@ -157,13 +157,18 @@ export async function generateCandidates({
     };
   }
 
+  // Scale the token budget with `count` so a large request (up to 15 cards, each back up
+  // to BACK_MAX chars) isn't truncated mid-JSON — a cut-off body fails JSON.parse and the
+  // whole call dead-ends on the 0-saved path (impl-review F4). ~450 tok/card + overhead.
+  const maxTokens = 500 + count * 450;
+
   const body = {
     model,
     messages: [
       { role: "system", content: systemPrompt(language, count) },
       { role: "user", content: sourceText },
     ],
-    max_tokens: 4096,
+    max_tokens: maxTokens,
     temperature: 0.4,
     response_format: {
       type: "json_schema",

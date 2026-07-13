@@ -2,10 +2,10 @@ import type { APIRoute } from "astro";
 import { z } from "zod";
 import type { Json } from "@/db/database.types";
 import { createClient } from "@/lib/supabase";
-import { createDeck } from "@/lib/decks";
+import { createDeck, deckNameExists } from "@/lib/decks";
 import { deckIdByPublicId } from "@/lib/flashcards";
 import { generateCandidates, resolveModel, OpenRouterError } from "@/lib/openrouter";
-import { createGenerationSession, insertCandidates } from "@/lib/generations";
+import { createGenerationSession, failGenerationSession, insertCandidates } from "@/lib/generations";
 
 // FIRST JSON endpoint in the project — a deliberate departure from the native
 // form-POST + redirect(?error=) convention of every other endpoint. The AI generator
@@ -16,6 +16,12 @@ import { createGenerationSession, insertCandidates } from "@/lib/generations";
 const SOURCE_MAX = 10_000;
 const COUNT_MIN = 1;
 const COUNT_MAX = 15;
+
+// Allowed target languages — kept in sync with the island's LANGUAGES options
+// (src/components/generate/GeneratorForm.tsx). Whitelisted here so a hand-crafted body
+// can't inject arbitrary text into the LLM system prompt (impl-review F3). `auto` =
+// "same language as the source text".
+const LANGUAGES = ["auto", "polski", "angielski", "hiszpański", "niemiecki", "francuski"] as const;
 
 // Server-side OpenRouter timeout. MUST be clearly shorter than the client's fetch
 // timeout (~55s) so the server almost always answers first — otherwise the client
@@ -33,7 +39,7 @@ const bodySchema = z
     deckPublicId: z.string().regex(UUID_RE).optional(),
     newDeckName: z.string().trim().min(1).max(100).optional(),
     sourceText: z.string().min(1).max(SOURCE_MAX),
-    language: z.string().min(1).max(40),
+    language: z.enum(LANGUAGES),
     count: z.number().int().min(COUNT_MIN).max(COUNT_MAX),
   })
   .refine((d) => Boolean(d.deckPublicId) !== Boolean(d.newDeckName), {
@@ -75,21 +81,14 @@ export const POST: APIRoute = async (context) => {
     return json(400, { error: "Tekst źródłowy jest pusty" });
   }
 
-  // --- Resolve the target deck to its internal bigint id (+ public_id for the reply) ---
-  let deckId: number;
-  let deckPublicIdOut: string;
-  if (newDeckName) {
-    const { data: deck, error } = await createDeck(supabase, user.id, newDeckName);
-    if (error) {
-      // 23505 = unique_violation on (user_id, name): the name is taken.
-      const taken = error.code === "23505";
-      return json(taken ? 409 : 500, {
-        error: taken ? "Talia o tej nazwie już istnieje" : "Nie udało się utworzyć talii",
-      });
-    }
-    deckId = deck.id;
-    deckPublicIdOut = deck.public_id;
-  } else if (deckPublicId) {
+  // --- Resolve the target deck. For an EXISTING deck, resolve its bigint id up front
+  // so a missing/foreign deck 404s before we pay for a generation. For a NEW deck, only
+  // CHECK the name is free here — the deck is created on the success path (below), so a
+  // failed generation neither orphans an empty deck nor blocks "Ponów" with a 23505 on
+  // retry (impl-review F1). deckId stays null until the deck is known/created. ---
+  let deckId: number | null = null;
+  let deckPublicIdOut = "";
+  if (deckPublicId) {
     // Branch on the query error first so a transient DB failure isn't masked as a
     // 404 (lessons: SSR error-vs-empty). Only a genuine null (absent or RLS-hidden)
     // is a real not-found — so we never reveal that a foreign deck exists.
@@ -102,6 +101,16 @@ export const POST: APIRoute = async (context) => {
     }
     deckId = deck.id;
     deckPublicIdOut = deckPublicId;
+  } else if (newDeckName) {
+    // Fast 409 for a genuine duplicate (no wasted LLM call). The deck itself is created
+    // only after a successful generation — deferring it is what makes retry work (F1).
+    const { data: existing, error } = await deckNameExists(supabase, newDeckName);
+    if (error) {
+      return json(500, { error: "Nie udało się odczytać talii" });
+    }
+    if (existing) {
+      return json(409, { error: "Talia o tej nazwie już istnieje" });
+    }
   } else {
     // Unreachable: the schema's refine guarantees exactly one of the two.
     return json(400, { error: "Nieprawidłowe dane wejściowe" });
@@ -164,7 +173,27 @@ export const POST: APIRoute = async (context) => {
     return json(422, { error: "Model nie zwrócił poprawnych fiszek. Spróbuj ponownie.", retriable: true });
   }
 
-  // --- Success: session is the parent → insert it, read its id, then insert cards ---
+  // --- Success. Create the NEW deck now (deferred from pre-LLM so a failed generation
+  // doesn't orphan an empty deck or block retry with a 23505 — F1). The upfront
+  // name-availability check makes a real 23505 here a rare TOCTOU; still mapped. ---
+  if (newDeckName) {
+    const { data: deck, error } = await createDeck(supabase, user.id, newDeckName);
+    if (error) {
+      const taken = error.code === "23505";
+      return json(taken ? 409 : 500, {
+        error: taken ? "Talia o tej nazwie już istnieje" : "Nie udało się utworzyć talii",
+      });
+    }
+    deckId = deck.id;
+    deckPublicIdOut = deck.public_id;
+  }
+  if (deckId === null) {
+    // Defensive: every branch above sets deckId on the success path. Narrows the type
+    // for insertCandidates and guards against a future branch forgetting to resolve it.
+    return json(500, { error: "Nie udało się ustalić talii docelowej" });
+  }
+
+  // --- Session is the parent → insert it, read its id, then insert cards ---
   const { data: session, error: sessionError } = await createGenerationSession(supabase, {
     user_id: user.id,
     source_text: sourceText,
@@ -184,6 +213,9 @@ export const POST: APIRoute = async (context) => {
 
   const { error: cardsError } = await insertCandidates(supabase, deckId, session.id, result.cards);
   if (cardsError) {
+    // The session was already saved as `succeeded`, but no cards landed. Compensate so
+    // the audit doesn't over-report saved cards (impl-review F2); best-effort.
+    await failGenerationSession(supabase, session.id, "Zapis kart nie powiódł się");
     return json(500, { error: "Nie udało się zapisać wygenerowanych fiszek" });
   }
 
