@@ -28,6 +28,10 @@ returns text language sql immutable strict parallel safe
 set search_path = ''
 as $$ select extensions.unaccent('extensions.unaccent'::regdictionary, $1) $$;
 
+-- Funkcje domyslnie daja EXECUTE PUBLIC; odbieramy go — wrapper jest uzywany tylko
+-- wewnatrz search_flashcards_in_deck, nie ma potrzeby ekspozycji dla anon/public.
+revoke all on function public.f_unaccent(text) from public, anon;
+
 -- ============================================================================
 -- Funkcja RPC: wyszukiwanie w obrebie talii
 -- ============================================================================

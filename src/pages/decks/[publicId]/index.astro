@@ -70,8 +70,10 @@ if (deck && supabase) {
     if (!query || cards.length > 0) {
       deckHasCards = cards.length > 0;
     } else {
-      const { count } = await countFlashcards(supabase, deck.id);
-      deckHasCards = (count ?? 0) > 0;
+      const { count, error: countError } = await countFlashcards(supabase, deck.id);
+      // On a transient count failure, assume the deck has cards so the empty
+      // state reads as "no matches" rather than mislabelling a stocked deck empty.
+      deckHasCards = countError ? true : (count ?? 0) > 0;
     }
   }
 }
