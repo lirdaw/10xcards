@@ -215,7 +215,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      search_flashcards_in_deck: {
+        Args: { p_deck_id: number; p_query: string }
+        Returns: {
+          back: string
+          created_at: string
+          front: string
+          public_id: string
+          updated_at: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

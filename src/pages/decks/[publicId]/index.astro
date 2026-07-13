@@ -4,7 +4,13 @@ import DeckActions from "@/components/decks/DeckActions";
 import FlashcardWorkspace from "@/components/flashcards/FlashcardWorkspace";
 import { createClient } from "@/lib/supabase";
 import { getDeckByPublicId } from "@/lib/decks";
-import { listFlashcards, formatCardDate, type FlashcardView } from "@/lib/flashcards";
+import {
+  listFlashcards,
+  searchFlashcards,
+  countFlashcards,
+  formatCardDate,
+  type FlashcardView,
+} from "@/lib/flashcards";
 
 const { publicId } = Astro.params;
 const supabase = createClient(Astro.request.headers, Astro.cookies);
@@ -26,14 +32,26 @@ if (deckError) {
   Astro.response.status = 404;
 }
 
+// Keyword search (FR-015): a trimmed, non-empty `?q` switches the card fetch from
+// the full list to the accent-insensitive RPC search; empty `q` keeps the original
+// path untouched. `q` is NOT stripped from the URL (unlike the mutation round-trip
+// params below), so both the filter and the typed phrase survive a reload.
+const query = (Astro.url.searchParams.get("q") ?? "").trim();
+
 // Load the deck's cards once the deck is resolved, reusing the internal `id` from
 // the deck fetch (never passed to the island). Branch on the query error so a
 // transient DB failure renders a distinct error state, never a silent empty list
-// (lessons: SSR error-vs-empty).
+// (lessons: SSR error-vs-empty). Both helpers return the same public columns, so
+// the row mapping is identical for the list and search branches.
 let cards: FlashcardView[] = [];
 let cardsError = false;
+// Whether the deck holds ANY card (unfiltered). Lets the island tell an empty deck
+// apart from a search that matched nothing, so the empty state shows the right copy.
+let deckHasCards = false;
 if (deck && supabase) {
-  const { data, error: listError } = await listFlashcards(supabase, deck.id);
+  const { data, error: listError } = query
+    ? await searchFlashcards(supabase, deck.id, query)
+    : await listFlashcards(supabase, deck.id);
   if (listError) {
     cardsError = true;
   } else {
@@ -45,6 +63,18 @@ if (deck && supabase) {
       updatedAtLabel: formatCardDate(c.updated_at),
       edited: c.updated_at !== c.created_at,
     }));
+    // Non-search always loads the full list, so its length is the deck's card count.
+    // A search with hits also proves the deck is non-empty. Only a search that
+    // matched nothing needs the extra head-count to distinguish "empty deck" from
+    // "no matches" — the cheap query runs solely in that case.
+    if (!query || cards.length > 0) {
+      deckHasCards = cards.length > 0;
+    } else {
+      const { count, error: countError } = await countFlashcards(supabase, deck.id);
+      // On a transient count failure, assume the deck has cards so the empty
+      // state reads as "no matches" rather than mislabelling a stocked deck empty.
+      deckHasCards = countError ? true : (count ?? 0) > 0;
+    }
   }
 }
 
@@ -124,6 +154,8 @@ const bannerError = error && !openRename && !openCreateCard && !editId ? error :
         <FlashcardWorkspace
           deckPublicId={deck.public_id}
           cards={cards}
+          query={query}
+          deckHasCards={deckHasCards}
           cardsError={cardsError}
           defaultOpenCreate={openCreateCard}
           serverError={openCreateCard ? error : null}

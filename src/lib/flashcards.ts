@@ -69,6 +69,25 @@ export function listFlashcards(supabase: Client, deckId: number) {
     .order("created_at", { ascending: false });
 }
 
+// Keyword search within one deck (FR-015): accent- and case-insensitive substring
+// match on front/back, via the search_flashcards_in_deck RPC. SECURITY INVOKER, so
+// RLS still scopes rows to the signed-in user. Same result shape as listFlashcards
+// (public_id, front, back, created_at, updated_at), so the loader maps it identically.
+// The RPC's internal ORDER BY is not guaranteed once PostgREST wraps it, so the
+// created_at desc order is re-asserted here with an explicit .order().
+export function searchFlashcards(supabase: Client, deckId: number, query: string) {
+  return supabase
+    .rpc("search_flashcards_in_deck", { p_deck_id: deckId, p_query: query })
+    .order("created_at", { ascending: false });
+}
+
+// Count of ALL cards in a deck (unfiltered, head-only — no rows fetched). Used only
+// to tell a genuinely empty deck apart from a search that matched nothing, so the
+// empty state can show the right copy ("deck is empty" vs "no matches for <q>").
+export function countFlashcards(supabase: Client, deckId: number) {
+  return supabase.from("flashcard").select("*", { count: "exact", head: true }).eq("deck_id", deckId);
+}
+
 export function createFlashcard(supabase: Client, deckId: number, front: string, back: string) {
   return supabase
     .from("flashcard")

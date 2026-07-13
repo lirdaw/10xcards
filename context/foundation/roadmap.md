@@ -3,7 +3,7 @@ project: 10xcards
 version: 1
 status: draft
 created: 2026-07-04
-updated: 2026-07-11
+updated: 2026-07-13
 prd_version: 1
 main_goal: quality
 top_blocker: capacity
@@ -51,7 +51,7 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 | S-03  | srs-study-session        | uczyć się talii w sesji SRS z oceną przypomnienia (gwiazda)   | F-01, F-02, S-02 | US-02, FR-011, FR-012                     | proposed |
 | S-04  | ai-candidate-generation  | wkleić tekst i wygenerować kandydatów AI z postępem i retry   | F-01, S-01     | US-01, FR-003, FR-004, FR-006, FR-018      | proposed |
 | S-05  | candidate-review         | przeglądać kandydatów i akceptować/edytować/odrzucać (bulk)   | S-04           | US-01, FR-005, FR-006                       | proposed |
-| S-06  | deck-keyword-search      | wyszukiwać fiszki w talii po słowie kluczowym                 | S-02           | FR-015                                      | proposed |
+| S-06  | deck-keyword-search      | wyszukiwać fiszki w talii po słowie kluczowym                 | S-02           | FR-015                                      | done |
 
 ## Streams
 
@@ -194,7 +194,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Mały, samodzielny slice odczytu; celowo bez rankingu i bez live-as-you-type (to FR-019, parked). Niskie ryzyko; dobry kandydat na tor równoległy przy ograniczeniu przepustowości.
-- **Status:** proposed
+- **Status:** done
 
 ## Backlog Handoff
 
@@ -237,6 +237,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **S-01: użytkownik po zalogowaniu tworzy i nazywa własne talie i widzi je jako prywatną przestrzeń.** — Archived 2026-07-08 → `context/archive/2026-07-07-deck-workspace/`. Lesson: —.
 - **F-02: (foundation) rozstrzygnięta i zaakceptowana decyzja: która gotowa biblioteka spaced-repetition oraz jaka skala oceny przypomnienia — pojedyncza decyzja determinująca pola harmonogramu i skalę oceny dla sesji nauki. Bez kodu produktowego (decyzja typu buy, nie warstwa).** — Archived 2026-07-09 → `context/archive/2026-07-09-srs-library-choice/`. Lesson: —.
 - **S-02: użytkownik ręcznie tworzy fiszkę (front/back), przegląda listę fiszek w talii, edytuje i trwale usuwa dowolną fiszkę.** — Archived 2026-07-11 → `context/archive/2026-07-09-manual-card-crud/`. Lesson: —.
+- **S-06: użytkownik wpisuje frazę i zatwierdza (Enter); dopasowanie to proste wyszukiwanie podłańcucha w `front` i `back` kart w danej talii.** — Archived 2026-07-13 → `context/archive/2026-07-11-deck-keyword-search/`. Lesson: —.
 
 ## Parked ideas (post-MVP → Jira "Pomysł")
 
