@@ -106,3 +106,31 @@
 - **Problem**: Nawet przy poprawnej kolejności timeoutów (klient 55s > serwer 40s) zostaje wąskie okno: gdy zapisy po stronie serwera (sesja + karty) przeciągną się po odpowiedzi modelu, klient abortuje na 55s i pokazuje „Ponów", a serwer i tak commituje. „Ponów" dokłada drugi komplet → duplikaty. Sam ordering timeoutów NIE eliminuje wyścigu — tylko go zawęża.
 - **Rule**: Gdy zapis stanu jest wyzwalany przez wywołanie z timeoutem klient+serwer i retriable „Ponów", zaprojektuj zapis idempotentnie (idempotency key / dedup po identyfikatorze żądania), zamiast polegać wyłącznie na różnicy timeoutów. Jeśli idempotencja jest odłożona, zapisz to jawnie jako znany tradeoff i domknij, gdy pojawi się warstwa dedupu.
 - **Applies to**: plan, implement, impl-review
+
+## Operacje migracji Supabase — z folderu worktree; nie ślepo `repair`/`db pull` z podpowiedzi CLI
+
+- **Context**: praca z migracjami Supabase w git worktree (równoległe slice'y, M2L5); faza ship / `db push`.
+- **Problem**: `supabase link`/`db push` uruchomione z folderu NADRZĘDNEGO (nie z worktree) → CLI widzi niepełny zestaw migracji i rzuca mylące „Remote migration versions not found". Ślepe odpalenie podpowiedzianego `migration repair --status reverted <bazowe>` oznaczyło dwie bazowe migracje na PROD jako cofnięte = desync historii (schemat/dane NIETKNIĘTE — `repair` rusza tylko tabelę `schema_migrations`, nie SQL). Migracja o wcześniejszym timestampie niż już-wypchnięta (out-of-order) wymaga osobnej obsługi.
+- **Rule**: Komendy `supabase` uruchamiaj ZAWSZE z folderu worktree danego slice'a (potwierdź `git branch --show-current` przed operacją na prod). NIE uruchamiaj na ślepo `migration repair`/`db pull`, które CLI podsuwa w treści błędu — to sugestie, nie instrukcje. Przy desyncu: `repair --status applied <te same ID>` → `migration list` (Remote wraca) → `db push`. Dla pending migracji starszej niż ostatnia na remote użyj `db push --include-all` (bezpieczne: migracje addytywne i niezależne, kolejność bez znaczenia dla schematu).
+- **Applies to**: implement, impl-review
+
+## Zweryfikuj, że feature DZIAŁA na PROD — nie tylko że się zdeployował
+
+- **Context**: ship slice'a z zewnętrzną integracją wymagającą sekretu (LLM/OpenRouter); faza PROD-sanity.
+- **Problem**: `.env` jest lokalny i NIE trafia na Cloudflare — sekrety prod idą osobno przez `wrangler secret put`. Bez ustawionego `OPENROUTER_API_KEY` na workerze feature wpadł w tryb MOCK na prodzie (przykładowe karty zamiast realnej generacji). CI-deploy „success" i strona się ładowała, więc brak sekretu był niewidoczny — wyszedł dopiero, gdy w sanity uruchomiono REALNY przepływ.
+- **Rule**: W PROD-sanity uruchom realny przepływ feature'a (np. faktyczną generację), nie tylko sprawdź, że strona wstaje. Sekrety prod ustaw przez `wrangler secret put <NAZWA>` (niezależnie od `.env`) i potwierdź, że feature działa naprawdę (baner „nieskonfigurowany" / tryb mock = brak sekretu).
+- **Applies to**: implement, impl-review
+
+## Commit `/10x-archive` powstaje po merdżu na gałęzi → wprowadź go na main osobno
+
+- **Context**: domknięcie slice'a przez `jira-finish` RUN 2 → `/10x-archive`, gdy feature był już zmergowany PR-em; faza po-ship.
+- **Problem**: `/10x-archive` (przeniesienie change→archive + roadmap→done + status) tworzy commit na gałęzi feature PO merdżu PR-a i świadomie NIE pushuje. Efekt: archiwum i roadmap-done zostają na gałęzi, a na MAIN ich nie ma (zdarzyło się dla OBU slice'ów M2L5). Do tego `git branch -d` po wprowadzeniu tego commita na main cherry-pickiem odmówi (inny SHA → gałąź „niezmergowana" wg osiągalności).
+- **Rule**: Po `/10x-archive` wprowadź commit archiwum na main osobno: `git checkout main` → `git pull --ff-only` → `git cherry-pick <sha>` → `git push`. Przed skasowaniem gałęzi potwierdź, że treść jest na main: `git cherry -v main <branch>` (same „-" = patch na main) → wtedy `git branch -D` (nie `-d`) jest bezpieczne.
+- **Applies to**: implement, impl-review
+
+## Pliki gitignored nie przechodzą do nowego `git worktree`
+
+- **Context**: tworzenie git worktree pod równoległą pracę (M2L5); setup worktree.
+- **Problem**: `git worktree add` odtwarza tylko pliki ŚLEDZONE — gitignored nie są kopiowane. Nowy worktree nie ma `.claude/` (→ skille `/10x-*` nie działają), `.env` (→ brak sekretów lokalnych), `context/foundation/jira-workflow.md`, `node_modules` (→ lint/build padają), ani linku Supabase (`supabase/.temp/` → „not linked").
+- **Rule**: Po `git worktree add` dograj ręcznie do każdego worktree pliki gitignored, których slice potrzebuje: `.claude/`, `.env`, `context/foundation/jira-workflow.md`; zrób `npm install`; zlinkuj Supabase osobno (`supabase link`). PowerShell: `Copy-Item -Path .claude,.env -Destination ..\wt\ -Recurse -Force` + osobno jira-workflow do `..\wt\context\foundation\`.
+- **Applies to**: implement
