@@ -76,7 +76,8 @@ describe("account B is denied account A's decks", () => {
       as: b,
     });
 
-    expect(response.status).toBe(404);
+    // DELIBERATELY BROKEN — proving CI turns red. Reverted immediately; scratch branch only.
+    expect(response.status).toBe(599);
 
     const { data, error } = await getDeckByPublicId(clientFor(a.cookieHeader), aDeckPublicId);
     expect(error).toBeNull();
