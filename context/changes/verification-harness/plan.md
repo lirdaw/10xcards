@@ -629,24 +629,29 @@ the commit.
 
 #### Automated
 
-- [x] 3.1 Full suite passes: `npm test`
-- [x] 3.2 Lint and typecheck pass: `npm run lint`
-- [x] 3.3 Build passes: `npm run build`
-- [x] 3.4 Dropping a policy turns the suite red
+- [x] 3.1 Full suite passes: `npm test` — 238b7f1
+- [x] 3.2 Lint and typecheck pass: `npm run lint` — 238b7f1
+- [x] 3.3 Build passes: `npm run build` — 238b7f1
+- [x] 3.4 Dropping a policy turns the suite red — 238b7f1
 
 #### Manual
 
-- [x] 3.5 Deck rename/delete still work normally in the running app
-- [x] 3.6 Deleting a nonexistent deck returns 404 rather than a silent redirect
-- [x] 3.7 Every denial test asserts row state, not just status codes
+- [x] 3.5 Deck rename/delete still work normally in the running app — 238b7f1
+- [x] 3.6 Deleting a nonexistent deck returns 404 rather than a silent redirect — 238b7f1
+- [x] 3.7 Every denial test asserts row state, not just status codes — 238b7f1
 
 ### Phase 4: CI gate
+
+> 4.1, 4.2, 4.4 and 4.5 can only be observed on a real CI run, which needs the branch pushed and a
+> PR open — deliberately not done in this phase. They are deferred to `/ship`, which observes the CI
+> run on the PR. Confirmed locally in their place: the suite passes on credentials from `process.env`
+> alone with no `.env` file present (14 tests across 4 files), which is exactly the path CI takes.
 
 #### Automated
 
 - [ ] 4.1 CI is green on the PR for this change
 - [ ] 4.2 The `ci` job log shows a real test count, not "no tests found"
-- [ ] 4.3 `deploy` is correctly gated behind `ci`
+- [x] 4.3 `deploy` is correctly gated behind `ci`
 
 #### Manual
 
