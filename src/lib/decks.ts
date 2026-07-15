@@ -34,6 +34,9 @@ export function renameDeck(supabase: Client, publicId: string, name: string) {
   return supabase.from("deck").update({ name }).eq("public_id", publicId).select("public_id").maybeSingle();
 }
 
+// RETURNING public_id so the endpoint can tell a real delete from a 0-row no-op:
+// under RLS a foreign deck's delete is silently a no-op, not an error, so without
+// this the caller cannot distinguish it from success. Mirrors deleteFlashcard.
 export function deleteDeck(supabase: Client, publicId: string) {
-  return supabase.from("deck").delete().eq("public_id", publicId);
+  return supabase.from("deck").delete().eq("public_id", publicId).select("public_id").maybeSingle();
 }

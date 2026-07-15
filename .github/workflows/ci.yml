@@ -26,6 +26,25 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
 
+      # The isolation suite drives the real endpoints against a real Postgres — the whole
+      # point is that RLS is the only lock, so a mocked database would test nothing. The
+      # Supabase CLI is already a devDependency, so `npm ci` above installed it.
+      - name: Start local Supabase stack
+        run: npx supabase start
+
+      # The suite runs against the LOCAL stack, never the repository secrets: it signs up
+      # throwaway accounts and asserts one cannot reach the other's rows. Point it at the
+      # cloud project and it would create junk users in production.
+      - name: Export local stack credentials
+        run: |
+          npx supabase status -o env | grep -E '^(API_URL|PUBLISHABLE_KEY)=' > status.env
+          . ./status.env
+          echo "SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
+          echo "SUPABASE_KEY=$PUBLISHABLE_KEY" >> "$GITHUB_ENV"
+          rm status.env
+
+      - run: npm test
+
   deploy:
     needs: ci
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

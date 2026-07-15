@@ -3,7 +3,7 @@ project: 10xcards
 version: 1
 status: draft
 created: 2026-07-04
-updated: 2026-07-13
+updated: 2026-07-15
 prd_version: 1
 main_goal: quality
 top_blocker: capacity
@@ -46,7 +46,7 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 | F-01  | per-user-data-isolation  | (foundation) twarda izolacja danych per-konto (RLS) + rdzenne tabele | —              | Access Control, Guardrails, NFR: prywatność | done     |
 | F-02  | srs-library-choice       | (foundation) decyzja: gotowa biblioteka SRS + skala oceny przypomnienia | —              | Non-Goals (gotowy SRS), Open Questions #2  | done     |
 | S-01  | deck-workspace           | tworzyć i nazywać własne talie (prywatna przestrzeń)          | F-01           | US-03, FR-017, FR-001, FR-002              | done     |
-| F-03  | verification-harness     | (foundation) harness testowy + test-plan.md dla dwóch ryzyk   | S-01           | Guardrails, NFR: trwałość harmonogramu     | proposed |
+| F-03  | verification-harness     | (foundation) harness testowy + test-plan.md + testy cross-account (talie i fiszki, odczyt i zapis) w CI | S-01           | Guardrails, NFR: trwałość harmonogramu     | proposed |
 | S-02  | manual-card-crud         | ręcznie tworzyć, przeglądać, edytować i usuwać fiszki w talii | S-01           | US-03, FR-007, FR-008, FR-009, FR-010      | done     |
 | S-03  | srs-study-session        | uczyć się talii w sesji SRS z oceną przypomnienia (gwiazda)   | F-01, F-02, S-02 | US-02, FR-011, FR-012                     | proposed |
 | S-04  | ai-candidate-generation  | wkleić tekst i wygenerować kandydatów AI z postępem i retry   | F-01, S-01     | US-01, FR-003, FR-004, FR-006, FR-018      | done     |
@@ -109,7 +109,8 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 
 ### F-03: Harness weryfikacyjny + test-plan (test izolacji)
 
-- **Outcome:** (foundation) skonfigurowany runner testów i `context/foundation/test-plan.md` nazywający dwa ryzyka (izolacja per-konto, poprawność harmonogramu SRS), plus jeden realny test cross-account, który ćwiczy guardrail izolacji na zdolności dostarczonej przez S-01.
+- **Outcome:** (foundation) skonfigurowany runner testów (Vitest przez `getViteConfig()`) i `context/foundation/test-plan.md` nazywający ryzyka, plus realne testy cross-account ćwiczące guardrail izolacji na zdolności dostarczonej przez S-01 — uruchamiane w CI jako bramka przed deployem.
+- **Dostarczony zakres (szerszy niż zakładany):** zakładany był JEDEN test cross-account na taliach; dostarczono odmowę dla konta B na **taliach ORAZ fiszkach**, na **odczycie ORAZ zapisie**, plus kontrolę pozytywną (A sięga po swoje) i przypadek zawierania (własna talia B + id karty A). Świadome poszerzenie: polityki fiszek to osobny mechanizm (`EXISTS`-join po `deck.user_id`), więc testy talii ich nie dowodzą. Testy jadą przez REALNE endpointy (Astro Container API + realne cookie sesji) na realnym lokalnym Postgresie, nie przez SQL-owy test RLS. Uboczny fix produkcyjny: `deleteDeck` dostał `RETURNING`, więc cross-account delete zwraca 404 zamiast redirectu nieodróżnialnego od sukcesu. Odłożone: guard middleware (`PROTECTED_ROUTES`) pozostaje niepokryty.
 - **Change ID:** verification-harness
 - **PRD refs:** Guardrails (izolacja danych, poprawność SRS), NFR: trwałość harmonogramu
 - **Unlocks:** weryfikuje guardrail izolacji per-user ćwiczony przez **S-01** (test cross-account: użytkownik A nie widzi talii użytkownika B). Test poprawności harmonogramu SRS jest jawnie odłożony do **S-03** — powstanie razem z pętlą nauki, gdy będzie co sprawdzać. (Uwaga: to „ścieżka weryfikacji", nie krawędź odblokowująca — F-03 biegnie PO S-01.)

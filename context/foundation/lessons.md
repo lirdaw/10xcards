@@ -106,3 +106,59 @@
 - **Problem**: Nawet przy poprawnej kolejności timeoutów (klient 55s > serwer 40s) zostaje wąskie okno: gdy zapisy po stronie serwera (sesja + karty) przeciągną się po odpowiedzi modelu, klient abortuje na 55s i pokazuje „Ponów", a serwer i tak commituje. „Ponów" dokłada drugi komplet → duplikaty. Sam ordering timeoutów NIE eliminuje wyścigu — tylko go zawęża.
 - **Rule**: Gdy zapis stanu jest wyzwalany przez wywołanie z timeoutem klient+serwer i retriable „Ponów", zaprojektuj zapis idempotentnie (idempotency key / dedup po identyfikatorze żądania), zamiast polegać wyłącznie na różnicy timeoutów. Jeśli idempotencja jest odłożona, zapisz to jawnie jako znany tradeoff i domknij, gdy pojawi się warstwa dedupu.
 - **Applies to**: plan, implement, impl-review
+
+## Operacje migracji Supabase — z folderu worktree; nie ślepo `repair`/`db pull` z podpowiedzi CLI
+
+- **Context**: praca z migracjami Supabase w git worktree (równoległe slice'y, M2L5); faza ship / `db push`.
+- **Problem**: `supabase link`/`db push` uruchomione z folderu NADRZĘDNEGO (nie z worktree) → CLI widzi niepełny zestaw migracji i rzuca mylące „Remote migration versions not found". Ślepe odpalenie podpowiedzianego `migration repair --status reverted <bazowe>` oznaczyło dwie bazowe migracje na PROD jako cofnięte = desync historii (schemat/dane NIETKNIĘTE — `repair` rusza tylko tabelę `schema_migrations`, nie SQL). Migracja o wcześniejszym timestampie niż już-wypchnięta (out-of-order) wymaga osobnej obsługi.
+- **Rule**: Komendy `supabase` uruchamiaj ZAWSZE z folderu worktree danego slice'a (potwierdź `git branch --show-current` przed operacją na prod). NIE uruchamiaj na ślepo `migration repair`/`db pull`, które CLI podsuwa w treści błędu — to sugestie, nie instrukcje. Przy desyncu: `repair --status applied <te same ID>` → `migration list` (Remote wraca) → `db push`. Dla pending migracji starszej niż ostatnia na remote użyj `db push --include-all` (bezpieczne: migracje addytywne i niezależne, kolejność bez znaczenia dla schematu).
+- **Applies to**: implement, impl-review
+
+## Zweryfikuj, że feature DZIAŁA na PROD — nie tylko że się zdeployował
+
+- **Context**: ship slice'a z zewnętrzną integracją wymagającą sekretu (LLM/OpenRouter); faza PROD-sanity.
+- **Problem**: `.env` jest lokalny i NIE trafia na Cloudflare — sekrety prod idą osobno przez `wrangler secret put`. Bez ustawionego `OPENROUTER_API_KEY` na workerze feature wpadł w tryb MOCK na prodzie (przykładowe karty zamiast realnej generacji). CI-deploy „success" i strona się ładowała, więc brak sekretu był niewidoczny — wyszedł dopiero, gdy w sanity uruchomiono REALNY przepływ.
+- **Rule**: W PROD-sanity uruchom realny przepływ feature'a (np. faktyczną generację), nie tylko sprawdź, że strona wstaje. Sekrety prod ustaw przez `wrangler secret put <NAZWA>` (niezależnie od `.env`) i potwierdź, że feature działa naprawdę (baner „nieskonfigurowany" / tryb mock = brak sekretu).
+- **Applies to**: implement, impl-review
+
+## Commit `/10x-archive` powstaje po merdżu na gałęzi → wprowadź go na main osobno
+
+- **Context**: domknięcie slice'a przez `jira-finish` RUN 2 → `/10x-archive`, gdy feature był już zmergowany PR-em; faza po-ship.
+- **Problem**: `/10x-archive` (przeniesienie change→archive + roadmap→done + status) tworzy commit na gałęzi feature PO merdżu PR-a i świadomie NIE pushuje. Efekt: archiwum i roadmap-done zostają na gałęzi, a na MAIN ich nie ma (zdarzyło się dla OBU slice'ów M2L5). Do tego `git branch -d` po wprowadzeniu tego commita na main cherry-pickiem odmówi (inny SHA → gałąź „niezmergowana" wg osiągalności).
+- **Rule**: Po `/10x-archive` wprowadź commit archiwum na main osobno: `git checkout main` → `git pull --ff-only` → `git cherry-pick <sha>` → `git push`. Przed skasowaniem gałęzi potwierdź, że treść jest na main: `git cherry -v main <branch>` (same „-" = patch na main) → wtedy `git branch -D` (nie `-d`) jest bezpieczne.
+- **Applies to**: implement, impl-review
+
+## Astro Container API nie uruchamia middleware projektu — `locals` wstrzykuj ręcznie
+
+- **Context**: testy integracyjne endpointów API renderowanych przez `experimental_AstroContainer` (`renderToResponse` z `routeType: "endpoint"`); faza implement/plan.
+- **Problem**: Container montuje `NOOP_MIDDLEWARE_FN` — źródłowo potwierdzone w zainstalowanym `astro@6.3.1` (`dist/container/index.js` woła `createManifest(manifest, renderers)` z trzecim argumentem `middleware` = undefined). Dokumentacja Astro 6 o tym MILCZY, więc test oparty na założeniu „middleware się wykona" cicho dostaje `locals.user === undefined` zamiast błędu. W tym projekcie middleware jest jedynym miejscem, które ustawia `locals.user`.
+- **Rule**: Testując endpoint przez Container API, wstrzykuj `locals` jawnie (`renderToResponse(mod, { locals })` — JSDoc opcji wprost mówi „without the use of middleware"). Auth oparte na cookie NADAL działa, ale tylko dlatego, że każdy endpoint sam buduje klienta z `createClient(request.headers, cookies)`; gdyby endpoint polegał na kliencie z `locals`, test testowałby atrapę. Nie testuj przez Container API tego, co robi middleware (np. guard `PROTECTED_ROUTES`) — Container tego nie uruchomi.
+- **Applies to**: plan, implement, impl-review
+
+## Nigdy nie sklejaj ręcznie cookie sesji `@supabase/ssr` — przechwyć je przez `setAll`
+
+- **Context**: fabrykowanie realnej sesji zalogowanego użytkownika w testach (nagłówek `Cookie` dla `createServerClient`); faza implement.
+- **Problem**: Format jest WEWNĘTRZNY i nieudokumentowany jako kontrakt: nazwa to `sb-${hostname.split(".")[0]}-auth-token` (więc `127.0.0.1` → `sb-127-auth-token`, a `localhost` → INNA nazwa), wartość to `"base64-" + base64url(JSON.stringify(session))`, a dokumentacja opisuje chunkowanie BŁĘDNIE — co samo w sobie dowodzi, że to nie jest utrzymywany kontrakt publiczny. Najgorsze: ścieżka odczytu połyka zepsutą wartość z samym `console.warn` i traktuje sesję jako NIEOBECNĄ — literówka w serializacji objawia się jako „test tajemniczo wylogowany", nigdy jako błąd.
+- **Rule**: Zbuduj jednorazowy `createServerClient`, którego `getAll` zwraca `[]`, a `setAll` wpycha pary `{name, value}` do tablicy, zaloguj się na nim (`signInWithPassword`) i zserializuj przechwycone pary do nagłówka `Cookie`. Nazwa, kodowanie i chunkowanie wychodzą poprawne z konstrukcji. Uwaga: `createServerClient` ma `autoRefreshToken: false`, a `setAll` odpala się tylko przy realnej zmianie storage — przechwyconych cookies nie cache'uj na dysk, generuj per run (`jwt_expiry = 3600`).
+- **Applies to**: implement, impl-review
+
+## Pliki gitignored nie przechodzą do nowego `git worktree`
+
+- **Context**: tworzenie git worktree pod równoległą pracę (M2L5); setup worktree.
+- **Problem**: `git worktree add` odtwarza tylko pliki ŚLEDZONE — gitignored nie są kopiowane. Nowy worktree nie ma `.claude/` (→ skille `/10x-*` nie działają), `.env` (→ brak sekretów lokalnych), `context/foundation/jira-workflow.md`, `node_modules` (→ lint/build padają), ani linku Supabase (`supabase/.temp/` → „not linked").
+- **Rule**: Po `git worktree add` dograj ręcznie do każdego worktree pliki gitignored, których slice potrzebuje: `.claude/`, `.env`, `context/foundation/jira-workflow.md`; zrób `npm install`; zlinkuj Supabase osobno (`supabase link`). PowerShell: `Copy-Item -Path .claude,.env -Destination ..\wt\ -Recurse -Force` + osobno jira-workflow do `..\wt\context\foundation\`.
+- **Applies to**: implement
+
+## Test preflight must assert the target host is local — anon ≠ local
+
+- **Context**: Test harness / preflight that talks to a real backend (Supabase, DB, any auth) — the test-runner bootstrap in test-plan rollout phases, e.g. `tests/setup/preflight.ts`.
+- **Problem**: A preflight that only checks "creds set + key is anon + backend reachable" still passes when pointed at PRODUCTION: a prod project's anon key IS anon and it IS reachable. The documented "swap cloud creds into SUPABASE_URL" workflow then makes `npm test` sign up real accounts (with a hardcoded password) and create/delete real rows in production — fail-open exactly on the developer machine.
+- **Rule**: A backend-mutating test harness must hard-assert in preflight that the target host is local (`127.0.0.1`/`localhost`) and `fail()` before any request. The "key is anon" check is NOT sufficient — a production anon key passes it (anon ≠ local). No env opt-out: a genuine non-local run must require a deliberate code edit.
+- **Applies to**: plan (the preflight contract must include the local-host assertion), implement (build it, no opt-out), impl-review (flag its absence as a data-safety critical)
+
+## /10x-archive owns the roadmap Status → done flip — doc-sync updates Outcome only
+
+- **Context**: Roadmap status bookkeeping — `context/foundation/roadmap.md`; the doc-sync phase of any change (`/10x-plan` doc-sync, `/10x-implement`, `/10x-archive`).
+- **Problem**: `/10x-plan` routinely emits "set Status → done" in doc-sync, but `roadmap.md` reserves the Status flip and the `## Done` entry for `/10x-archive` („NIE wypełniać ręcznie"). Setting it manually pre-declares done before the change ships and duplicates archive's job — or, when correctly skipped, leaves an unexplained mismatch.
+- **Rule**: `/10x-archive` is the sole owner of the roadmap Status → done flip and the `## Done` entry (`roadmap.md:234`). Plan/implement doc-sync updates only the Outcome; never set Status → done manually. If a plan instructs the flip, treat it as a defect and defer to archive.
+- **Applies to**: plan (do not emit "Status → done"), implement (doc-sync updates Outcome only), impl-review (flag manual Status flips)
