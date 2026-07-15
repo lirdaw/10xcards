@@ -608,7 +608,7 @@ the commit.
 #### Manual
 
 - [x] 1.6 `npm run db:start` / `db:stop` / `db:reset` work from a cold start — 9fcfcee
-- [x] 1.7 Preflight's error message tells a new contributor exactly what to do
+- [x] 1.7 Preflight's error message tells a new contributor exactly what to do — 2304efd
 - [x] 1.8 `.env` parses correctly and prod credentials survive under `PROD_` — 9fcfcee
 
 ### Phase 2: Two-account session fixture + positive control
@@ -680,11 +680,11 @@ the commit.
 
 #### Automated
 
-- [x] 5.1 Lint passes: `npm run lint`
-- [x] 5.2 Suite still green: `npm test`
+- [x] 5.1 Lint passes: `npm run lint` — 2304efd
+- [x] 5.2 Suite still green: `npm test` — 2304efd
 
 #### Manual
 
-- [x] 5.3 A contributor can add a new isolation test using only §6
-- [x] 5.4 §3 Phase 1 reads `complete`; `/10x-test-plan` advances to Phase 2
-- [x] 5.5 No document still claims the isolation test is deferred to F-03
+- [x] 5.3 A contributor can add a new isolation test using only §6 — 2304efd
+- [x] 5.4 §3 Phase 1 reads `complete`; `/10x-test-plan` advances to Phase 2 — 2304efd
+- [x] 5.5 No document still claims the isolation test is deferred to F-03 — 2304efd
