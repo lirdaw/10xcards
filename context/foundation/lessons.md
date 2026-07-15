@@ -148,3 +148,17 @@
 - **Problem**: `git worktree add` odtwarza tylko pliki ŚLEDZONE — gitignored nie są kopiowane. Nowy worktree nie ma `.claude/` (→ skille `/10x-*` nie działają), `.env` (→ brak sekretów lokalnych), `context/foundation/jira-workflow.md`, `node_modules` (→ lint/build padają), ani linku Supabase (`supabase/.temp/` → „not linked").
 - **Rule**: Po `git worktree add` dograj ręcznie do każdego worktree pliki gitignored, których slice potrzebuje: `.claude/`, `.env`, `context/foundation/jira-workflow.md`; zrób `npm install`; zlinkuj Supabase osobno (`supabase link`). PowerShell: `Copy-Item -Path .claude,.env -Destination ..\wt\ -Recurse -Force` + osobno jira-workflow do `..\wt\context\foundation\`.
 - **Applies to**: implement
+
+## Test preflight must assert the target host is local — anon ≠ local
+
+- **Context**: Test harness / preflight that talks to a real backend (Supabase, DB, any auth) — the test-runner bootstrap in test-plan rollout phases, e.g. `tests/setup/preflight.ts`.
+- **Problem**: A preflight that only checks "creds set + key is anon + backend reachable" still passes when pointed at PRODUCTION: a prod project's anon key IS anon and it IS reachable. The documented "swap cloud creds into SUPABASE_URL" workflow then makes `npm test` sign up real accounts (with a hardcoded password) and create/delete real rows in production — fail-open exactly on the developer machine.
+- **Rule**: A backend-mutating test harness must hard-assert in preflight that the target host is local (`127.0.0.1`/`localhost`) and `fail()` before any request. The "key is anon" check is NOT sufficient — a production anon key passes it (anon ≠ local). No env opt-out: a genuine non-local run must require a deliberate code edit.
+- **Applies to**: plan (the preflight contract must include the local-host assertion), implement (build it, no opt-out), impl-review (flag its absence as a data-safety critical)
+
+## /10x-archive owns the roadmap Status → done flip — doc-sync updates Outcome only
+
+- **Context**: Roadmap status bookkeeping — `context/foundation/roadmap.md`; the doc-sync phase of any change (`/10x-plan` doc-sync, `/10x-implement`, `/10x-archive`).
+- **Problem**: `/10x-plan` routinely emits "set Status → done" in doc-sync, but `roadmap.md` reserves the Status flip and the `## Done` entry for `/10x-archive` („NIE wypełniać ręcznie"). Setting it manually pre-declares done before the change ships and duplicates archive's job — or, when correctly skipped, leaves an unexplained mismatch.
+- **Rule**: `/10x-archive` is the sole owner of the roadmap Status → done flip and the `## Done` entry (`roadmap.md:234`). Plan/implement doc-sync updates only the Outcome; never set Status → done manually. If a plan instructs the flip, treat it as a defect and defer to archive.
+- **Applies to**: plan (do not emit "Status → done"), implement (doc-sync updates Outcome only), impl-review (flag manual Status flips)
