@@ -9,8 +9,9 @@ import { signInAndCaptureCookies } from "./session";
 // file through Vitest's provide/inject. Vitest isolates the module registry per test
 // file, so a module-level memo here would re-sign-in for each file — and the local auth
 // rate limit is 30 sign-up+sign-in requests per 5 minutes per IP (supabase/config.toml).
-// Provisioning once per run keeps the whole suite at 4 auth requests, so consecutive runs
-// never throttle.
+// Provisioning once per run keeps the whole suite at 4 auth requests per run — roughly 7 runs
+// per 5 minutes before the limit bites. Ample for CI and normal work; if you are iterating hard
+// and globalSetup starts failing to sign in, suspect the rate limit before the harness.
 //
 // Only the anon key is used. No service_role key enters this repo: it is BYPASSRLS, and
 // RLS is the only thing isolating accounts in this app — a suite whose job is to prove

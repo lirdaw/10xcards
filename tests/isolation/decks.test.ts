@@ -31,6 +31,9 @@ function form(name: string): FormData {
 async function createDeck(as: typeof a, name: string): Promise<string> {
   const response = await callEndpoint(CreateDeck, { url: "/api/decks", body: form(name), as });
   expect(response.status).toBe(302);
+  // The endpoint redirects on failure too (/decks?error=…&open=create), so the status alone
+  // proves nothing — only the Location separates a real create from a rejected one.
+  expect(response.headers.get("Location")).toBe("/decks");
 
   const { data, error } = await listDecks(clientFor(as.cookieHeader));
   expect(error).toBeNull();

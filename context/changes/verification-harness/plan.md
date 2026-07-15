@@ -597,6 +597,19 @@ the commit.
 
 ### Phase 1: Runner bootstrap + fail-fast preflight
 
+> **Deviation from §1 of this phase, deliberate**: the contract says `vitest.config.ts`
+> default-exports `getViteConfig({ test })`. It default-exports an async wrapper around it that
+> strips `@cloudflare/vite-plugin` — the adapter contributes that plugin, it asserts ownership of
+> the `ssr` environment and rejects the `resolve.external` list Astro itself puts there, so config
+> resolution dies before a single test runs. Tests target Node, not workerd. Rationale is documented
+> in the file (`vitest.config.ts:8-12`).
+>
+> **Added after impl-review (F1)**: preflight also refuses any non-local `SUPABASE_URL`. The three
+> planned checks all pass against a cloud project — its anon key is `sb_publishable_` and it is
+> reachable — while `.env` documents swapping PROD_ credentials into `SUPABASE_URL`. In that state
+> the suite would sign up real users in production auth with the hardcoded harness password and
+> delete rows for real. The plan's contract simply missed this case.
+
 #### Automated
 
 - [x] 1.1 Dependencies install: `npm install` — 9fcfcee
@@ -642,6 +655,12 @@ the commit.
 
 ### Phase 4: CI gate
 
+> **Deviation from §1 of this phase, deliberate**: the contract places the test step "after `npm ci`
+> and before or alongside lint". It sits after lint and build instead — same job, same
+> `deploy: needs: ci` gate, so the gate is identical; only feedback latency differs, and the cheap
+> checks failing first is the better order. No separate "set up the Supabase CLI" step either: the
+> CLI is already a devDependency, so `npm ci` installs it (noted at `ci.yml:31`).
+>
 > 4.1, 4.2, 4.4 and 4.5 can only be observed on a real CI run, which needs the branch pushed and a
 > PR open — deliberately not done in this phase. They are deferred to `/ship`, which observes the CI
 > run on the PR. Confirmed locally in their place: the suite passes on credentials from `process.env`
@@ -670,6 +689,13 @@ the commit.
 > `using (true)` the new test goes red (B saw A's card) while all 5 pre-existing flashcard tests
 > stay green — direct evidence the gap was real. §6 corrected, second pass: **YES** (18 → 8 tool
 > calls, nothing misleading).
+>
+> **Deviation from §3 of this phase, deliberate**: the contract says "set Status → `done`" on
+> roadmap F-03. The Outcome was updated; the Status was **not**. `roadmap.md:234` reserves both the
+> `## Done` entry and the Status flip for `/10x-archive` ("NIE wypełniać ręcznie"), and this change
+> is not shipped — flipping it here would both duplicate archive's job and declare a `done` that is
+> not yet true. F-03 stays `proposed` in the slice table (`:49`) and its detail block (`:122`), which
+> agree with each other. `/10x-archive` closes this out.
 >
 > 5.5 holds for `context/foundation/`. `context/archive/` still carries ~22 "isolation test belongs
 > to F-03" claims; left untouched on purpose — archived records state what was true when those

@@ -269,11 +269,14 @@ No test could see that from the outside.
   not on a rendered page (see §6.4 on why pages are not rendered). Every
   denial is paired with an owner-side re-read and a positive control.
 
-  **Not covered, deliberately**: the middleware guard. `PROTECTED_ROUTES`
-  (`src/middleware.ts`) is prefix-matched, so a future route nobody adds to
-  the array is unprotected and no test here would catch it — out of scope
-  (Risk #1 is authorization, not authentication), worth revisiting when
-  Phase 4's SRS routes land.
+  **Not covered, deliberately — the whole signed-out path.** The endpoint
+  driver always injects `locals.user`, so nothing here can exercise a request
+  from a logged-out visitor. That leaves two things untested: the middleware
+  guard (`PROTECTED_ROUTES` in `src/middleware.ts` is prefix-matched, so a
+  future route nobody adds to the array is unprotected), and each endpoint's
+  own `if (!context.locals.user)` branch. Out of scope by decision — Risk #1
+  is authorization, not authentication — and worth revisiting when Phase 4's
+  SRS routes land.
 
   Phase 1 also shipped one production fix: `deleteDeck` gained `RETURNING`,
   so a cross-account delete answers 404 instead of a redirect

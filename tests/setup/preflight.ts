@@ -63,6 +63,35 @@ function assertAnonKey(key: string): void {
   }
 }
 
+/**
+ * Refuse to run against anything but the local stack.
+ *
+ * Every other check here passes against a cloud project: its anon key is `sb_publishable_`, and
+ * it is trivially reachable. But `.env` documents swapping the PROD_ credentials into
+ * SUPABASE_URL to run dev against cloud — and in that state this suite would sign up real users
+ * in production auth with the hardcoded harness password, then create and delete decks for real.
+ * ci.yml guards this for CI; this is the same guard for the machine where the swap is actually
+ * documented to happen.
+ *
+ * No env opt-out, on purpose: an escape hatch in .env would reproduce exactly this hole.
+ */
+function assertLocal(url: string): void {
+  let hostname: string;
+  try {
+    hostname = new URL(url).hostname;
+  } catch {
+    fail(`SUPABASE_URL is not a valid URL. Got: "${url}"`);
+  }
+
+  if (hostname !== "127.0.0.1" && hostname !== "localhost") {
+    fail(
+      `SUPABASE_URL points at "${hostname}", not the local stack. This suite signs up accounts ` +
+        `and deletes rows — it must never run against a cloud project. Use the local stack ` +
+        `(npm run db:start); if you swapped PROD_ credentials in, swap them back.`,
+    );
+  }
+}
+
 async function assertReachable(url: string): Promise<void> {
   let response: Response;
   try {
@@ -80,5 +109,7 @@ export default async function preflight(): Promise<void> {
   if (!SUPABASE_KEY) fail("SUPABASE_KEY is not set.");
 
   assertAnonKey(SUPABASE_KEY);
+  // Before reachability: never even send a request to a non-local host.
+  assertLocal(SUPABASE_URL);
   await assertReachable(SUPABASE_URL);
 }
