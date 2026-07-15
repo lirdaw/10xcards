@@ -599,17 +599,17 @@ the commit.
 
 #### Automated
 
-- [ ] 1.1 Dependencies install: `npm install`
-- [ ] 1.2 Type checking and lint pass: `npm run lint`
-- [ ] 1.3 Suite runs green against a started stack: `npm run db:start && npm test`
-- [ ] 1.4 Preflight fails loudly with `SUPABASE_URL` unset
-- [ ] 1.5 Build still passes: `npm run build`
+- [x] 1.1 Dependencies install: `npm install`
+- [x] 1.2 Type checking and lint pass: `npm run lint`
+- [x] 1.3 Suite runs green against a started stack: `npm run db:start && npm test`
+- [x] 1.4 Preflight fails loudly with `SUPABASE_URL` unset
+- [x] 1.5 Build still passes: `npm run build`
 
 #### Manual
 
-- [ ] 1.6 `npm run db:start` / `db:stop` / `db:reset` work from a cold start
+- [x] 1.6 `npm run db:start` / `db:stop` / `db:reset` work from a cold start
 - [ ] 1.7 Preflight's error message tells a new contributor exactly what to do
-- [ ] 1.8 `.env` parses correctly and prod credentials survive under `PROD_`
+- [x] 1.8 `.env` parses correctly and prod credentials survive under `PROD_`
 
 ### Phase 2: Two-account session fixture + positive control
 

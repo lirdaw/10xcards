@@ -1,7 +1,7 @@
 ---
 change_id: verification-harness
 title: Test harness bootstrap and per-account isolation tests (test-plan Phase 1)
-status: planned
+status: implementing
 created: 2026-07-15
 updated: 2026-07-15
 archived_at: null
