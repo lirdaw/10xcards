@@ -128,6 +128,20 @@
 - **Rule**: Po `/10x-archive` wprowadź commit archiwum na main osobno: `git checkout main` → `git pull --ff-only` → `git cherry-pick <sha>` → `git push`. Przed skasowaniem gałęzi potwierdź, że treść jest na main: `git cherry -v main <branch>` (same „-" = patch na main) → wtedy `git branch -D` (nie `-d`) jest bezpieczne.
 - **Applies to**: implement, impl-review
 
+## Astro Container API nie uruchamia middleware projektu — `locals` wstrzykuj ręcznie
+
+- **Context**: testy integracyjne endpointów API renderowanych przez `experimental_AstroContainer` (`renderToResponse` z `routeType: "endpoint"`); faza implement/plan.
+- **Problem**: Container montuje `NOOP_MIDDLEWARE_FN` — źródłowo potwierdzone w zainstalowanym `astro@6.3.1` (`dist/container/index.js` woła `createManifest(manifest, renderers)` z trzecim argumentem `middleware` = undefined). Dokumentacja Astro 6 o tym MILCZY, więc test oparty na założeniu „middleware się wykona" cicho dostaje `locals.user === undefined` zamiast błędu. W tym projekcie middleware jest jedynym miejscem, które ustawia `locals.user`.
+- **Rule**: Testując endpoint przez Container API, wstrzykuj `locals` jawnie (`renderToResponse(mod, { locals })` — JSDoc opcji wprost mówi „without the use of middleware"). Auth oparte na cookie NADAL działa, ale tylko dlatego, że każdy endpoint sam buduje klienta z `createClient(request.headers, cookies)`; gdyby endpoint polegał na kliencie z `locals`, test testowałby atrapę. Nie testuj przez Container API tego, co robi middleware (np. guard `PROTECTED_ROUTES`) — Container tego nie uruchomi.
+- **Applies to**: plan, implement, impl-review
+
+## Nigdy nie sklejaj ręcznie cookie sesji `@supabase/ssr` — przechwyć je przez `setAll`
+
+- **Context**: fabrykowanie realnej sesji zalogowanego użytkownika w testach (nagłówek `Cookie` dla `createServerClient`); faza implement.
+- **Problem**: Format jest WEWNĘTRZNY i nieudokumentowany jako kontrakt: nazwa to `sb-${hostname.split(".")[0]}-auth-token` (więc `127.0.0.1` → `sb-127-auth-token`, a `localhost` → INNA nazwa), wartość to `"base64-" + base64url(JSON.stringify(session))`, a dokumentacja opisuje chunkowanie BŁĘDNIE — co samo w sobie dowodzi, że to nie jest utrzymywany kontrakt publiczny. Najgorsze: ścieżka odczytu połyka zepsutą wartość z samym `console.warn` i traktuje sesję jako NIEOBECNĄ — literówka w serializacji objawia się jako „test tajemniczo wylogowany", nigdy jako błąd.
+- **Rule**: Zbuduj jednorazowy `createServerClient`, którego `getAll` zwraca `[]`, a `setAll` wpycha pary `{name, value}` do tablicy, zaloguj się na nim (`signInWithPassword`) i zserializuj przechwycone pary do nagłówka `Cookie`. Nazwa, kodowanie i chunkowanie wychodzą poprawne z konstrukcji. Uwaga: `createServerClient` ma `autoRefreshToken: false`, a `setAll` odpala się tylko przy realnej zmianie storage — przechwyconych cookies nie cache'uj na dysk, generuj per run (`jwt_expiry = 3600`).
+- **Applies to**: implement, impl-review
+
 ## Pliki gitignored nie przechodzą do nowego `git worktree`
 
 - **Context**: tworzenie git worktree pod równoległą pracę (M2L5); setup worktree.

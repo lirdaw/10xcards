@@ -608,7 +608,7 @@ the commit.
 #### Manual
 
 - [x] 1.6 `npm run db:start` / `db:stop` / `db:reset` work from a cold start — 9fcfcee
-- [ ] 1.7 Preflight's error message tells a new contributor exactly what to do
+- [x] 1.7 Preflight's error message tells a new contributor exactly what to do
 - [x] 1.8 `.env` parses correctly and prod credentials survive under `PROD_` — 9fcfcee
 
 ### Phase 2: Two-account session fixture + positive control
@@ -651,7 +651,7 @@ the commit.
 
 - [ ] 4.1 CI is green on the PR for this change
 - [ ] 4.2 The `ci` job log shows a real test count, not "no tests found"
-- [x] 4.3 `deploy` is correctly gated behind `ci`
+- [x] 4.3 `deploy` is correctly gated behind `ci` — d90c054
 
 #### Manual
 
@@ -660,13 +660,31 @@ the commit.
 
 ### Phase 5: Cookbook §6 + document sync
 
+> 5.3 was verified by handing a fresh agent the task "add a test proving B cannot read A's
+> flashcards", with §6 readable and this plan off-limits. First pass: **NO** — §6 documented no
+> pattern for page routes and never said pages are deliberately not rendered, so it improvised.
+> It also surfaced a real defect: **no test covered B reading A's flashcards** (decks had one via
+> `listDecks`; flashcards had writes only), while §6.6 claimed "read and write" for both. Fixed by
+> adding the missing test to `flashcards.test.ts` — Phase 3 scope, reopened deliberately (approved)
+> because it is the core of Risk #1. Proven able to fail: with `flashcard_select` relaxed to
+> `using (true)` the new test goes red (B saw A's card) while all 5 pre-existing flashcard tests
+> stay green — direct evidence the gap was real. §6 corrected, second pass: **YES** (18 → 8 tool
+> calls, nothing misleading).
+>
+> 5.5 holds for `context/foundation/`. `context/archive/` still carries ~22 "isolation test belongs
+> to F-03" claims; left untouched on purpose — archived records state what was true when those
+> slices shipped, and rewriting them would falsify history.
+>
+> Also fixed here: `test-plan.md` ended with stray `</content>` / `</invoke>` markup left over from
+> whatever generated it.
+
 #### Automated
 
-- [ ] 5.1 Lint passes: `npm run lint`
-- [ ] 5.2 Suite still green: `npm test`
+- [x] 5.1 Lint passes: `npm run lint`
+- [x] 5.2 Suite still green: `npm test`
 
 #### Manual
 
-- [ ] 5.3 A contributor can add a new isolation test using only §6
-- [ ] 5.4 §3 Phase 1 reads `complete`; `/10x-test-plan` advances to Phase 2
-- [ ] 5.5 No document still claims the isolation test is deferred to F-03
+- [x] 5.3 A contributor can add a new isolation test using only §6
+- [x] 5.4 §3 Phase 1 reads `complete`; `/10x-test-plan` advances to Phase 2
+- [x] 5.5 No document still claims the isolation test is deferred to F-03

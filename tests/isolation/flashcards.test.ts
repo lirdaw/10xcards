@@ -23,6 +23,8 @@ const suffix = Date.now().toString(36);
 
 const A_FRONT = `A's front ${suffix}`;
 const A_BACK = `A's back ${suffix}`;
+const B_FRONT = `B's front ${suffix}`;
+const B_BACK = `B's back ${suffix}`;
 
 function deckForm(name: string): FormData {
   const body = new FormData();
@@ -63,6 +65,7 @@ async function cardsOf(as: typeof a, deckPublicId: string) {
 describe("account B is denied account A's flashcards", () => {
   let aDeckId: string;
   let bDeckId: string;
+  let bOwnCardDeckId: string;
   let aCardId: string;
 
   beforeAll(async () => {
@@ -81,6 +84,44 @@ describe("account B is denied account A's flashcards", () => {
     const created = cards.find((card) => card.front === A_FRONT);
     if (!created) throw new Error(`Setup failed: A's card was never written to deck ${aDeckId}.`);
     aCardId = created.public_id;
+
+    // A deck of B's own that holds a card, purely so the read test below has a positive
+    // control. It is deliberately NOT bDeckId — the containment test asserts that deck
+    // stays empty, and a card in it would break that assertion rather than this one.
+    bOwnCardDeckId = await createDeck(b, `B's own card deck ${suffix}`);
+    const bCard = await callEndpoint(CreateCard, {
+      url: `/api/decks/${bOwnCardDeckId}/cards`,
+      params: { publicId: bOwnCardDeckId },
+      body: cardForm(B_FRONT, B_BACK),
+      as: b,
+    });
+    expect(bCard.status).toBe(302);
+  });
+
+  it("returns none of A's cards to B, while B still reads B's own", async () => {
+    const bClient = clientFor(b.cookieHeader);
+
+    // The app-reachable half: B cannot resolve A's deck public_id at all, which is what
+    // makes the deck page 404 rather than render A's cards.
+    const { data: hidden, error: hiddenError } = await deckIdByPublicId(bClient, aDeckId);
+    expect(hiddenError).toBeNull();
+    expect(hidden).toBeNull();
+
+    // The load-bearing half: hand B A's real INTERNAL deck id — something B could never
+    // obtain through the app — and A's cards still do not come back. Without this, the
+    // assertion above would only prove the deck lookup is scoped, leaving open whether
+    // the cards themselves are; the flashcard policy is a separate EXISTS-join, so that
+    // is a real question and not a pedantic one.
+    const { data: aDeck } = await deckIdByPublicId(clientFor(a.cookieHeader), aDeckId);
+    if (!aDeck) throw new Error(`Deck ${aDeckId} is not readable by its owner.`);
+
+    const { data: leaked, error } = await listFlashcards(bClient, aDeck.id);
+    expect(error).toBeNull();
+    expect(leaked ?? []).toHaveLength(0);
+
+    // Positive control: B's session genuinely reads cards, so the two empty results
+    // above are isolation rather than a broken session that sees nothing at all.
+    expect((await cardsOf(b, bOwnCardDeckId)).map((card) => card.front)).toContain(B_FRONT);
   });
 
   it("refuses B's card creation in A's deck and adds nothing to A's deck", async () => {
