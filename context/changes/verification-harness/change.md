@@ -24,10 +24,10 @@ on read AND on write, while account A still reaches its own data (positive contr
 the assumption that "authenticated implies authorized" and that "RLS is enabled, therefore the
 endpoint is safe".
 
-**Open at `implemented`**: Progress rows 4.1, 4.2, 4.4 and 4.5 (CI green on the PR, real test
-count in the log, run time, and a deliberately broken test turning CI red) stay unchecked. They
-need a real CI run, which needs the branch pushed and a PR open — that belongs to `/ship`, not
-here. Everything else, including the CI step itself, is implemented and verified locally.
+**CI verification (was open at `implemented`, closed at `/ship` on 2026-07-15)**: Progress rows
+4.1, 4.2, 4.4 and 4.5 needed a real CI run, so they were deferred to `/ship`. All four are now
+checked, on PR #7 (run 29449372588, green — 15 tests / 4 files, 3m06s) and throwaway scratch PR #8
+(run 29449673825, red at `decks.test.ts:80`, `deploy: skipped`). Every Progress row is now `[x]`.
 
 **Out of scope for this phase**
 - Endpoint validation-parity and no-leak assertions (Phase 2)

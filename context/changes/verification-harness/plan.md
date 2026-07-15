@@ -661,21 +661,22 @@ the commit.
 > checks failing first is the better order. No separate "set up the Supabase CLI" step either: the
 > CLI is already a devDependency, so `npm ci` installs it (noted at `ci.yml:31`).
 >
-> 4.1, 4.2, 4.4 and 4.5 can only be observed on a real CI run, which needs the branch pushed and a
-> PR open — deliberately not done in this phase. They are deferred to `/ship`, which observes the CI
-> run on the PR. Confirmed locally in their place: the suite passes on credentials from `process.env`
-> alone with no `.env` file present (14 tests across 4 files), which is exactly the path CI takes.
+> 4.1, 4.2, 4.4 and 4.5 could only be observed on a real CI run, so this phase deferred them to
+> `/ship`. **Closed there on 2026-07-15**, on PR #7 (run 29449372588) and a throwaway scratch PR #8
+> (run 29449673825). Note for anyone repeating this: pushing a branch does **not** trigger CI — the
+> workflow fires only on `push` to `main` or a `pull_request` targeting it — so proving 4.5 required a
+> one-off PR from the scratch branch, closed and deleted immediately after.
 
 #### Automated
 
-- [ ] 4.1 CI is green on the PR for this change
-- [ ] 4.2 The `ci` job log shows a real test count, not "no tests found"
-- [x] 4.3 `deploy` is correctly gated behind `ci` — 8150753
+- [x] 4.1 CI is green on the PR for this change — PR #7, run 29449372588: `ci: success`
+- [x] 4.2 The `ci` job log shows a real test count, not "no tests found" — `Test Files 4 passed (4)` / `Tests 15 passed (15)`; zero occurrences of "no test files found"
+- [x] 4.3 `deploy` is correctly gated behind `ci` — 8150753; observed `deploy: skipped` on both runs
 
 #### Manual
 
-- [ ] 4.4 CI run time remains acceptable
-- [ ] 4.5 A deliberately broken test turns CI red
+- [x] 4.4 CI run time remains acceptable — 3m06s end-to-end (run 29449372588), `supabase start` included
+- [x] 4.5 A deliberately broken test turns CI red — scratch PR #8, run 29449673825: `ci: failure` at `decks.test.ts:80` (404→599), `deploy: skipped`. Branch and PR deleted.
 
 ### Phase 5: Cookbook §6 + document sync
 
