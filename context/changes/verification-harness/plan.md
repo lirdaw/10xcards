@@ -615,30 +615,30 @@ the commit.
 
 #### Automated
 
-- [x] 2.1 Suite passes: `npm test`
-- [x] 2.2 Lint passes: `npm run lint`
-- [x] 2.3 Positive control demonstrably fails against a stopped stack
+- [x] 2.1 Suite passes: `npm test` — 9c6ae8c
+- [x] 2.2 Lint passes: `npm run lint` — 9c6ae8c
+- [x] 2.3 Positive control demonstrably fails against a stopped stack — 9c6ae8c
 
 #### Manual
 
-- [x] 2.4 Two consecutive `npm test` runs pass without a `db:reset`
-- [x] 2.5 No `service_role` key appears anywhere in the repo or `.env`
-- [x] 2.6 The suite does not trip the auth rate limit across consecutive runs
+- [x] 2.4 Two consecutive `npm test` runs pass without a `db:reset` — 9c6ae8c
+- [x] 2.5 No `service_role` key appears anywhere in the repo or `.env` — 9c6ae8c
+- [x] 2.6 The suite does not trip the auth rate limit across consecutive runs — 9c6ae8c
 
 ### Phase 3: Cross-account denial suite
 
 #### Automated
 
-- [ ] 3.1 Full suite passes: `npm test`
-- [ ] 3.2 Lint and typecheck pass: `npm run lint`
-- [ ] 3.3 Build passes: `npm run build`
-- [ ] 3.4 Dropping a policy turns the suite red
+- [x] 3.1 Full suite passes: `npm test`
+- [x] 3.2 Lint and typecheck pass: `npm run lint`
+- [x] 3.3 Build passes: `npm run build`
+- [x] 3.4 Dropping a policy turns the suite red
 
 #### Manual
 
-- [ ] 3.5 Deck rename/delete still work normally in the running app
-- [ ] 3.6 Deleting a nonexistent deck returns 404 rather than a silent redirect
-- [ ] 3.7 Every denial test asserts row state, not just status codes
+- [x] 3.5 Deck rename/delete still work normally in the running app
+- [x] 3.6 Deleting a nonexistent deck returns 404 rather than a silent redirect
+- [x] 3.7 Every denial test asserts row state, not just status codes
 
 ### Phase 4: CI gate
 
