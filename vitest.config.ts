@@ -24,9 +24,11 @@ const astroViteConfig = getViteConfig({
     // Node only: no component tests in this suite, so no DOM environment is needed.
     environment: "node",
     include: ["tests/**/*.test.ts"],
-    // Aborts the whole run once, before any test, when the environment is not configured.
-    // setupFiles would run per-file and surface as ordinary test failures instead.
-    globalSetup: ["tests/setup/preflight.ts"],
+    // Ordered. preflight aborts the whole run once, before any test, when the environment
+    // is not configured (setupFiles would run per-file and surface as ordinary test
+    // failures instead). accounts then provisions the run's two accounts once and hands
+    // them to every file via provide/inject, keeping the suite under the auth rate limit.
+    globalSetup: ["tests/setup/preflight.ts", "tests/setup/accounts.ts"],
     // Sign-in plus endpoint round-trips against local Postgres exceed the 5s default.
     testTimeout: 30_000,
     hookTimeout: 30_000,

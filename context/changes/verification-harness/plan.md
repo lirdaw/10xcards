@@ -599,31 +599,31 @@ the commit.
 
 #### Automated
 
-- [x] 1.1 Dependencies install: `npm install`
-- [x] 1.2 Type checking and lint pass: `npm run lint`
-- [x] 1.3 Suite runs green against a started stack: `npm run db:start && npm test`
-- [x] 1.4 Preflight fails loudly with `SUPABASE_URL` unset
-- [x] 1.5 Build still passes: `npm run build`
+- [x] 1.1 Dependencies install: `npm install` — 9fcfcee
+- [x] 1.2 Type checking and lint pass: `npm run lint` — 9fcfcee
+- [x] 1.3 Suite runs green against a started stack: `npm run db:start && npm test` — 9fcfcee
+- [x] 1.4 Preflight fails loudly with `SUPABASE_URL` unset — 9fcfcee
+- [x] 1.5 Build still passes: `npm run build` — 9fcfcee
 
 #### Manual
 
-- [x] 1.6 `npm run db:start` / `db:stop` / `db:reset` work from a cold start
+- [x] 1.6 `npm run db:start` / `db:stop` / `db:reset` work from a cold start — 9fcfcee
 - [ ] 1.7 Preflight's error message tells a new contributor exactly what to do
-- [x] 1.8 `.env` parses correctly and prod credentials survive under `PROD_`
+- [x] 1.8 `.env` parses correctly and prod credentials survive under `PROD_` — 9fcfcee
 
 ### Phase 2: Two-account session fixture + positive control
 
 #### Automated
 
-- [ ] 2.1 Suite passes: `npm test`
-- [ ] 2.2 Lint passes: `npm run lint`
-- [ ] 2.3 Positive control demonstrably fails against a stopped stack
+- [x] 2.1 Suite passes: `npm test`
+- [x] 2.2 Lint passes: `npm run lint`
+- [x] 2.3 Positive control demonstrably fails against a stopped stack
 
 #### Manual
 
-- [ ] 2.4 Two consecutive `npm test` runs pass without a `db:reset`
-- [ ] 2.5 No `service_role` key appears anywhere in the repo or `.env`
-- [ ] 2.6 The suite does not trip the auth rate limit across consecutive runs
+- [x] 2.4 Two consecutive `npm test` runs pass without a `db:reset`
+- [x] 2.5 No `service_role` key appears anywhere in the repo or `.env`
+- [x] 2.6 The suite does not trip the auth rate limit across consecutive runs
 
 ### Phase 3: Cross-account denial suite
 
