@@ -612,46 +612,46 @@ the commit.
 
 #### Automated
 
-- [x] 1.1 Dependencies install: `npm install` — 9fcfcee
-- [x] 1.2 Type checking and lint pass: `npm run lint` — 9fcfcee
-- [x] 1.3 Suite runs green against a started stack: `npm run db:start && npm test` — 9fcfcee
-- [x] 1.4 Preflight fails loudly with `SUPABASE_URL` unset — 9fcfcee
-- [x] 1.5 Build still passes: `npm run build` — 9fcfcee
+- [x] 1.1 Dependencies install: `npm install` — 1685c10
+- [x] 1.2 Type checking and lint pass: `npm run lint` — 1685c10
+- [x] 1.3 Suite runs green against a started stack: `npm run db:start && npm test` — 1685c10
+- [x] 1.4 Preflight fails loudly with `SUPABASE_URL` unset — 1685c10
+- [x] 1.5 Build still passes: `npm run build` — 1685c10
 
 #### Manual
 
-- [x] 1.6 `npm run db:start` / `db:stop` / `db:reset` work from a cold start — 9fcfcee
-- [x] 1.7 Preflight's error message tells a new contributor exactly what to do — 2304efd
-- [x] 1.8 `.env` parses correctly and prod credentials survive under `PROD_` — 9fcfcee
+- [x] 1.6 `npm run db:start` / `db:stop` / `db:reset` work from a cold start — 1685c10
+- [x] 1.7 Preflight's error message tells a new contributor exactly what to do — 40147aa
+- [x] 1.8 `.env` parses correctly and prod credentials survive under `PROD_` — 1685c10
 
 ### Phase 2: Two-account session fixture + positive control
 
 #### Automated
 
-- [x] 2.1 Suite passes: `npm test` — 9c6ae8c
-- [x] 2.2 Lint passes: `npm run lint` — 9c6ae8c
-- [x] 2.3 Positive control demonstrably fails against a stopped stack — 9c6ae8c
+- [x] 2.1 Suite passes: `npm test` — 6e6ad6d
+- [x] 2.2 Lint passes: `npm run lint` — 6e6ad6d
+- [x] 2.3 Positive control demonstrably fails against a stopped stack — 6e6ad6d
 
 #### Manual
 
-- [x] 2.4 Two consecutive `npm test` runs pass without a `db:reset` — 9c6ae8c
-- [x] 2.5 No `service_role` key appears anywhere in the repo or `.env` — 9c6ae8c
-- [x] 2.6 The suite does not trip the auth rate limit across consecutive runs — 9c6ae8c
+- [x] 2.4 Two consecutive `npm test` runs pass without a `db:reset` — 6e6ad6d
+- [x] 2.5 No `service_role` key appears anywhere in the repo or `.env` — 6e6ad6d
+- [x] 2.6 The suite does not trip the auth rate limit across consecutive runs — 6e6ad6d
 
 ### Phase 3: Cross-account denial suite
 
 #### Automated
 
-- [x] 3.1 Full suite passes: `npm test` — 238b7f1
-- [x] 3.2 Lint and typecheck pass: `npm run lint` — 238b7f1
-- [x] 3.3 Build passes: `npm run build` — 238b7f1
-- [x] 3.4 Dropping a policy turns the suite red — 238b7f1
+- [x] 3.1 Full suite passes: `npm test` — eabadad
+- [x] 3.2 Lint and typecheck pass: `npm run lint` — eabadad
+- [x] 3.3 Build passes: `npm run build` — eabadad
+- [x] 3.4 Dropping a policy turns the suite red — eabadad
 
 #### Manual
 
-- [x] 3.5 Deck rename/delete still work normally in the running app — 238b7f1
-- [x] 3.6 Deleting a nonexistent deck returns 404 rather than a silent redirect — 238b7f1
-- [x] 3.7 Every denial test asserts row state, not just status codes — 238b7f1
+- [x] 3.5 Deck rename/delete still work normally in the running app — eabadad
+- [x] 3.6 Deleting a nonexistent deck returns 404 rather than a silent redirect — eabadad
+- [x] 3.7 Every denial test asserts row state, not just status codes — eabadad
 
 ### Phase 4: CI gate
 
@@ -670,7 +670,7 @@ the commit.
 
 - [ ] 4.1 CI is green on the PR for this change
 - [ ] 4.2 The `ci` job log shows a real test count, not "no tests found"
-- [x] 4.3 `deploy` is correctly gated behind `ci` — d90c054
+- [x] 4.3 `deploy` is correctly gated behind `ci` — 8150753
 
 #### Manual
 
@@ -706,11 +706,11 @@ the commit.
 
 #### Automated
 
-- [x] 5.1 Lint passes: `npm run lint` — 2304efd
-- [x] 5.2 Suite still green: `npm test` — 2304efd
+- [x] 5.1 Lint passes: `npm run lint` — 40147aa
+- [x] 5.2 Suite still green: `npm test` — 40147aa
 
 #### Manual
 
-- [x] 5.3 A contributor can add a new isolation test using only §6 — 2304efd
-- [x] 5.4 §3 Phase 1 reads `complete`; `/10x-test-plan` advances to Phase 2 — 2304efd
-- [x] 5.5 No document still claims the isolation test is deferred to F-03 — 2304efd
+- [x] 5.3 A contributor can add a new isolation test using only §6 — 40147aa
+- [x] 5.4 §3 Phase 1 reads `complete`; `/10x-test-plan` advances to Phase 2 — 40147aa
+- [x] 5.5 No document still claims the isolation test is deferred to F-03 — 40147aa
