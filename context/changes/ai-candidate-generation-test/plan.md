@@ -363,21 +363,21 @@ None. No schema change, no production code change committed.
 
 #### Automated
 
-- [x] 1.1 `npm test` passes with no changes to `tests/isolation/*`
-- [x] 1.2 `npm run lint` passes
-- [x] 1.3 `npx astro sync` produces no diff
+- [x] 1.1 `npm test` passes with no changes to `tests/isolation/*` — 49f1f65
+- [x] 1.2 `npm run lint` passes — 49f1f65
+- [x] 1.3 `npx astro sync` produces no diff — 49f1f65
 
 #### Manual
 
-- [x] 1.4 Widened `body` type reads as intentional; replaced comment states the JSON exception
+- [x] 1.4 Widened `body` type reads as intentional; replaced comment states the JSON exception — 49f1f65
 
 ### Phase 2: Characterization test + inverted breakage check
 
 #### Automated
 
-- [ ] 2.1 `npm test` passes with all three new cases green
-- [ ] 2.2 `npm run lint` passes
-- [ ] 2.3 `npm test` green on two consecutive runs without a DB reset
+- [x] 2.1 `npm test` passes with all three new cases green
+- [x] 2.2 `npm run lint` passes
+- [x] 2.3 `npm test` green on two consecutive runs without a DB reset
 
 #### Manual
 
