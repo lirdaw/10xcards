@@ -1,7 +1,7 @@
 ---
 change_id: ai-candidate-generation-test
 title: Integration tests — retry after generation timeout must not duplicate candidates
-status: implementing
+status: implemented
 created: 2026-07-18
 updated: 2026-07-18
 archived_at: null

@@ -388,10 +388,10 @@ None. No schema change, no production code change committed.
 
 #### Automated
 
-- [x] 3.1 `npm run format` leaves `test-plan.md` clean
-- [x] 3.2 `npm test` still passes
+- [x] 3.1 `npm run format` leaves `test-plan.md` clean — 7925640
+- [x] 3.2 `npm test` still passes — 7925640
 
 #### Manual
 
-- [x] 3.3 §3 table cannot be read as "duplication on retry is prevented"
-- [x] 3.4 §6.5 is actionable cold, without reading this plan
+- [x] 3.3 §3 table cannot be read as "duplication on retry is prevented" — 7925640
+- [x] 3.4 §6.5 is actionable cold, without reading this plan — 7925640
