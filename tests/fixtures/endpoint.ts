@@ -35,8 +35,14 @@ export interface CallOptions {
   method?: "GET" | "POST";
   /** Route params, e.g. `{ publicId }` for `src/pages/api/decks/[publicId].ts`. */
   params?: Record<string, string | undefined>;
-  /** Endpoints here read formData (AGENTS.md convention), never JSON. */
-  body?: FormData;
+  /**
+   * Most endpoints read formData (AGENTS.md convention). `/api/generate` is the
+   * deliberate exception — it is a JSON endpoint because a React island fetches it and
+   * needs a structured body back (see `src/pages/api/generate.ts:10-14`), so this accepts
+   * any `BodyInit`. Pass a JSON string and `Content-Type: application/json` is set for
+   * you; pass `FormData` and it is not, so the multipart boundary stays derived.
+   */
+  body?: BodyInit;
   as: TestAccount;
 }
 
@@ -52,9 +58,17 @@ export async function callEndpoint(
 ): Promise<Response> {
   const container = await AstroContainer.create();
 
+  // Content-Type is set only for non-FormData bodies: `Request` must be left to derive
+  // the multipart boundary itself, so setting it unconditionally would break every
+  // form-POST test.
+  const headers: Record<string, string> = { Cookie: as.cookieHeader };
+  if (body !== undefined && !(body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const request = new Request(new URL(url, ORIGIN), {
     method,
-    headers: { Cookie: as.cookieHeader },
+    headers,
     body,
   });
 
