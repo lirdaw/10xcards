@@ -67,6 +67,7 @@ CLAUDE.md.scaffold
 context/session_lessons*
 # Jira workflow map — lokalna podpowiedz dla skilli jira-*; regenerowalna, zywe API = zrodlo prawdy
 context/foundation/jira-workflow.md
+context/foundation/jira-map.md
 
 # =============================================================================
 # Edytor / tymczasowe

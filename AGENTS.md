@@ -21,6 +21,7 @@
 - `npm run lint` / `npm run lint:fix` — ESLint, type-checked (@eslint.config.js).
 - `npm run format` — Prettier (@.prettierrc.json).
 - `npm run build` — production build; `npx wrangler deploy` — ship to Cloudflare.
+- `npm test` — Vitest integration suite against the local Supabase stack; start it first with `npm run db:start`. A preflight aborts the run if `SUPABASE_URL` is not local or `OPENROUTER_API_KEY` is set (the suite asserts card counts that only mock generation guarantees). How to add a test: @context/foundation/test-plan.md §6.
 
 ## Conventions
 
@@ -33,4 +34,4 @@
 
 ## Commits
 
-Conventional Commits (`chore:`, `feat:`, `fix:`) as seen in `git log`. When a Jira ticket exists (it almost always does), put its key in the scope: `feat(C10X-1): <summary>`. One line, imperative mood, no multi-line body. **Commit messages MUST be in English — non-negotiable, no exceptions** (even though UI copy is Polish). Never bypass hooks with `--no-verify`. No test suite is configured yet — add one before relying on `npm test`.
+Conventional Commits (`chore:`, `feat:`, `fix:`) as seen in `git log`. When a Jira ticket exists (it almost always does), put its key in the scope: `feat(C10X-1): <summary>`. One line, imperative mood, no multi-line body. **Commit messages MUST be in English — non-negotiable, no exceptions** (even though UI copy is Polish). Never bypass hooks with `--no-verify`.
