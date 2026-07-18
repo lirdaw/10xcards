@@ -11,6 +11,15 @@ Always communicate with me in Polish. Keep only code, identifiers, skill-generat
 This file guides AI agents working in this repo. Project conventions live in AGENTS.md:
 @AGENTS.md
 
+## Mutation testing
+
+Repo uses Stryker for SELECTIVE mutation testing on risk-critical modules.
+Run it only for code covered by the current change or a risk from test-plan.md,
+prefer narrowed scope via the `mutate` list or `--mutate "path:start-end"`, and
+do NOT chase 100% mutation score. Review survived mutants one by one: add an
+assertion only when the mutant is a user-visible or business-relevant bug.
+Keep OPENROUTER_API_KEY unset so generation falls back to mock cards.
+
 <!-- BEGIN @przeprogramowani/10x-cli -->
 
 ## 10xDevs AI Toolkit - Module 3, Lesson 1

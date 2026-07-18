@@ -110,6 +110,8 @@ pnpm-debug.log*
 # Test coverage reports (Vitest/Jest/Istanbul)
 coverage/
 .nyc_output/
+reports/
+.stryker-tmp/
 
 # Local Supabase CLI ephemeral state (npx supabase start)
 supabase/.temp/
