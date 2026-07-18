@@ -375,23 +375,23 @@ None. No schema change, no production code change committed.
 
 #### Automated
 
-- [x] 2.1 `npm test` passes with all three new cases green
-- [x] 2.2 `npm run lint` passes
-- [x] 2.3 `npm test` green on two consecutive runs without a DB reset
+- [x] 2.1 `npm test` passes with all three new cases green — 30e017f
+- [x] 2.2 `npm run lint` passes — 30e017f
+- [x] 2.3 `npm test` green on two consecutive runs without a DB reset — 30e017f
 
 #### Manual
 
-- [ ] 2.4 Crude dedup makes the first `it()` fail on the session-count assertion; revert restores green
-- [ ] 2.5 Header comment makes "invert me, don't delete me" unambiguous
+- [x] 2.4 Crude dedup makes the first `it()` fail on the session-count assertion; revert restores green — 30e017f
+- [x] 2.5 Header comment makes "invert me, don't delete me" unambiguous — 30e017f
 
 ### Phase 3: Record the coverage — and its limits — in test-plan.md
 
 #### Automated
 
-- [ ] 3.1 `npm run format` leaves `test-plan.md` clean
-- [ ] 3.2 `npm test` still passes
+- [x] 3.1 `npm run format` leaves `test-plan.md` clean
+- [x] 3.2 `npm test` still passes
 
 #### Manual
 
-- [ ] 3.3 §3 table cannot be read as "duplication on retry is prevented"
-- [ ] 3.4 §6.5 is actionable cold, without reading this plan
+- [x] 3.3 §3 table cannot be read as "duplication on retry is prevented"
+- [x] 3.4 §6.5 is actionable cold, without reading this plan

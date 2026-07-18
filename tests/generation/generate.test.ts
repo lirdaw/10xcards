@@ -31,9 +31,11 @@ import { clientFor } from "../fixtures/session";
 //    (src/lib/generations.ts:29-34), so a duplicated-then-compensated run reads as 0
 //    while its row still exists.
 //
-// Every count is scoped twice — by `source_text` and by this run's own deck. The suite
-// shares accounts across the run and deliberately never resets the database, so an
-// unscoped count(*) would grow with history and the test would pass or fail by accident.
+// Every count is scoped twice — by `source_text` and by this run's own deck. Cross-run
+// pollution is already handled elsewhere: provisionAccounts mints fresh accounts per run
+// so the suite never inherits a previous run's rows without a db:reset. What is NOT
+// handled is this file — all three cases below read as the same account A, so an unscoped
+// count(*) would sum them together and the test would pass or fail by accident.
 
 const a = accountA();
 const suffix = Date.now().toString(36);
