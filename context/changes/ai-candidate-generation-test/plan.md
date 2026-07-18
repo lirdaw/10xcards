@@ -78,6 +78,11 @@ protected**, and §3 Phase 2 reads `implementing` (risks #4 and #6 remain untouc
 - `tests/fixtures/accounts.ts:68-70` — accounts are shared across the run and the suite
   deliberately does not `db:reset`. Rows accumulate; namespace with
   `Date.now().toString(36)` as `decks.test.ts:22` does, and scope every count.
+  > **Corrected during implementation (2026-07-18).** The stated reason is wrong:
+  > `provisionAccounts` mints a fresh account per run (`accounts.ts:71-74`), so cross-run
+  > pollution was never the threat. The real one is *within* a run — the three `it()`s
+  > read as the same account A. The conclusion (namespace + scope every count) is
+  > unchanged and is what shipped. See `test-plan.md` §6.5 "Scope every count twice".
 
 ## What We're NOT Doing
 
@@ -116,6 +121,11 @@ green, then revert the production edit before committing.
 never resets the database, so prior runs' rows are present) and by the per-test deck for
 the card-layer assertion. An unscoped `count(*)` grows with every run and the test would
 pass or fail depending on history.
+
+> **Corrected during implementation (2026-07-18)** — same correction as in Key Discoveries:
+> the threat is *within* a run, not across runs. The requirement stands as written; only its
+> rationale changed. The deck-scoped half also means the positive control needs its **own**
+> deck, or the card-layer assertion becomes order-dependent (impl-review F1).
 
 ## Phase 1: Widen the endpoint driver for JSON bodies
 

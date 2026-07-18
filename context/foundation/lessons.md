@@ -156,6 +156,13 @@
 - **Rule**: A backend-mutating test harness must hard-assert in preflight that the target host is local (`127.0.0.1`/`localhost`) and `fail()` before any request. The "key is anon" check is NOT sufficient — a production anon key passes it (anon ≠ local). No env opt-out: a genuine non-local run must require a deliberate code edit.
 - **Applies to**: plan (the preflight contract must include the local-host assertion), implement (build it, no opt-out), impl-review (flag its absence as a data-safety critical)
 
+## Preflight musi domknąć KAŻDY nielokalny szew, nie tylko bazę
+
+- **Context**: Harness testowy dotykający realnego backendu, gdzie determinizm suite'a opiera się na tym, że jakaś zewnętrzna, płatna integracja jest wyłączona (`tests/setup/preflight.ts`; ścieżka generacji przez `src/lib/openrouter.ts`). Uogólnienie reguły „Test preflight must assert the target host is local — anon ≠ local".
+- **Problem**: Preflight twardo asertował host Supabase (127.0.0.1) z polityką „no opt-out", ale o `OPENROUTER_API_KEY` milczał. Tryb mock był deklarowany jako fakt w nagłówku testu i w test-plan.md §6.5 — i nic go nie egzekwowało. Deweloper, który ustawi klucz, by sprawdzić realną generację (co `.env.example` wprost dokumentuje), a potem odpali `npm test`, dostaje płatne wywołania openrouter.ai z tekstem testowym, asercje zależne od modelu zamiast od `mockCards`, i inwersję timeoutów (SERVER_TIMEOUT_MS 40 s > testTimeout 30 s). Zabezpieczenie jednego szwu stworzyło złudzenie, że zamknięte są wszystkie.
+- **Rule**: Wylicz WSZYSTKIE zewnętrzne szwy, do których suite może sięgnąć, i zablokuj każdy w preflight — nie tylko bazę. Jeśli determinizm testu opiera się na tym, że integracja jest w trybie mock, preflight ma `fail()` gdy jej sekret JEST ustawiony (bez opt-outu przez env). Założenie zapisane w komentarzu lub w dokumencie nie jest zabezpieczeniem.
+- **Applies to**: plan (kontrakt preflightu wylicza wszystkie szwy), implement (zbuduj bez opt-outu), impl-review (brak blokady szwu = finding)
+
 ## /10x-archive owns the roadmap Status → done flip — doc-sync updates Outcome only
 
 - **Context**: Roadmap status bookkeeping — `context/foundation/roadmap.md`; the doc-sync phase of any change (`/10x-plan` doc-sync, `/10x-implement`, `/10x-archive`).
