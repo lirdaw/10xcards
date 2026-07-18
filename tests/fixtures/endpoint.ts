@@ -40,7 +40,8 @@ export interface CallOptions {
    * deliberate exception — it is a JSON endpoint because a React island fetches it and
    * needs a structured body back (see `src/pages/api/generate.ts:10-14`), so this accepts
    * any `BodyInit`. Pass a JSON string and `Content-Type: application/json` is set for
-   * you; pass `FormData` and it is not, so the multipart boundary stays derived.
+   * you; pass anything else and it is not, so each body type keeps the header `Request`
+   * derives for it (FormData its multipart boundary, and so on).
    */
   body?: BodyInit;
   as: TestAccount;
@@ -58,11 +59,13 @@ export async function callEndpoint(
 ): Promise<Response> {
   const container = await AstroContainer.create();
 
-  // Content-Type is set only for non-FormData bodies: `Request` must be left to derive
-  // the multipart boundary itself, so setting it unconditionally would break every
-  // form-POST test.
+  // Content-Type is set only for a string body — the JSON case, and the only one this
+  // fixture can label correctly. Every other BodyInit already derives its own header
+  // (FormData its multipart boundary, URLSearchParams x-www-form-urlencoded), and
+  // overwriting that would surface as a baffling 400/500 from request.formData() rather
+  // than as the wiring error it is.
   const headers: Record<string, string> = { Cookie: as.cookieHeader };
-  if (body !== undefined && !(body instanceof FormData)) {
+  if (typeof body === "string") {
     headers["Content-Type"] = "application/json";
   }
 

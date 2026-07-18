@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY } from "astro:env/server";
+import { SUPABASE_URL, SUPABASE_KEY, OPENROUTER_API_KEY } from "astro:env/server";
 
 // Every env var in astro.config.mjs is `optional: true`, so an unset SUPABASE_URL makes
 // createClient() return null rather than throw. A suite that ran anyway would report a
@@ -92,6 +92,31 @@ function assertLocal(url: string): void {
   }
 }
 
+/**
+ * Reject a set OPENROUTER_API_KEY — the suite's second, easily-missed external seam.
+ *
+ * assertLocal closes the database seam; this closes the LLM one. `tests/generation/
+ * generate.test.ts` and test-plan.md §6.5 both state "mock mode is the default because
+ * OPENROUTER_API_KEY is unset" as a fact, and nothing enforced it. With the key set,
+ * generateCandidates() stops short-circuiting to mockCards() (src/lib/openrouter.ts:149)
+ * and the suite makes real, billed calls to openrouter.ai carrying the test source text —
+ * the one non-local backend it can still reach. The counts would also stop holding
+ * (they assume exactly `count` cards, which only the mock guarantees) and a live call can
+ * outlive testTimeout (30 s) before SERVER_TIMEOUT_MS (40 s) even fires.
+ *
+ * No env opt-out, same reasoning as assertLocal: a deliberate live-generation run must
+ * cost a code edit, not an env flag someone leaves set.
+ */
+function assertMockGeneration(): void {
+  if (OPENROUTER_API_KEY) {
+    fail(
+      `OPENROUTER_API_KEY is set. This suite asserts card counts that only mock mode ` +
+        `guarantees, and a real key makes it place billed calls to openrouter.ai. Unset it ` +
+        `in .env for the test run (see .env.example).`,
+    );
+  }
+}
+
 async function assertReachable(url: string): Promise<void> {
   let response: Response;
   try {
@@ -111,5 +136,6 @@ export default async function preflight(): Promise<void> {
   assertAnonKey(SUPABASE_KEY);
   // Before reachability: never even send a request to a non-local host.
   assertLocal(SUPABASE_URL);
+  assertMockGeneration();
   await assertReachable(SUPABASE_URL);
 }

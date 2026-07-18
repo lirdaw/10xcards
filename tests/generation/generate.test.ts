@@ -127,8 +127,12 @@ describe("/api/generate is not idempotent — a retry writes a second set", () =
     // Without this, "two sessions" above would also be satisfied by an endpoint that
     // writes sessions unconditionally while generation itself is broken — or by one
     // that stopped scoping by source_text at all.
+    // Its own deck, deliberately: the card-layer count above is scoped by deck, so
+    // generating into the shared one would make that assertion depend on the order
+    // vitest happens to run these it() blocks in.
+    const controlDeckPublicId = await createDeck(`Control deck ${suffix}`);
     const response = await generate({
-      deckPublicId,
+      deckPublicId: controlDeckPublicId,
       sourceText: CONTROL_TEXT,
       language: "auto",
       count: COUNT,
