@@ -40,6 +40,7 @@ export type Database = {
           id: number
           name: string
           public_id: string
+          session_size: number
           updated_at: string
           user_id: string
         }
@@ -48,6 +49,7 @@ export type Database = {
           id?: never
           name: string
           public_id?: string
+          session_size?: number
           updated_at?: string
           user_id: string
         }
@@ -56,6 +58,7 @@ export type Database = {
           id?: never
           name?: string
           public_id?: string
+          session_size?: number
           updated_at?: string
           user_id?: string
         }
@@ -125,6 +128,59 @@ export type Database = {
             columns: ["state_id"]
             isOneToOne: false
             referencedRelation: "flashcard_state"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flashcard_schedule: {
+        Row: {
+          created_at: string
+          difficulty: number
+          due: string
+          flashcard_id: number
+          id: number
+          lapses: number
+          last_review: string | null
+          reps: number
+          scheduled_days: number
+          srs_state: number
+          stability: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          difficulty: number
+          due: string
+          flashcard_id: number
+          id?: never
+          lapses: number
+          last_review?: string | null
+          reps: number
+          scheduled_days?: number
+          srs_state: number
+          stability: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          difficulty?: number
+          due?: string
+          flashcard_id?: number
+          id?: never
+          lapses?: number
+          last_review?: string | null
+          reps?: number
+          scheduled_days?: number
+          srs_state?: number
+          stability?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flashcard_schedule_flashcard_id_fkey"
+            columns: ["flashcard_id"]
+            isOneToOne: true
+            referencedRelation: "flashcard"
             referencedColumns: ["id"]
           },
         ]
@@ -215,6 +271,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      f_unaccent: { Args: { "": string }; Returns: string }
       search_flashcards_in_deck: {
         Args: { p_deck_id: number; p_query: string }
         Returns: {
@@ -223,6 +280,28 @@ export type Database = {
           front: string
           public_id: string
           updated_at: string
+        }[]
+      }
+      study_due_cards: {
+        Args: { p_deck_id: number; p_limit?: number; p_now?: string }
+        Returns: {
+          back: string
+          difficulty: number
+          due: string
+          front: string
+          lapses: number
+          last_review: string
+          public_id: string
+          reps: number
+          srs_state: number
+          stability: number
+        }[]
+      }
+      study_due_counts: {
+        Args: { p_now?: string }
+        Returns: {
+          due_count: number
+          public_id: string
         }[]
       }
     }

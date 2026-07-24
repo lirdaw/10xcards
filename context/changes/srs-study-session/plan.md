@@ -672,16 +672,16 @@ confirmed.
 
 #### Automated
 
-- [ ] 1.1 Migration applies cleanly on a fresh stack: `npm run db:reset`
-- [ ] 1.2 Types regenerate without drift beyond new objects: `npm run db:types`
-- [ ] 1.3 Lint + typecheck pass: `npm run lint`
-- [ ] 1.4 Build passes: `npm run build`
+- [x] 1.1 Migration applies cleanly on a fresh stack: `npm run db:reset`
+- [x] 1.2 Types regenerate without drift beyond new objects: `npm run db:types`
+- [x] 1.3 Lint + typecheck pass: `npm run lint`
+- [x] 1.4 Build passes: `npm run build`
 
 #### Manual
 
-- [ ] 1.5 `flashcard_schedule` has RLS on, no anon grants
-- [ ] 1.6 Backfill created one schedule row per existing accepted card
-- [ ] 1.7 `deck.session_size` defaults to 20 on existing decks
+- [x] 1.5 `flashcard_schedule` has RLS on, no anon grants
+- [x] 1.6 Backfill created one schedule row per existing accepted card
+- [x] 1.7 `deck.session_size` defaults to 20 on existing decks
 
 ### Phase 2: SRS domain + lib data-access
 
