@@ -687,25 +687,25 @@ confirmed.
 
 #### Automated
 
-- [x] 2.1 Typecheck passes (`ts-fsrs` types resolve): `npm run lint`
-- [x] 2.2 Build passes: `npm run build`
+- [x] 2.1 Typecheck passes (`ts-fsrs` types resolve): `npm run lint` — a9cbebb
+- [x] 2.2 Build passes: `npm run build` — a9cbebb
 
 #### Manual
 
-- [x] 2.3 `rateCard` with a fixed `now` returns `due` matching a direct `scheduler.next` call
+- [x] 2.3 `rateCard` with a fixed `now` returns `due` matching a direct `scheduler.next` call — a9cbebb
 
 ### Phase 3: Endpoint `/api/study` + route protection
 
 #### Automated
 
-- [ ] 3.1 `npx astro sync` clean, then lint + typecheck pass: `npm run lint`
-- [ ] 3.2 Build passes: `npm run build`
+- [x] 3.1 `npx astro sync` clean, then lint + typecheck pass: `npm run lint`
+- [x] 3.2 Build passes: `npm run build`
 
 #### Manual
 
-- [ ] 3.3 Signed-out `GET /study` redirects to `/auth/signin`
-- [ ] 3.4 `POST /api/study` rate advances the schedule; rating a foreign deck's card → 404
-- [ ] 3.5 `setSessionSize` persists and is reflected on reload
+- [x] 3.3 Signed-out `GET /study` redirects to `/auth/signin`
+- [x] 3.4 `POST /api/study` rate advances the schedule; rating a foreign deck's card → 404
+- [x] 3.5 `setSessionSize` persists and is reflected on reload
 
 ### Phase 4: UI — page, island, and nav
 

@@ -170,6 +170,19 @@ export async function listDueCards(supabase: Client, deckId: number, now: Date, 
   return { data: views, error: null };
 }
 
+// Sets the per-deck session cap. RETURNING (`.select(...).maybeSingle()`) so a 0-row
+// result — a foreign or absent deck hidden by RLS — is a clean 404 rather than a silent
+// no-op (lessons: add RETURNING to RLS writes). The sane bounds are enforced at the
+// endpoint (Zod); the DB CHECK (session_size > 0) is the backstop.
+export function setSessionSize(supabase: Client, deckPublicId: string, size: number) {
+  return supabase
+    .from("deck")
+    .update({ session_size: size })
+    .eq("public_id", deckPublicId)
+    .select("session_size")
+    .maybeSingle();
+}
+
 // The result of a rate attempt. `alreadyApplied` lets the endpoint return a benign
 // idempotent 200 (no second transition) when the compare-and-set found the rating had
 // already landed. `data` carries the current schedule progress (post-transition, or
