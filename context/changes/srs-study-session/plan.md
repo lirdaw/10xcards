@@ -726,11 +726,11 @@ confirmed.
 
 #### Automated
 
-- [x] 5.1 Full suite passes on a running stack: `npm run db:start` then `npm test`
-- [x] 5.2 New files run in isolation via `npx vitest run tests/study/*.test.ts`
-- [x] 5.3 Lint + typecheck pass: `npm run lint`
+- [x] 5.1 Full suite passes on a running stack: `npm run db:start` then `npm test` — 0cfdbd1
+- [x] 5.2 New files run in isolation via `npx vitest run tests/study/*.test.ts` — 0cfdbd1
+- [x] 5.3 Lint + typecheck pass: `npm run lint` — 0cfdbd1
 
 #### Manual
 
-- [x] 5.4 Deliberate-breakage check performed and reverted (gate/RLS neuter → red)
-- [x] 5.5 Test-plan §3 Phase 4 reads `complete` and §6 has a runnable SRS entry
+- [x] 5.4 Deliberate-breakage check performed and reverted (gate/RLS neuter → red) — 0cfdbd1
+- [x] 5.5 Test-plan §3 Phase 4 reads `complete` and §6 has a runnable SRS entry — 0cfdbd1
