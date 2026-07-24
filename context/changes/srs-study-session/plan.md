@@ -734,3 +734,42 @@ confirmed.
 
 - [x] 5.4 Deliberate-breakage check performed and reverted (gate/RLS neuter → red) — 0cfdbd1
 - [x] 5.5 Test-plan §3 Phase 4 reads `complete` and §6 has a runnable SRS entry — 0cfdbd1
+
+## Post-Implementation Notes
+
+Written during the implementation review (`reviews/impl-review.md`, 2026-07-24) —
+things a future reader would otherwise have to re-derive from the diff.
+
+**One bug got past all five phases and the acceptance test.** `ts-fsrs`'s `Card`
+carries a `learning_steps` cursor that this table never stored, so it was re-derived
+as 0 on every load and a card rated Good sat in `Learning` at a +10 min interval
+forever — Risk #3's exact failure, with the suite green at 45/45. The plan's Phase 5
+oracle could not see it because it recomputed its expectation *through* the app's own
+mapper, so both sides dropped the same field and agreed. Fixed by
+`enable_short_term: false` (the cursor leaves the calculation entirely, so the
+persisted column set is complete by construction) plus a multi-review test whose
+oracle is advanced only in memory. `test-plan.md` §6.1 now carries the general rule.
+
+**Two edits went wider than their contract; both are accepted, not oversights.**
+
+- `CLAUDE.md` — the `@przeprogramowani/10x-cli` managed block was swapped from
+  "Module 3, Lesson 1" to "Module 3, Lesson 4 (E2E Tests)" on this branch. It is a
+  toolkit-managed lesson swap that rode along, **not S-03 scope**, and it does not
+  contradict "No e2e / Playwright": no Playwright dependency, config, or test exists
+  anywhere in the repo. Left in place because the next toolkit run would restore it.
+- `src/components/Sidebar.astro` — the plan asked only for `href: "/study",
+  enabled: true` on the `study` item. The implementation also removed the `enabled`
+  flag from all three items and the disabled-`<span>` branch, since "Nauka" was the
+  last placeholder and the branch had no remaining user. Net behaviour matches the
+  plan. Consequence to know: **a future disabled nav placeholder must re-add both the
+  flag and the branch.** This is shell, i.e. the surface the "Poleruj tylko własne
+  komponenty slice'a" lesson says to scope-decide before building — the decision was
+  made during implementation and ratified here, not before.
+
+**A follow-up migration exists.** `20260724220524_srs_study_schedule_review_fixes.sql`
+carries three review fixes: an upper bound on `deck.session_size` (so the DB CHECK is
+the backstop for the endpoint's Zod limit, as its comment always claimed), a stable
+`, f.id asc` tiebreaker in `study_due_cards` (without it a deck of never-seeded cards
+returns a planner-dependent subset), and the removal of the duplicate index on
+`flashcard_schedule.flashcard_id` (the `unique` constraint already indexes it). The
+`due` index is deliberately kept for FR-016 and says so in the migration.

@@ -177,6 +177,15 @@ green even when the schedule is wrong. If a case cannot be phrased as a
 property or as a recomputation from an independent source, it does not belong
 at this layer.
 
+**"Independent source" has a sharp edge when the state is stored** (added by
+the S-03 impl-review). Feeding the row you just read back through the app's own
+mapper to build the expectation is *not* an independent recomputation: whatever
+the store fails to persist is dropped on both sides at once, and the oracle
+agrees with the code on a wrong value. For a stateful transition, advance the
+oracle **independently of the store** — chain it in memory across several
+transitions and compare against what actually landed. §6.6's Phase 4 note
+records the bug this rule was written from.
+
 ### 6.2 Adding an integration test
 
 - **Location**: `tests/isolation/` for ownership cases; a sibling folder
@@ -419,11 +428,41 @@ restored green. The production edit was never committed.
   | Claim from Risk #3                       | What proves it                                                                                                                             |
   | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
   | Deferral follows the rating              | `schedule.test.ts` ordering property (no DB) + `study.test.ts` Easy-vs-Hard `due` persisted through the endpoint                           |
-  | The written schedule is the right one    | `study.test.ts` exact-due oracle: `due`/`stability`/`difficulty`/`srs_state`/`reps`/`lapses`/`scheduled_days` vs a direct `scheduler.next` |
+  | The written schedule is the right one, at the FIRST review | `study.test.ts` exact-due oracle: `due`/`stability`/`difficulty`/`srs_state`/`reps`/`lapses`/`scheduled_days` vs a direct `scheduler.next` |
+  | …and at every review after it            | `study.test.ts` "stays faithful across consecutive reviews": three chained ratings vs an oracle Card advanced only in memory (added by impl-review F2) |
   | The schedule survives between sessions   | re-read on a brand-new client, column-for-column, asserted still rated (not silently reset to New)                                         |
   | A retry does not advance the schedule    | two identical POSTs → `reps` 0→1 (not 2), second answers `200 { alreadyApplied: true }`, row byte-identical                                |
   | Only accepted cards enter                | a `generated` and a `rejected` sibling never come back from `listDueCards`; rating one is a 404 that writes no schedule row                |
   | No cross-account write (extends Risk #1) | B rating A's card → 404 and A's row unchanged column-for-column, with A's own successful rate as the positive control                      |
+
+  **What the single-transition oracle does NOT prove, and why there are now two
+  rows for it** (added by impl-review F2, 2026-07-24). The exact-due oracle
+  recomputes its expectation from the row it just read back — i.e. *through*
+  `scheduleRowToCard`, the app's own mapper. Any `ts-fsrs` `Card` field the
+  schedule table fails to persist is therefore dropped on both sides at once, so
+  the oracle and the code agree on a wrong value and the assertion passes. That
+  is §2's "assertion copied from the implementation" wearing the costume of a
+  property test, and it was not hypothetical: it let a card rated Good sit in
+  `Learning` at a +10 min interval **forever** (the `Card.learning_steps` cursor
+  was never persisted) while the suite stayed green at 45/45.
+
+  The rule that follows: **an oracle for a stateful transition must be advanced
+  independently of the store under test.** "Stays faithful across consecutive
+  reviews" does that — it chains three ratings against a `Card` built by
+  `createEmptyCard` and advanced purely in memory, never round-tripping Postgres
+  and never passing through the mapper, so a missing column surfaces as a
+  divergence from review 2 onward instead of cancelling out. A seeded row's `due`
+  does not feed the New → first transition, which is what makes `createEmptyCard`
+  a faithful starting point.
+
+  **The third deliberate-breakage check, for that case**: remove
+  `enable_short_term: false` from the `generatorParameters(...)` at
+  `src/lib/study.ts` (which restores the unpersisted-cursor bug) and run
+  `npx vitest run tests/study/study.test.ts`. Exactly one assertion goes red —
+  the chained case's `due` at review 2 (`expected 1780316400000 to be
+  1780488600000`) — and the other 14 cases stay green, including the
+  single-transition oracle, which is the whole point. Restoring the flag restored
+  green (46/46 for the full suite).
 
   **The deliberate-breakage check**: `study_due_cards` was replaced in the
   running local DB with a copy missing its `and f.state_id = 2` predicate

@@ -2,6 +2,7 @@ import { createEmptyCard, fsrs, generatorParameters, Rating, State, TypeConvert 
 import type { Card, Grade } from "ts-fsrs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/db/database.types";
+import { STATE_ACCEPTED } from "@/lib/flashcards";
 
 // Single home for SRS scheduling + queries, mirroring src/lib/flashcards.ts: every
 // function takes an already-created SSR client (so all queries are RLS-scoped to the
@@ -14,7 +15,19 @@ type Client = SupabaseClient<Database>;
 // to reuse across requests. FSRS-6 defaults with fuzz OFF — the schedule must be a
 // deterministic function of (card, now, grade) so Risk #3's oracle test can assert an
 // exact `due` rather than a fuzzed range.
-export const scheduler = fsrs(generatorParameters({ request_retention: 0.9, maximum_interval: 36500 }));
+//
+// `enable_short_term: false` is load-bearing, not a preference. With short-term steps ON,
+// ts-fsrs walks a card through `learning_steps` (['1m','10m']) using a `Card.learning_steps`
+// CURSOR, and only that cursor graduates the card to State.Review. This app persists a
+// schedule row, not a Card, so any Card field without a column is silently re-derived as 0
+// on every load — which pinned a card rated Good in Learning at +10 min forever. Turning
+// short-term scheduling off removes the cursor from the calculation entirely, so the
+// persisted column set is complete by construction. It also matches this slice's session
+// model: the batch is built once and the island runs to the end, so an intra-day re-queue
+// would never be shown inside a session anyway.
+export const scheduler = fsrs(
+  generatorParameters({ request_retention: 0.9, maximum_interval: 36500, enable_short_term: false }),
+);
 
 // Relative "za N minut/godzin/dni" label for a rating button. An interval is a
 // *duration*, so it carries no timezone (unlike the absolute dates in flashcards.ts);
@@ -51,8 +64,12 @@ export interface DueCardRow {
 
 // Builds a ts-fsrs Card from a schedule row, coalescing every NULL FSRS field to
 // its New-card literal (not just `due`) so repeat()/next() get a valid Card even
-// for a card that has no schedule row yet. createEmptyCard supplies the derived
-// fields (elapsed_days/scheduled_days/learning_steps); persisted columns override.
+// for a card that has no schedule row yet. createEmptyCard supplies the fields this
+// table does not store (elapsed_days/scheduled_days/learning_steps); persisted columns
+// override the rest. That is only sound because none of the unstored fields feeds the
+// transition under this scheduler's config — `learning_steps` in particular is inert
+// only because `enable_short_term` is false (see the scheduler comment above). Adding a
+// Card field to the calculation without adding its column silently resets it every load.
 export function scheduleRowToCard(row: DueCardRow, now: Date): Card {
   const base = createEmptyCard(row.due ? new Date(row.due) : now);
   return {
@@ -114,10 +131,17 @@ function newScheduleColumns(flashcardId: number, now: Date) {
 // left untouched (ignoreDuplicates ⇒ ON CONFLICT DO NOTHING), so it never resets a
 // card's real schedule. Resolves the cards' internal ids RLS-scoped first, so a card
 // the caller can't see contributes no row. Covers cards created after the migration
-// backfill without coupling to the S-02/S-05 accept paths.
+// backfill without coupling to the S-02/S-05 accept paths. The state_id filter is
+// redundant against today's only caller (listDueCards feeds it the already-gated RPC
+// output) and deliberately kept anyway: the accepted-only rule (FR-006, Risk #3) should
+// not depend on which query happened to produce the input list.
 export async function ensureSchedule(supabase: Client, cardPublicIds: string[], now: Date) {
   if (cardPublicIds.length === 0) return { error: null };
-  const { data: cards, error } = await supabase.from("flashcard").select("id").in("public_id", cardPublicIds);
+  const { data: cards, error } = await supabase
+    .from("flashcard")
+    .select("id")
+    .in("public_id", cardPublicIds)
+    .eq("state_id", STATE_ACCEPTED);
   if (error) return { error };
   const rows = cards.map((card) => newScheduleColumns(card.id, now));
   const { error: upsertError } = await supabase
@@ -138,19 +162,26 @@ export async function listDueCards(supabase: Client, deckId: number, now: Date, 
   });
   if (error) return { data: null, error };
 
-  // Seed rows for the whole (accepted, due) batch up front, so rating any card in the
-  // session hits an existing schedule row for the compare-and-set. Idempotent.
-  const { error: ensureError } = await ensureSchedule(
-    supabase,
-    data.map((row) => row.public_id),
-    now,
-  );
+  // The generated RPC type declares the FSRS columns non-null; at runtime a never-seeded
+  // card returns them NULL (the RPC LEFT-JOINs the schedule and coalesces `due` in the
+  // WHERE/ORDER only). Widen once, here, so both the seeding decision below and
+  // scheduleRowToCard read the shape the database actually sends.
+  const rows: DueCardRow[] = data;
+
+  // Seed rows only for the cards in this batch that have none, so rating any card in the
+  // session hits an existing schedule row for the compare-and-set. `due === null` is
+  // exactly "no schedule row". Seeding the whole batch would mean a write on every session
+  // load — a wasted round-trip plus speculative-insert churn — and, worse, would let a
+  // transient failure on a write that was not needed fail the READ for a session whose
+  // rows all already exist. In the steady state `unseeded` is empty and ensureSchedule
+  // returns without touching the database.
+  const unseeded = rows.filter((row) => row.due === null).map((row) => row.public_id);
+  const { error: ensureError } = await ensureSchedule(supabase, unseeded, now);
   if (ensureError) return { data: null, error: ensureError };
 
-  const views: DueCardView[] = data.map((row) => {
-    // The generated RPC type declares FSRS columns non-null; at runtime a never-seeded
-    // card returns them NULL (see DueCardRow, which widens them). scheduleRowToCard
-    // coalesces each to its New-card literal, so the non-null → nullable widening is safe.
+  const views: DueCardView[] = rows.map((row) => {
+    // scheduleRowToCard coalesces every NULL column to its New-card literal, so a card
+    // seeded a moment ago and one seeded months ago map to a valid Card either way.
     const card = scheduleRowToCard(row, now);
     const preview = scheduler.repeat(card, now);
     return {
@@ -195,7 +226,8 @@ export async function listDueCounts(supabase: Client, now: Date = new Date()) {
 // Sets the per-deck session cap. RETURNING (`.select(...).maybeSingle()`) so a 0-row
 // result — a foreign or absent deck hidden by RLS — is a clean 404 rather than a silent
 // no-op (lessons: add RETURNING to RLS writes). The sane bounds are enforced at the
-// endpoint (Zod); the DB CHECK (session_size > 0) is the backstop.
+// endpoint (Zod); the DB CHECK (session_size between 1 and 100) is the backstop, and it
+// mirrors SIZE_MAX in api/study.ts — change one and the other has to follow.
 export function setSessionSize(supabase: Client, deckPublicId: string, size: number) {
   return supabase
     .from("deck")
@@ -231,12 +263,18 @@ export async function rateCard(
   now: Date = new Date(),
 ): Promise<RateResult> {
   // Resolve the card's internal id, scoped to the deck (on top of RLS) so a card in a
-  // different — even owned — deck resolves to a clean 404 rather than being rated.
+  // different — even owned — deck resolves to a clean 404 rather than being rated. The
+  // state_id filter carries the accepted-only rule (FR-006, Risk #3) on the WRITE path:
+  // study_due_cards gates the read, but a card that was studied and only later left
+  // `accepted` keeps its schedule row, so without this the two sides would disagree —
+  // the RPCs would exclude it while a rate still advanced it. Absence, not a raised
+  // denial: an unaccepted card resolves to null and answers 404, never 403.
   const { data: resolved, error: resolveError } = await supabase
     .from("flashcard")
     .select("id")
     .eq("public_id", cardPublicId)
     .eq("deck_id", deckId)
+    .eq("state_id", STATE_ACCEPTED)
     .maybeSingle();
   if (resolveError) return { data: null, error: resolveError, alreadyApplied: false };
   if (!resolved) return { data: null, error: null, alreadyApplied: false };

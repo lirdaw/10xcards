@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { experimental_AstroContainer as AstroContainer } from "astro/container";
-import { Rating } from "ts-fsrs";
+import { createEmptyCard, Rating, State } from "ts-fsrs";
 import * as CreateDeck from "@/pages/api/decks/index";
 import * as CreateCard from "@/pages/api/decks/[publicId]/cards/index";
 import * as Study from "@/pages/api/study";
@@ -36,6 +36,7 @@ const RATING = { AGAIN: 1, HARD: 2, GOOD: 3, EASY: 4 } as const;
 
 // Lifecycle state ids (flashcard.state_id), a different axis from the FSRS srs_state.
 const STATE_GENERATED = 1;
+const STATE_ACCEPTED = 2;
 const STATE_REJECTED = 3;
 const SOURCE_MANUAL = 1;
 
@@ -405,6 +406,58 @@ describe("Risk #3 — the persisted schedule is exactly what ts-fsrs computes", 
     expect(first.srs_state).not.toBe(0);
     expect(new Date(first.due).getTime()).toBeGreaterThan(FIXED_NOW.getTime());
   });
+
+  it("stays faithful across consecutive reviews, against an oracle kept only in memory", async () => {
+    const deckPublicId = await createDeck(a, `Chain deck ${suffix}`);
+    const cardPublicId = await createCard(a, deckPublicId, `Chain front ${suffix}`, `Chain back ${suffix}`);
+    const deckId = await deckIdOf(a, deckPublicId);
+    await loadSession(a, deckPublicId, cardPublicId);
+
+    // Why this case exists, and why its oracle is built differently from the one above.
+    //
+    // The single-transition oracle recomputes its expectation from the row it just read
+    // back, i.e. THROUGH scheduleRowToCard — the app's own mapper. Any Card field the
+    // schedule table fails to persist is therefore dropped on both sides at once, so the
+    // two agree on a wrong value and the assertion passes. That blind spot is real: it let
+    // a card rated Good sit in Learning at a +10 min interval forever while the suite
+    // stayed green (impl-review F1).
+    //
+    // Here the oracle is a Card advanced purely in memory from ts-fsrs' own constructor. It
+    // never round-trips the database and never passes through the mapper, so a missing
+    // column shows up as a divergence from review 2 onward instead of cancelling out. A
+    // seeded row's `due` does not feed the New -> first transition, so createEmptyCard is a
+    // faithful starting point for a freshly seeded card.
+    let oracle = createEmptyCard(FIXED_NOW);
+    let now = FIXED_NOW;
+    let expectedReps = 0;
+
+    for (let review = 1; review <= 3; review++) {
+      oracle = scheduler.next(oracle, now, Rating.Good).card;
+
+      const result = await rateCard(clientFor(a.cookieHeader), deckId, cardPublicId, Rating.Good, expectedReps, now);
+      expect(result.error).toBeNull();
+      expect(result.alreadyApplied).toBe(false);
+
+      const persisted = await scheduleOf(a, cardPublicId);
+      if (!persisted) throw new Error(`Schedule row missing after review ${review}.`);
+      expect(new Date(persisted.due).getTime()).toBe(oracle.due.getTime());
+      expect(persisted.stability).toBeCloseTo(oracle.stability, 6);
+      expect(persisted.difficulty).toBeCloseTo(oracle.difficulty, 6);
+      expect(persisted.srs_state).toBe(oracle.state);
+      expect(persisted.scheduled_days).toBe(oracle.scheduled_days);
+      expect(persisted.reps).toBe(review);
+
+      now = oracle.due; // the next review happens when the card actually comes due
+      expectedReps = review; // the optimistic-lock version the next session would serve
+    }
+
+    // The property the loop exists to protect, stated independently of the oracle: a
+    // schedule that cannot advance stays at a minutes-scale interval indefinitely. Three
+    // Good ratings must leave the card in Review, spaced days apart.
+    const last = await scheduleOf(a, cardPublicId);
+    expect(last?.srs_state).toBe(State.Review);
+    expect(last?.scheduled_days).toBeGreaterThan(1);
+  });
 });
 
 describe("Risk #3 — a retried rating applies the transition exactly once", () => {
@@ -502,6 +555,46 @@ describe("Risk #3 — only accepted cards enter a session", () => {
     );
     expect(response.status).toBe(404);
     expect(await scheduleOf(a, generatedCard)).toBeNull();
+  });
+
+  it("stops rating a card that already had a schedule row and then left `accepted`", async () => {
+    const deckPublicId = await createDeck(a, `Gate flip deck ${suffix}`);
+    const cardPublicId = await createCard(a, deckPublicId, `Gate flip front ${suffix}`, `back ${suffix}`);
+    const expectedReps = await loadSession(a, deckPublicId, cardPublicId);
+
+    // The case the two `it()`s above cannot reach. They rely on a non-accepted card having
+    // no schedule row, which makes the write-path gate look enforced when it is only a
+    // side effect of the read gate. Here the row exists FIRST and the card leaves
+    // `accepted` afterwards — the shape S-05's reject transition will create.
+    const client = clientFor(a.cookieHeader);
+    const { error: flipError } = await client
+      .from("flashcard")
+      .update({ state_id: STATE_REJECTED })
+      .eq("public_id", cardPublicId)
+      .select("public_id")
+      .single();
+    expect(flipError).toBeNull();
+    const before = await scheduleOf(a, cardPublicId);
+    if (!before) throw new Error("Session load did not seed a schedule row.");
+
+    const response = await study({ action: "rate", deckPublicId, cardPublicId, grade: RATING.GOOD, expectedReps }, a);
+    // 404, never 403: a rejected card is absent from study, not forbidden within it.
+    expect(response.status).toBe(404);
+    // Row-based, not status-only — the schedule must not have advanced a single column.
+    expect(await scheduleOf(a, cardPublicId)).toEqual(before);
+
+    // Positive control: flip it back and the very same request now succeeds, so the 404
+    // above is the state gate and not a broken deck/card resolution.
+    const { error: restoreError } = await client
+      .from("flashcard")
+      .update({ state_id: STATE_ACCEPTED })
+      .eq("public_id", cardPublicId)
+      .select("public_id")
+      .single();
+    expect(restoreError).toBeNull();
+    const retry = await study({ action: "rate", deckPublicId, cardPublicId, grade: RATING.GOOD, expectedReps }, a);
+    expect(retry.status).toBe(200);
+    expect((await scheduleOf(a, cardPublicId))?.reps).toBe(expectedReps + 1);
   });
 });
 
