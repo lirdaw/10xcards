@@ -1,22 +1,24 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { experimental_AstroContainer as AstroContainer } from "astro/container";
+import { Rating } from "ts-fsrs";
 import * as CreateDeck from "@/pages/api/decks/index";
 import * as CreateCard from "@/pages/api/decks/[publicId]/cards/index";
 import * as Study from "@/pages/api/study";
 import { listDecks } from "@/lib/decks";
 import { deckIdByPublicId, listFlashcards } from "@/lib/flashcards";
-import { listDueCounts, listDueCards } from "@/lib/study";
+import { listDueCounts, listDueCards, rateCard, scheduleRowToCard, scheduler } from "@/lib/study";
 import { accountA, accountB } from "../fixtures/accounts";
 import { callEndpoint } from "../fixtures/endpoint";
 import { clientFor } from "../fixtures/session";
 
-// Phase 3 endpoint-contract suite for /api/study. This pins the endpoint's own wiring
-// — JSON parse -> Zod discriminated union -> resolve deck -> rateCard/setSessionSize ->
-// structured response with the right status code (200/400/401/404). It is deliberately
-// NARROW: the hard Risk #3 correctness cases (exact-due oracle vs a direct
-// scheduler.next, survives-restart, idempotent double-rate, ordering-through-endpoint,
-// accepted-only gate, cross-account positive control, and the deliberate-breakage
-// check) are Phase 5 and extend THIS file — do not duplicate them here.
+// The /api/study suite, in two layers.
+//
+// The first describes pin the endpoint's own wiring — JSON parse -> Zod discriminated
+// union -> resolve deck -> rateCard/setSessionSize -> structured response with the right
+// status code (200/400/401/404). From "Risk #3" onwards come the schedule-correctness
+// cases that are this slice's hard acceptance condition (test-plan §2 Risk #3): the
+// exact-due oracle against a direct scheduler.next, survives-restart, the idempotent
+// retry, ordering by rating, and the accepted-only gate.
 //
 // Harness facts this suite leans on (see tests/fixtures/*, context/foundation/lessons.md):
 //   - callEndpoint drives the real route with an account's real cookie and an injected
@@ -34,7 +36,14 @@ const RATING = { AGAIN: 1, HARD: 2, GOOD: 3, EASY: 4 } as const;
 
 // Lifecycle state ids (flashcard.state_id), a different axis from the FSRS srs_state.
 const STATE_GENERATED = 1;
+const STATE_REJECTED = 3;
 const SOURCE_MANUAL = 1;
+
+// A fixed instant, deliberately far from the wall clock. rateCard takes `now` as a
+// parameter (the endpoint never lets a client supply it), and that seam is what makes an
+// exact-due assertion possible: an implementation that ignored the injected `now` and
+// reached for new Date() would miss every oracle assertion below by months.
+const FIXED_NOW = new Date("2026-06-01T12:00:00.000Z");
 
 function deckForm(name: string): FormData {
   const body = new FormData();
@@ -103,20 +112,53 @@ async function loadSession(as: typeof a, deckPublicId: string, cardPublicId: str
  * endpoint that creates one (manual create always writes `accepted`, and /api/generate
  * would drag the whole generation path in), so the accepted-only gate needs this seam.
  */
-async function createGeneratedCard(as: typeof a, deckPublicId: string, front: string): Promise<void> {
+async function createNonAcceptedCard(
+  as: typeof a,
+  deckPublicId: string,
+  front: string,
+  stateId: number,
+): Promise<string> {
   const client = clientFor(as.cookieHeader);
   const { data: deck } = await deckIdByPublicId(client, deckPublicId);
   if (!deck) throw new Error(`Deck ${deckPublicId} is not readable by its owner.`);
-  const { error } = await client
+  const { data, error } = await client
     .from("flashcard")
-    .insert({ deck_id: deck.id, front, back: `${front} back`, state_id: STATE_GENERATED, source_id: SOURCE_MANUAL })
+    .insert({ deck_id: deck.id, front, back: `${front} back`, state_id: stateId, source_id: SOURCE_MANUAL })
     .select("public_id")
     .single();
   expect(error).toBeNull();
+  if (!data) throw new Error(`Setup failed: non-accepted card "${front}" was never written.`);
+  return data.public_id;
 }
 
-/** Reads a card's schedule row back as its owner — the only trustworthy view of row state. */
-async function scheduleOf(as: typeof a, cardPublicId: string): Promise<{ due: string; reps: number } | null> {
+/** Resolves a deck's internal id as its owner — needed to call the lib layer directly. */
+async function deckIdOf(as: typeof a, deckPublicId: string): Promise<number> {
+  const { data: deck, error } = await deckIdByPublicId(clientFor(as.cookieHeader), deckPublicId);
+  expect(error).toBeNull();
+  if (!deck) throw new Error(`Deck ${deckPublicId} is not readable by its owner.`);
+  return deck.id;
+}
+
+/** Every persisted FSRS column, so a transition can be asserted column-for-column. */
+interface ScheduleRow {
+  due: string;
+  stability: number;
+  difficulty: number;
+  srs_state: number;
+  reps: number;
+  lapses: number;
+  last_review: string | null;
+  scheduled_days: number;
+}
+
+/**
+ * Reads a card's schedule row back as its owner — the only trustworthy view of row state.
+ *
+ * Every call builds a FRESH client from the account's cookie, so each read runs its own
+ * cookie -> JWT -> RLS -> Postgres chain with nothing carried over. That is what makes
+ * this the "survives between sessions" probe as well as the ordinary read.
+ */
+async function scheduleOf(as: typeof a, cardPublicId: string): Promise<ScheduleRow | null> {
   const client = clientFor(as.cookieHeader);
   const { data: fc, error: fcErr } = await client
     .from("flashcard")
@@ -127,7 +169,7 @@ async function scheduleOf(as: typeof a, cardPublicId: string): Promise<{ due: st
   if (!fc) throw new Error(`Card ${cardPublicId} is not readable by its owner.`);
   const { data, error } = await client
     .from("flashcard_schedule")
-    .select("due, reps")
+    .select("due, stability, difficulty, srs_state, reps, lapses, last_review, scheduled_days")
     .eq("flashcard_id", fc.id)
     .maybeSingle();
   expect(error).toBeNull();
@@ -193,6 +235,8 @@ describe("/api/study rate applies and persists a recall rating", () => {
   it("returns 404 when B rates a card in A's deck, leaving A's schedule untouched", async () => {
     const cardPublicId = await createCard(a, deckPublicId, `Foreign front ${suffix}`, `Foreign back ${suffix}`);
     const expectedReps = await loadSession(a, deckPublicId, cardPublicId);
+    const before = await scheduleOf(a, cardPublicId);
+    if (!before) throw new Error("Session load did not seed a schedule row.");
 
     const response = await study({ action: "rate", deckPublicId, cardPublicId, grade: RATING.GOOD, expectedReps }, b);
     // B cannot resolve A's deck public_id (RLS hides it), so it is an absent row, not a
@@ -200,8 +244,13 @@ describe("/api/study rate applies and persists a recall rating", () => {
     // that does not exist.
     expect(response.status).toBe(404);
 
-    const sched = await scheduleOf(a, cardPublicId);
-    expect(sched?.reps).toBe(0);
+    // Row-based, column-for-column: a cross-tenant UPDATE under RLS is a silent 0-row
+    // no-op, so the status alone proves nothing about what happened to A's row. The
+    // positive control that A can still rate their own card is the first case in this
+    // describe — without it, a wholesale-broken policy would read as perfect isolation.
+    const after = await scheduleOf(a, cardPublicId);
+    expect(after).toEqual(before);
+    expect(after?.reps).toBe(0);
   });
 
   it("returns 400 for a malformed rate body", async () => {
@@ -242,7 +291,7 @@ describe("listDueCounts backs the deck picker", () => {
     await createCard(a, deckPublicId, `Counted one ${suffix}`, `back ${suffix}`);
     await createCard(a, deckPublicId, `Counted two ${suffix}`, `back ${suffix}`);
     // Non-accepted: present in the deck, invisible to study.
-    await createGeneratedCard(a, deckPublicId, `Not counted ${suffix}`);
+    await createNonAcceptedCard(a, deckPublicId, `Not counted ${suffix}`, STATE_GENERATED);
 
     const { data, error } = await listDueCounts(clientFor(a.cookieHeader), new Date());
     expect(error).toBeNull();
@@ -278,6 +327,181 @@ describe("listDueCounts backs the deck picker", () => {
     // Positive control: a wholesale-broken policy would also read as "B sees nothing".
     const owner = await listDueCounts(clientFor(a.cookieHeader), new Date());
     expect(owner.data?.[deckPublicId]).toBe(1);
+  });
+});
+
+// ── Risk #3: the schedule must be correct, durable, and admit only accepted cards ──
+//
+// ts-fsrs is the oracle, not a copied constant: it is pure, immutable and configured
+// with enable_fuzz:false, so the transition is a deterministic function of (persisted
+// card, now, grade). Each case below recomputes the expectation from the row as it
+// stands BEFORE the write, then asserts what actually landed in Postgres.
+
+describe("Risk #3 — the persisted schedule is exactly what ts-fsrs computes", () => {
+  it("writes due/stability/difficulty/srs_state matching a direct scheduler.next for a fixed now", async () => {
+    const deckPublicId = await createDeck(a, `Oracle deck ${suffix}`);
+    const cardPublicId = await createCard(a, deckPublicId, `Oracle front ${suffix}`, `Oracle back ${suffix}`);
+    const expectedReps = await loadSession(a, deckPublicId, cardPublicId);
+
+    const before = await scheduleOf(a, cardPublicId);
+    if (!before) throw new Error("Session load did not seed a schedule row.");
+    const expected = scheduler.next(
+      scheduleRowToCard({ public_id: cardPublicId, front: "", back: "", ...before }, FIXED_NOW),
+      FIXED_NOW,
+      Rating.Good,
+    ).card;
+
+    // Driven at the lib layer, not over HTTP: `now` is a function parameter and is
+    // deliberately NOT reachable from a request body (a client could otherwise steer its
+    // own schedule), so this is the only seam where an exact `due` can be pinned.
+    const result = await rateCard(
+      clientFor(a.cookieHeader),
+      await deckIdOf(a, deckPublicId),
+      cardPublicId,
+      Rating.Good,
+      expectedReps,
+      FIXED_NOW,
+    );
+    expect(result.error).toBeNull();
+    expect(result.alreadyApplied).toBe(false);
+    expect(result.data).not.toBeNull();
+
+    const persisted = await scheduleOf(a, cardPublicId);
+    if (!persisted) throw new Error("Schedule row missing after a successful rate.");
+    expect(new Date(persisted.due).getTime()).toBe(expected.due.getTime());
+    expect(persisted.stability).toBeCloseTo(expected.stability, 6);
+    expect(persisted.difficulty).toBeCloseTo(expected.difficulty, 6);
+    expect(persisted.srs_state).toBe(expected.state);
+    expect(persisted.reps).toBe(expected.reps);
+    expect(persisted.lapses).toBe(expected.lapses);
+    expect(persisted.scheduled_days).toBe(expected.scheduled_days);
+  });
+
+  it("survives a restart — a brand-new client reads back the same rated schedule", async () => {
+    const deckPublicId = await createDeck(a, `Restart deck ${suffix}`);
+    const cardPublicId = await createCard(a, deckPublicId, `Restart front ${suffix}`, `Restart back ${suffix}`);
+    const expectedReps = await loadSession(a, deckPublicId, cardPublicId);
+
+    const result = await rateCard(
+      clientFor(a.cookieHeader),
+      await deckIdOf(a, deckPublicId),
+      cardPublicId,
+      Rating.Good,
+      expectedReps,
+      FIXED_NOW,
+    );
+    expect(result.error).toBeNull();
+
+    // Two independent reads, each on its own freshly built client (see scheduleOf) —
+    // the stand-in for "the user comes back later". Durability has to live in the row.
+    const first = await scheduleOf(a, cardPublicId);
+    if (!first) throw new Error("Schedule row missing after a successful rate.");
+    const second = await scheduleOf(a, cardPublicId);
+    expect(second).toEqual(first);
+
+    // And it is still the RATED schedule — not a row that quietly reset to New, which
+    // an equality-only assertion would happily accept.
+    expect(first.reps).toBe(1);
+    expect(first.srs_state).not.toBe(0);
+    expect(new Date(first.due).getTime()).toBeGreaterThan(FIXED_NOW.getTime());
+  });
+});
+
+describe("Risk #3 — a retried rating applies the transition exactly once", () => {
+  it("answers a repeated rate with a benign 200 alreadyApplied and no second write", async () => {
+    const deckPublicId = await createDeck(a, `Retry deck ${suffix}`);
+    const cardPublicId = await createCard(a, deckPublicId, `Retry front ${suffix}`, `Retry back ${suffix}`);
+    const expectedReps = await loadSession(a, deckPublicId, cardPublicId);
+    const body = { action: "rate", deckPublicId, cardPublicId, grade: RATING.GOOD, expectedReps };
+
+    const first = await study(body, a);
+    expect(first.status).toBe(200);
+    const firstPayload = (await first.json()) as { alreadyApplied?: unknown; progress?: { reps?: unknown } };
+    expect(firstPayload.alreadyApplied).toBe(false);
+    expect(firstPayload.progress?.reps).toBe(1);
+    const afterFirst = await scheduleOf(a, cardPublicId);
+    if (!afterFirst) throw new Error("Schedule row missing after a successful rate.");
+
+    // The retry: byte-identical body, so it carries the now-stale expectedReps a double
+    // click or a resubmitted request would. `reps` is the optimistic-lock version, so the
+    // compare-and-set matches 0 rows and the endpoint reports the rating as already landed.
+    const second = await study(body, a);
+    expect(second.status).toBe(200);
+    const secondPayload = (await second.json()) as { alreadyApplied?: unknown; progress?: { reps?: unknown } };
+    expect(secondPayload.alreadyApplied).toBe(true);
+    // Advanced by one, not two — the schedule was not pushed a second interval into the
+    // future, which is exactly the corruption Risk #3 names.
+    expect(secondPayload.progress?.reps).toBe(1);
+
+    const afterSecond = await scheduleOf(a, cardPublicId);
+    expect(afterSecond).toEqual(afterFirst);
+  });
+});
+
+describe("Risk #3 — a better-known card is deferred further", () => {
+  it("persists a later due for Easy than for Hard, through the endpoint", async () => {
+    const deckPublicId = await createDeck(a, `Ordering deck ${suffix}`);
+    const easyCard = await createCard(a, deckPublicId, `Easy front ${suffix}`, `Easy back ${suffix}`);
+    const hardCard = await createCard(a, deckPublicId, `Hard front ${suffix}`, `Hard back ${suffix}`);
+
+    const easyReps = await loadSession(a, deckPublicId, easyCard);
+    const hardReps = await loadSession(a, deckPublicId, hardCard);
+
+    // Over HTTP, so the server clock governs both. The two requests are milliseconds
+    // apart while the intervals they produce differ by days — the ordering is a property
+    // of the grade, not of when the request happened to arrive.
+    const easyResponse = await study(
+      { action: "rate", deckPublicId, cardPublicId: easyCard, grade: RATING.EASY, expectedReps: easyReps },
+      a,
+    );
+    expect(easyResponse.status).toBe(200);
+    const hardResponse = await study(
+      { action: "rate", deckPublicId, cardPublicId: hardCard, grade: RATING.HARD, expectedReps: hardReps },
+      a,
+    );
+    expect(hardResponse.status).toBe(200);
+
+    const easySchedule = await scheduleOf(a, easyCard);
+    const hardSchedule = await scheduleOf(a, hardCard);
+    if (!easySchedule || !hardSchedule) throw new Error("Schedule row missing after a successful rate.");
+    expect(new Date(easySchedule.due).getTime()).toBeGreaterThan(new Date(hardSchedule.due).getTime());
+  });
+});
+
+describe("Risk #3 — only accepted cards enter a session", () => {
+  it("never returns a generated or rejected card from a session build", async () => {
+    const deckPublicId = await createDeck(a, `Gate deck ${suffix}`);
+    const acceptedCard = await createCard(a, deckPublicId, `Gate accepted ${suffix}`, `back ${suffix}`);
+    const generatedCard = await createNonAcceptedCard(a, deckPublicId, `Gate generated ${suffix}`, STATE_GENERATED);
+    const rejectedCard = await createNonAcceptedCard(a, deckPublicId, `Gate rejected ${suffix}`, STATE_REJECTED);
+
+    const { data, error } = await listDueCards(
+      clientFor(a.cookieHeader),
+      await deckIdOf(a, deckPublicId),
+      new Date(),
+      20,
+    );
+    expect(error).toBeNull();
+    const returned = data?.map((card) => card.publicId) ?? [];
+    // Positive control in the same breath: the accepted sibling DOES come back, so an
+    // empty batch (a broken RPC, a broken policy) cannot masquerade as a working gate.
+    expect(returned).toContain(acceptedCard);
+    expect(returned).not.toContain(generatedCard);
+    expect(returned).not.toContain(rejectedCard);
+  });
+
+  it("writes no schedule when a non-accepted card is rated", async () => {
+    const deckPublicId = await createDeck(a, `Gate rate deck ${suffix}`);
+    const generatedCard = await createNonAcceptedCard(a, deckPublicId, `Gate rate front ${suffix}`, STATE_GENERATED);
+
+    // The card is the caller's own and RLS-readable — only the state_id gate keeps it out
+    // of study, so it never gets seeded and there is nothing to compare-and-set against.
+    const response = await study(
+      { action: "rate", deckPublicId, cardPublicId: generatedCard, grade: RATING.GOOD, expectedReps: 0 },
+      a,
+    );
+    expect(response.status).toBe(404);
+    expect(await scheduleOf(a, generatedCard)).toBeNull();
   });
 });
 

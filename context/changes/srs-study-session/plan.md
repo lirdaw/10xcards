@@ -711,26 +711,26 @@ confirmed.
 
 #### Automated
 
-- [x] 4.1 `astro sync` then lint + typecheck pass: `npm run lint`
-- [x] 4.2 Build passes: `npm run build`
+- [x] 4.1 `astro sync` then lint + typecheck pass: `npm run lint` — c64825a
+- [x] 4.2 Build passes: `npm run build` — c64825a
 
 #### Manual
 
-- [x] 4.3 "Nauka" enabled; deck grid shows correct due-counts
-- [x] 4.4 Full session runs: reveal, rate, advance; intervals order Easy > Good > Hard > Powtórz
-- [x] 4.5 Session honours the per-deck cap; changing size takes effect
-- [x] 4.6 End-of-session summary and "brak kart należnych dziś" empty state render
-- [x] 4.7 No hydration warnings; interval/date strings stable
+- [x] 4.3 "Nauka" enabled; deck grid shows correct due-counts — c64825a
+- [x] 4.4 Full session runs: reveal, rate, advance; intervals order Easy > Good > Hard > Powtórz — c64825a
+- [x] 4.5 Session honours the per-deck cap; changing size takes effect — c64825a
+- [x] 4.6 End-of-session summary and "brak kart należnych dziś" empty state render — c64825a
+- [x] 4.7 No hydration warnings; interval/date strings stable — c64825a
 
 ### Phase 5: Risk #3 schedule-correctness test
 
 #### Automated
 
-- [ ] 5.1 Full suite passes on a running stack: `npm run db:start` then `npm test`
-- [ ] 5.2 New files run in isolation via `npx vitest run tests/study/*.test.ts`
-- [ ] 5.3 Lint + typecheck pass: `npm run lint`
+- [x] 5.1 Full suite passes on a running stack: `npm run db:start` then `npm test`
+- [x] 5.2 New files run in isolation via `npx vitest run tests/study/*.test.ts`
+- [x] 5.3 Lint + typecheck pass: `npm run lint`
 
 #### Manual
 
-- [ ] 5.4 Deliberate-breakage check performed and reverted (gate/RLS neuter → red)
-- [ ] 5.5 Test-plan §3 Phase 4 reads `complete` and §6 has a runnable SRS entry
+- [x] 5.4 Deliberate-breakage check performed and reverted (gate/RLS neuter → red)
+- [x] 5.5 Test-plan §3 Phase 4 reads `complete` and §6 has a runnable SRS entry
