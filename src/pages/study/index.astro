@@ -1,0 +1,72 @@
+---
+import AuthenticatedLayout from "@/layouts/AuthenticatedLayout.astro";
+import { createClient } from "@/lib/supabase";
+import { listDecks } from "@/lib/decks";
+import { listDueCounts } from "@/lib/study";
+
+// Study entry point: every deck of the user with how many cards are due right now.
+// The counts come from ONE study_due_counts() RPC for all decks — never a per-deck
+// query (that would be an N+1 growing with the deck list). Branch on the query error
+// vs empty (lessons: SSR error-vs-empty) so a transient DB failure renders an error
+// state instead of a deck grid that silently claims nothing is due. Route guard is
+// in middleware — no top-level return in the frontmatter (lessons).
+const supabase = createClient(Astro.request.headers, Astro.cookies);
+const { data: deckRows, error: decksError } = supabase ? await listDecks(supabase) : { data: [], error: null };
+const { data: counts, error: countsError } = supabase ? await listDueCounts(supabase) : { data: {}, error: null };
+
+const loadError = Boolean(decksError ?? countsError);
+// A deck with no schedule rows yet still counts every accepted card as due (the RPC
+// coalesces a missing `due` to now), so a missing key means the deck has no accepted
+// cards at all — 0, not "unknown".
+const decks = (deckRows ?? []).map((deck) => ({
+  publicId: deck.public_id,
+  name: deck.name,
+  dueCount: counts?.[deck.public_id] ?? 0,
+}));
+---
+
+<AuthenticatedLayout title="Nauka" activeItem="study">
+  <div class="mx-auto max-w-4xl">
+    <h1
+      class="mb-2 bg-gradient-to-r from-blue-200 to-purple-200 bg-clip-text text-2xl font-bold tracking-tight text-transparent"
+    >
+      Nauka
+    </h1>
+    <p class="mb-6 text-blue-100/70">Wybierz talię i powtórz karty należne na dziś.</p>
+
+    {
+      loadError ? (
+        <div class="rounded-2xl border border-red-500/30 bg-red-900/20 p-8 text-center text-red-200">
+          <p>Nie udało się wczytać Twoich talii. Spróbuj odświeżyć stronę.</p>
+        </div>
+      ) : decks.length > 0 ? (
+        <ul class="grid gap-3 sm:grid-cols-2">
+          {decks.map((deck) => (
+            <li>
+              <a
+                href={`/study/${deck.publicId}`}
+                class="flex min-h-28 min-w-0 flex-col justify-center gap-2 overflow-hidden rounded-2xl border border-white/10 bg-white/10 p-5 text-white backdrop-blur-xl transition-colors hover:border-white/20 hover:bg-white/15"
+              >
+                <span class="line-clamp-2 block font-medium break-words">{deck.name}</span>
+                {deck.dueCount > 0 ? (
+                  <span class="w-fit rounded-full border border-purple-400/30 bg-purple-500/20 px-3 py-1 text-xs font-medium text-purple-100 tabular-nums">
+                    Do powtórki: {deck.dueCount}
+                  </span>
+                ) : (
+                  <span class="text-xs text-blue-100/50">Brak kart należnych dziś</span>
+                )}
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div class="rounded-2xl border border-white/10 bg-white/10 p-8 text-center text-white backdrop-blur-xl">
+          <p class="text-blue-100/70">Nie masz jeszcze talii do nauki.</p>
+          <a href="/generate" class="mt-4 inline-block text-purple-300 transition-colors hover:text-purple-100">
+            Wygeneruj pierwsze fiszki
+          </a>
+        </div>
+      )
+    }
+  </div>
+</AuthenticatedLayout>

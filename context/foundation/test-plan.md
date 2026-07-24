@@ -6,8 +6,8 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-07-18 (§3 Phase 2 implementing — Risk #2 characterized;
-> §6.5 filled in, §6.6 extended)
+> Last updated: 2026-07-24 (§3 Phase 4 complete — Risk #3 covered; §6.1
+> extended, §6.6 extended, §6.7 added)
 
 ## 1. Strategy
 
@@ -72,7 +72,7 @@ orchestrator updates Status as artifacts appear on disk.
 | 1   | Harness + per-account isolation | Stand up the runner and prove cross-account denial on read and write                            | #1                                                           | runner bootstrap, integration, RLS | complete     | `context/changes/verification-harness/`         |
 | 2   | Endpoint contract               | Prove the server does not trust the client and does not leak; characterize duplication on retry | #2 (characterized, **not** covered — see note below), #4, #6 | integration                        | implementing | `context/changes/ai-candidate-generation-test/` |
 | 3   | Quality gates + schema drift    | Make green CI mean "tested and prod actually migrated"                                          | #5                                                           | gates                              | not started  | —                                               |
-| 4   | SRS schedule correctness        | Prove the schedule defers by rating, survives restart, and admits only accepted cards           | #3                                                           | unit + integration                 | not started  | —                                               |
+| 4   | SRS schedule correctness        | Prove the schedule defers by rating, survives restart, and admits only accepted cards           | #3                                                           | unit + integration                 | complete     | `context/changes/srs-study-session/`            |
 | 5   | AI-native generation quality    | Prove cards match the source language and are usable, so the 75% thesis is measurable           | #7                                                           | LLM-as-judge                       | not started  | —                                               |
 
 Sequencing notes:
@@ -88,9 +88,12 @@ Sequencing notes:
   Green CI on that test means the duplication is measured, not that a retry
   is safe — read §6.6 before treating Risk #2 as handled. Risks #4 and #6
   are still untouched, so the phase stays `implementing`.
-- Phase 4 depends on roadmap **S-03 `srs-study-session`** shipping — the
-  schedule does not exist yet, and roadmap F-03 already deferred this test
-  to S-03.
+- Phase 4 shipped inside roadmap **S-03 `srs-study-session`** (its Phase 5),
+  which is where the schedule itself was built — roadmap F-03 had already
+  deferred this test to S-03, so the phase reused that change folder rather
+  than opening a competing one. Risk #3 is **covered**, not characterized:
+  read §6.6 for exactly what that claim does and does not include, and §6.7
+  for how to add the next SRS test.
 - Phase 5 depends on roadmap **S-05 `candidate-review`** shipping — the
   acceptance signal the judge calibrates against is produced there.
 
@@ -154,7 +157,34 @@ the relevant rollout phase ships; before that, the sub-section reads
 - **Note**: the whole suite requires a running local stack, because
   preflight (§6.4) aborts the run without one — even for a test that never
   touches the database. Start it with `npm run db:start`.
-- Phase 4 extends this with the rating→next-review mapping pattern.
+
+**The oracle-property pattern (added by Phase 4).** For logic whose expected
+value is produced by a library — the rating→next-review mapping is the case
+here — assert the **property**, never a copied constant.
+`tests/study/schedule.test.ts` is the reference: it imports the app's own
+configured `scheduler` (not a fresh inline `fsrs()`), so it pins the module's
+configuration and not just the library, and asserts the ordering
+`Easy.due > Good.due > Hard.due > Again.due` for a fixed `NOW`.
+
+Two things make this legitimate rather than circular. `ts-fsrs` is pure and
+immutable and the app configures it with `enable_fuzz: false`, so the
+transition is a deterministic function of `(card, now, grade)` — the library
+is an _independent_ oracle, and `next(card, now, grade)` takes `now` as a
+parameter, so nothing depends on the wall clock. What you must not do is
+paste the number the implementation currently produces into an
+`expect(...).toBe(...)`: that asserts the code agrees with itself and goes
+green even when the schedule is wrong. If a case cannot be phrased as a
+property or as a recomputation from an independent source, it does not belong
+at this layer.
+
+**"Independent source" has a sharp edge when the state is stored** (added by
+the S-03 impl-review). Feeding the row you just read back through the app's own
+mapper to build the expectation is *not* an independent recomputation: whatever
+the store fails to persist is dropped on both sides at once, and the oracle
+agrees with the code on a wrong value. For a stateful transition, advance the
+oracle **independently of the store** — chain it in memory across several
+transitions and compare against what actually landed. §6.6's Phase 4 note
+records the bug this rule was written from.
 
 ### 6.2 Adding an integration test
 
@@ -391,6 +421,163 @@ restored green. The production edit was never committed.
 
   Phase 2 stays `implementing`: risks #4 (leakage in the error body) and #6
   (server-side validation parity) are untouched.
+
+- **Phase 4 (`srs-study-session`, 2026-07-24)** — Risk #3 is **covered**.
+  Precisely what that means:
+
+  | Claim from Risk #3                       | What proves it                                                                                                                             |
+  | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+  | Deferral follows the rating              | `schedule.test.ts` ordering property (no DB) + `study.test.ts` Easy-vs-Hard `due` persisted through the endpoint                           |
+  | The written schedule is the right one, at the FIRST review | `study.test.ts` exact-due oracle: `due`/`stability`/`difficulty`/`srs_state`/`reps`/`lapses`/`scheduled_days` vs a direct `scheduler.next` |
+  | …and at every review after it            | `study.test.ts` "stays faithful across consecutive reviews": three chained ratings vs an oracle Card advanced only in memory (added by impl-review F2) |
+  | The schedule survives between sessions   | re-read on a brand-new client, column-for-column, asserted still rated (not silently reset to New)                                         |
+  | A retry does not advance the schedule    | two identical POSTs → `reps` 0→1 (not 2), second answers `200 { alreadyApplied: true }`, row byte-identical                                |
+  | Only accepted cards enter                | a `generated` and a `rejected` sibling never come back from `listDueCards`; rating one is a 404 that writes no schedule row                |
+  | No cross-account write (extends Risk #1) | B rating A's card → 404 and A's row unchanged column-for-column, with A's own successful rate as the positive control                      |
+
+  **What the single-transition oracle does NOT prove, and why there are now two
+  rows for it** (added by impl-review F2, 2026-07-24). The exact-due oracle
+  recomputes its expectation from the row it just read back — i.e. *through*
+  `scheduleRowToCard`, the app's own mapper. Any `ts-fsrs` `Card` field the
+  schedule table fails to persist is therefore dropped on both sides at once, so
+  the oracle and the code agree on a wrong value and the assertion passes. That
+  is §2's "assertion copied from the implementation" wearing the costume of a
+  property test, and it was not hypothetical: it let a card rated Good sit in
+  `Learning` at a +10 min interval **forever** (the `Card.learning_steps` cursor
+  was never persisted) while the suite stayed green at 45/45.
+
+  The rule that follows: **an oracle for a stateful transition must be advanced
+  independently of the store under test.** "Stays faithful across consecutive
+  reviews" does that — it chains three ratings against a `Card` built by
+  `createEmptyCard` and advanced purely in memory, never round-tripping Postgres
+  and never passing through the mapper, so a missing column surfaces as a
+  divergence from review 2 onward instead of cancelling out. A seeded row's `due`
+  does not feed the New → first transition, which is what makes `createEmptyCard`
+  a faithful starting point.
+
+  **The third deliberate-breakage check, for that case**: remove
+  `enable_short_term: false` from the `generatorParameters(...)` at
+  `src/lib/study.ts` (which restores the unpersisted-cursor bug) and run
+  `npx vitest run tests/study/study.test.ts`. Exactly one assertion goes red —
+  the chained case's `due` at review 2 (`expected 1780316400000 to be
+  1780488600000`) — and the other 14 cases stay green, including the
+  single-transition oracle, which is the whole point. Restoring the flag restored
+  green (46/46 for the full suite).
+
+  **The deliberate-breakage check**: `study_due_cards` was replaced in the
+  running local DB with a copy missing its `and f.state_id = 2` predicate
+  (`create or replace`, no `db:reset`, so dev data survived). Exactly one
+  assertion went red — `expected [ …(3) ] to not include '<generated card>'`
+  in "never returns a generated or rejected card from a session build" — and
+  the other 13 cases stayed green, which is what proves that assertion
+  observes the real gate rather than an incidental empty batch. Restoring the
+  original definition restored green (45/45). The function's ACL was verified
+  identical to the untouched `search_flashcards_in_deck` afterwards.
+
+  **The second deliberate-breakage check, for the cross-account path**: this
+  one needs all four guarding policies neutered **at once** — `deck_select`,
+  `flashcard_select`, `flashcard_schedule_select`,
+  `flashcard_schedule_update`. A single-policy neuter is not a valid red-check
+  here, because the request simply stops at the next policy down and still
+  answers 404, so the test would stay green while proving nothing. With all
+  four set to `using (true)`, two assertions went red and the other 12 stayed
+  green: B's rate returned `200` instead of `404` (B genuinely rated A's card),
+  and `listDueCounts` returned A's deck to B (`expected 1 to be undefined`).
+
+  Restore by `alter policy` and then **verify it**, do not assume it: dump
+  `qual`/`with_check` from `pg_policies` before the neuter, dump again after
+  the restore, and `diff` the two. That was done here and came back identical,
+  with the full suite green (45/45). Restoring RLS from memory is how a suite
+  quietly stops testing anything.
+
+  **Known cosmetic gap, not a leak**: the migration's
+  `revoke all on function … from anon` does not remove `PUBLIC`'s default
+  `EXECUTE`, so `has_function_privilege('anon', …)` is `true` for both study
+  RPCs. Both are `security invoker`, so an anon caller still gets zero rows
+  under RLS. This matches the untouched `search_flashcards_in_deck`
+  precedent — it is a project-wide pattern, not something S-03 introduced.
+
+### 6.7 Adding a test for the SRS / study path
+
+(Added by §3 Phase 4. It sits after §6.6 so the existing §6.6 references in
+`tests/study/study.test.ts`, `tests/generation/generate.test.ts` and §6.2/§6.5
+keep pointing at the per-phase notes.)
+
+- **Location**: `tests/study/` — the sibling folder §6.2 calls for when the
+  concern is not ownership. Two files, split by cost, not by feature:
+  `schedule.test.ts` (pure, no DB) and `study.test.ts` (real endpoint, real
+  Postgres).
+- **Naming**: `*.test.ts`, named after the resource. A new case goes into the
+  matching file as another `it()`.
+- **Reference**: `tests/study/schedule.test.ts` for the oracle-property shape
+  (§6.1), `tests/study/study.test.ts` for anything that must persist.
+- **Run**: `npm test`, or one file with
+  `npx vitest run tests/study/study.test.ts`. The local stack must be up
+  (`npm run db:start`) — preflight aborts the run otherwise, even for the
+  pure file.
+- **Check §6.6 first**, as §6.2 requires: the Phase 4 table there tabulates
+  what each Risk #3 claim already rests on.
+- **Pattern**: identical to §6.4 — drive the real endpoint with a real session
+  cookie against the real local Postgres, read back with `clientFor(...)`,
+  row-based assertions paired with a positive control, **404 never 403**, and
+  a file-level `Date.now().toString(36)` namespace (§6.5).
+
+Five project-specific facts that are invisible from the test file and will
+cost you an afternoon if you rediscover them the hard way:
+
+- **`now` is a lib parameter, never an HTTP input — and that is the only seam
+  where an exact `due` can be pinned.** `rateCard` takes it as a trailing
+  argument defaulting to `new Date()`; `/api/study` calls it without one,
+  deliberately, because a client-supplied clock would let a client steer its
+  own schedule. So: assert an **exact** `due` by
+  calling `rateCard` directly with `clientFor(a.cookieHeader)` and a fixed
+  `now`; over HTTP you can only assert **relative** properties (Easy later
+  than Hard, `reps` advanced by one). Do not try to reach the fixed clock
+  through the endpoint — there is no route, and adding one would be a
+  security regression, not a testability win.
+- **A schedule row does not exist until a session loads the card.** Manual
+  create writes the card `accepted`, but `flashcard_schedule` is seeded by
+  `ensureSchedule`, which runs inside `listDueCards`. Rate a freshly created
+  card without loading a session first and you get a 404 that looks like an
+  ownership failure and is not. `study.test.ts`'s `loadSession` helper does
+  exactly what the real `/study/[publicId]` loader does; go through it.
+- **`expectedReps` is an optimistic-lock version, not a payload field.** It
+  must be the `reps` the session served. Pass a stale one and the
+  compare-and-set matches zero rows, so the endpoint answers a benign
+  `200 { alreadyApplied: true }` — no transition. A test that hard-codes `0`
+  and expects a schedule change will fail on its **second** run against the
+  same card, not its first.
+- **Two axes are called "state" and they are not the same.**
+  `flashcard.state_id` is the lifecycle (1 generated / 2 accepted /
+  3 rejected) and owns the "only accepted cards enter" gate;
+  `flashcard_schedule.srs_state` is FSRS's (0 New / 1 Learning / 2 Review /
+  3 Relearning) and owns scheduling. Asserting the wrong column proves
+  nothing while reading as a passing test.
+- **No endpoint creates a non-accepted card.** Manual create always writes
+  `accepted` and `/api/generate` would drag the whole generation path in, so
+  the accepted-only gate needs a direct RLS-scoped insert
+  (`createNonAcceptedCard` in `study.test.ts`). That seam is deliberate and
+  stays RLS-scoped — it is a shortcut around the _UI_, not around the lock.
+
+**The deliberate-breakage check for this path** runs against the live local DB
+(`docker exec … psql`), not through a `db:reset` — the behaviour under test
+lives in SQL, and a reset would wipe the dev data a reviewer is likely
+mid-way through using. Two variants, depending on which claim you are
+checking:
+
+- **The accepted-only gate**: `create or replace` `study_due_cards` without
+  its `and f.state_id = 2` predicate; exactly the gate assertion should go
+  red. Restore by re-applying the migration's definition.
+- **Cross-account denial**: neuter all four guarding policies at once
+  (`deck_select`, `flashcard_select`, `flashcard_schedule_select`,
+  `flashcard_schedule_update`) with `using (true)`. Neutering one is not
+  enough — the request stops at the next policy down and still answers 404,
+  so the test stays green and you learn nothing.
+
+Whichever you run, **verify the restore rather than trusting it**: dump
+`qual`/`with_check` (or `\sf` for a function) before and after, and `diff`.
+An RLS policy restored from memory is how a suite silently stops testing
+anything. §6.6 records the observed results of both.
 
 ## 7. What We Deliberately Don't Test
 

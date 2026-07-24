@@ -1,10 +1,10 @@
 ---
 change_id: mutation-generate-risk2
 title: Harden the generation endpoint contract + mutation gate (Risk #2)
-status: new
+status: archived
 created: 2026-07-18
 updated: 2026-07-18
-archived_at: null
+archived_at: 2026-07-18T18:32:01Z
 ---
 
 ## Notes
