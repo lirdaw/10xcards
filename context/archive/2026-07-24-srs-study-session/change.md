@@ -1,10 +1,10 @@
 ---
 change_id: srs-study-session
 title: Study a deck in an SRS session with recall rating
-status: impl_reviewed
+status: archived
 created: 2026-07-24
 updated: 2026-07-24
-archived_at: null
+archived_at: 2026-07-24T22:54:31Z
 ---
 
 ## Notes

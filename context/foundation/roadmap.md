@@ -3,7 +3,7 @@ project: 10xcards
 version: 1
 status: draft
 created: 2026-07-04
-updated: 2026-07-15
+updated: 2026-07-24
 prd_version: 1
 main_goal: quality
 top_blocker: capacity
@@ -48,7 +48,7 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 | S-01  | deck-workspace           | tworzyć i nazywać własne talie (prywatna przestrzeń)          | F-01           | US-03, FR-017, FR-001, FR-002              | done     |
 | F-03  | verification-harness     | (foundation) harness testowy + test-plan.md + testy cross-account (talie i fiszki, odczyt i zapis) w CI | S-01           | Guardrails, NFR: trwałość harmonogramu     | done     |
 | S-02  | manual-card-crud         | ręcznie tworzyć, przeglądać, edytować i usuwać fiszki w talii | S-01           | US-03, FR-007, FR-008, FR-009, FR-010      | done     |
-| S-03  | srs-study-session        | uczyć się talii w sesji SRS z oceną przypomnienia (gwiazda)   | F-01, F-02, S-02 | US-02, FR-011, FR-012                     | proposed |
+| S-03  | srs-study-session        | uczyć się talii w sesji SRS z oceną przypomnienia (gwiazda)   | F-01, F-02, S-02 | US-02, FR-011, FR-012                     | done     |
 | S-04  | ai-candidate-generation  | wkleić tekst i wygenerować kandydatów AI z postępem i retry   | F-01, S-01     | US-01, FR-003, FR-004, FR-006, FR-018      | done     |
 | S-05  | candidate-review         | przeglądać kandydatów i akceptować/edytować/odrzucać (bulk)   | S-04           | US-01, FR-005, FR-006                       | proposed |
 | S-06  | deck-keyword-search      | wyszukiwać fiszki w talii po słowie kluczowym                 | S-02           | FR-015                                      | done |
@@ -157,7 +157,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Gwiazda przy celu `quality`; plasowana tak wcześnie, jak pozwalają prerekwizyty (po S-02 i po decyzji F-02). Decyzja o bibliotece SRS i skali oceny żyje teraz w F-02 (prereq), więc slice jest w pełni planowalny, gdy F-02 i S-02 są gotowe — nie jest już `blocked`. Test poprawności harmonogramu (na harness z F-03) jest tu twardym warunkiem odbioru.
-- **Status:** proposed
+- **Status:** done
 
 ### S-04: Generacja kandydatów AI z wklejonego tekstu
 
@@ -241,6 +241,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **S-06: użytkownik wpisuje frazę i zatwierdza (Enter); dopasowanie to proste wyszukiwanie podłańcucha w `front` i `back` kart w danej talii.** — Archived 2026-07-13 → `context/archive/2026-07-11-deck-keyword-search/`. Lesson: —.
 - **S-04: użytkownik wkleja tekst źródłowy (do zdefiniowanego maksimum), uruchamia generację AI z widocznym postępem, a przy błędzie/timeoucie widzi jasny komunikat i może ponowić; kandydaci trafiają do bazy ze statusem `generated`, powiązani z sesją generacji.** — Archived 2026-07-13 → `context/archive/2026-07-11-ai-candidate-generation/`. Lesson: —.
 - **F-03: (foundation) skonfigurowany runner testów (Vitest przez `getViteConfig()`) i `context/foundation/test-plan.md` nazywający ryzyka, plus realne testy cross-account ćwiczące guardrail izolacji na zdolności dostarczonej przez S-01 — uruchamiane w CI jako bramka przed deployem.** — Archived 2026-07-15 → `context/archive/2026-07-15-verification-harness/`. Lesson: —.
+- **S-03: użytkownik rozpoczyna sesję nauki, w której gotowy algorytm SRS wybiera karty należne dziś, ocenia przypomnienie na każdej karcie, a harmonogram przeżywa między sesjami (żadna karta nie ginie, harmonogram się nie psuje).** — Archived 2026-07-24 → `context/archive/2026-07-24-srs-study-session/`. Lesson: —.
 
 ## Parked ideas (post-MVP → Jira "Pomysł")
 
