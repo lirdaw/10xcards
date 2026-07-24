@@ -1,0 +1,102 @@
+---
+import AuthenticatedLayout from "@/layouts/AuthenticatedLayout.astro";
+import StudySession from "@/components/study/StudySession";
+import { createClient } from "@/lib/supabase";
+import { getStudyDeck, listDueCards, type DueCardView } from "@/lib/study";
+
+// The session loader: build the bounded due-card batch server-side and hand it to the
+// island. Every FSRS computation (which cards are due, the four preview intervals)
+// happens here, so the island stays presentational and there is no hydration drift.
+const { publicId } = Astro.params;
+// A malformed param would reach Postgres as an invalid uuid and come back as a query
+// ERROR, not an empty row — which would render the 500 state instead of the 404 a
+// bogus URL deserves. Shape-check it first, mirroring the endpoint's Zod regex.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const deckPublicId = publicId && UUID_RE.test(publicId) ? publicId : null;
+
+const supabase = createClient(Astro.request.headers, Astro.cookies);
+// `null` means the deck does not exist OR RLS hid someone else's — either way a 404,
+// never 403, so we never reveal that another user's deck exists. A transient DB error
+// is a distinct 500 (lessons: SSR error-vs-empty). We set the status rather than
+// returning a Response — a top-level return in Astro frontmatter crashes the
+// typescript-eslint no-misused-promises rule.
+const { data: deck, error: deckError } =
+  supabase && deckPublicId ? await getStudyDeck(supabase, deckPublicId) : { data: null, error: null };
+if (deckError) {
+  Astro.response.status = 500;
+} else if (!deck) {
+  Astro.response.status = 404;
+}
+
+// The batch is capped by the deck's own session_size (FR-011's bounded session).
+// listDueCards also seeds any missing schedule row, so rating any card in this batch
+// finds a row for the compare-and-set.
+let cards: DueCardView[] = [];
+let cardsError = false;
+if (deck && supabase) {
+  const { data, error } = await listDueCards(supabase, deck.id, new Date(), deck.session_size);
+  if (error) {
+    cardsError = true;
+  } else {
+    cards = data;
+  }
+}
+---
+
+{
+  deckError || cardsError ? (
+    <AuthenticatedLayout title="Błąd" activeItem="study">
+      <div class="mx-auto max-w-2xl">
+        <div class="rounded-2xl border border-red-500/30 bg-red-900/20 p-8 text-center text-white backdrop-blur-xl">
+          <p class="text-red-200/90">Coś poszło nie tak podczas ładowania sesji. Spróbuj ponownie.</p>
+          <a href="/study" class="mt-4 inline-block text-purple-300 transition-colors hover:text-purple-100">
+            Wróć do wyboru talii
+          </a>
+        </div>
+      </div>
+    </AuthenticatedLayout>
+  ) : deck ? (
+    <AuthenticatedLayout title={`Nauka — ${deck.name}`} activeItem="study">
+      <div class="mx-auto max-w-2xl">
+        <div class="mb-6 flex items-center gap-3">
+          <a
+            href="/study"
+            aria-label="Wróć do wyboru talii"
+            class="text-purple-300 transition-colors hover:text-purple-100"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m12 19-7-7 7-7" />
+              <path d="M19 12H5" />
+            </svg>
+          </a>
+          <h1 class="min-w-0 flex-1 truncate bg-gradient-to-r from-blue-200 to-purple-200 bg-clip-text text-2xl font-bold tracking-tight text-transparent">
+            {deck.name}
+          </h1>
+        </div>
+        <StudySession deckPublicId={deck.public_id} cards={cards} sessionSize={deck.session_size} client:load />
+      </div>
+    </AuthenticatedLayout>
+  ) : (
+    <AuthenticatedLayout title="Nie znaleziono" activeItem="study">
+      <div class="mx-auto max-w-2xl">
+        <div class="rounded-2xl border border-white/10 bg-white/10 p-8 text-center text-white backdrop-blur-xl">
+          <p class="text-blue-100/70">Nie znaleziono talii.</p>
+          <a href="/study" class="mt-4 inline-block text-purple-300 transition-colors hover:text-purple-100">
+            Wróć do wyboru talii
+          </a>
+        </div>
+      </div>
+    </AuthenticatedLayout>
+  )
+}

@@ -170,6 +170,28 @@ export async function listDueCards(supabase: Client, deckId: number, now: Date, 
   return { data: views, error: null };
 }
 
+// The session loader's deck lookup. Same shape as decks.ts' getDeckByPublicId plus
+// `session_size` (the per-deck cap the batch is built with), so the loader resolves
+// the deck and its cap in one round-trip. `id` is consumed server-side only.
+export function getStudyDeck(supabase: Client, publicId: string) {
+  return supabase.from("deck").select("id, public_id, name, session_size").eq("public_id", publicId).maybeSingle();
+}
+
+// Due-card counts for EVERY deck of the caller, keyed by deck public_id — the
+// deck-picker badge in one round-trip (no per-deck N+1). Two properties the picker
+// depends on live in the RPC, not here: the accepted-only gate (state_id = 2) and
+// `coalesce(s.due, p_now)`, so a card that has never been studied counts as due
+// without this read having to write a schedule row first. RLS scopes the result to
+// the owner, so a foreign deck is simply absent from the map.
+export async function listDueCounts(supabase: Client, now: Date = new Date()) {
+  const { data, error } = await supabase.rpc("study_due_counts", { p_now: now.toISOString() });
+  if (error) return { data: null, error };
+
+  const counts: Record<string, number> = {};
+  for (const row of data) counts[row.public_id] = row.due_count;
+  return { data: counts, error: null };
+}
+
 // Sets the per-deck session cap. RETURNING (`.select(...).maybeSingle()`) so a 0-row
 // result — a foreign or absent deck hidden by RLS — is a clean 404 rather than a silent
 // no-op (lessons: add RETURNING to RLS writes). The sane bounds are enforced at the

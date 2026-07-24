@@ -5,7 +5,7 @@ import * as CreateCard from "@/pages/api/decks/[publicId]/cards/index";
 import * as Study from "@/pages/api/study";
 import { listDecks } from "@/lib/decks";
 import { deckIdByPublicId, listFlashcards } from "@/lib/flashcards";
-import { listDueCards } from "@/lib/study";
+import { listDueCounts, listDueCards } from "@/lib/study";
 import { accountA, accountB } from "../fixtures/accounts";
 import { callEndpoint } from "../fixtures/endpoint";
 import { clientFor } from "../fixtures/session";
@@ -31,6 +31,10 @@ const b = accountB();
 const suffix = Date.now().toString(36);
 
 const RATING = { AGAIN: 1, HARD: 2, GOOD: 3, EASY: 4 } as const;
+
+// Lifecycle state ids (flashcard.state_id), a different axis from the FSRS srs_state.
+const STATE_GENERATED = 1;
+const SOURCE_MANUAL = 1;
 
 function deckForm(name: string): FormData {
   const body = new FormData();
@@ -92,6 +96,23 @@ async function loadSession(as: typeof a, deckPublicId: string, cardPublicId: str
   const view = data?.find((card) => card.publicId === cardPublicId);
   if (!view) throw new Error(`Card ${cardPublicId} did not come back due from listDueCards.`);
   return view.reps;
+}
+
+/**
+ * Inserts a NON-accepted card straight through the RLS-scoped client. There is no
+ * endpoint that creates one (manual create always writes `accepted`, and /api/generate
+ * would drag the whole generation path in), so the accepted-only gate needs this seam.
+ */
+async function createGeneratedCard(as: typeof a, deckPublicId: string, front: string): Promise<void> {
+  const client = clientFor(as.cookieHeader);
+  const { data: deck } = await deckIdByPublicId(client, deckPublicId);
+  if (!deck) throw new Error(`Deck ${deckPublicId} is not readable by its owner.`);
+  const { error } = await client
+    .from("flashcard")
+    .insert({ deck_id: deck.id, front, back: `${front} back`, state_id: STATE_GENERATED, source_id: SOURCE_MANUAL })
+    .select("public_id")
+    .single();
+  expect(error).toBeNull();
 }
 
 /** Reads a card's schedule row back as its owner — the only trustworthy view of row state. */
@@ -209,6 +230,54 @@ describe("/api/study rate applies and persists a recall rating", () => {
     });
     expect(response.status).toBe(401);
     await expectErrorBody(response);
+  });
+});
+
+// The deck-picker badge. Counting is the one read the picker makes, and it must not
+// depend on a prior write (a card with no schedule row counts as New/due-now), must
+// honour the accepted-only gate that Risk #3 names, and must stay RLS-scoped.
+describe("listDueCounts backs the deck picker", () => {
+  it("counts only accepted cards, per deck", async () => {
+    const deckPublicId = await createDeck(a, `Counts deck ${suffix}`);
+    await createCard(a, deckPublicId, `Counted one ${suffix}`, `back ${suffix}`);
+    await createCard(a, deckPublicId, `Counted two ${suffix}`, `back ${suffix}`);
+    // Non-accepted: present in the deck, invisible to study.
+    await createGeneratedCard(a, deckPublicId, `Not counted ${suffix}`);
+
+    const { data, error } = await listDueCounts(clientFor(a.cookieHeader), new Date());
+    expect(error).toBeNull();
+    // Neither card has a schedule row yet — the count must not require one to exist.
+    expect(data?.[deckPublicId]).toBe(2);
+  });
+
+  it("stops counting a card once its schedule is rated into the future", async () => {
+    const deckPublicId = await createDeck(a, `Rated deck ${suffix}`);
+    const cardPublicId = await createCard(a, deckPublicId, `Rated front ${suffix}`, `back ${suffix}`);
+
+    const before = await listDueCounts(clientFor(a.cookieHeader), new Date());
+    expect(before.data?.[deckPublicId]).toBe(1);
+
+    const expectedReps = await loadSession(a, deckPublicId, cardPublicId);
+    const response = await study({ action: "rate", deckPublicId, cardPublicId, grade: RATING.GOOD, expectedReps }, a);
+    expect(response.status).toBe(200);
+
+    const after = await listDueCounts(clientFor(a.cookieHeader), new Date());
+    expect(after.error).toBeNull();
+    expect(after.data?.[deckPublicId]).toBe(0);
+  });
+
+  it("never exposes another account's deck", async () => {
+    const deckPublicId = await createDeck(a, `Private counts deck ${suffix}`);
+    await createCard(a, deckPublicId, `Private front ${suffix}`, `back ${suffix}`);
+
+    const foreign = await listDueCounts(clientFor(b.cookieHeader), new Date());
+    expect(foreign.error).toBeNull();
+    // Absence, not a raised denial — the same shape as a deck that does not exist.
+    expect(foreign.data?.[deckPublicId]).toBeUndefined();
+
+    // Positive control: a wholesale-broken policy would also read as "B sees nothing".
+    const owner = await listDueCounts(clientFor(a.cookieHeader), new Date());
+    expect(owner.data?.[deckPublicId]).toBe(1);
   });
 });
 

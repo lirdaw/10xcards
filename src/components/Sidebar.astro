@@ -7,26 +7,26 @@ const { activeItem = "decks" } = Astro.props;
 
 // Each item carries its lucide-style icon as a list of path `d` strings, rendered
 // to the left of the label — and the only thing visible when the rail is collapsed.
+// "Nauka" was the last disabled placeholder; S-03 shipped its flow, so every item is
+// now a live link and the `enabled` flag (plus its "Dostępne wkrótce" span branch) is
+// gone. A future placeholder brings both back rather than leaving dead markup here.
 const items = [
   {
     key: "decks",
     label: "Talie",
     href: "/decks",
-    enabled: true,
     icon: ["M12 2 21 7 12 12 3 7Z", "m3 12 9 5 9-5", "m3 17 9 5 9-5"],
   },
   {
     key: "generate",
     label: "Generuj fiszki",
     href: "/generate",
-    enabled: true,
     icon: ["M12 3l1.8 6.2L20 11l-6.2 1.8L12 19l-1.8-6.2L4 11l6.2-1.8z"],
   },
   {
     key: "study",
     label: "Nauka",
-    href: null,
-    enabled: false,
+    href: "/study",
     icon: ["M4 19.5A2.5 2.5 0 0 1 6.5 17H20", "M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"],
   },
 ] as const;
@@ -71,66 +71,36 @@ const items = [
   </div>
   <nav aria-label="Główna nawigacja" class="flex flex-col gap-1 px-3">
     {
-      items.map((item) =>
-        item.enabled ? (
-          <a
-            href={item.href}
-            title={item.label}
-            aria-current={activeItem === item.key ? "page" : undefined}
-            class:list={[
-              "sidebar-item flex items-center gap-3 rounded-lg px-3 py-2 text-base font-medium transition-colors",
-              activeItem === item.key
-                ? "bg-white/15 text-white"
-                : "text-blue-100/70 hover:bg-white/10 hover:text-white",
-            ]}
+      items.map((item) => (
+        <a
+          href={item.href}
+          title={item.label}
+          aria-current={activeItem === item.key ? "page" : undefined}
+          class:list={[
+            "sidebar-item flex items-center gap-3 rounded-lg px-3 py-2 text-base font-medium transition-colors",
+            activeItem === item.key ? "bg-white/15 text-white" : "text-blue-100/70 hover:bg-white/10 hover:text-white",
+          ]}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            class="shrink-0"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-              class="shrink-0"
-            >
-              {item.icon.map((d) => (
-                <path d={d} />
-              ))}
-            </svg>
-            <span class="sidebar-label whitespace-nowrap">{item.label}</span>
-          </a>
-        ) : (
-          <span
-            aria-disabled="true"
-            tabindex="-1"
-            title="Dostępne wkrótce"
-            class="sidebar-item flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2 text-base font-medium text-blue-100/40 select-none"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-              class="shrink-0"
-            >
-              {item.icon.map((d) => (
-                <path d={d} />
-              ))}
-            </svg>
-            <span class="sidebar-label whitespace-nowrap">{item.label}</span>
-          </span>
-        ),
-      )
+            {item.icon.map((d) => (
+              <path d={d} />
+            ))}
+          </svg>
+          <span class="sidebar-label whitespace-nowrap">{item.label}</span>
+        </a>
+      ))
     }
   </nav>
 </aside>

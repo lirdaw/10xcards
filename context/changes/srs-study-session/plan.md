@@ -698,29 +698,29 @@ confirmed.
 
 #### Automated
 
-- [x] 3.1 `npx astro sync` clean, then lint + typecheck pass: `npm run lint`
-- [x] 3.2 Build passes: `npm run build`
+- [x] 3.1 `npx astro sync` clean, then lint + typecheck pass: `npm run lint` — f90f9e7
+- [x] 3.2 Build passes: `npm run build` — f90f9e7
 
 #### Manual
 
-- [x] 3.3 Signed-out `GET /study` redirects to `/auth/signin`
-- [x] 3.4 `POST /api/study` rate advances the schedule; rating a foreign deck's card → 404
-- [x] 3.5 `setSessionSize` persists and is reflected on reload
+- [x] 3.3 Signed-out `GET /study` redirects to `/auth/signin` — f90f9e7
+- [x] 3.4 `POST /api/study` rate advances the schedule; rating a foreign deck's card → 404 — f90f9e7
+- [x] 3.5 `setSessionSize` persists and is reflected on reload — f90f9e7
 
 ### Phase 4: UI — page, island, and nav
 
 #### Automated
 
-- [ ] 4.1 `astro sync` then lint + typecheck pass: `npm run lint`
-- [ ] 4.2 Build passes: `npm run build`
+- [x] 4.1 `astro sync` then lint + typecheck pass: `npm run lint`
+- [x] 4.2 Build passes: `npm run build`
 
 #### Manual
 
-- [ ] 4.3 "Nauka" enabled; deck grid shows correct due-counts
-- [ ] 4.4 Full session runs: reveal, rate, advance; intervals order Easy > Good > Hard > Powtórz
-- [ ] 4.5 Session honours the per-deck cap; changing size takes effect
-- [ ] 4.6 End-of-session summary and "brak kart należnych dziś" empty state render
-- [ ] 4.7 No hydration warnings; interval/date strings stable
+- [x] 4.3 "Nauka" enabled; deck grid shows correct due-counts
+- [x] 4.4 Full session runs: reveal, rate, advance; intervals order Easy > Good > Hard > Powtórz
+- [x] 4.5 Session honours the per-deck cap; changing size takes effect
+- [x] 4.6 End-of-session summary and "brak kart należnych dziś" empty state render
+- [x] 4.7 No hydration warnings; interval/date strings stable
 
 ### Phase 5: Risk #3 schedule-correctness test
 
