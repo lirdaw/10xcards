@@ -984,18 +984,18 @@ for the first time. Nothing needs migrating for them.
 
 #### Automated
 
-- [ ] 1.1 `npx astro sync` succeeds (route/content types)
-- [ ] 1.2 Type checking and linting pass
-- [ ] 1.3 Migrations apply cleanly on a reset stack
-- [ ] 1.4 Existing suite still green
-- [ ] 1.5 Search RPC returns only accepted cards
-- [ ] 1.7 Supabase types regenerated via `npm run db:types`, lint still green
-- [ ] 1.8 Search RPC grants survived the drop (anon/authenticated unchanged)
-- [ ] 1.9 A `state_id`-only UPDATE leaves `updated_at` untouched; a content UPDATE bumps it
+- [x] 1.1 `npx astro sync` succeeds (route/content types)
+- [x] 1.2 Type checking and linting pass
+- [x] 1.3 Migrations apply cleanly on a reset stack
+- [x] 1.4 Existing suite still green
+- [x] 1.5 Search RPC returns only accepted cards
+- [x] 1.7 Supabase types regenerated via `npm run db:types`, lint still green
+- [x] 1.8 Search RPC grants survived the drop (anon/authenticated unchanged)
+- [x] 1.9 A `state_id`-only UPDATE leaves `updated_at` untouched; a content UPDATE bumps it
 
 #### Manual
 
-- [ ] 1.6 Deck view is visually and behaviourally unchanged
+- [x] 1.6 Deck view is visually and behaviourally unchanged
 
 ### Phase 2: The batch endpoint — accept and reject over JSON
 

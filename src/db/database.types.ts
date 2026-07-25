@@ -279,6 +279,7 @@ export type Database = {
           created_at: string
           front: string
           public_id: string
+          source_id: number
           updated_at: string
         }[]
       }
