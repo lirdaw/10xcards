@@ -1050,27 +1050,27 @@ for the first time. Nothing needs migrating for them.
 
 #### Automated
 
-- [x] 5.1 Full suite green
-- [x] 5.2 Linting passes
-- [x] 5.3 Each deliberate-breakage variant turns exactly the expected assertions red
-- [x] 5.4 Policy restore verified by a `pg_policies` before/after diff
+- [x] 5.1 Full suite green — c658bb6
+- [x] 5.2 Linting passes — c658bb6
+- [x] 5.3 Each deliberate-breakage variant turns exactly the expected assertions red — c658bb6
+- [x] 5.4 Policy restore verified by a `pg_policies` before/after diff — c658bb6
 
 #### Manual
 
-- [x] 5.5 Survived mutants reviewed one by one with decisions recorded
+- [x] 5.5 Survived mutants reviewed one by one with decisions recorded — c658bb6
 
 ### Phase 6: Generation idempotency (separable — impl-review F5)
 
 #### Automated
 
-- [ ] 6.1 Migration applies cleanly
-- [ ] 6.2 Database types regenerated via `npm run db:types`
-- [ ] 6.3 Type checking and linting pass
-- [ ] 6.4 Full suite green with the inverted assertion
-- [ ] 6.5 Dropped-key control still generates twice
-- [ ] 6.8 A key whose only prior session is `failed` still generates and succeeds
+- [x] 6.1 Migration applies cleanly
+- [x] 6.2 Database types regenerated via `npm run db:types`
+- [x] 6.3 Type checking and linting pass
+- [x] 6.4 Full suite green with the inverted assertion
+- [x] 6.5 Dropped-key control still generates twice
+- [x] 6.8 A key whose only prior session is `failed` still generates and succeeds
 
 #### Manual
 
-- [ ] 6.6 A retried generation produces exactly one set of candidates
-- [ ] 6.7 The review screen shows one session's worth of cards, not two
+- [x] 6.6 A retried generation produces exactly one set of candidates
+- [x] 6.7 The review screen shows one session's worth of cards, not two

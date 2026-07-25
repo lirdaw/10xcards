@@ -37,6 +37,54 @@ export function getGenerationSessionByPublicId(supabase: Client, publicId: strin
     .maybeSingle();
 }
 
+// Dedup lookup for the idempotency key a client mints once per generation attempt and
+// "Ponów" replays verbatim (FR-018). Matches only a SUCCEEDED session, on purpose: a
+// `failed` row is audit, and replaying it would hand the caller an error as if it were a
+// result. RLS scopes the read to the caller, so `(user_id, key)` needs no explicit
+// predicate — the partial unique index guarantees at most one such row, which is what
+// makes maybeSingle() safe here.
+//
+// Callers MUST branch on `error` before treating `data == null` as "no prior attempt"
+// (lessons: SSR error-vs-empty) — mistaking a transient failure for "never seen this key"
+// is exactly how a dedup layer starts duplicating again, silently.
+export function findSucceededSessionByIdempotencyKey(supabase: Client, idempotencyKey: string) {
+  return supabase
+    .from("generation_session")
+    .select("id, public_id, generated_count, saved_count")
+    .eq("idempotency_key", idempotencyKey)
+    .eq("status", "succeeded")
+    .maybeSingle();
+}
+
+// Rebuilds the response body of an already-persisted generation, so a replay is
+// indistinguishable from the original answer.
+//
+// `generation_session` stores NEITHER the cards nor the deck — there is no deck_id column
+// on it (see the S-04 migration) — so both are read back through the cards, whose FK to
+// deck is the only link that exists. Ordered by `id`: every candidate of one session is
+// inserted in a single statement, so their `created_at` values are identical and would
+// not order anything.
+export async function generationResultByGenerationId(supabase: Client, generationId: number) {
+  const { data, error } = await supabase
+    .from("flashcard")
+    .select("front, back, deck!inner(public_id)")
+    .eq("generation_id", generationId)
+    .order("id", { ascending: true });
+  if (error) return { data: null, error };
+  // No cards left (all deleted since) means there is nothing to replay — a `null` the
+  // caller must treat as a failure, not as an empty success, or the island navigates to
+  // a review screen it cannot name.
+  if (data.length === 0) return { data: null, error: null };
+
+  return {
+    data: {
+      candidates: data.map((card) => ({ front: card.front, back: card.back })),
+      deckPublicId: data[0].deck.public_id,
+    },
+    error: null,
+  };
+}
+
 // The acceptance metric (PRD's primary success criterion), as a plain aggregate over the
 // session's cards — no stored counter and no new column. A session caps at 15 cards, so
 // the grouping happens here rather than in SQL.

@@ -221,6 +221,7 @@ export type Database = {
           error_message: string | null
           generated_count: number
           id: number
+          idempotency_key: string | null
           language: string
           model: string
           public_id: string
@@ -237,6 +238,7 @@ export type Database = {
           error_message?: string | null
           generated_count: number
           id?: never
+          idempotency_key?: string | null
           language: string
           model: string
           public_id?: string
@@ -253,6 +255,7 @@ export type Database = {
           error_message?: string | null
           generated_count?: number
           id?: never
+          idempotency_key?: string | null
           language?: string
           model?: string
           public_id?: string

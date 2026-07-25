@@ -8,18 +8,23 @@ import { accountA } from "../fixtures/accounts";
 import { callEndpoint } from "../fixtures/endpoint";
 import { clientFor } from "../fixtures/session";
 
-// CHARACTERIZATION TEST — this file asserts the BUG, not the fix.
+// Risk #2 (test-plan §2) is now COVERED, not merely characterized.
 //
-// `/api/generate` is not idempotent: two identical requests write two generation
-// sessions and two full sets of candidate cards. That is test-plan §2 Risk #2. This
-// suite MEASURES it; it does not prevent it. Idempotency is deliberately deferred —
-// see finding F5 (ACCEPTED-AS-RULE) in
-// context/archive/2026-07-11-ai-candidate-generation/reviews/impl-review.md:95-108,
-// mirrored in a source comment at src/pages/api/generate.ts:26-30, and owned by S-05.
+// This file used to assert the BUG: two identical requests to `/api/generate` wrote two
+// generation sessions and two full sets of cards, because idempotency was deferred by
+// finding F5 (ACCEPTED-AS-RULE) in
+// context/archive/2026-07-11-ai-candidate-generation/reviews/impl-review.md:95-108 and
+// owned by S-05. S-05 Phase 6 landed the dedup, so the standing instruction in
+// test-plan.md §6.6 was carried out: the assertion was INVERTED (2 sessions -> 1), not
+// deleted.
 //
-// SO: when S-05 lands idempotency, the first `it()` below WILL GO RED. That red is the
-// signal to INVERT the assertion (2 sessions -> 1) and only then mark Risk #2 covered.
-// It is NOT a signal to delete this test.
+// The dedup is KEYED, never blanket. Three controls keep that claim honest, because
+// "one session" would also be satisfied by an endpoint that silently refuses every
+// second request:
+//   - two DIFFERENT keys still write two sessions,
+//   - no key at all still writes two sessions (the column is nullable on purpose),
+//   - a key whose only prior session is `failed` still generates (FR-018's "Ponów" must
+//     survive a failure — see the partial index's `status = 'succeeded'` predicate).
 //
 // Two traps specific to mock mode (OPENROUTER_API_KEY is unset locally and in CI, so
 // generateCandidates short-circuits to mockCards — src/lib/openrouter.ts:149-158):
@@ -44,6 +49,9 @@ const suffix = Date.now().toString(36);
 const SOURCE_TEXT = `Tekst źródłowy do generacji ${suffix}`;
 const CONTROL_TEXT = `Inny tekst źródłowy ${suffix}`;
 const NEW_DECK_TEXT = `Tekst dla nowej talii ${suffix}`;
+const DIFFERENT_KEYS_TEXT = `Tekst z dwoma kluczami ${suffix}`;
+const NO_KEY_TEXT = `Tekst bez klucza ${suffix}`;
+const FAILED_KEY_TEXT = `Tekst po nieudanej sesji ${suffix}`;
 const COUNT = 3;
 
 function deckForm(name: string): FormData {
@@ -98,6 +106,14 @@ async function generateSignedOut(body: Record<string, unknown>): Promise<Respons
   });
 }
 
+/** The success body, as the island reads it — asserted on an original AND on a replay. */
+interface Success {
+  candidates: unknown[];
+  counts: { generated: number; saved: number; skipped: number };
+  deckPublicId: string;
+  sessionPublicId: string;
+}
+
 /** Asserts a JSON error object came back, without pinning its Polish copy. */
 async function expectErrorBody(response: Response): Promise<void> {
   const payload = (await response.json()) as { error?: unknown };
@@ -127,55 +143,142 @@ async function cardsOf(deckPublicId: string) {
   return data ?? [];
 }
 
-describe("/api/generate is not idempotent — a retry writes a second set", () => {
+describe("/api/generate deduplicates a retry by its idempotency key", () => {
   let deckPublicId: string;
 
   beforeAll(async () => {
     deckPublicId = await createDeck(`Generation deck ${suffix}`);
   });
 
-  it("writes two generation sessions for two identical requests", async () => {
-    const body = { deckPublicId, sourceText: SOURCE_TEXT, language: "auto", count: COUNT };
+  it("writes ONE generation session for two identical requests carrying the same key", async () => {
+    const body = {
+      deckPublicId,
+      sourceText: SOURCE_TEXT,
+      language: "auto",
+      count: COUNT,
+      idempotencyKey: crypto.randomUUID(),
+    };
 
     const first = await generate(body);
     expect(first.status).toBe(200);
     const second = await generate(body);
-    // The second request is accepted exactly like the first — there is no dedup key,
-    // no in-flight registry, and no unique constraint standing in its way.
+    // A replay is a benign 200, not a 409 — the same shape /api/study uses for
+    // `alreadyApplied`. The user pressed "Ponów" after a client timeout; from their side
+    // nothing went wrong, and an error here would be the FR-018 failure mode inverted.
     expect(second.status).toBe(200);
 
-    // Response contract, characterized alongside the database rows. The status alone
-    // says nothing about what the caller received: a 200 carrying an empty body would
-    // satisfy every assertion below while the review screen renders nothing. Kept
-    // behavioural — how many cards came back, and what the endpoint claims it did with
-    // them — not the payload's shape, wording, or field order.
-    const payload = (await first.json()) as {
-      candidates: unknown[];
-      counts: { generated: number; saved: number; skipped: number };
-    };
-    expect(payload.candidates).toHaveLength(COUNT);
+    // The response contract, asserted on BOTH answers: the replay must be
+    // indistinguishable from the original, or the island navigates to a review screen
+    // that is not the one holding the cards. A 200 carrying an empty body would satisfy
+    // every row-level assertion below while the user lands nowhere.
+    const firstPayload = (await first.json()) as Success;
+    const secondPayload = (await second.json()) as Success;
+
+    expect(firstPayload.candidates).toHaveLength(COUNT);
     // In mock mode the generator returns exactly what was asked for and nothing is
     // dropped, so saved == generated == COUNT and skipped is 0. Pinned as CURRENT
-    // behaviour, like the rest of this file: a live provider returning fewer cards, or
-    // cards that fail validation, would legitimately move these numbers.
-    expect(payload.counts.generated).toBe(COUNT);
-    expect(payload.counts.saved).toBe(COUNT);
-    expect(payload.counts.skipped).toBe(0);
+    // behaviour: a live provider returning fewer cards, or cards that fail validation,
+    // would legitimately move these numbers.
+    expect(firstPayload.counts.generated).toBe(COUNT);
+    expect(firstPayload.counts.saved).toBe(COUNT);
+    expect(firstPayload.counts.skipped).toBe(0);
+
+    expect(secondPayload.sessionPublicId).toBe(firstPayload.sessionPublicId);
+    expect(secondPayload.deckPublicId).toBe(firstPayload.deckPublicId);
+    expect(secondPayload.candidates).toHaveLength(COUNT);
+    expect(secondPayload.counts).toEqual(firstPayload.counts);
 
     // Primary oracle: the audit rows.
-    expect(await succeededSessions(SOURCE_TEXT)).toHaveLength(2);
+    expect(await succeededSessions(SOURCE_TEXT)).toHaveLength(1);
 
-    // Secondary oracle: the cards actually landed twice. The session count alone would
-    // miss a second session that was compensated to `failed` after its cards landed.
+    // Secondary oracle: the cards. The session count alone would miss a second session
+    // that was compensated to `failed` AFTER its cards landed — which is the duplication
+    // the user actually sees, on the review screen.
     const cards = await cardsOf(deckPublicId);
+    expect(new Set(cards.map((card) => card.generation_id)).size).toBe(1);
+    expect(cards).toHaveLength(COUNT);
+  });
+
+  it("gives two requests with DIFFERENT keys their own sessions", async () => {
+    // Proves the dedup is keyed rather than blanket. Without this, an endpoint that
+    // simply refused every second request for a source text would pass the case above.
+    // Its own deck, deliberately: the card-level count above is deck-scoped, so sharing
+    // one would make that assertion depend on the order vitest runs these it()s in.
+    const ownDeck = await createDeck(`Different keys deck ${suffix}`);
+    const body = { deckPublicId: ownDeck, sourceText: DIFFERENT_KEYS_TEXT, language: "auto", count: COUNT };
+
+    const first = await generate({ ...body, idempotencyKey: crypto.randomUUID() });
+    expect(first.status).toBe(200);
+    const second = await generate({ ...body, idempotencyKey: crypto.randomUUID() });
+    expect(second.status).toBe(200);
+
+    expect(await succeededSessions(DIFFERENT_KEYS_TEXT)).toHaveLength(2);
+
+    const cards = await cardsOf(ownDeck);
     expect(new Set(cards.map((card) => card.generation_id)).size).toBe(2);
-    expect(cards).toHaveLength(2 * COUNT);
+  });
+
+  it("still writes two sessions when no key is sent at all", async () => {
+    // The column is nullable and the request field optional on purpose: a client that
+    // never learned about the key must keep working, and NULLs are not equal to each
+    // other, so the partial unique index cannot collapse them into one row.
+    const ownDeck = await createDeck(`No key deck ${suffix}`);
+    const body = { deckPublicId: ownDeck, sourceText: NO_KEY_TEXT, language: "auto", count: COUNT };
+
+    expect((await generate(body)).status).toBe(200);
+    expect((await generate(body)).status).toBe(200);
+
+    expect(await succeededSessions(NO_KEY_TEXT)).toHaveLength(2);
+  });
+
+  it("still generates when the only prior session for that key is `failed`", async () => {
+    // The FR-018 regression this guards is severe and silent: if a `failed` audit row
+    // could hold the key, "Ponów" — which replays the payload VERBATIM, key included —
+    // would collide on its own session insert and answer 500. Retry would be permanently
+    // dead after any failure, which is the exact flow FR-018 exists for (plan-review F1).
+    //
+    // Two independent things keep that from happening, and this case exercises the one a
+    // future edit is likeliest to break: the partial unique index is scoped to
+    // `status = 'succeeded'`. (The other is that both failure-path inserts leave the key
+    // NULL — belt and braces, and commented at each site.)
+    //
+    // No endpoint can produce this row, so it is inserted directly with an RLS-scoped
+    // client — the createNonAcceptedCard precedent in tests/study/study.test.ts. That is
+    // a shortcut around the UI, not around the lock.
+    const key = crypto.randomUUID();
+    const ownDeck = await createDeck(`Failed key deck ${suffix}`);
+    const { error: seedError } = await clientFor(a.cookieHeader).from("generation_session").insert({
+      user_id: a.userId,
+      source_text: FAILED_KEY_TEXT,
+      model: "harness",
+      language: "auto",
+      requested_count: COUNT,
+      generated_count: 0,
+      saved_count: 0,
+      status: "failed",
+      error_message: "Wymuszona awaria w teście",
+      idempotency_key: key,
+    });
+    expect(seedError).toBeNull();
+
+    const response = await generate({
+      deckPublicId: ownDeck,
+      sourceText: FAILED_KEY_TEXT,
+      language: "auto",
+      count: COUNT,
+      idempotencyKey: key,
+    });
+    expect(response.status).toBe(200);
+
+    // A fresh session, not a replay of the failed one.
+    expect(await succeededSessions(FAILED_KEY_TEXT)).toHaveLength(1);
+    expect(await cardsOf(ownDeck)).toHaveLength(COUNT);
   });
 
   it("gives a different source text its own session (positive control)", async () => {
-    // Without this, "two sessions" above would also be satisfied by an endpoint that
-    // writes sessions unconditionally while generation itself is broken — or by one
-    // that stopped scoping by source_text at all.
+    // Guards the COUNTING, not the dedup: every assertion above reads sessions filtered
+    // by source_text, so a helper that had stopped scoping — or an endpoint writing
+    // sessions unconditionally while generation itself is broken — would go unnoticed.
     // Its own deck, deliberately: the card-layer count above is scoped by deck, so
     // generating into the shared one would make that assertion depend on the order
     // vitest happens to run these it() blocks in.
@@ -192,6 +295,10 @@ describe("/api/generate is not idempotent — a retry writes a second set", () =
   });
 
   it("409s the second newDeckName request without a session — and that is not dedup", async () => {
+    // Deliberately key-LESS, so the idempotency path cannot mask what this case measures.
+    // The warning it carries still holds after Phase 6: `deck_user_name_unique` looks like
+    // protection and is not, and a test written only against newDeckName would read green
+    // while proving nothing about the dedup asserted above.
     const newDeckName = `Nowa talia ${suffix}`;
     const body = { newDeckName, sourceText: NEW_DECK_TEXT, language: "auto", count: COUNT };
 

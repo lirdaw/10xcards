@@ -6,9 +6,11 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-07-25 (roadmap S-05 `candidate-review` extended Risk #1's
-> surface to the first lifecycle transition and the first multi-row write; §6.6
-> extended, §6.8 added)
+> Last updated: 2026-07-25 (roadmap S-05 `candidate-review`: Phase 5 extended
+> Risk #1's surface to the first lifecycle transition and the first multi-row
+> write — §6.6 extended, §6.8 added; Phase 6 landed generation idempotency, so
+> **Risk #2 moved from characterized to covered** — §3, §6.5 and §6.6's Phase-2
+> entry rewritten)
 
 ## 1. Strategy
 
@@ -71,7 +73,7 @@ orchestrator updates Status as artifacts appear on disk.
 | #   | Phase name                      | Goal (one line)                                                                                 | Risks covered                                                | Test types                         | Status       | Change folder                                   |
 | --- | ------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------- | ------------ | ----------------------------------------------- |
 | 1   | Harness + per-account isolation | Stand up the runner and prove cross-account denial on read and write                            | #1                                                           | runner bootstrap, integration, RLS | complete     | `context/changes/verification-harness/`         |
-| 2   | Endpoint contract               | Prove the server does not trust the client and does not leak; characterize duplication on retry | #2 (characterized, **not** covered — see note below), #4, #6 | integration                        | implementing | `context/changes/ai-candidate-generation-test/` |
+| 2   | Endpoint contract               | Prove the server does not trust the client and does not leak; stop duplication on retry | #2 (**covered** — idempotency landed in S-05 Phase 6), #4, #6 | integration                        | implementing | `context/changes/ai-candidate-generation-test/` |
 | 3   | Quality gates + schema drift    | Make green CI mean "tested and prod actually migrated"                                          | #5                                                           | gates                              | not started  | —                                               |
 | 4   | SRS schedule correctness        | Prove the schedule defers by rating, survives restart, and admits only accepted cards           | #3                                                           | unit + integration                 | complete     | `context/changes/srs-study-session/`            |
 | 5   | AI-native generation quality    | Prove cards match the source language and are usable, so the 75% thesis is measurable           | #7                                                           | LLM-as-judge                       | not started  | —                                               |
@@ -84,10 +86,12 @@ Sequencing notes:
   **and** write, driven through the real endpoints and gated in CI — see
   §6.6.
 - Phase 2's first slice (`ai-candidate-generation-test`) landed a
-  **characterization** test for Risk #2: it asserts that a retry _does_
-  duplicate, because idempotency is deferred to roadmap S-05 (finding F5).
-  Green CI on that test means the duplication is measured, not that a retry
-  is safe — read §6.6 before treating Risk #2 as handled. Risks #4 and #6
+  **characterization** test for Risk #2: it asserted that a retry _did_
+  duplicate, because idempotency was deferred to roadmap S-05 (finding F5).
+  Roadmap slice **S-05 Phase 6 landed that idempotency**, so the standing
+  instruction was carried out — the assertion was inverted (2 sessions → 1),
+  not deleted, and Risk #2 is now **covered**. §6.6's Phase-2 entry records
+  exactly what the inverted suite does and does not prove. Risks #4 and #6
   are still untouched, so the phase stays `implementing`.
 - Phase 4 shipped inside roadmap **S-03 `srs-study-session`** (its Phase 5),
   which is where the schedule itself was built — roadmap F-03 had already
@@ -326,11 +330,14 @@ will cost you a wasted afternoon if you rediscover them the hard way:
   reads as `0` while its row still exists.
 - **The real timeout window cannot be reproduced here.** `testTimeout` is
   30 s (`vitest.config.ts:33`), below `SERVER_TIMEOUT_MS` = 40 s
-  (`generate.ts:31`) and the client's 55 s. Any test that tries to sit out
+  (`generate.ts`) and the client's 55 s. Any test that tries to sit out
   the timeout fails on the runner, not on the behaviour. This is not a
-  limitation to work around: the duplication is unconditional, so a
-  sequential pair of requests observes it and timing adds cost without
-  signal.
+  limitation to work around: since S-05 Phase 6 the dedup keys off the
+  request's `idempotencyKey`, not off timing, so a sequential pair of
+  requests exercises the whole guard and waiting adds cost without signal.
+  The one thing that genuinely needs the window — the commit race that
+  produces a `23505` on the session insert — is unreachable from here and is
+  carried by code review plus the manual retry check instead.
 
 **Scope every count twice** — by `source_text` and by the test's own deck.
 The threat is _within_ a run, not across runs: `provisionAccounts` gives
@@ -344,15 +351,19 @@ file touching the same table). Namespace with `Date.now().toString(36)` at
 `provisionAccounts`' per-run one, and it is the file-level one your
 `source_text` values must carry.
 
-**The deliberate-breakage check, inverted.** §6.6's precedent is "neuter the
-policy, confirm red". A test asserting that _two_ sessions are written
-cannot be checked that way — it would be satisfied by anything ≥ 1. Instead
-introduce a crude dedup and confirm red. Done for this phase: short-circuiting
-`/api/generate` to `200` when a `succeeded` session already existed for
-`(user_id, source_text)` turned the first `it()` red on the session-count
-assertion (2 expected, 1 received) — not on a 500 and not on a timeout,
-which is what proves the assertion observes the _second_ write. Reverting
-restored green. The production edit was never committed.
+**The deliberate-breakage check, and why its shape changed.** §6.6's precedent
+is "neuter the guard, confirm red". While this file asserted that _two_
+sessions were written, that was impossible — the assertion would have been
+satisfied by anything ≥ 1 — so the 2026-07-18 check ran **inverted**: a crude
+dedup on `(user_id, source_text)` was introduced and turned the first `it()`
+red (2 expected, 1 received), not on a 500 and not on a timeout, which is what
+proved the assertion observed the _second_ write.
+
+Since S-05 Phase 6 inverted the assertion for real, the ordinary shape applies
+again: neuter the guard and confirm red. §6.6's Phase-2 entry records the run —
+widening the partial unique index to every `status` turns exactly the
+failed-key case red (`expected 500 to be 200`) while the other 12 stay green.
+Neither production edit was ever committed.
 
 ### 6.6 Per-rollout-phase notes
 
@@ -390,35 +401,76 @@ restored green. The production edit was never committed.
   tempted to trust a row in the table above, neuter the matching policy
   (`using (true)`) and confirm something goes red.
 
-- **Phase 2, first slice (`ai-candidate-generation-test`, 2026-07-18)** —
-  Risk #2 is **measured, not protected**.
+- **Phase 2, first slice (`ai-candidate-generation-test`, 2026-07-18; Risk #2
+  closed by S-05 Phase 6, 2026-07-25)** — Risk #2 is **covered**.
 
-  `tests/generation/generate.test.ts` asserts that two identical POSTs to
-  `/api/generate` write **two** `succeeded` generation sessions and two
-  distinct `generation_id` values. That is the current behaviour, and the
-  test pins it deliberately: it is a characterization test, not a guard. A
-  green suite here means "we know the duplication happens", not "a retry is
-  safe".
-
-  It asserts two sessions rather than one because idempotency is deferred by
-  an explicit decision, not by oversight — finding F5 (ACCEPTED-AS-RULE) in
+  For its first seven days this entry read "measured, not protected":
+  `tests/generation/generate.test.ts` asserted that two identical POSTs to
+  `/api/generate` wrote **two** `succeeded` sessions, because idempotency was
+  deferred by an explicit decision — finding F5 (ACCEPTED-AS-RULE) in
   `context/archive/2026-07-11-ai-candidate-generation/reviews/impl-review.md:95-108`,
-  mirrored in a source comment at `src/pages/api/generate.ts:26-30`, and
-  owned by roadmap **S-05**. The duplication is unconditional, not a race:
-  there is no idempotency key, no in-flight registry, and no unique
-  constraint on `(user_id, source_text)` or `(deck_id, front, back)`. The
-  40 s / 55 s timeout ordering only narrows how often a user triggers a
-  second request; it has no bearing on what the server does when one
-  arrives (`lessons.md:103-108`).
+  owned by roadmap **S-05**. That slice's Phase 6 landed the dedup, the first
+  `it()` went red exactly as this section predicted, and the instruction was
+  followed to the letter: **the assertion was inverted (2 → 1), not deleted.**
 
-  One case in the file looks like protection and is not: two identical
-  `newDeckName` requests produce a 409 and exactly one session. That comes
-  from `deck_user_name_unique`, not from any dedup — a test written only
-  against `newDeckName` would read green today and prove nothing.
+  What covers the risk now:
 
-  **When S-05 lands idempotency, the first `it()` will go red. The correct
-  action is to invert the assertion (2 → 1) and only then mark Risk #2
-  covered — not to delete the test.**
+  | Claim                                             | What proves it                                                                                                 |
+  | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+  | A retry writes one session, not two               | two POSTs with the same `idempotencyKey` → one `succeeded` session, one `generation_id`, `COUNT` cards          |
+  | …and the replay is usable, not just harmless      | the second response carries the **same** `sessionPublicId`, `deckPublicId` and `counts` as the first            |
+  | The dedup is keyed, not blanket                   | two different keys → two sessions; the control the "one session" claim would otherwise be satisfied by falsely |
+  | An old client still works                         | two POSTs with **no** key at all → two sessions (column nullable, request field optional)                       |
+  | A failure does not kill the retry (FR-018)        | a `failed` session seeded for a key → the same key still generates and succeeds                                 |
+
+  **The key is per ATTEMPT, not per request.** `GeneratorForm` mints a
+  `crypto.randomUUID()` on submit and stores it in `lastPayload`; "Ponów"
+  replays that payload verbatim, so the retry carries the same key while a
+  fresh submit mints a new one. Regenerating the same source text on purpose
+  is not a duplicate and must keep working.
+
+  **Two independent guards keep FR-018 alive, and only one of them is testable
+  from the outside.** The partial unique index is scoped to
+  `(user_id, idempotency_key) where idempotency_key is not null and status = 'succeeded'`,
+  and both failure-path inserts in `generate.ts` write the key as `null`. Either
+  alone would do; keep both, because a `failed` audit row holding the key would
+  make "Ponów" collide on its own insert and answer `500` — retry permanently
+  dead after the first failure, the exact flow FR-018 exists for (plan-review F1).
+  Note that the plan's own migration contract specified the index **without** the
+  `status` predicate; that made the criterion "a key whose only prior session is
+  `failed` still generates" unsatisfiable, and the predicate was added
+  deliberately during S-05 Phase 6.
+
+  **The deliberate-breakage check, and it is a sharp one.** Widen the index by
+  dropping `and status = 'succeeded'`, then run
+  `npx vitest run tests/generation/generate.test.ts`. Exactly **1 of 13** goes
+  red — the failed-key case, on `expected 500 to be 200` — while the other 12,
+  including the dedup case itself, stay green. That split is what proves the
+  failed-key assertion observes the index predicate rather than an incidental
+  success. Two things are worth knowing before you run it:
+
+  - The widened index may refuse to **build at all** against a database that
+    already holds a suite run's rows (`Key (user_id, idempotency_key)=… is
+    duplicated`, the seeded `failed` row against its own `succeeded` result).
+    That failure is itself evidence, but run the check from a `db reset` if you
+    want the red test rather than the build error.
+  - Restore with `npx supabase db reset` and then **verify it** — dump
+    `indexdef` from `pg_indexes` before and after and `diff`. Done here; the
+    restored definition came back identical, full suite green at **69/69**.
+
+  One case in the file still looks like protection and is not: two identical
+  `newDeckName` requests produce a 409 and exactly one session. That comes from
+  `deck_user_name_unique`, not from any dedup, so it is kept deliberately
+  **key-less** — a test written only against `newDeckName` would read green
+  while proving nothing about the idempotency above.
+
+  **What is NOT covered.** The dedup lookup runs before the LLM call and a
+  `23505` on the session insert maps to the same replay, which together cover
+  the sequential retry and the commit race. Two **concurrent** `newDeckName`
+  requests still race at `createDeck`, and the loser 409s because the winner's
+  session may not have committed yet — pre-existing, unchanged, and out of the
+  flow a human performs. No test here reaches the real provider, for the reason
+  §6.5 records.
 
   Phase 2 stays `implementing`: risks #4 (leakage in the error body) and #6
   (server-side validation parity) are untouched.

@@ -14,9 +14,10 @@ const COUNT_MIN = 1;
 const COUNT_MAX = 15;
 const NEW_DECK = "__new__";
 
-// Client-side fetch timeout. MUST be longer than the server's OpenRouter timeout
-// (~40s) so the server almost always answers first (see the endpoint comment) —
-// otherwise a client abort races a server-side save and a retry can double cards.
+// Client-side fetch timeout. MUST be longer than the server's OpenRouter timeout (~40s)
+// so the server almost always answers first (see the endpoint comment). The residual
+// window — client aborts while the server is still committing — is closed by the
+// idempotency key below, not by this ordering, which only ever narrowed it.
 const CLIENT_TIMEOUT_MS = 55_000;
 
 const LANGUAGES = [
@@ -54,6 +55,13 @@ interface GeneratePayload {
   sourceText: string;
   language: string;
   count: number;
+  /**
+   * One key per ATTEMPT, not per request — minted on submit and replayed unchanged by
+   * "Ponów", which is what lets the server recognise the retry as the same attempt and
+   * answer with the cards it already saved (test-plan §2 Risk #2). A fresh submit mints
+   * a fresh key: regenerating the same text on purpose is not a duplicate.
+   */
+  idempotencyKey: string;
 }
 
 interface SuccessResponse {
@@ -104,7 +112,10 @@ export function GeneratorForm({ decks }: Props) {
   // failures — never for a pure client-side validation error (a ref, read below,
   // must not be accessed during render, hence a separate flag).
   const [canRetry, setCanRetry] = React.useState(false);
-  // The last payload actually sent — "Ponów" re-issues it verbatim (FR-018).
+  // The last payload actually sent — "Ponów" re-issues it VERBATIM (FR-018), which is
+  // load-bearing twice over: it is what makes the retry a retry for the user, and what
+  // carries the same idempotencyKey so the server can recognise it as one attempt rather
+  // than two. Do not rebuild the payload on retry.
   const lastPayload = React.useRef<GeneratePayload | null>(null);
 
   const isNewDeck = deckChoice === NEW_DECK;
@@ -116,7 +127,9 @@ export function GeneratorForm({ decks }: Props) {
     if (text.length > SOURCE_MAX) return `Tekst źródłowy może mieć najwyżej ${SOURCE_MAX} znaków.`;
     if (count < COUNT_MIN || count > COUNT_MAX) return `Liczba kart musi być w zakresie ${COUNT_MIN}–${COUNT_MAX}.`;
 
-    const base = { sourceText: text, language, count };
+    // The key is minted here, once per submit, so both branches below carry it and
+    // "Ponów" (which re-sends lastPayload.current verbatim) reuses the same one.
+    const base = { sourceText: text, language, count, idempotencyKey: crypto.randomUUID() };
     if (isNewDeck) {
       const name = newDeckName.trim();
       if (name.length < 1 || name.length > 100) return "Nazwa nowej talii musi mieć od 1 do 100 znaków.";
