@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { Rating } from "ts-fsrs";
 import * as CreateDeck from "@/pages/api/decks/index";
 import * as BatchCards from "@/pages/api/decks/[publicId]/cards/batch";
 import * as EditCard from "@/pages/api/decks/[publicId]/cards/[cardPublicId]";
@@ -15,6 +16,7 @@ import {
   updateFlashcard,
 } from "@/lib/flashcards";
 import { generationStateCounts, getGenerationSessionByPublicId } from "@/lib/generations";
+import { listDueCards, rateCard } from "@/lib/study";
 import { accountA, accountB } from "../fixtures/accounts";
 import { callEndpoint } from "../fixtures/endpoint";
 import { clientFor } from "../fixtures/session";
@@ -604,5 +606,55 @@ describe("a lifecycle transition is not a content edit", () => {
     expect(edited.error).toBeNull();
     const afterEdit = await rowOf(a, cardPublicId);
     expect(new Date(afterEdit.updated_at).getTime()).toBeGreaterThan(new Date(afterEdit.created_at).getTime());
+  });
+});
+
+describe("the lifecycle transition moves a card through the study gate", () => {
+  // Fixed clocks, never the wall clock: `now` is a lib parameter on both listDueCards and
+  // rateCard precisely so a test can pin it (§6.7 — it is deliberately NOT an HTTP input).
+  const NOW = new Date("2026-07-25T09:00:00.000Z");
+  const LATER = new Date("2028-07-25T09:00:00.000Z");
+
+  it("admits a card when it is accepted, drops it when rejected, and resumes its schedule on Przywróć", async () => {
+    const deckPublicId = await createDeck(a, `Gate deck ${suffix}`);
+    const deckId = await deckIdOf(a, deckPublicId);
+    const client = clientFor(a.cookieHeader);
+    const cardPublicId = await seedCard(a, deckPublicId, `Gate candidate ${suffix}`, STATE_GENERATED);
+
+    /** The session batch the real /study/[publicId] loader would build at `at`. */
+    async function session(at: Date) {
+      const { data, error } = await listDueCards(client, deckId, at, 20);
+      expect(error).toBeNull();
+      return data ?? [];
+    }
+
+    // study.test.ts already proves the gate with cards SEEDED in each state. What it could
+    // not prove — nothing wrote state_id before S-05 — is the card CROSSING the gate. That
+    // is the claim here, and it is the one the user actually performs.
+    expect((await session(NOW)).map((card) => card.publicId)).not.toContain(cardPublicId);
+
+    expect((await setFlashcardState(client, deckId, [cardPublicId], STATE_ACCEPTED)).data).toHaveLength(1);
+    const admitted = (await session(NOW)).find((card) => card.publicId === cardPublicId);
+    expect(admitted?.reps).toBe(0);
+    // That read ran ensureSchedule, so the card now owns a flashcard_schedule row — the
+    // same lazy seeding the real loader does. Nothing in the accept path seeds it.
+
+    const rated = await rateCard(client, deckId, cardPublicId, Rating.Good, 0, NOW);
+    expect(rated.error).toBeNull();
+    expect(rated.data?.reps).toBe(1);
+
+    expect((await setFlashcardState(client, deckId, [cardPublicId], STATE_REJECTED)).data).toHaveLength(1);
+    // Gone from the session even at a clock long past its due date, so this is the state
+    // gate and not merely a card that is not due yet.
+    expect((await session(LATER)).map((card) => card.publicId)).not.toContain(cardPublicId);
+
+    // Przywróć. The schedule row that was orphaned by the reject is deliberately never
+    // cleaned up (see the plan's Critical Implementation Details and src/lib/study.ts),
+    // and this is what that buys: the card resumes at reps 1 instead of being reset to a
+    // brand-new card. A cleanup pass — or an accept path that re-seeded — would show up
+    // here as reps 0.
+    expect((await setFlashcardState(client, deckId, [cardPublicId], STATE_ACCEPTED)).data).toHaveLength(1);
+    const restored = (await session(LATER)).find((card) => card.publicId === cardPublicId);
+    expect(restored?.reps).toBe(1);
   });
 });

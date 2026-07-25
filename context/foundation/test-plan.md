@@ -6,8 +6,9 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-07-24 (§3 Phase 4 complete — Risk #3 covered; §6.1
-> extended, §6.6 extended, §6.7 added)
+> Last updated: 2026-07-25 (roadmap S-05 `candidate-review` extended Risk #1's
+> surface to the first lifecycle transition and the first multi-row write; §6.6
+> extended, §6.8 added)
 
 ## 1. Strategy
 
@@ -497,6 +498,92 @@ restored green. The production edit was never committed.
   under RLS. This matches the untouched `search_flashcards_in_deck`
   precedent — it is a project-wide pattern, not something S-03 introduced.
 
+- **Roadmap slice S-05 (`candidate-review`, 2026-07-25)** — not a §3 rollout phase.
+  It is recorded here because it widened **Risk #1's surface**: the project's first
+  lifecycle state transition (`setFlashcardState`) and its first **multi-row**
+  mutation (`POST /api/decks/[publicId]/cards/batch`). Every Phase-1 denial covers a
+  single-row write addressed by one `public_id`, so none of them touches this path —
+  a bulk UPDATE that forgot its deck scoping would have leaked while the Phase-1
+  table stayed green.
+
+  Extends the Phase 1 table by one row:
+
+  | Surface    | Non-owner denied on write                                                          | Non-owner denied on read |
+  | ---------- | ---------------------------------------------------------------------------------- | ------------------------ |
+  | flashcards | **state transition, single and bulk, via `/cards/batch`** (`isolation/flashcards.test.ts`) | unchanged                |
+
+  What the slice's own file (`tests/review/candidates.test.ts`) proves:
+
+  | Claim                                              | What proves it                                                                                             |
+  | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+  | Every legal edge of the transition table writes    | all four `(from,to)` pairs asserted on `RETURNING` **and** on the row re-read                               |
+  | Every illegal edge writes nothing                  | anything → `generated`, and a repeat of an applied move: empty `RETURNING`, row `toEqual(before)`           |
+  | A mixed batch writes only its legal subset         | one movable + one already-in-target card; `changed`/`skipped` split, sibling row byte-identical             |
+  | A zero-row write is a 200, not an error            | the endpoint's `{ ok, changed, skipped }` contract, with `skipped` = requested minus returned                |
+  | Route precedence cannot become a wrong write       | `batch` fails `UUID_RE` in `[cardPublicId].ts` → 404, never an edit                                          |
+  | A transition moves the card through the study gate | accepted → enters `listDueCards`; rejected → gone even at a far-future clock; Przywróć resumes at `reps` 1  |
+  | Search stays accepted-only, and carries `source_id` | one token, three cards, one per state — only the accepted one matches                                        |
+  | A transition is not a content edit                 | `updated_at === created_at` after a state write, while a real edit still bumps it                            |
+
+  **What it does NOT prove.** The edit round-trip cases assert the `Location` header
+  only — no test renders `review.astro`, so the review screen's own loader, its empty
+  states and the acceptance-metric line are covered by manual verification alone
+  (§6.4's "pages are deliberately not rendered" applies unchanged). The `?generation=`
+  scope is proved at the data layer (`listFlashcardsByState`), not through the page.
+  Nothing here exercises the signed-out path, for the same reason Phase 1 records.
+
+  **Selective mutation testing, and why its 100% is weak evidence.** Stryker narrowed
+  to the transition function (`--mutate "src/lib/flashcards.ts:181-212"`, permanent
+  `mutate` list untouched): 100% — 12 killed, **0 survived**. Do not read that as "the
+  gate is well asserted". Reproducing the two gate mutants by hand shows both die on a
+  **malformed query**, not on a behavioural assertion: `.in("state_id", …)` → `""`
+  fails with `PGRST100`, and the `?? []` fallback → `["Stryker was here"]` fails with
+  `22P02` (integer parse). Only **4 of 12** are behavioural — the ones that collapse the
+  allow-list to `[]` while leaving the query valid — and all four break *legal*
+  transitions. **No mutant in this run makes an illegal transition succeed**, because
+  the operator that would has to substitute a string that Postgres rejects. So the
+  direction that actually harms a user (a gate too permissive — a rejected card
+  drifting back into the deck) is carried by deliberate-breakage check 1 below, not by
+  Stryker. Per-mutant record: `context/changes/candidate-review/mutation-register.md`.
+
+  **Three deliberate-breakage checks, all run, with observed results.**
+
+  1. *The transition guard.* Delete `.in("state_id", ALLOWED_FROM[target])` from
+     `setFlashcardState`. Exactly **3 of 16** red in `candidates.test.ts` — the
+     off-graph case (`expected [ {…} ] to deeply equal []`), the mixed batch
+     (2 returned instead of 1), and the endpoint's `changed`/`skipped` split. The
+     other 13 stayed green, including every legal-edge assertion, which is what
+     proves those three observe the gate rather than an incidental empty result.
+     Reverting restored 16/16.
+
+  2. *Cross-account denial.* This one needs **three** policies neutered, not the two
+     the plan anticipated. With `deck_select` + `flashcard_update` set to
+     `using (true)`, the new batch denial does go red — but only on its **status**
+     (`expected 200 to be 404`, i.e. B resolved A's deck). The write half stayed
+     invisible: Postgres also applies the **SELECT** policy to an UPDATE whose WHERE
+     reads columns, so `flashcard_select` still hid the row and nothing landed
+     (verified — zero rows matching B's intended content). Adding
+     `flashcard_select using (true)` took it to **6 of 9** red, including B genuinely
+     rewriting A's card (`expected 'Edited by B …' to be "A's front …"`). Note that
+     the positive control went red as a **knock-on**, not as an independent signal:
+     B's transition had already moved the card, so A's own accept→reject then matched
+     zero rows. This is the same "stops at the next policy down" trap §6.6 records for
+     S-03, one layer deeper — the next contributor should start from all three.
+
+  3. *The trigger narrowing.* Restore the unqualified
+     `before update on flashcard` moddatetime trigger. Exactly **1 of 25** red across
+     both files — the `updated_at` assertion
+     (`expected '…844183+00:00' to be '…839253+00:00'`) — and nothing else. A
+     migration whose only effect is a *non*-event has no other witness.
+
+  **Restores were verified, not assumed — and the verification earned its keep.** The
+  first policy restore silently no-opped: the heredoc was piped to `docker exec`
+  **without `-i`**, so psql never received it and reported nothing. Only the
+  `pg_policies` before/after `diff` caught it; a "restored from memory, looks fine"
+  pass would have left the suite testing nothing. Second attempt with `-i`: diff
+  identical. The trigger was likewise re-dumped with `pg_get_triggerdef` and matched
+  byte-for-byte. Full suite green afterwards: **66/66**.
+
 ### 6.7 Adding a test for the SRS / study path
 
 (Added by §3 Phase 4. It sits after §6.6 so the existing §6.6 references in
@@ -578,6 +665,64 @@ Whichever you run, **verify the restore rather than trusting it**: dump
 `qual`/`with_check` (or `\sf` for a function) before and after, and `diff`.
 An RLS policy restored from memory is how a suite silently stops testing
 anything. §6.6 records the observed results of both.
+
+### 6.8 Adding a test for the state-transition path
+
+(Added by roadmap slice S-05. Sits after §6.7 so the existing §6.6/§6.7 references
+in the test files keep pointing at the same anchors.)
+
+- **Location**: `tests/review/candidates.test.ts` for the transition itself and the
+  batch endpoint's contract; `tests/isolation/flashcards.test.ts` for anything about
+  **who** may perform it — §6.2's one-file-per-resource rule puts cross-account
+  denial with the other flashcard denials, not here.
+- **Naming**: `*.test.ts`, named after the resource. A new transition case goes into
+  the matching file as another `it()`.
+- **Run**: `npm test`, or one file with
+  `npx vitest run tests/review/candidates.test.ts`. The local stack must be up
+  (`npm run db:start`).
+- **Check §6.6 first**, as §6.2 requires: the S-05 entry there tabulates what each
+  claim already rests on, and what the slice deliberately leaves to manual checks.
+- **Pattern**: §6.4's, unchanged — real endpoint, real cookie, real Postgres,
+  row-based assertions with a positive control, **404 never 403**, and a file-level
+  `Date.now().toString(36)` namespace (§6.5).
+
+Five facts that are invisible from the test file and will cost you an afternoon:
+
+- **A zero-row write is a `200`, not an error — so a status assertion proves
+  nothing.** Under RLS an UPDATE that matches nothing reports no error, and the
+  batch endpoint deliberately reports it as `{ ok: true, changed: [], skipped: [...] }`
+  (the same benign shape `/api/study` uses for `alreadyApplied`). `changed` is
+  therefore the *only* signal that separates a refused reach from a successful one.
+  Always pair it with the row re-read as the owner.
+- **`skipped` is derived, not reported by the database**: it is the requested set
+  minus what `RETURNING` produced. An id lands there for four indistinguishable
+  reasons — already in the target state, illegal for it, in another deck, or another
+  account's. That conflation is intentional (an owner must not be able to probe
+  another account's ids), so never write a test that expects `skipped` to explain why.
+- **Two axes are called "state" and they are not the same** (repeated from §6.7
+  because this is the file where it bites hardest). `flashcard.state_id` is the
+  lifecycle — 1 generated / 2 accepted / 3 rejected — and is what a transition moves;
+  `flashcard_schedule.srs_state` is FSRS's (0 New / 1 Learning / 2 Review /
+  3 Relearning). Asserting the wrong column proves nothing while reading as a pass.
+- **`generated` is not a reachable target, and it is refused twice.** The Zod union
+  on the endpoint rejects the *value* with a `400`, while `ALLOWED_FROM` has no key
+  for it so the lib layer matches an empty allow-list. Test the lib layer through
+  `setFlashcardState` directly if you want the second guard — over HTTP you only ever
+  see the first.
+- **Accepting a card does not seed its schedule.** `ensureSchedule` stays lazy inside
+  `listDueCards`, so a card accepted-then-rated-then-rejected keeps an orphaned
+  `flashcard_schedule` row on purpose — that is what lets "Przywróć" resume the real
+  schedule instead of resetting the card to New. Do not "fix" an orphan you find; a
+  test asserting `reps` survives a reject→accept round trip is what pins it.
+
+**The deliberate-breakage check for this path**: delete the
+`.in("state_id", ALLOWED_FROM[target])` predicate from `setFlashcardState` and
+confirm exactly the illegal-transition and mixed-batch assertions go red while every
+legal edge stays green. For the ownership half, neuter `deck_select`,
+`flashcard_update` **and `flashcard_select`** together — two are not enough, because
+Postgres applies the SELECT policy to an UPDATE's WHERE clause, so the write half
+stays invisible and you would conclude more than you tested. §6.6 records both runs
+and the restore-verification failure that nearly slipped through.
 
 ## 7. What We Deliberately Don't Test
 

@@ -1032,32 +1032,32 @@ for the first time. Nothing needs migrating for them.
 
 #### Automated
 
-- [x] 4.1 Type checking and linting pass
-- [x] 4.2 Build succeeds
-- [x] 4.3 Existing suite still green
+- [x] 4.1 Type checking and linting pass — 1a1c35f
+- [x] 4.2 Build succeeds — 1a1c35f
+- [x] 4.3 Existing suite still green — 1a1c35f
 
 #### Manual
 
-- [x] 4.6 Per-card reject moves the card to the rejected view, content intact
-- [x] 4.7 Rejected card is absent from study; re-accepted card is present
-- [x] 4.8 Card row height and edit-mode parity unchanged
-- [x] 4.9 Deck list counter matches and links correctly
-- [x] 4.10 Keyword search returns accepted cards only
-- [x] 4.11 Review link works from a deck with zero pending candidates; "Przywróć" returns the card
-- [x] 4.12 An accepted candidate shows "Edytowano: —"
+- [x] 4.6 Per-card reject moves the card to the rejected view, content intact — 1a1c35f
+- [x] 4.7 Rejected card is absent from study; re-accepted card is present — 1a1c35f
+- [x] 4.8 Card row height and edit-mode parity unchanged — 1a1c35f
+- [x] 4.9 Deck list counter matches and links correctly — 1a1c35f
+- [x] 4.10 Keyword search returns accepted cards only — 1a1c35f
+- [x] 4.11 Review link works from a deck with zero pending candidates; "Przywróć" returns the card — 1a1c35f
+- [x] 4.12 An accepted candidate shows "Edytowano: —" — 1a1c35f
 
 ### Phase 5: Tests — full §6.2/§6.4 pattern, plus selective mutation testing
 
 #### Automated
 
-- [ ] 5.1 Full suite green
-- [ ] 5.2 Linting passes
-- [ ] 5.3 Each deliberate-breakage variant turns exactly the expected assertions red
-- [ ] 5.4 Policy restore verified by a `pg_policies` before/after diff
+- [x] 5.1 Full suite green
+- [x] 5.2 Linting passes
+- [x] 5.3 Each deliberate-breakage variant turns exactly the expected assertions red
+- [x] 5.4 Policy restore verified by a `pg_policies` before/after diff
 
 #### Manual
 
-- [ ] 5.5 Survived mutants reviewed one by one with decisions recorded
+- [x] 5.5 Survived mutants reviewed one by one with decisions recorded
 
 ### Phase 6: Generation idempotency (separable — impl-review F5)
 
