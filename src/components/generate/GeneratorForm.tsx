@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Sparkles, Loader2, RotateCw } from "lucide-react";
+import { Sparkles, Loader2, RotateCw, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -85,8 +85,10 @@ function CharCount({ value, max }: { value: string; max: number }) {
 const fieldClass = "border-white/20 bg-white/5 text-white placeholder:text-blue-100/40 focus-visible:border-white/40";
 
 // The AI generator island: collect input, POST /api/generate, show progress, a
-// retriable error (FR-018) and a READ-ONLY list of saved candidates. Accept/edit/
-// reject is deliberately NOT here — that's S-05 (candidate-review).
+// retriable error (FR-018) and a READ-ONLY list of saved candidates, with a link to
+// the review screen where they are accepted, edited or rejected. Curation itself is
+// deliberately NOT here — the results below live in React state only, so anything
+// actionable had to move to a server-rendered screen (S-05, /decks/<id>/review).
 export function GeneratorForm({ decks }: Props) {
   const hasDecks = decks.length > 0;
   const [deckChoice, setDeckChoice] = React.useState<string>(hasDecks ? decks[0].publicId : NEW_DECK);
@@ -312,7 +314,9 @@ export function GeneratorForm({ decks }: Props) {
         </div>
       </form>
 
-      {/* Read-only results (S-05 adds accept/edit/reject) */}
+      {/* An immediate read-only preview of what was saved, plus the link that closes
+          the loop: accept/edit/reject happens on the review screen, which is
+          server-rendered and therefore survives the reload this list does not. */}
       {status === "done" && result && (
         <section aria-label="Wygenerowane fiszki" className="space-y-3">
           <div className="rounded-lg border border-emerald-500/30 bg-emerald-900/20 px-4 py-2 text-sm text-emerald-200">
@@ -320,6 +324,13 @@ export function GeneratorForm({ decks }: Props) {
             {result.counts.skipped > 0 ? ` / pominięto ${result.counts.skipped}` : ""} — kandydaci trafili do talii jako
             karty do przeglądu.
           </div>
+          <a
+            href={`/decks/${result.deckPublicId}/review?generation=${result.sessionPublicId}`}
+            className="inline-flex items-center gap-2 rounded-md border border-purple-400/50 bg-purple-600/50 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-purple-500/20 transition-colors hover:bg-purple-600/70"
+          >
+            <ListChecks className="size-4" aria-hidden="true" />
+            Przejrzyj kandydatów
+          </a>
           <ul className="space-y-3">
             {result.candidates.map((c, i) => (
               <li key={i} className="rounded-2xl border border-white/10 bg-white/10 p-4 text-white backdrop-blur-xl">

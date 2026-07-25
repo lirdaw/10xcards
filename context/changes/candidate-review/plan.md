@@ -1001,32 +1001,32 @@ for the first time. Nothing needs migrating for them.
 
 #### Automated
 
-- [x] 2.1 Type checking and linting pass
-- [x] 2.2 Build succeeds
-- [x] 2.3 Smoke case proves `/cards/batch` returns JSON, not a redirect
+- [x] 2.1 Type checking and linting pass — 8491e0c
+- [x] 2.2 Build succeeds — 8491e0c
+- [x] 2.3 Smoke case proves `/cards/batch` returns JSON, not a redirect — 8491e0c
 
 #### Manual
 
-- [x] 2.4 Foreign deck's `publicId` answers 404 JSON and writes nothing
+- [x] 2.4 Foreign deck's `publicId` answers 404 JSON and writes nothing — 8491e0c
 
 ### Phase 3: Review screen and review-local selection
 
 #### Automated
 
-- [ ] 3.1 `npx astro sync` succeeds (new route)
-- [ ] 3.2 Type checking and linting pass
-- [ ] 3.3 Build succeeds
-- [ ] 3.4 Existing suite still green
+- [x] 3.1 `npx astro sync` succeeds (new route)
+- [x] 3.2 Type checking and linting pass
+- [x] 3.3 Build succeeds
+- [x] 3.4 Existing suite still green
 
 #### Manual
 
-- [ ] 3.5 Generator link lands on the review screen scoped to that session
-- [ ] 3.6 Single accept moves a card into the deck
-- [ ] 3.7 Bulk reject reports its count and preserves card content
-- [ ] 3.8 Edit from review returns to review with the generation scope preserved
-- [ ] 3.9 "Przywróć" returns a rejected card to the deck
-- [ ] 3.10 Acceptance metric matches the database
-- [ ] 3.11 Every review screen survives a reload
+- [x] 3.5 Generator link lands on the review screen scoped to that session
+- [x] 3.6 Single accept moves a card into the deck
+- [x] 3.7 Bulk reject reports its count and preserves card content
+- [x] 3.8 Edit from review returns to review with the generation scope preserved
+- [x] 3.9 "Przywróć" returns a rejected card to the deck
+- [x] 3.10 Acceptance metric matches the database
+- [x] 3.11 Every review screen survives a reload
 
 ### Phase 4: Deck view integration — per-card reject, review entry point, counter
 
