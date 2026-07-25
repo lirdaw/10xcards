@@ -3,9 +3,21 @@ import AuthenticatedLayout from "@/layouts/AuthenticatedLayout.astro";
 import CreateDeckModal from "@/components/decks/CreateDeckModal";
 import { createClient } from "@/lib/supabase";
 import { listDecks } from "@/lib/decks";
+import { countCandidatesByDeck } from "@/lib/flashcards";
 
 const supabase = createClient(Astro.request.headers, Astro.cookies);
-const { data: decks } = supabase ? await listDecks(supabase) : { data: [] };
+// Branch on BOTH query errors, never on data alone (lessons: SSR error-vs-empty) — the
+// two failures deserve different answers. A deck-list failure is the page's error state,
+// mirroring study/index.astro. A count failure must NOT become "0 candidates": that would
+// be a database hiccup silently claiming there is nothing to review, so the decks render
+// WITHOUT chips instead, and the deck view's permanent review link is still the way in.
+const { data: decks, error: decksError } = supabase ? await listDecks(supabase) : { data: [], error: null };
+// ONE grouped query for every deck, never a per-deck count — the same N+1 that
+// study/index.astro's structurally identical due-count chip already settled.
+const { data: candidateCounts } = supabase ? await countCandidatesByDeck(supabase) : { data: null };
+// A deck with no candidates is ABSENT from the map rather than 0, and a failed count
+// yields an empty map — both land on the same "render no chip" branch.
+const counts: Record<string, number> = candidateCounts ?? {};
 
 const error = Astro.url.searchParams.get("error");
 const openCreate = Astro.url.searchParams.get("open") === "create";
@@ -23,16 +35,32 @@ const openCreate = Astro.url.searchParams.get("open") === "create";
     </div>
 
     {
-      decks && decks.length > 0 ? (
+      decksError ? (
+        <div class="rounded-2xl border border-red-500/30 bg-red-900/20 p-8 text-center text-red-200">
+          <p>Nie udało się wczytać Twoich talii. Spróbuj odświeżyć stronę.</p>
+        </div>
+      ) : decks.length > 0 ? (
         <ul class="grid gap-3 sm:grid-cols-2">
           {decks.map((deck) => (
-            <li>
+            <li class="relative flex min-h-28 min-w-0 items-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-white/10 p-5 text-white backdrop-blur-xl transition-colors hover:border-white/20 hover:bg-white/15">
+              {/* The card as a whole opens the deck (`after:inset-0` stretches this
+                  link over the tile), while the chip stays a real, separately
+                  focusable link on top of it — nesting one anchor inside another
+                  would be invalid markup and unreachable by keyboard. */}
               <a
                 href={`/decks/${deck.public_id}`}
-                class="flex min-h-28 min-w-0 items-center overflow-hidden rounded-2xl border border-white/10 bg-white/10 p-5 text-white backdrop-blur-xl transition-colors hover:border-white/20 hover:bg-white/15"
+                class="min-w-0 flex-1 after:absolute after:inset-0 after:content-['']"
               >
                 <span class="line-clamp-3 block font-medium break-words">{deck.name}</span>
               </a>
+              {counts[deck.public_id] ? (
+                <a
+                  href={`/decks/${deck.public_id}/review`}
+                  class="relative z-10 shrink-0 rounded-full border border-purple-400/30 bg-purple-500/20 px-3 py-1 text-xs font-medium text-purple-100 tabular-nums transition-colors hover:bg-purple-500/35 hover:text-white"
+                >
+                  {counts[deck.public_id]} do przeglądu
+                </a>
+              ) : null}
             </li>
           ))}
         </ul>

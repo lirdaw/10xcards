@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Pencil, Trash2, Save, X } from "lucide-react";
+import { Pencil, Trash2, Save, X, CircleSlash } from "lucide-react";
 import type { FlashcardView } from "@/lib/flashcards";
 import { FRONT_MAX, BACK_MAX } from "@/lib/flashcards";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,13 @@ import { cn } from "@/lib/utils";
 // A single card in the deck workspace. Read-only by default; toggles into an
 // inline edit form (front/back textareas + Save/Cancel) when `editing` is true.
 // The edit save is a native form POST → redirect, so the S-01 error round-trip and
-// RLS still apply. Per-card delete is delegated up to the workspace via `onDelete`.
+// RLS still apply. Per-card delete and reject are delegated up to the workspace via
+// `onDelete` / `onReject` — it owns the confirm modals and the one JSON fetch.
+//
+// No checkbox, no source badge and no state badge here: the first two are C10X-16's,
+// and a state badge would be constant-value noise because every card this view renders
+// is `accepted` (listFlashcards filters on it). The review screen's CandidateItem is
+// where badges and selection live.
 interface Props {
   card: FlashcardView;
   // 1-based position in the displayed list (created_at desc) — the "Lp." ordinal.
@@ -27,9 +33,13 @@ interface Props {
   // settle animation as it renders back in read-only view (reverse of the edit
   // entrance), so the post-save page reload lands smoothly instead of snapping.
   justSaved?: boolean;
+  // True while the workspace's reject request is in flight — keeps the row's
+  // actions inert so a double-click cannot queue a second transition.
+  pending?: boolean;
   onEdit: () => void;
   onCancelEdit: () => void;
   onDelete: () => void;
+  onReject: () => void;
 }
 
 // Live character counter shown under an edit field: muted normally, red once the
@@ -53,9 +63,11 @@ export function FlashcardItem({
   editing,
   serverError = null,
   justSaved = false,
+  pending = false,
   onEdit,
   onCancelEdit,
   onDelete,
+  onReject,
 }: Props) {
   const [front, setFront] = React.useState(card.front);
   const [back, setBack] = React.useState(card.back);
@@ -146,8 +158,11 @@ export function FlashcardItem({
 
           <ServerError message={error} />
 
-          {/* Identical footer shape to the read-only view (shrink-0 + border-t +
-              grid-cols-2) so the button row occupies the same area in both modes. */}
+          {/* Same footer FOOTPRINT as the read-only view — one row of default-size
+              buttons behind an identical `mt-3 shrink-0 border-t pt-4` — even though
+              the column count differs (2 here, 3 there, since edit mode has no third
+              action). Height, not column count, is the invariant that keeps the
+              read-only ↔ edit toggle free of layout shift. */}
           <div className="mt-3 grid shrink-0 grid-cols-2 gap-2 border-t border-white/10 pt-4">
             <Button
               type="button"
@@ -209,18 +224,32 @@ export function FlashcardItem({
           <p className="break-words whitespace-pre-wrap text-blue-100/90">{card.back}</p>
         </div>
       </div>
-      {/* Footer (fixed) mirrors the edit view (border-t + grid-cols-2 with
-          full-width buttons) so toggling edit mode doesn't shift the button row. */}
-      <div className="mt-3 grid shrink-0 grid-cols-2 gap-2 border-t border-white/10 pt-4">
+      {/* Footer (fixed) mirrors the edit view's footprint (same border-t + pt-4 +
+          one row of full-width default-size buttons), so toggling edit mode doesn't
+          shift the button row — the extra column here changes width, never height.
+          Odrzuć sits BETWEEN Edytuj and Usuń on purpose: it is the reversible middle
+          ground between them, and the confirm modal's copy is what keeps it from
+          reading as a second delete. */}
+      <div className="mt-3 grid shrink-0 grid-cols-3 gap-2 border-t border-white/10 pt-4">
         <Button
           variant="outline"
           className="w-full border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+          disabled={pending}
           onClick={onEdit}
         >
           <Pencil className="size-4" />
           Edytuj
         </Button>
-        <Button variant="destructive" className="w-full" onClick={onDelete}>
+        <Button
+          variant="outline"
+          className="w-full border-amber-400/40 bg-amber-500/15 text-amber-100 hover:bg-amber-500/30 hover:text-white"
+          disabled={pending}
+          onClick={onReject}
+        >
+          <CircleSlash className="size-4" />
+          Odrzuć
+        </Button>
+        <Button variant="destructive" className="w-full" disabled={pending} onClick={onDelete}>
           <Trash2 className="size-4" />
           Usuń
         </Button>

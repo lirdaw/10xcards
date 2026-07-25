@@ -1013,38 +1013,38 @@ for the first time. Nothing needs migrating for them.
 
 #### Automated
 
-- [x] 3.1 `npx astro sync` succeeds (new route)
-- [x] 3.2 Type checking and linting pass
-- [x] 3.3 Build succeeds
-- [x] 3.4 Existing suite still green
+- [x] 3.1 `npx astro sync` succeeds (new route) — 465deca
+- [x] 3.2 Type checking and linting pass — 465deca
+- [x] 3.3 Build succeeds — 465deca
+- [x] 3.4 Existing suite still green — 465deca
 
 #### Manual
 
-- [x] 3.5 Generator link lands on the review screen scoped to that session
-- [x] 3.6 Single accept moves a card into the deck
-- [x] 3.7 Bulk reject reports its count and preserves card content
-- [x] 3.8 Edit from review returns to review with the generation scope preserved
-- [x] 3.9 "Przywróć" returns a rejected card to the deck
-- [x] 3.10 Acceptance metric matches the database
-- [x] 3.11 Every review screen survives a reload
+- [x] 3.5 Generator link lands on the review screen scoped to that session — 465deca
+- [x] 3.6 Single accept moves a card into the deck — 465deca
+- [x] 3.7 Bulk reject reports its count and preserves card content — 465deca
+- [x] 3.8 Edit from review returns to review with the generation scope preserved — 465deca
+- [x] 3.9 "Przywróć" returns a rejected card to the deck — 465deca
+- [x] 3.10 Acceptance metric matches the database — 465deca
+- [x] 3.11 Every review screen survives a reload — 465deca
 
 ### Phase 4: Deck view integration — per-card reject, review entry point, counter
 
 #### Automated
 
-- [ ] 4.1 Type checking and linting pass
-- [ ] 4.2 Build succeeds
-- [ ] 4.3 Existing suite still green
+- [x] 4.1 Type checking and linting pass
+- [x] 4.2 Build succeeds
+- [x] 4.3 Existing suite still green
 
 #### Manual
 
-- [ ] 4.6 Per-card reject moves the card to the rejected view, content intact
-- [ ] 4.7 Rejected card is absent from study; re-accepted card is present
-- [ ] 4.8 Card row height and edit-mode parity unchanged
-- [ ] 4.9 Deck list counter matches and links correctly
-- [ ] 4.10 Keyword search returns accepted cards only
-- [ ] 4.11 Review link works from a deck with zero pending candidates; "Przywróć" returns the card
-- [ ] 4.12 An accepted candidate shows "Edytowano: —"
+- [x] 4.6 Per-card reject moves the card to the rejected view, content intact
+- [x] 4.7 Rejected card is absent from study; re-accepted card is present
+- [x] 4.8 Card row height and edit-mode parity unchanged
+- [x] 4.9 Deck list counter matches and links correctly
+- [x] 4.10 Keyword search returns accepted cards only
+- [x] 4.11 Review link works from a deck with zero pending candidates; "Przywróć" returns the card
+- [x] 4.12 An accepted candidate shows "Edytowano: —"
 
 ### Phase 5: Tests — full §6.2/§6.4 pattern, plus selective mutation testing
 
