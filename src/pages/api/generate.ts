@@ -2,7 +2,7 @@ import type { APIRoute } from "astro";
 import { z } from "zod";
 import type { Json } from "@/db/database.types";
 import { createClient } from "@/lib/supabase";
-import { createDeck, deckNameExists } from "@/lib/decks";
+import { createDeck, deckNameExists, deleteDeck } from "@/lib/decks";
 import { deckIdByPublicId } from "@/lib/flashcards";
 import { generateCandidates, resolveModel, OpenRouterError } from "@/lib/openrouter";
 import {
@@ -161,6 +161,9 @@ export const POST: APIRoute = async (context) => {
   // retry (impl-review F1). deckId stays null until the deck is known/created. ---
   let deckId: number | null = null;
   let deckPublicIdOut = "";
+  // Set ONLY when this request created the deck itself, so the failure branches after the
+  // LLM call can undo it. An existing deck the caller passed in is never touched.
+  let createdDeckPublicId: string | null = null;
   if (deckPublicId) {
     // Branch on the query error first so a transient DB failure isn't masked as a
     // 404 (lessons: SSR error-vs-empty). Only a genuine null (absent or RLS-hidden)
@@ -217,11 +220,17 @@ export const POST: APIRoute = async (context) => {
       error_message: message,
       request_payload: rawRequest as Json,
       response_payload: rawResponse as Json,
-      // idempotency_key stays NULL on every failure path — this looks like an oversight
+      // idempotency_key stays NULL on the two failure INSERTS — this looks like an oversight
       // and is not (plan-review F1). "Ponów" replays the same key, so a failed audit row
-      // carrying it would be the row the retry collides with. The partial unique index is
-      // already scoped to `status = 'succeeded'`, so this is the second of two independent
-      // guards, not the only one; keep both.
+      // carrying it would be the row the retry collides with.
+      //
+      // But these two inserts are NOT the only way to reach a `failed` row, and the guards are
+      // NOT independent (impl-review F3). failGenerationSession — the compensating update below
+      // — flips an already-inserted `succeeded` row to `failed` and leaves its key in place, so
+      // a keyed `failed` row IS reachable in production. The partial unique index's
+      // `status = 'succeeded'` predicate is what covers that path, and nothing else does:
+      // without it, "Ponów" after a card-insert failure collides on its own insert and dies at
+      // the 500 below. Do not "simplify" the predicate away on the strength of this NULL.
       idempotency_key: null,
     });
     return json(502, { error: "Nie udało się wygenerować fiszek. Spróbuj ponownie.", retriable: true });
@@ -267,6 +276,7 @@ export const POST: APIRoute = async (context) => {
     }
     deckId = deck.id;
     deckPublicIdOut = deck.public_id;
+    createdDeckPublicId = deck.public_id;
   }
   if (deckId === null) {
     // Defensive: every branch above sets deckId on the success path. Narrows the type
@@ -301,6 +311,15 @@ export const POST: APIRoute = async (context) => {
         return replaySession(supabase, won);
       }
     }
+    // Undo a deck THIS request created (impl-review F4). Without it the deck survives while
+    // its session never landed, and "Ponów" — which replays the same name — dies on
+    // deckNameExists with a permanent 409: retry impossible, empty orphan deck left behind.
+    // That is the exact failure deferring createDeck past the LLM call was meant to prevent,
+    // one step further down. Safe and provably empty here: no cards were inserted on this
+    // path and generation_session carries no deck FK. Best-effort, like failGenerationSession.
+    if (createdDeckPublicId) {
+      await deleteDeck(supabase, createdDeckPublicId);
+    }
     return json(500, { error: "Nie udało się zapisać sesji generacji" });
   }
 
@@ -309,6 +328,11 @@ export const POST: APIRoute = async (context) => {
     // The session was already saved as `succeeded`, but no cards landed. Compensate so
     // the audit doesn't over-report saved cards (impl-review F2); best-effort.
     await failGenerationSession(supabase, session.id, "Zapis kart nie powiódł się");
+    // Same undo as the session-insert branch above (impl-review F4): no cards landed, so a
+    // deck this request created is empty and would otherwise 409 every future "Ponów".
+    if (createdDeckPublicId) {
+      await deleteDeck(supabase, createdDeckPublicId);
+    }
     return json(500, { error: "Nie udało się zapisać wygenerowanych fiszek" });
   }
 

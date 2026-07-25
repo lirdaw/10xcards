@@ -15,6 +15,17 @@ interface BatchResponse {
   skipped: string[];
 }
 
+// Mirrors IDS_MAX in api/decks/[publicId]/cards/batch.ts — change one and this has to
+// follow, the same way SIZE_MAX and the session_size CHECK are paired.
+//
+// Chunking is required, not defensive: the endpoint's cap is there to stop a hand-crafted
+// body, but THIS screen can legitimately exceed it. Only the `?generation=` view is bounded
+// by a generation's 15 cards — the deck-list chip and the deck view's permanent link both
+// open the screen unscoped, and the rejected view is an ever-growing archive because reject
+// is not delete. Without this loop "Zaznacz wszystkie" over 101+ cards would post one
+// oversized array and get back a 400 for an action this UI itself offered.
+const BATCH_MAX = 100;
+
 interface Props {
   deckPublicId: string;
   // Server-loaded cards in the view's state (created_at desc), already narrowed to
@@ -87,19 +98,37 @@ export default function CandidateReviewWorkspace({
     setError(null);
     setMessage(null);
     try {
-      const res = await fetch(`/api/decks/${deckPublicId}/cards/batch`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "setState", cardPublicIds, state }),
-      });
-      const data = (await res.json()) as BatchResponse | { error?: string };
-      if (!res.ok) {
-        setError("error" in data ? (data.error ?? null) : "Nie udało się zapisać zmian.");
+      // Sequential, not Promise.all: these are writes to the same table and a failure has
+      // to stop the run rather than race the rest of it.
+      const changedTotal: string[] = [];
+      let failure: string | null = null;
+      for (let i = 0; i < cardPublicIds.length; i += BATCH_MAX) {
+        const res = await fetch(`/api/decks/${deckPublicId}/cards/batch`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "setState",
+            cardPublicIds: cardPublicIds.slice(i, i + BATCH_MAX),
+            state,
+          }),
+        });
+        const data = (await res.json()) as BatchResponse | { error?: string };
+        if (!res.ok) {
+          failure = "error" in data ? (data.error ?? null) : "Nie udało się zapisać zmian.";
+          break;
+        }
+        changedTotal.push(...(data as BatchResponse).changed);
+      }
+      if (failure !== null && changedTotal.length === 0) {
+        setError(failure);
         setStatus("error");
         return;
       }
-      const result = data as BatchResponse;
-      if (result.changed.length > 0) {
+      // A partial failure still reloads. The message is lost either way — the reload
+      // destroys it, which is why the success path renders nothing before navigating —
+      // and a list still showing cards that have already moved is the worse of the two
+      // wrongs. What actually moved is visible in the re-rendered list.
+      if (changedTotal.length > 0) {
         // Reload so the server re-renders the authoritative list: selection can never
         // go stale, and no optimistic state has to be reconciled with a partial result
         // (the response IS structured — it is read right here — but the moved cards

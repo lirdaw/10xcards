@@ -24,9 +24,16 @@
 -- (plan-review F1; test: "still generates when the only prior session for that key is
 -- `failed`" w tests/generation/generate.test.ts).
 --
--- Druga, niezalezna linia obrony zostaje w kodzie: obie sciezki bledu w
--- src/pages/api/generate.ts zostawiaja idempotency_key jako NULL i maja to napisane w
--- komentarzu, bo ten NULL wyglada jak przeoczenie.
+-- UWAGA (impl-review F3): predykat `status = 'succeeded'` jest NOSNY PRODUKCYJNIE, a nie
+-- tylko ustepstwem wobec kryterium testowego — i NIE jest zdublowany przez nic innego.
+-- Obie sciezki bledu w src/pages/api/generate.ts faktycznie zostawiaja idempotency_key jako
+-- NULL, ale to nie sa jedyne drogi do wiersza `failed`: failGenerationSession (kompensata po
+-- nieudanym insercie kart) przestawia JUZ WSTAWIONY wiersz `succeeded` na `failed` i ZOSTAWIA
+-- w nim klucz. Taki wiersz powstaje w normalnym dzialaniu aplikacji.
+--
+-- Czyli: te dwie ochrony NIE sa niezalezne i zadna z nich sama nie wystarcza. Bez predykatu
+-- "Ponow" po nieudanym zapisie kart kolidowaloby z wlasnym insertem -> 500 -> retry martwy.
+-- Nie usuwac predykatu na podstawie tego, ze sciezki bledu pisza NULL.
 --
 -- Indeks jest tez lookupem dedupu (user_id + klucz + status), wiec osobny nie jest potrzebny.
 --

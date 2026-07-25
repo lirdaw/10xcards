@@ -480,6 +480,12 @@ pruning any selected id no longer present in `ids`. `CandidateSelectionBar` is p
 it takes `count`, `total`, `allSelected`, `onToggleAll`, `onClear` and a list of actions
 (`{ label, icon, variant, onRun }`), renders nothing when `count === 0`, and owns no state.
 
+> **Shipped as `{ label, icon, className, onRun }`** (impl-review F8, 2026-07-25). Colour arrives
+> as a Tailwind class string rather than a shadcn `variant`; functionally equivalent. Recorded
+> here because C10X-16 promotes this interface to a shared primitive — take the shipped shape
+> from `CandidateSelectionBar.tsx` as the contract, not this line. If the promotion wants a
+> `variant` prop, that is a deliberate change to make there, with two consumers to validate it.
+
 **Deliberately review-local, and deliberately not vendored**: it lives under
 `src/components/review/` rather than `src/components/selection/`, and the checkbox is a bare
 `<input type="checkbox">` (consistent with the existing bare `<select>`) rather than

@@ -274,6 +274,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      candidate_counts_by_deck: {
+        Args: never
+        Returns: {
+          candidate_count: number
+          public_id: string
+        }[]
+      }
       f_unaccent: { Args: { "": string }; Returns: string }
       search_flashcards_in_deck: {
         Args: { p_deck_id: number; p_query: string }

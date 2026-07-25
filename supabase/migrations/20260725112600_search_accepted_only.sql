@@ -22,6 +22,16 @@
 --
 -- UWAGA: drop kasuje rowniez ACL funkcji, wiec ponowne nadanie grantow na koncu tego
 -- pliku jest OBOWIAZKOWE, nie kosmetyczne.
+--
+-- Rollback: to JEDYNA destrukcyjna migracja w tym slice, wiec jej wycofanie musi byc
+-- zapisane, a nie odtwarzane z pamieci (test-plan.md §6.6: restore sie weryfikuje, nie
+-- zaklada). Kroki:
+--   1. drop function public.search_flashcards_in_deck(bigint, text);
+--   2. odtworz definicje 1:1 z supabase/migrations/20260712162359_deck_keyword_search.sql
+--      — czyli BEZ `and f.state_id = 2` i BEZ `source_id` w `returns table` i w selekcie;
+--   3. powtorz oba granty z konca tego pliku (drop znowu skasuje ACL).
+-- Punkt 2 bierz z tamtego pliku, nie stad: rozne sa dokladnie dwie rzeczy wymienione wyzej,
+-- ale przepisywanie ich z glowy jest tym, przed czym §6.6 ostrzega.
 
 drop function public.search_flashcards_in_deck(bigint, text);
 

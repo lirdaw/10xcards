@@ -107,19 +107,23 @@ export function listFlashcardsByState(supabase: Client, deckId: number, stateId:
 // structurally identical due-count chip already settled that (src/pages/study/index.astro),
 // and a per-deck query is an N+1 that grows with the deck list.
 //
-// The deck's public_id is read through the FK (`deck!inner`) so the grouping key needs no
-// second round-trip. RLS-scoped like everything else: another account's decks contribute
-// nothing, and a deck with no candidates is ABSENT from the map rather than 0 — the deck
-// list renders no chip for it, which is the same branch. Mirrors listDueCounts' shape.
+// Aggregation happens IN SQL, via an RPC — not by counting fetched rows in a loop. That
+// distinction is the whole point (impl-review F2): counting in JS meant one transferred row
+// per pending candidate on every render of /decks, and PostgREST's `max_rows = 1000` would
+// silently truncate the set past a thousand candidates, producing a plausible-looking WRONG
+// number rather than an error. `listDueCounts` (src/lib/study.ts) is the exact precedent —
+// same one-round-trip shape, same SQL-side grouping.
+//
+// RLS-scoped like everything else: another account's decks contribute nothing. A deck with
+// no candidates stays ABSENT from the map rather than coming back as 0 — the deck list
+// renders no chip for it, and `undefined` is what that branch reads. The RPC's join is inner
+// for exactly that reason; a left join would have quietly turned absence into 0.
 export async function countCandidatesByDeck(supabase: Client) {
-  const { data, error } = await supabase
-    .from("flashcard")
-    .select("deck!inner(public_id)")
-    .eq("state_id", STATE_GENERATED);
+  const { data, error } = await supabase.rpc("candidate_counts_by_deck");
   if (error) return { data: null, error };
 
   const counts: Record<string, number> = {};
-  for (const row of data) counts[row.deck.public_id] = (counts[row.deck.public_id] ?? 0) + 1;
+  for (const row of data) counts[row.public_id] = row.candidate_count;
   return { data: counts, error: null };
 }
 
@@ -151,11 +155,21 @@ export function searchFlashcards(supabase: Client, deckId: number, query: string
     .order("created_at", { ascending: false });
 }
 
-// Count of ALL cards in a deck (unfiltered, head-only — no rows fetched). Used only
-// to tell a genuinely empty deck apart from a search that matched nothing, so the
-// empty state can show the right copy ("deck is empty" vs "no matches for <q>").
+// Count of the deck's ACCEPTED cards (head-only — no rows fetched). Used only to tell a
+// genuinely empty deck apart from a search that matched nothing, so the empty state can
+// show the right copy ("deck is empty" vs "no matches for <q>").
+//
+// The accepted-only filter is load-bearing, not tidiness (impl-review F5): this count has to
+// cover the SAME population as the two branches it disambiguates. Both are accepted-only —
+// listFlashcards always was, and search became so with 20260725112600. Counting every state
+// would make a deck holding nothing but candidates/rejects report "has cards", so a fruitless
+// search would claim "no matches" for a deck the user sees as empty.
 export function countFlashcards(supabase: Client, deckId: number) {
-  return supabase.from("flashcard").select("*", { count: "exact", head: true }).eq("deck_id", deckId);
+  return supabase
+    .from("flashcard")
+    .select("*", { count: "exact", head: true })
+    .eq("deck_id", deckId)
+    .eq("state_id", STATE_ACCEPTED);
 }
 
 export function createFlashcard(supabase: Client, deckId: number, front: string, back: string) {

@@ -83,7 +83,11 @@ export const POST: APIRoute = async (context) => {
     return json(404, { error: "Talia nie istnieje" });
   }
 
-  const { cardPublicIds } = parsed.data;
+  // Dedupe before the write. Postgres collapses repeats inside `IN (...)` anyway, so this is
+  // about the RESPONSE: `changed`/`skipped` are derived by filtering this list, so a body
+  // sending the same id twice would get it back twice and inflate any count taken from the
+  // result. It also stops a crafted body spending the whole IDS_MAX budget on one id.
+  const cardPublicIds = [...new Set(parsed.data.cardPublicIds)];
   const { data: changedRows, error } = await setFlashcardState(
     supabase,
     deck.id,

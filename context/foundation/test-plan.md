@@ -429,17 +429,27 @@ Neither production edit was ever committed.
   fresh submit mints a new one. Regenerating the same source text on purpose
   is not a duplicate and must keep working.
 
-  **Two independent guards keep FR-018 alive, and only one of them is testable
-  from the outside.** The partial unique index is scoped to
+  **Two guards keep FR-018 alive, they are NOT independent, and only one of them is
+  testable from the outside.** The partial unique index is scoped to
   `(user_id, idempotency_key) where idempotency_key is not null and status = 'succeeded'`,
-  and both failure-path inserts in `generate.ts` write the key as `null`. Either
-  alone would do; keep both, because a `failed` audit row holding the key would
-  make "Ponów" collide on its own insert and answer `500` — retry permanently
-  dead after the first failure, the exact flow FR-018 exists for (plan-review F1).
-  Note that the plan's own migration contract specified the index **without** the
-  `status` predicate; that made the criterion "a key whose only prior session is
-  `failed` still generates" unsatisfiable, and the predicate was added
+  and both failure-path *inserts* in `generate.ts` write the key as `null`. A `failed`
+  audit row holding the key would make "Ponów" collide on its own insert and answer
+  `500` — retry permanently dead after the first failure, the exact flow FR-018 exists
+  for (plan-review F1). Note that the plan's own migration contract specified the index
+  **without** the `status` predicate; that made the criterion "a key whose only prior
+  session is `failed` still generates" unsatisfiable, and the predicate was added
   deliberately during S-05 Phase 6.
+
+  **This entry used to say "either alone would do". That was wrong** (impl-review F3,
+  2026-07-25). The two failure inserts are not the only route to a `failed` row:
+  `failGenerationSession` — the compensating update after a failed *card* insert — flips
+  an already-inserted `succeeded` row to `failed` and **leaves its key in place**
+  (`src/lib/generations.ts`, which sets only `status`, `saved_count`, `error_message`).
+  A keyed `failed` row is therefore reachable in ordinary operation, and the index
+  predicate is the only thing covering that path. Neither guard is redundant; do not
+  drop the predicate on the strength of the NULL writes. The test that pins this
+  ("still generates when the only prior session for that key is `failed`") seeds the row
+  directly, which is why the production route to it was easy to miss.
 
   **The deliberate-breakage check, and it is a sharp one.** Widen the index by
   dropping `and status = 'succeeded'`, then run
