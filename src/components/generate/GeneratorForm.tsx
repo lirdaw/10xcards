@@ -90,7 +90,7 @@ function CharCount({ value, max }: { value: string; max: number }) {
   );
 }
 
-const fieldClass = "border-white/20 bg-white/5 text-white placeholder:text-blue-100/40 focus-visible:border-white/40";
+const fieldClass = "border-white/20 bg-white/5 text-white placeholder:text-blue-100/40";
 
 // The AI generator island: collect input, POST /api/generate, show progress, a
 // retriable error (FR-018) and a READ-ONLY list of saved candidates, with a link to

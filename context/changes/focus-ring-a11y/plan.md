@@ -608,31 +608,31 @@ a straight revert of the CSS token and the touched class lists.
 
 #### Automated
 
-- [x] 1.1 `npm run lint` passes on the clean baseline
+- [x] 1.1 `npm run lint` passes on the clean baseline — 8d90543
 
 #### Manual
 
-- [x] 1.2 `verification.md` exists with a filled PRZED column for every listed control
-- [x] 1.3 Controls painting no indicator at all are explicitly marked (Phase 3 scope)
-- [x] 1.4 The `PasswordToggle` question is answered by measurement, not inference
+- [x] 1.2 `verification.md` exists with a filled PRZED column for every listed control — 8d90543
+- [x] 1.3 Controls painting no indicator at all are explicitly marked (Phase 3 scope) — 8d90543
+- [x] 1.4 The `PasswordToggle` question is answered by measurement, not inference — 8d90543
 
 ### Phase 2: One token, one system
 
 #### Automated
 
-- [ ] 2.1 Linting passes: `npm run lint`
-- [ ] 2.2 Production build succeeds: `npm run build`
-- [ ] 2.3 `grep -rn "ring-white/80\|focus-visible:border-white/40" src/` returns nothing
-- [ ] 2.4 `grep -rn "ring-ring/50\|outline-ring/50" src/` returns nothing
+- [x] 2.1 Linting passes: `npm run lint`
+- [x] 2.2 Production build succeeds: `npm run build`
+- [x] 2.3 `grep -rn "ring-white/80\|focus-visible:border-white/40" src/` returns nothing
+- [x] 2.4 `grep -rn "ring-ring/50\|outline-ring/50" src/` returns nothing
 
 #### Manual
 
-- [ ] 2.5 Sign-in submit button paints a white ring under `Tab`, spot-measured above 3:1
-- [ ] 2.6 `destructive` button variant is visually unchanged
-- [ ] 2.7 Mouse-clicking a button still paints no ring
-- [ ] 2.8 Mouse-clicking a text input still paints a ring, now clearly visible
-- [ ] 2.9 What the two generator `<select>`s now paint is recorded; nothing → they join Phase 3's scope
-- [ ] 2.10 The base-layer outline is not clipped inside an `overflow-hidden` ancestor
+- [x] 2.5 Sign-in submit button paints a white ring under `Tab`, spot-measured above 3:1
+- [x] 2.6 `destructive` button variant is visually unchanged
+- [x] 2.7 Mouse-clicking a button still paints no ring
+- [x] 2.8 Mouse-clicking a text input still paints a ring, now clearly visible
+- [x] 2.9 What the two generator `<select>`s now paint is recorded; nothing → they join Phase 3's scope
+- [x] 2.10 The base-layer outline is not clipped inside an `overflow-hidden` ancestor
 
 ### Phase 3: Sweep — auth field and controls with no indicator
 

@@ -228,6 +228,49 @@ Counted mechanically from the table above (48 data rows, 7 columns each, no empt
 PRZED cell, no PO cell filled yet), not by eye — the first hand count of this
 line said 44/4 and was wrong, because the auth field is two rows.
 
+## Phase 2 spot-check (2026-07-25) — NOT the Phase 4 re-run
+
+Recorded here because Phase 2's manual item 2.9 requires it. This is a **spot
+check on four surfaces**, not the like-for-like re-run: the PO columns above stay
+empty until Phase 4 walks every row with the same harness. Method identical to
+§Method; measured on `npm run dev` at `http://localhost:4327`, keyboard modality
+established by a real `Tab` per page, `:focus-visible === true` on every row.
+
+| Kontrolka | PRZED | Phase 2 spot-check | Δ |
+| --- | --- | --- | --- |
+| „Sign in" submit — `button.tsx:8` | ring 2.45 | ring `oklch(1 0 0)` **13.85** | ✅ |
+| show/hide password — `PasswordToggle.tsx:13` | outline:auto 2.44 | outline solid 2px **13.76** | ✅ |
+| „Sign up" link | outline:auto 2.45 | **13.92** | ✅ |
+| „Wyloguj" — `AuthenticatedLayout.astro:26` | outline:auto 2.66 | **17.25** | ✅ |
+| „Usuń" (destructive) — `DeckActions.tsx:66` | ring `#fff`@80% 11.77 | ring `oklch(1 0 0)` **18.11** | ✅ |
+| `#deck-search` — `DeckContentToolbar.tsx:39` | ring 2.70 | ring **18.58** | ✅ |
+| `select#gen-deck` — `GeneratorForm.tsx:201` | outline:auto 2.70 + border 3.81 | outline solid 2px **18.95**, border no longer flips | ✅ |
+| `select#gen-language` — `GeneratorForm.tsx:225` | outline:auto 2.70 + border 3.81 | outline solid 2px **18.95**, border no longer flips | ✅ |
+| `#gen-count` — `GeneratorForm.tsx:245` | ring 2.70 + border 3.81 | ring **18.95** | ✅ |
+| Banner link — `Banner.astro:22` | 1.42 (vs `#fee2e2`) | **1.22** | ❌ — Phase 3 §2 |
+
+### The three things this spot-check settles
+
+1. **Finding §3 is resolved in the safe direction.** The two `<select>`s were the
+   only controls passing today by accident (`focus-visible:border-white/40` at
+   3.81). Phase 2 §3 removed that class — confirmed, their border is now identical
+   focused and blurred (`white/20` both ways) — and the explicit base-layer outline
+   replaced it at **18.95**. They do **not** join Phase 3's scope.
+2. **The outline is `solid`, not `auto`.** Every non-primitive now reports
+   `outline-style: solid`, so trap §2's "Chromium ignores the author's
+   outline-width on `auto`" no longer applies — the app controls the painted width.
+   The primitives still report `outline-style: none` and carry their `ring`, which
+   is the cascade-layer split Phase 2 §1 relied on, observed rather than assumed.
+3. **Nothing is clipped (item 2.10), so `outline-offset: 2px` stays.** Swept all 62
+   focusable controls on `/decks` plus the deck page: **0 clipped**. The nearest
+   `overflow: hidden` ancestor leaves a minimum of **20.8px** where the indicator
+   needs 3.2px. A controlled probe pins the mechanic — a control flush to such an
+   ancestor's edge (room 0) *is* clipped, one inset by 4px is not — so the zero here
+   is a measured margin, not an absence of risk.
+
+The banner remains the single failing surface, at the value Phase 3 §2 was written
+for. No control paints nothing.
+
 <!-- Phase 4 fills the PO columns, the verdict below, and the focus-vs-selection
      contract section. Do not restructure the table; the row order is the
      like-for-like key. -->
