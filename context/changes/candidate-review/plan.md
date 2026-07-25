@@ -1063,14 +1063,14 @@ for the first time. Nothing needs migrating for them.
 
 #### Automated
 
-- [x] 6.1 Migration applies cleanly
-- [x] 6.2 Database types regenerated via `npm run db:types`
-- [x] 6.3 Type checking and linting pass
-- [x] 6.4 Full suite green with the inverted assertion
-- [x] 6.5 Dropped-key control still generates twice
-- [x] 6.8 A key whose only prior session is `failed` still generates and succeeds
+- [x] 6.1 Migration applies cleanly — 172c64b
+- [x] 6.2 Database types regenerated via `npm run db:types` — 172c64b
+- [x] 6.3 Type checking and linting pass — 172c64b
+- [x] 6.4 Full suite green with the inverted assertion — 172c64b
+- [x] 6.5 Dropped-key control still generates twice — 172c64b
+- [x] 6.8 A key whose only prior session is `failed` still generates and succeeds — 172c64b
 
 #### Manual
 
-- [x] 6.6 A retried generation produces exactly one set of candidates
-- [x] 6.7 The review screen shows one session's worth of cards, not two
+- [x] 6.6 A retried generation produces exactly one set of candidates — 172c64b
+- [x] 6.7 The review screen shows one session's worth of cards, not two — 172c64b

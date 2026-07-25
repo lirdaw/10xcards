@@ -1,7 +1,7 @@
 ---
 change_id: candidate-review
 title: Review generated candidates — accept, edit, or reject (single and bulk)
-status: implementing
+status: implemented
 created: 2026-07-25
 updated: 2026-07-25
 archived_at: null
