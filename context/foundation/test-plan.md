@@ -818,8 +818,8 @@ contributors should respect these unless the underlying assumption changes.
   wires e2e; that is the point at which this becomes cheap rather than a new
   layer. Until then the guard is the measured acceptance check in the change
   itself (contrast ≥ 3:1, **WCAG 1.4.11 only**), recorded per control before
-  and after in `context/changes/focus-ring-a11y/verification.md`. (Source:
-  C10X-22 / `context/changes/focus-ring-a11y/`.)
+  and after in `context/archive/2026-07-25-focus-ring-a11y/verification.md`.
+  (Source: C10X-22 / `context/archive/2026-07-25-focus-ring-a11y/`.)
   > **Citation corrected (2026-07-25, impl-review F4).** This bullet used to
   > claim "WCAG 1.4.11 / 2.4.11". Only 1.4.11 (Non-text Contrast) is measured.
   > **2.4.11 is Focus Not Obscured, and nothing tests it** — the harness reads a

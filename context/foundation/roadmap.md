@@ -41,18 +41,18 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 
 ## At a glance
 
-| ID   | Change ID               | Outcome (użytkownik może …)                                                                             | Prerequisites    | PRD refs                                         | Status      |
-| ---- | ----------------------- | ------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------ | ----------- |
-| F-01 | per-user-data-isolation | (foundation) twarda izolacja danych per-konto (RLS) + rdzenne tabele                                    | —                | Access Control, Guardrails, NFR: prywatność      | done        |
-| F-02 | srs-library-choice      | (foundation) decyzja: gotowa biblioteka SRS + skala oceny przypomnienia                                 | —                | Non-Goals (gotowy SRS), Open Questions #2        | done        |
-| S-01 | deck-workspace          | tworzyć i nazywać własne talie (prywatna przestrzeń)                                                    | F-01             | US-03, FR-017, FR-001, FR-002                    | done        |
-| F-03 | verification-harness    | (foundation) harness testowy + test-plan.md + testy cross-account (talie i fiszki, odczyt i zapis) w CI | S-01             | Guardrails, NFR: trwałość harmonogramu           | done        |
-| S-02 | manual-card-crud        | ręcznie tworzyć, przeglądać, edytować i usuwać fiszki w talii                                           | S-01             | US-03, FR-007, FR-008, FR-009, FR-010            | done        |
-| S-03 | srs-study-session       | uczyć się talii w sesji SRS z oceną przypomnienia (gwiazda)                                             | F-01, F-02, S-02 | US-02, FR-011, FR-012                            | done        |
-| S-04 | ai-candidate-generation | wkleić tekst i wygenerować kandydatów AI z postępem i retry                                             | F-01, S-01       | US-01, FR-003, FR-004, FR-006, FR-018            | done        |
-| S-05 | candidate-review        | przeglądać kandydatów i akceptować/edytować/odrzucać (bulk)                                             | S-04             | US-01, FR-005, FR-006                            | done        |
-| S-06 | deck-keyword-search     | wyszukiwać fiszki w talii po słowie kluczowym                                                           | S-02             | FR-015                                           | done        |
-| H-01 | focus-ring-a11y         | widzieć, gdzie jest focus klawiatury na każdym polu i przycisku (kontrast ≥ 3:1, oba motywy)            | MVP (S-01…S-06)  | NFR: baseline a11y (klawiatura / czytnik ekranu) | done        |
+| ID   | Change ID               | Outcome (użytkownik może …)                                                                             | Prerequisites    | PRD refs                                         | Status |
+| ---- | ----------------------- | ------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------ | ------ |
+| F-01 | per-user-data-isolation | (foundation) twarda izolacja danych per-konto (RLS) + rdzenne tabele                                    | —                | Access Control, Guardrails, NFR: prywatność      | done   |
+| F-02 | srs-library-choice      | (foundation) decyzja: gotowa biblioteka SRS + skala oceny przypomnienia                                 | —                | Non-Goals (gotowy SRS), Open Questions #2        | done   |
+| S-01 | deck-workspace          | tworzyć i nazywać własne talie (prywatna przestrzeń)                                                    | F-01             | US-03, FR-017, FR-001, FR-002                    | done   |
+| F-03 | verification-harness    | (foundation) harness testowy + test-plan.md + testy cross-account (talie i fiszki, odczyt i zapis) w CI | S-01             | Guardrails, NFR: trwałość harmonogramu           | done   |
+| S-02 | manual-card-crud        | ręcznie tworzyć, przeglądać, edytować i usuwać fiszki w talii                                           | S-01             | US-03, FR-007, FR-008, FR-009, FR-010            | done   |
+| S-03 | srs-study-session       | uczyć się talii w sesji SRS z oceną przypomnienia (gwiazda)                                             | F-01, F-02, S-02 | US-02, FR-011, FR-012                            | done   |
+| S-04 | ai-candidate-generation | wkleić tekst i wygenerować kandydatów AI z postępem i retry                                             | F-01, S-01       | US-01, FR-003, FR-004, FR-006, FR-018            | done   |
+| S-05 | candidate-review        | przeglądać kandydatów i akceptować/edytować/odrzucać (bulk)                                             | S-04             | US-01, FR-005, FR-006                            | done   |
+| S-06 | deck-keyword-search     | wyszukiwać fiszki w talii po słowie kluczowym                                                           | S-02             | FR-015                                           | done   |
+| H-01 | focus-ring-a11y         | widzieć, gdzie jest focus klawiatury na każdym polu i przycisku (kontrast ≥ 3:1, oba motywy)            | MVP (S-01…S-06)  | NFR: baseline a11y (klawiatura / czytnik ekranu) | done   |
 
 Prefiks **`H-` (hardening)** oznacza pracę PO zamknięciu zakresu MVP: `F-01…F-03` i
 `S-01…S-06` są `done` i ta granica zostaje nienaruszona. Elementy `H-` nie są vertical
@@ -214,7 +214,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **Parallel with:** — (praca po zamknięciu MVP, poza grafem zależności)
 - **Blockers:** —
 - **Unknowns:** —
-- **Risk:** Defekt globalny, nie per-widok. Przyczyna ZMIERZONA (nie ta z ticketu): `ring-*` mapuje się na realny `box-shadow` poprawnie — problem jest w wartości tokena `--ring`, który zasila naraz `ring-*` na prymitywach ORAZ `outline-color` na `*`. Aplikacja renderuje się stale ciemno (`bg-cosmic`), a wariant `dark` nigdy się nie aktywuje, więc obowiązują tokeny motywu JASNEGO: 43 z 48 kontrolek mierzyło 2,3–2,7:1 wobec wymaganych 3:1. Druga część defektu to trzy lokalne łatki narosłe wokół zbyt słabej wartości domyślnej. Fix idzie w jedno miejsce — nie łatać per widok. Poza zakresem: model SELEKCJI elementów (widoczny obrys zaznaczonego wiersza), który należy do C10X-16. Brak automatycznej ochrony przed regresją: projekt nie ma warstwy e2e ani visual-diff — patrz `test-plan.md` §7; dowodem jest pomiar w `context/changes/focus-ring-a11y/verification.md`.
+- **Risk:** Defekt globalny, nie per-widok. Przyczyna ZMIERZONA (nie ta z ticketu): `ring-*` mapuje się na realny `box-shadow` poprawnie — problem jest w wartości tokena `--ring`, który zasila naraz `ring-*` na prymitywach ORAZ `outline-color` na `*`. Aplikacja renderuje się stale ciemno (`bg-cosmic`), a wariant `dark` nigdy się nie aktywuje, więc obowiązują tokeny motywu JASNEGO: 43 z 48 kontrolek mierzyło 2,3–2,7:1 wobec wymaganych 3:1. Druga część defektu to trzy lokalne łatki narosłe wokół zbyt słabej wartości domyślnej. Fix idzie w jedno miejsce — nie łatać per widok. Poza zakresem: model SELEKCJI elementów (widoczny obrys zaznaczonego wiersza), który należy do C10X-16. Brak automatycznej ochrony przed regresją: projekt nie ma warstwy e2e ani visual-diff — patrz `test-plan.md` §7; dowodem jest pomiar w `context/archive/2026-07-25-focus-ring-a11y/verification.md`.
 - **Status:** done
 
 ## Backlog Handoff
