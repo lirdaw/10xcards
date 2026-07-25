@@ -29,7 +29,7 @@
 - Auth API routes read `formData`, then `redirect` with `?error=<message>` on failure instead of returning JSON — follow @src/pages/api/auth/signin.ts.
 - Add protected paths to the `PROTECTED_ROUTES` array in @src/middleware.ts.
 - Merge Tailwind classes with the `cn()` helper from @src/lib/utils.ts (clsx + tailwind-merge); do not concatenate class strings by hand.
-- The focus indicator comes from the shared `--ring` token in @src/styles/global.css only — it feeds both the primitives' `ring-*` and the app-wide `outline-color`. Never add a per-component `focus-visible:ring-*` override, and never suppress the outline (`outline-none`) without replacing it on the same element.
+- The neutral focus indicator comes from the shared `--ring` token in @src/styles/global.css only — it feeds both the primitives' `ring-*` and the app-wide `outline-color`. Never add a per-component `focus-visible:ring-*` override for that neutral colour, and never suppress the outline (`outline-none`) without replacing it on the same element. The error state is the one documented exception: it rings in `--destructive` (`aria-invalid:ring-destructive` on the primitives, `focus-visible:ring-red-400` in @src/components/auth/FormField.tsx) — same value, do not fold it into `--ring`. Both tokens are white/red at FULL alpha because the app renders permanently dark while these are the light-theme tokens; an alpha modifier on either silently drops it below WCAG 1.4.11's 3:1.
 - Use `.astro` for static content and layout; add a React island only when interactivity is needed. No Next.js directives (`"use client"` etc.) — they do nothing here.
 - UI copy is Polish; flashcard and source-text language follows the user's material.
 

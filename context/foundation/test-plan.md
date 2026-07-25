@@ -817,9 +817,24 @@ contributors should respect these unless the underlying assumption changes.
   §4 and §5 deliberately do not have. Re-evaluate the moment any §3 phase
   wires e2e; that is the point at which this becomes cheap rather than a new
   layer. Until then the guard is the measured acceptance check in the change
-  itself (contrast ≥ 3:1, WCAG 1.4.11 / 2.4.11), recorded per control before
+  itself (contrast ≥ 3:1, **WCAG 1.4.11 only**), recorded per control before
   and after in `context/changes/focus-ring-a11y/verification.md`. (Source:
   C10X-22 / `context/changes/focus-ring-a11y/`.)
+  > **Citation corrected (2026-07-25, impl-review F4).** This bullet used to
+  > claim "WCAG 1.4.11 / 2.4.11". Only 1.4.11 (Non-text Contrast) is measured.
+  > **2.4.11 is Focus Not Obscured, and nothing tests it** — the harness reads a
+  > computed style on a control focused in place, so an indicator that paints
+  > correctly and is then scrolled underneath something reads as a pass. That is
+  > not hypothetical here: the deck page stacks two opaque `sticky` bars
+  > (`pages/decks/[publicId]/index.astro` `sticky top-0 h-16`,
+  > `components/flashcards/FlashcardWorkspace.tsx` `sticky top-16`) over the
+  > scroll container in `layouts/AuthenticatedLayout.astro`, and there is no
+  > `scroll-margin-*` or `scroll-padding-*` anywhere in `src/`, so Tab-driven
+  > scroll-into-view aligns a control with the top of the scrollport — i.e.
+  > under both bars. Treat Focus Not Obscured as untested negative space, not as
+  > covered by C10X-22. Fixing it is a one-property change
+  > (`scroll-padding-top`) but needs its own browser verification; deliberately
+  > left out of C10X-22 rather than claimed without evidence.
 - **Marketing/landing pages and static copy** — snapshot tests break
   constantly and catch nothing. Re-evaluate if the landing gains a real
   flow (e.g. the inline sign-in form parked as C10X-20). (Source: Phase 2

@@ -1,4 +1,5 @@
 <!-- PLAN-REVIEW-REPORT -->
+
 # Plan Review: Global Focus Ring (C10X-22)
 
 - **Plan**: `context/changes/focus-ring-a11y/plan.md`
@@ -9,13 +10,13 @@
 
 ## Verdicts
 
-| Dimension | Verdict (as reviewed) | After fixes |
-|-----------|-----------------------|-------------|
-| End-State Alignment | WARNING | PASS |
-| Lean Execution | PASS | PASS |
-| Architectural Fitness | PASS | PASS |
-| Blind Spots | FAIL | PASS |
-| Plan Completeness | WARNING | PASS |
+| Dimension             | Verdict (as reviewed) | After fixes |
+| --------------------- | --------------------- | ----------- |
+| End-State Alignment   | WARNING               | PASS        |
+| Lean Execution        | PASS                  | PASS        |
+| Architectural Fitness | PASS                  | PASS        |
+| Blind Spots           | FAIL                  | PASS        |
+| Plan Completeness     | WARNING               | PASS        |
 
 ## Grounding
 

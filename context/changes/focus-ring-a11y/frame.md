@@ -1,6 +1,6 @@
 # Frame Brief: Global focus ring on shared controls
 
-> Framing step before /10x-plan. This document captures what is *actually*
+> Framing step before /10x-plan. This document captures what is _actually_
 > at issue, separated from what was initially assumed.
 >
 > Status: reframed **and verified in-browser** (2026-07-25). Every contrast number
@@ -41,7 +41,7 @@ The observation could originate at any of these dimensions:
 4. **Dead `dark` variant** — the app renders dark (`bg-cosmic`) while the `dark`
    variant never activates, so every token resolves to its **light**-theme value.
 5. **Hover affordance on buttons** — a separate expectation about the cursor state.
-6. **Divergent focus systems per surface** — *added during verification*: not every
+6. **Divergent focus systems per surface** — _added during verification_: not every
    control routes through the shared primitives at all.
 
 ## Hypothesis Investigation
@@ -50,14 +50,14 @@ Investigated inline (no sub-agents — per the operator's standing rule; the sur
 a handful of files), then verified in a running browser. Evidence is from this repo
 and this app, with file:line.
 
-| Hypothesis | Evidence | Verdict |
-| --- | --- | --- |
-| 1. Ring utility does not compile to a box-shadow (initial framing) | Built CSS `dist/client/_astro/Layout._MFHaibd.css` carries `.focus-visible\:ring-\[3px\]:focus-visible{--tw-ring-shadow:… 0 0 0 calc(3px + …) var(--tw-ring-color…);box-shadow:…}` and `.focus-visible\:ring-ring\/50:focus-visible{--tw-ring-color:color-mix(in oklab, var(--ring) 50%, transparent)}`; bundle (2026-07-25 14:34) is newer than all sources (≤ 2026-07-11). **In-browser**: the Sign-in submit button under real Tab focus paints `oklab(0.708 0 0 / 0.5) 0px 0px 0px 3px`. | **NONE** (refuted three ways) |
-| 2. `:focus-visible` semantics explain what was seen | `input.tsx:12`, `button.tsx:8`, `textarea.tsx:11` gate on `focus-visible:`. **Measured in-browser**: `<button>` clicked with the mouse → `:focus` true, `:focus-visible` **false**, `box-shadow: none`. Text `<input>` clicked with the mouse → `:focus-visible` **true**, ring painted. | **STRONG** |
-| 3. Ring colour contrast is below the a11y bar | Token `:root --ring: oklch(0.708 0 0)` (`global.css:25`) at 50% alpha. **Measured**: ring colour `oklab(0.708 0 0 / 0.5)` over the app's real backdrop `rgb(39,44,62)` (card over `bg-cosmic`, read from the live DOM) = **2.43:1** — below the 3:1 of WCAG 1.4.11 and of the ticket's own criterion. At full alpha the same hue would give ~7:1, so the `/50` is what destroys it. | **STRONG** |
-| 4. `dark` variant is dead app-wide | `@custom-variant dark (&:is(.dark *))` (`global.css:4`) needs a `.dark` ancestor; **live DOM**: `documentElement.className === ""`, `body.className === ""`; grep over `src/` finds no `dark` class. So `.dark`'s `--ring: oklch(0.556 0 0)` (`global.css:59`) never applies and `dark:` utilities (`input.tsx:13`, `button.tsx:16`) are inert. Corroborating oddity: `body` is painted **white** (`--background: oklch(1 0 0)`, `global.css:8,221-223`) and is only hidden by inner `bg-cosmic` wrappers. Trap: enabling `.dark` moves the ring to **1.87:1** — worse. | **STRONG** (systemic cause + trap for the fix) |
-| 5. Hover affordance | Buttons carry colour-shift hovers only (`button.tsx:12,17,18`). Real as a UX wish, not the focus indicator. | **WEAK** (separate concern) |
-| 6. Divergent focus systems | **Measured**: the auth fields are NOT the shared `Input` — `FormField.tsx:42-54` renders a raw `<input>` with `focus:outline-none focus:ring-2` + `focus:ring-purple-400`, painting `oklch(0.714 0.203 305.504)` 2px = **4.97:1 (passes)**, on plain `:focus` so it also shows on mouse click. Meanwhile the show/hide toggle (`PasswordToggle`, first `<button>` in that field) paints **nothing at all** under genuine keyboard focus (`:focus-visible` true, `box-shadow: none`). | **STRONG** (found only by verifying) |
+| Hypothesis                                                         | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Verdict                                        |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| 1. Ring utility does not compile to a box-shadow (initial framing) | Built CSS `dist/client/_astro/Layout._MFHaibd.css` carries `.focus-visible\:ring-\[3px\]:focus-visible{--tw-ring-shadow:… 0 0 0 calc(3px + …) var(--tw-ring-color…);box-shadow:…}` and `.focus-visible\:ring-ring\/50:focus-visible{--tw-ring-color:color-mix(in oklab, var(--ring) 50%, transparent)}`; bundle (2026-07-25 14:34) is newer than all sources (≤ 2026-07-11). **In-browser**: the Sign-in submit button under real Tab focus paints `oklab(0.708 0 0 / 0.5) 0px 0px 0px 3px`.                                                                            | **NONE** (refuted three ways)                  |
+| 2. `:focus-visible` semantics explain what was seen                | `input.tsx:12`, `button.tsx:8`, `textarea.tsx:11` gate on `focus-visible:`. **Measured in-browser**: `<button>` clicked with the mouse → `:focus` true, `:focus-visible` **false**, `box-shadow: none`. Text `<input>` clicked with the mouse → `:focus-visible` **true**, ring painted.                                                                                                                                                                                                                                                                                | **STRONG**                                     |
+| 3. Ring colour contrast is below the a11y bar                      | Token `:root --ring: oklch(0.708 0 0)` (`global.css:25`) at 50% alpha. **Measured**: ring colour `oklab(0.708 0 0 / 0.5)` over the app's real backdrop `rgb(39,44,62)` (card over `bg-cosmic`, read from the live DOM) = **2.43:1** — below the 3:1 of WCAG 1.4.11 and of the ticket's own criterion. At full alpha the same hue would give ~7:1, so the `/50` is what destroys it.                                                                                                                                                                                     | **STRONG**                                     |
+| 4. `dark` variant is dead app-wide                                 | `@custom-variant dark (&:is(.dark *))` (`global.css:4`) needs a `.dark` ancestor; **live DOM**: `documentElement.className === ""`, `body.className === ""`; grep over `src/` finds no `dark` class. So `.dark`'s `--ring: oklch(0.556 0 0)` (`global.css:59`) never applies and `dark:` utilities (`input.tsx:13`, `button.tsx:16`) are inert. Corroborating oddity: `body` is painted **white** (`--background: oklch(1 0 0)`, `global.css:8,221-223`) and is only hidden by inner `bg-cosmic` wrappers. Trap: enabling `.dark` moves the ring to **1.87:1** — worse. | **STRONG** (systemic cause + trap for the fix) |
+| 5. Hover affordance                                                | Buttons carry colour-shift hovers only (`button.tsx:12,17,18`). Real as a UX wish, not the focus indicator.                                                                                                                                                                                                                                                                                                                                                                                                                                                             | **WEAK** (separate concern)                    |
+| 6. Divergent focus systems                                         | **Measured**: the auth fields are NOT the shared `Input` — `FormField.tsx:42-54` renders a raw `<input>` with `focus:outline-none focus:ring-2` + `focus:ring-purple-400`, painting `oklch(0.714 0.203 305.504)` 2px = **4.97:1 (passes)**, on plain `:focus` so it also shows on mouse click. Meanwhile the show/hide toggle (`PasswordToggle`, first `<button>` in that field) paints **nothing at all** under genuine keyboard focus (`:focus-visible` true, `box-shadow: none`).                                                                                    | **STRONG** (found only by verifying)           |
 
 ## Verification (in-browser, measured 2026-07-25)
 
@@ -65,18 +65,18 @@ Run against `npm run dev` on `/auth/signin` (public, same `bg-cosmic` surface an
 same shared primitives). Colours read from the live page; backdrop composited from the
 live DOM; contrast per WCAG relative luminance.
 
-| Control | Focus indicator actually painted | Contrast vs real backdrop | 3:1 |
-| --- | --- | --- | --- |
-| Submit button — shared `Button` | `oklab(0.708 0 0 / 0.5)`, 3px | **2.43:1** | ❌ |
-| Auth email/password field — raw `<input>` (`FormField.tsx`) | `oklch(0.714 0.203 305.504)`, 2px | **4.97:1** | ✅ |
-| Show/hide toggle inside the field | **none** | n/a | ❌ (no indicator at all) |
+| Control                                                     | Focus indicator actually painted  | Contrast vs real backdrop | 3:1                      |
+| ----------------------------------------------------------- | --------------------------------- | ------------------------- | ------------------------ |
+| Submit button — shared `Button`                             | `oklab(0.708 0 0 / 0.5)`, 3px     | **2.43:1**                | ❌                       |
+| Auth email/password field — raw `<input>` (`FormField.tsx`) | `oklch(0.714 0.203 305.504)`, 2px | **4.97:1**                | ✅                       |
+| Show/hide toggle inside the field                           | **none**                          | n/a                       | ❌ (no indicator at all) |
 
 Interaction semantics, measured rather than assumed:
 
 - `<button>` + mouse click → `:focus-visible` **false**, nothing painted. This is the
   specified behaviour and is exactly what the reporter saw.
 - text `<input>` + mouse click → `:focus-visible` **true**, ring painted. So the
-  "Szukaj w fiszkach" field (`DeckContentToolbar.tsx:38`, shared `Input`) *does* get a
+  "Szukaj w fiszkach" field (`DeckContentToolbar.tsx:38`, shared `Input`) _does_ get a
   ring when clicked — a 2.43:1 grey one, i.e. present but too weak to notice. **The
   sixth-dimension risk this brief flagged before verification is closed: there is no
   hidden defect there, only the contrast one.**
@@ -86,7 +86,7 @@ Interaction semantics, measured rather than assumed:
 - **"Przy tab obwódka jest"** — a ring that appears on keyboard focus cannot be a ring
   that fails to compile. This alone refuted the initial framing.
 - **The observation was made on hover / mouse click** — the one mode in which a button
-  is *supposed* to show no ring.
+  is _supposed_ to show no ring.
 - **All four surfaces reported equally affected** — consistent with a token-level
   property, not a per-view defect.
 - **Two components already patched around the weak default**: `button.tsx:14`

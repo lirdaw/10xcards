@@ -35,19 +35,19 @@ Before/after numbers, measured in the running app, live in `verification.md`.
 
 ## Key Decisions Made
 
-| Decision | Choice | Why (1 sentence) | Source |
-| --- | --- | --- | --- |
-| Root cause | Contrast + consistency, not ring config | Refuted three ways: compiled bundle, the reporter's own Tab observation, live-page paint | Frame |
-| `.dark` is not the remedy | Excluded | Enabling it measures 1.87:1 — worse than today | Frame |
-| Hover affordance | Out of scope | A UX wish, not an a11y defect; its own ticket | Frame |
-| Mechanism | Retune the `--ring` token | One token already feeds both mechanisms, so it fixes primitives *and* every raw control without editing their files | Plan |
-| Ring colour | White, full alpha | Only colour with margin on **all** cosmic surfaces (~13:1); already proven locally by `ring-white/80` | Plan |
-| Auth field | Keeps its look; shared trigger + token | Kills the divergence that matters (trigger, contrast) without redesigning auth screens | Plan |
-| Sweep scope | Primitives + controls with no indicator | Closes the WCAG 2.4.7 half; links inherit from the token for free | Plan |
-| Proof | Browser measurement + artifact | Measures what is painted, so a control with `outline-none` cannot pass silently | Plan |
-| Dead `.dark` block | Ring token aligned, block kept | One line disarms the regression trap; removing the dead theme is a separate ticket | Plan |
-| Durability | `AGENTS.md` + `lessons.md` entry | The three folded patches exist precisely because no one wrote the rule down | Plan |
-| Focus vs selection | Contract recorded, nothing implemented | C10X-16 owns selection; the collision risk is real and gets a decision, not code | Plan |
+| Decision                  | Choice                                  | Why (1 sentence)                                                                                                    | Source |
+| ------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------ |
+| Root cause                | Contrast + consistency, not ring config | Refuted three ways: compiled bundle, the reporter's own Tab observation, live-page paint                            | Frame  |
+| `.dark` is not the remedy | Excluded                                | Enabling it measures 1.87:1 — worse than today                                                                      | Frame  |
+| Hover affordance          | Out of scope                            | A UX wish, not an a11y defect; its own ticket                                                                       | Frame  |
+| Mechanism                 | Retune the `--ring` token               | One token already feeds both mechanisms, so it fixes primitives _and_ every raw control without editing their files | Plan   |
+| Ring colour               | White, full alpha                       | Only colour with margin on **all** cosmic surfaces (~13:1); already proven locally by `ring-white/80`               | Plan   |
+| Auth field                | Keeps its look; shared trigger + token  | Kills the divergence that matters (trigger, contrast) without redesigning auth screens                              | Plan   |
+| Sweep scope               | Primitives + controls with no indicator | Closes the WCAG 2.4.7 half; links inherit from the token for free                                                   | Plan   |
+| Proof                     | Browser measurement + artifact          | Measures what is painted, so a control with `outline-none` cannot pass silently                                     | Plan   |
+| Dead `.dark` block        | Ring token aligned, block kept          | One line disarms the regression trap; removing the dead theme is a separate ticket                                  | Plan   |
+| Durability                | `AGENTS.md` + `lessons.md` entry        | The three folded patches exist precisely because no one wrote the rule down                                         | Plan   |
+| Focus vs selection        | Contract recorded, nothing implemented  | C10X-16 owns selection; the collision risk is real and gets a decision, not code                                    | Plan   |
 
 ## Scope
 
@@ -79,12 +79,12 @@ where a white outline would be invisible.
 
 ## Phases at a Glance
 
-| Phase | What it delivers | Key risk |
-| --- | --- | --- |
-| 1. Baseline measurement | `verification.md` PRZED column + the binding "no indicator" list | Three of four surfaces need a signed-in account |
+| Phase                    | What it delivers                                                  | Key risk                                                                             |
+| ------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 1. Baseline measurement  | `verification.md` PRZED column + the binding "no indicator" list  | Three of four surfaces need a signed-in account                                      |
 | 2. One token, one system | White token in all theme blocks, full alpha, three patches folded | Removing the field patch leaves the two `<select>`s with no focus style of their own |
-| 3. Sweep | Auth trigger, banner exception, controls that paint nothing | Editing components from four different slices invites out-of-scope polish |
-| 4. Proof and durability | PO measurements, focus↔selection contract, AGENTS + lessons | — |
+| 3. Sweep                 | Auth trigger, banner exception, controls that paint nothing       | Editing components from four different slices invites out-of-scope polish            |
+| 4. Proof and durability  | PO measurements, focus↔selection contract, AGENTS + lessons       | —                                                                                    |
 
 **Prerequisites:** running dev server, a signed-in test account, local Supabase
 stack for Phase 3's regression run.

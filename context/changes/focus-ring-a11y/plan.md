@@ -28,12 +28,12 @@ app-wide:
 
 1. **The shared primitives.** `button.tsx:8`, `input.tsx:12` and `textarea.tsx:11`
    all carry stock shadcn `focus-visible:border-ring focus-visible:ring-ring/50
-   focus-visible:ring-[3px]`, and all three also set `outline-none`, so the ring
-   is the *only* indicator they have. Measured in-browser: `oklab(0.708 0 0 / 0.5)`
+focus-visible:ring-[3px]`, and all three also set `outline-none`, so the ring
+   is the _only_ indicator they have. Measured in-browser: `oklab(0.708 0 0 / 0.5)`
    over the app's real backdrop `rgb(39,44,62)` = **2.43:1**.
 2. **Everything else.** `global.css:219` applies `outline-ring/50` to `*`, so the
    same weak token colours the browser's own focus outline on every control that
-   is *not* a shared primitive: both `<select>`s (`GeneratorForm.tsx:201,225`),
+   is _not_ a shared primitive: both `<select>`s (`GeneratorForm.tsx:201,225`),
    the selection checkboxes (`CandidateItem.tsx:214`,
    `CandidateSelectionBar.tsx:49`), the sidebar toggle (`Sidebar.astro:46`), the
    sign-out button (`Topbar.astro:17`, `AuthenticatedLayout.astro:26`) and every
@@ -114,7 +114,7 @@ Concretely, when this plan is done:
   block gets its ring token aligned (one line) so it cannot become a trap; the
   wider cleanup of a dead theme system is a separate ticket.
 - **Not touching the element-selection model.** `CandidateItem.tsx:204`'s
-  `ring-1 ring-purple-400/40` marks *selection*, belongs to C10X-16, and stays.
+  `ring-1 ring-purple-400/40` marks _selection_, belongs to C10X-16, and stays.
   Phase 4 records a contract for how the two must differ; it implements nothing.
 - **Not redesigning the auth screens.** `FormField` keeps its shape, background,
   radius and error colour. Only the trigger and the ring token change.
@@ -126,7 +126,7 @@ Concretely, when this plan is done:
   guard the wrong half of the risk.
 - **Not styling text links individually.** They inherit the token through
   `global.css:219`; the one exception is the banner, handled locally.
-- **Not flipping `roadmap.md`'s Status.** This *is* a roadmap item — H-01
+- **Not flipping `roadmap.md`'s Status.** This _is_ a roadmap item — H-01
   (`roadmap.md:55,211`), currently `in-progress` — so the earlier framing of it as
   "a Jira bug, not a roadmap slice" was wrong. What stays out is only the Status
   flip and the `## Done` entry, which `lessons.md:170` reserves for `/10x-archive`.
@@ -206,7 +206,7 @@ frame brief could reach. Each control is focused by keyboard `Tab` (and, for tex
 inputs, also by mouse click, since the two differ by specification) and its
 computed `boxShadow`, `outlineStyle`, `outlineWidth`, `outlineColor`, `borderColor`
 and `borderWidth` are read from the live DOM, with the backdrop composited from
-ancestor backgrounds. The border is in that list because on four controls it *is*
+ancestor backgrounds. The border is in that list because on four controls it _is_
 today's indicator — `focus-visible:border-ring` on all three primitives, and
 `focus-visible:border-white/40` (`GeneratorForm.tsx:93`) as the only focus style
 the two `<select>`s have. Omit it and the PRZED column understates what a user
@@ -370,7 +370,7 @@ barely changes, because browsers match `:focus-visible` on click for text fields
 and `focus:ring-2` → `focus-visible:ring-2`. At `:53`, `focus:ring-purple-400` →
 `focus-visible:ring-ring` (the shared token); the error branch keeps a semantic red
 but moves to the same trigger: `focus:ring-red-400` → `focus-visible:ring-red-400`.
-Ring width stays 2px here — the shared *colour* and *trigger* are what unify the
+Ring width stays 2px here — the shared _colour_ and _trigger_ are what unify the
 system; matching the primitives' 3px would change the auth layout, which is out of
 scope.
 
@@ -474,7 +474,7 @@ naming any row that still fails and why. A control that changed category (e.g. f
 **File**: `context/changes/focus-ring-a11y/verification.md` (short section) —
 implement nothing
 
-**Intent**: The review card already carries a purple `ring-1` for *selection*
+**Intent**: The review card already carries a purple `ring-1` for _selection_
 (`CandidateItem.tsx:204`) and now also receives a white focus ring. Record how the
 two must stay distinguishable so C10X-16 inherits a decision instead of a collision.
 
@@ -527,9 +527,16 @@ are `/10x-archive`'s alone (`lessons.md:170`).
 
 - Linting passes: `npm run lint`
 - Production build succeeds: `npm run build`
-- Formatting is clean: `npx prettier --check .` — **not** `npm run format`, which is
-  `prettier --write .` (it always exits 0 and would rewrite files this change never
-  touched)
+- Formatting is clean on this change's own files:
+  `npx prettier --check $(git diff --name-only main...HEAD)` — **not** `npm run format`,
+  which is `prettier --write .` (it always exits 0 and would rewrite files this change
+  never touched). Scoped to the diff, and **not** a bare `npx prettier --check .`:
+  corrected by `/10x-impl-review` (finding F3), which found the repo-wide form
+  unsatisfiable — 53 files unrelated to this branch (`context/foundation/prd.md`,
+  `idea-notes.md`, `wrangler.jsonc`, `src/db/database.types.ts`, all of
+  `context/archive/`) already fail it on `main`, so the gate could never have gone green
+  and reformatting them would be exactly the out-of-scope rewrite this bullet warns
+  against.
 
 #### Manual Verification:
 
@@ -658,7 +665,7 @@ a straight revert of the CSS token and the touched class lists.
 
 - [x] 4.1 Linting passes: `npm run lint` — 5031d8e
 - [x] 4.2 Production build succeeds: `npm run build` — 5031d8e
-- [x] 4.3 Formatting is clean: `npx prettier --check .` — 5031d8e
+- [x] 4.3 Formatting is clean on the change's own files: `npx prettier --check $(git diff --name-only main...HEAD)` — 5031d8e, re-scoped and re-run in impl-review (F3)
 
 #### Manual
 

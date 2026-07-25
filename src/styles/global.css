@@ -5,21 +5,42 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* Surface tokens aligned to the `.dark` block — third instance of the same trap
+     (see `--ring` and `--destructive` below). The app renders permanently dark
+     (`bg-cosmic`) and the `dark` variant never activates, so a light value here is
+     a live default nobody sees until it is used. `--background` reaches `body` (which
+     every page covers with `bg-cosmic`) and `button.tsx`'s `outline` variant, whose
+     14 call sites all override it with `bg-white/10` — so this changes nothing today
+     and stops the first caller that forgets the override from getting a white button
+     with a white focus ring flush against it (WCAG 1.4.11 wants contrast against the
+     component too). Each surface is flipped WITH its foreground; flipping one alone
+     is how you get dark-on-dark. Added by impl-review F7 (C10X-22). */
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
+  /* Same alignment, same reason. Consumer: `button.tsx`'s `secondary` variant, which
+     has ZERO call sites today — so this is purely closing the trap before it is used. */
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
+  /* Error indicator colour — feeds the `aria-invalid:ring-*` / `aria-invalid:border-*`
+     on the shared primitives, and nothing else (the `destructive` BUTTON variant is
+     hand-rolled from `red-*` and does not read this token). Same trap as `--ring`
+     directly below: the stock light-theme `oklch(0.577 0.245 27.325)` (#e7000b) is
+     too dark to clear 3:1 on this permanently dark app — even at full alpha it tops
+     out at 2.67-2.91:1. This is the `.dark` block's value (#ff6467, identical to
+     Tailwind's `red-400`), which measures 4.35-6.26:1 and is already the colour
+     `FormField.tsx` uses for its error ring. Kept in step with `.dark` on purpose.
+     See context/changes/focus-ring-a11y/verification.md. */
+  --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   /* Focus indicator colour — the single source for BOTH focus mechanisms in this

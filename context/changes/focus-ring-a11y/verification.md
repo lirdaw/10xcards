@@ -442,6 +442,21 @@ focused "Dobre" rating button shows the white ring painted on all four sides.
 Every row clears the bar by at least 2.7× the required ratio; the margin is wide
 enough that the sub-0.1 measurement spread noted above cannot move a verdict.
 
+**What this verdict is a verdict ABOUT — added by impl-review (F1, F4), 2026-07-25.**
+Two boundaries, because "48 of 48 pass" reads wider than the evidence:
+
+1. **WCAG 1.4.11 (Non-text Contrast) only — NOT 2.4.11.** 2.4.11 is Focus Not
+   Obscured, and this harness structurally cannot see it: it reads a computed style
+   on a control focused **in place**, so an indicator that paints correctly and is
+   then scrolled underneath a `sticky` bar still reads as a pass. The deck page
+   stacks two opaque sticky bars over the scroll container and `src/` carries no
+   `scroll-margin-*` / `scroll-padding-*`, so this is a live gap, not a theoretical
+   one. Recorded as untested negative space in `test-plan.md §7`; deliberately not
+   fixed here rather than claimed without measurement.
+2. **Resting state only.** Every row focuses a control as it sits. No row covers a
+   field carrying `aria-invalid="true"`, and that state did **not** get the white
+   token — see §"The `aria-invalid` state" below, found in impl-review and fixed.
+
 ### Controls that changed category
 
 No control moved out of "paints nothing" — **that set was empty before the change
@@ -509,3 +524,158 @@ by measurement, not covered by a test.
 selection onto the focused control itself, taking selection to full alpha, or giving
 selection an outer ring at the same offset the focus outline uses. Any of those
 collapses one of the five axes and puts two indicators in the same visual slot.
+
+## The `aria-invalid` state — found in impl-review, fixed after the Phase 4 re-run
+
+Everything above measures controls in their **resting** state. The sweep selector
+focuses each control as-is, so no row in this file covers a field carrying
+`aria-invalid="true"`. `/10x-impl-review` (finding F1, 2026-07-25) found that this
+state does **not** get the white token, and that the gap was invisible to the whole
+apparatus above.
+
+**The mechanism**, read off the shipped bundle rather than inferred:
+
+```
+byte 47517  .focus-visible\:ring-ring:focus-visible                { --tw-ring-color: var(--ring) }
+byte 48656  .aria-invalid\:ring-destructive\/20[aria-invalid=true] { --tw-ring-color: color-mix(in oklab, var(--destructive) 20%, transparent) }
+```
+
+Identical specificity — (0,2,0) both, class + pseudo-class against class + attribute —
+same cascade layer, and `aria-invalid` emitted **later**, so it won. The ring still
+painted (the width comes from `focus-visible:ring-[3px]`, which is why nothing above
+reported `NONE`), but in `--destructive` at 20% alpha.
+
+**Reachable on 9 sites**, and one of them needs no server round-trip:
+`GeneratorForm.tsx:293` flips `aria-invalid` from typing past `SOURCE_MAX`, i.e. while
+the user is focused in that very textarea. The rest: `CreateDeckModal.tsx:75`,
+`DeckActions.tsx:96`, `CreateFlashcardModal.tsx:98,115`, `FlashcardItem.tsx:137,153`,
+`CandidateItem.tsx:153,169`.
+
+This was **not a regression** — the same conflict existed against `ring-ring/50` before
+Phase 2. What made it worth fixing here is that Phase 4 shipped three claims that were
+false on this path: this file's "48 of 48 rows pass", `AGENTS.md:32`'s "single source",
+and `test-plan.md §7`'s "contrast ≥ 3:1".
+
+### Alpha could not fix it — the token was the same trap as `--ring`
+
+| alpha of `--destructive` | page `rgb(39,44,62)` | card `rgb(45,50,67)` | modal `#0f1529` | lightest dark `rgb(46,51,67)` |
+| ------------------------ | -------------------- | -------------------- | --------------- | ----------------------------- |
+| 0.20 (as shipped)        | 1.06                 | 1.04                 | 1.11            | 1.04                          |
+| 0.70                     | 1.89                 | 1.77                 | 2.30            | 1.75                          |
+| **1.00 (the ceiling)**   | **2.91**             | **2.67**             | 3.80            | **2.64**                      |
+
+`--destructive` in `:root` was `oklch(0.577 0.245 27.325)` = `#e7000b` — dark enough
+that **no alpha clears 3:1** on this app's surfaces. That is the identical fault this
+whole change was filed for: a LIGHT-theme token resolving on a permanently dark app.
+And the fix was already sitting in the file — the `.dark` block's
+`oklch(0.704 0.191 22.216)` = `#ff6467`, which is byte-for-byte Tailwind's `red-400`,
+i.e. **the colour `FormField.tsx:57` already uses and that this file measured in the
+browser at 4.75–4.80:1**.
+
+### The fix
+
+Same two-part shape as Phase 2's `--ring`: retune the token, then drop the alpha that
+would halve it.
+
+- `global.css`: `--destructive` in `:root` → `oklch(0.704 0.191 22.216)`, matching the
+  `.dark` block so a future theme toggle cannot regress it.
+- `input.tsx`, `textarea.tsx`, `button.tsx`:
+  `aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40` →
+  `aria-invalid:ring-destructive`. The `dark:` variant is dropped rather than aligned,
+  because at `/40` it would now be _worse_ than the unprefixed rule it overrides.
+
+| Control state                 | PRZED (`#e7000b` @20%) | PO (`#ff6467` @100%) | ≥3:1 |
+| ----------------------------- | ---------------------- | -------------------- | ---- |
+| invalid field, page backdrop  | 1.06                   | **4.79**             | ✅   |
+| invalid field, card backdrop  | 1.04                   | **4.40**             | ✅   |
+| invalid field, modal backdrop | 1.11                   | **6.26**             | ✅   |
+| invalid field, lightest dark  | 1.04                   | **4.35**             | ✅   |
+
+**These four numbers are COMPUTED, not browser-measured — and that is a weaker claim
+than every other number in this file.** They come from the oklch→sRGB matrices, sRGB
+alpha compositing and the WCAG luminance formula, run over the same backdrops the
+sweeps recorded. The reason they are trustworthy enough to act on is calibration
+rather than assertion: the same routine puts `red-400` at **4.79** on the page
+backdrop where §Phase 3 measured it in Chrome at **4.80**, and `#ff6467` _is_
+`red-400`, so the PO column is a colour this file has already measured in a real
+browser — on the auth surface, at 4.75–4.80. What is **not** yet browser-verified is
+the other three backdrops and the cascade outcome in a live paint.
+
+### Browser measurement — run, and it agrees with the arithmetic
+
+Measured after the fix on `npm run dev` at `http://localhost:4328`, Chrome, harness
+rebuilt to §Method's shape (canvas colour resolution, ancestor-composited backdrop,
+transitions disabled, `:focus-visible` recorded per row).
+
+**The harness was calibrated against this file before any new number was trusted**, as
+the Phase 4 re-run did: "Nowa talia" on `/decks` came back at **19.11** and "Wyloguj"
+at **17.25** — identical to the rows above, to the hundredth.
+
+Trigger used: a duplicate deck name in `CreateDeckModal`, which is a real user path
+(`Talia o tej nazwie już istnieje` → `aria-invalid="true"` on `#deck-name`). PRZED was
+reconstructed **in the live browser**, not computed, by re-declaring the old
+`color-mix(in oklab, oklch(0.577 0.245 27.325) 20%, transparent)` on the same focused
+element and re-reading it.
+
+| Control                                    | Backdrop        | PRZED    | PO       | ≥3:1 |
+| ------------------------------------------ | --------------- | -------- | -------- | ---- |
+| `#deck-name`, `aria-invalid=true`, focused | `rgb(15,21,41)` | **1.11** | **6.27** | ✅   |
+
+Both agree with the computed table above to **0.01** (1.11 vs 1.11; 6.27 vs 6.26), which
+is what promotes the other three backdrops from arithmetic to a calibrated estimate. The
+ring resolves to `oklch(0.704 0.191 22.216)` and `:focus-visible` was `true` on both reads.
+
+**One correction to this section's own reachability claim.** An earlier draft named
+`GeneratorForm.tsx:293` as the cheapest trigger, "no server round-trip needed". That is
+**wrong**: the textarea carries `maxLength={SOURCE_MAX}` (`GeneratorForm.tsx:291`), so
+the value cannot exceed 10 000 and the `trim().length > SOURCE_MAX` condition is
+effectively unreachable through the UI. The reachable sites are the other eight, all of
+the `error ? true : undefined` form — a server-side validation error, exactly the path
+measured above.
+
+## Two element classes the sweep selector never reached — measured in impl-review (F6)
+
+The sweeps above select
+`a[href],button,input,select,textarea,[tabindex]:not([tabindex="-1"])`. The
+`*:focus-visible` rule applies to **every** element, so that selector is narrower than
+the rule. Two focusable classes fall outside it; both were measured rather than reasoned
+about, in the same session and with the same calibrated harness as the `aria-invalid`
+rows above.
+
+| Element                                         | Reached by Tab?                              | Indicator                        | Backdrop        | Contrast  | ≥3:1 |
+| ----------------------------------------------- | -------------------------------------------- | -------------------------------- | --------------- | --------- | ---- |
+| `<dialog>` itself — `Modal.tsx:49`              | **no** — see below                           | outline solid 2px `oklch(1 0 0)` | `rgb(6,8,16)`   | **19.98** | ✅   |
+| card scroll container — `FlashcardItem.tsx:217` | **yes** — confirmed by 30 real `Tab` presses | outline solid 2px `oklch(1 0 0)` | `rgb(45,50,66)` | **12.69** | ✅   |
+
+**The `<dialog>` concern turned out not to exist, and the measurement is what settled
+it.** The worry was that `showModal()` focuses the dialog element when no descendant
+carries `autofocus` — which `ConfirmDeleteModal` and `ConfirmRejectModal` do not — putting
+a white 2px outline around the whole modal. Opening the deck's delete-confirm modal shows
+`document.activeElement` is the **"Anuluj" button**, not the dialog
+(`activeIsDialog: false`, `hasAutofocusChild: false`). HTML's dialog focusing steps pick
+the first focusable descendant as the focus delegate, and every modal in this app has
+buttons. The 19.98 above is what the dialog paints if you focus it **deliberately**;
+nothing in the app does.
+
+**The scroll container concern is real, and benign.** Chrome makes a scroller with no
+focusable descendants keyboard-focusable, and this one qualifies (`scrollHeight` 641 vs
+`clientHeight` 476, zero focusable children, `tabIndex` reported as `-1`). A sweep of 30
+real `Tab` presses lands on it with `:focus-visible === true`, and it paints the shared
+white outline at 12.69:1 — the `rgb(45,50,66)` card backdrop Finding §6 predicted as the
+worst case, and in line with the 12.56–12.70 the card's buttons measure. Not clipped:
+20.8px of room on each side against the 4px the indicator needs. `CandidateItem.tsx:249`
+is the same construct on the review screen.
+
+So both classes pass; what needed correcting was the **claim**, not the code. Read the
+sweeps' "0 NONE, 0 BOTH" as scoped to their selector.
+
+### Blast radius of the token change, checked before it was made
+
+`--destructive` has exactly three consumers in `src/`, all of them the `aria-invalid:*`
+classes on the three primitives (`ring-destructive`, `border-destructive`). The
+`variant="destructive"` BUTTON does **not** read the token — it is hand-rolled from
+`border-red-500/40 bg-red-600/25 text-red-100` (`button.tsx:13-14`), so every delete
+button in the app is untouched, and the three destructive-button rows in the table
+above keep their measured values. The one deliberate visual change beyond the ring is
+`aria-invalid:border-destructive`, which moves from `#e7000b` to the lighter `#ff6467`
+on a field in error.
