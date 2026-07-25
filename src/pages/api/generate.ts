@@ -2,10 +2,16 @@ import type { APIRoute } from "astro";
 import { z } from "zod";
 import type { Json } from "@/db/database.types";
 import { createClient } from "@/lib/supabase";
-import { createDeck, deckNameExists } from "@/lib/decks";
+import { createDeck, deckNameExists, deleteDeck } from "@/lib/decks";
 import { deckIdByPublicId } from "@/lib/flashcards";
 import { generateCandidates, resolveModel, OpenRouterError } from "@/lib/openrouter";
-import { createGenerationSession, failGenerationSession, insertCandidates } from "@/lib/generations";
+import {
+  createGenerationSession,
+  failGenerationSession,
+  findSucceededSessionByIdempotencyKey,
+  generationResultByGenerationId,
+  insertCandidates,
+} from "@/lib/generations";
 
 // FIRST JSON endpoint in the project — a deliberate departure from the native
 // form-POST + redirect(?error=) convention of every other endpoint. The AI generator
@@ -24,10 +30,15 @@ const COUNT_MAX = 15;
 const LANGUAGES = ["auto", "polski", "angielski", "hiszpański", "niemiecki", "francuski"] as const;
 
 // Server-side OpenRouter timeout. MUST be clearly shorter than the client's fetch
-// timeout (~55s) so the server almost always answers first — otherwise the client
-// aborts, sees "timeout + Ponów", while the server finishes and saves a succeeded
-// session + cards, and the retry doubles them. Candidates land as `generated` (not
-// `accepted`), so orphaned duplicates don't pollute study — but the mismatch is known.
+// timeout (~55s) so the server almost always answers first — otherwise the client aborts
+// and shows "Ponów" while the server finishes and commits.
+//
+// That ordering NARROWS the duplication window; it does not close it, and never could
+// (lessons.md: "Klient↔serwer timeouty + Ponów wymagają idempotencji zapisu"). What
+// closes it is the idempotency key below: the client mints one per attempt, "Ponów"
+// replays it verbatim, and a key that already has a succeeded session gets that session
+// back instead of a second generation. test-plan §2 Risk #2 is covered by
+// tests/generation/generate.test.ts, whose characterization assertion was inverted here.
 const SERVER_TIMEOUT_MS = 40_000;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -41,6 +52,9 @@ const bodySchema = z
     sourceText: z.string().min(1).max(SOURCE_MAX),
     language: z.enum(LANGUAGES),
     count: z.number().int().min(COUNT_MIN).max(COUNT_MAX),
+    // Optional, and the column behind it is nullable: a client that never learned about
+    // the key must keep working. Deduplication is opt-in per attempt, not a precondition.
+    idempotencyKey: z.string().regex(UUID_RE).optional(),
   })
   .refine((d) => Boolean(d.deckPublicId) !== Boolean(d.newDeckName), {
     message: "Podaj dokładnie jedną z: istniejąca talia albo nowa talia",
@@ -50,6 +64,39 @@ function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
+  });
+}
+
+type Client = NonNullable<ReturnType<typeof createClient>>;
+
+/**
+ * Answers with an already-persisted generation instead of running a new one.
+ *
+ * A replay is a benign 200 — the same shape /api/study uses for `alreadyApplied`. From
+ * the user's side nothing went wrong: they hit "Ponów" after a client-side timeout and
+ * their cards had in fact landed. An error here would invert FR-018.
+ *
+ * `counts` come from the session's own counters, not from the cards read back, so a
+ * replay reports what the MODEL and Zod did — identical to the original answer — even if
+ * some of those cards have since been rejected or deleted on the review screen.
+ */
+async function replaySession(
+  supabase: Client,
+  session: { id: number; public_id: string; generated_count: number; saved_count: number },
+) {
+  const { data, error } = await generationResultByGenerationId(supabase, session.id);
+  if (error || !data) {
+    return json(500, { error: "Nie udało się odtworzyć wyników generacji" });
+  }
+  return json(200, {
+    candidates: data.candidates,
+    counts: {
+      generated: session.generated_count,
+      saved: session.saved_count,
+      skipped: session.generated_count - session.saved_count,
+    },
+    deckPublicId: data.deckPublicId,
+    sessionPublicId: session.public_id,
   });
 }
 
@@ -75,10 +122,36 @@ export const POST: APIRoute = async (context) => {
   if (!parsed.success) {
     return json(400, { error: "Nieprawidłowe dane wejściowe" });
   }
-  const { deckPublicId, newDeckName, language, count } = parsed.data;
+  const { deckPublicId, newDeckName, language, count, idempotencyKey } = parsed.data;
   const sourceText = parsed.data.sourceText.trim();
   if (sourceText.length < 1) {
     return json(400, { error: "Tekst źródłowy jest pusty" });
+  }
+
+  // --- Idempotency (test-plan §2 Risk #2, impl-review F5). "Ponów" replays the payload
+  // VERBATIM, key included, so a key that already produced a succeeded session must get
+  // that session back rather than a second generation — killing the duplicate BEFORE it
+  // costs a paid LLM call.
+  //
+  // Checked here, ahead of deck resolution rather than next to the deckNameExists guard:
+  // on the newDeckName path the first attempt already created the deck, so that guard
+  // would 409 the replay before it ever reached this logic.
+  //
+  // Residual, unchanged from before: two CONCURRENT newDeckName requests still race at
+  // createDeck, and the loser 409s because the winner's session may not have committed
+  // yet. That is the pre-existing behaviour pinned by the newDeckName case in
+  // tests/generation/generate.test.ts — sequential retry, the flow a human actually
+  // performs, is fully covered. ---
+  if (idempotencyKey) {
+    // Branch on the query error first: mistaking a transient failure for "never seen this
+    // key" is how a dedup layer silently starts duplicating again (lessons: error-vs-empty).
+    const { data: replayed, error } = await findSucceededSessionByIdempotencyKey(supabase, idempotencyKey);
+    if (error) {
+      return json(500, { error: "Nie udało się odczytać sesji generacji" });
+    }
+    if (replayed) {
+      return replaySession(supabase, replayed);
+    }
   }
 
   // --- Resolve the target deck. For an EXISTING deck, resolve its bigint id up front
@@ -88,6 +161,9 @@ export const POST: APIRoute = async (context) => {
   // retry (impl-review F1). deckId stays null until the deck is known/created. ---
   let deckId: number | null = null;
   let deckPublicIdOut = "";
+  // Set ONLY when this request created the deck itself, so the failure branches after the
+  // LLM call can undo it. An existing deck the caller passed in is never touched.
+  let createdDeckPublicId: string | null = null;
   if (deckPublicId) {
     // Branch on the query error first so a transient DB failure isn't masked as a
     // 404 (lessons: SSR error-vs-empty). Only a genuine null (absent or RLS-hidden)
@@ -144,6 +220,18 @@ export const POST: APIRoute = async (context) => {
       error_message: message,
       request_payload: rawRequest as Json,
       response_payload: rawResponse as Json,
+      // idempotency_key stays NULL on the two failure INSERTS — this looks like an oversight
+      // and is not (plan-review F1). "Ponów" replays the same key, so a failed audit row
+      // carrying it would be the row the retry collides with.
+      //
+      // But these two inserts are NOT the only way to reach a `failed` row, and the guards are
+      // NOT independent (impl-review F3). failGenerationSession — the compensating update below
+      // — flips an already-inserted `succeeded` row to `failed` and leaves its key in place, so
+      // a keyed `failed` row IS reachable in production. The partial unique index's
+      // `status = 'succeeded'` predicate is what covers that path, and nothing else does:
+      // without it, "Ponów" after a card-insert failure collides on its own insert and dies at
+      // the 500 below. Do not "simplify" the predicate away on the strength of this NULL.
+      idempotency_key: null,
     });
     return json(502, { error: "Nie udało się wygenerować fiszek. Spróbuj ponownie.", retriable: true });
   } finally {
@@ -169,6 +257,8 @@ export const POST: APIRoute = async (context) => {
       error_message: "Model nie zwrócił poprawnych kart",
       request_payload: result.rawRequest as Json,
       response_payload: result.rawResponse as Json,
+      // NULL for the same reason as the transport-failure path above — see that comment.
+      idempotency_key: null,
     });
     return json(422, { error: "Model nie zwrócił poprawnych fiszek. Spróbuj ponownie.", retriable: true });
   }
@@ -186,6 +276,7 @@ export const POST: APIRoute = async (context) => {
     }
     deckId = deck.id;
     deckPublicIdOut = deck.public_id;
+    createdDeckPublicId = deck.public_id;
   }
   if (deckId === null) {
     // Defensive: every branch above sets deckId on the success path. Narrows the type
@@ -206,8 +297,29 @@ export const POST: APIRoute = async (context) => {
     error_message: null,
     request_payload: result.rawRequest as Json,
     response_payload: result.rawResponse as Json,
+    idempotency_key: idempotencyKey ?? null,
   });
   if (sessionError) {
+    // The lookup at the top of this handler loses the very race it exists for: in the real
+    // duplication window request 1 is still committing when the client aborts at 55 s, so
+    // request 2 finds nothing, generates, and only collides HERE. A 23505 therefore means
+    // request 1 committed — its cards DID land — so this is a replay, not a failure.
+    // Without this branch the user sees an error while holding a full set of candidates.
+    if (idempotencyKey && sessionError.code === "23505") {
+      const { data: won, error } = await findSucceededSessionByIdempotencyKey(supabase, idempotencyKey);
+      if (!error && won) {
+        return replaySession(supabase, won);
+      }
+    }
+    // Undo a deck THIS request created (impl-review F4). Without it the deck survives while
+    // its session never landed, and "Ponów" — which replays the same name — dies on
+    // deckNameExists with a permanent 409: retry impossible, empty orphan deck left behind.
+    // That is the exact failure deferring createDeck past the LLM call was meant to prevent,
+    // one step further down. Safe and provably empty here: no cards were inserted on this
+    // path and generation_session carries no deck FK. Best-effort, like failGenerationSession.
+    if (createdDeckPublicId) {
+      await deleteDeck(supabase, createdDeckPublicId);
+    }
     return json(500, { error: "Nie udało się zapisać sesji generacji" });
   }
 
@@ -216,6 +328,11 @@ export const POST: APIRoute = async (context) => {
     // The session was already saved as `succeeded`, but no cards landed. Compensate so
     // the audit doesn't over-report saved cards (impl-review F2); best-effort.
     await failGenerationSession(supabase, session.id, "Zapis kart nie powiódł się");
+    // Same undo as the session-insert branch above (impl-review F4): no cards landed, so a
+    // deck this request created is empty and would otherwise 409 every future "Ponów".
+    if (createdDeckPublicId) {
+      await deleteDeck(supabase, createdDeckPublicId);
+    }
     return json(500, { error: "Nie udało się zapisać wygenerowanych fiszek" });
   }
 

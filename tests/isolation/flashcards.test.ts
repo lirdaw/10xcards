@@ -3,8 +3,9 @@ import * as CreateDeck from "@/pages/api/decks/index";
 import * as CreateCard from "@/pages/api/decks/[publicId]/cards/index";
 import * as EditCard from "@/pages/api/decks/[publicId]/cards/[cardPublicId]";
 import * as DeleteCard from "@/pages/api/decks/[publicId]/cards/[cardPublicId]/delete";
+import * as BatchCards from "@/pages/api/decks/[publicId]/cards/batch";
 import { listDecks } from "@/lib/decks";
-import { deckIdByPublicId, listFlashcards } from "@/lib/flashcards";
+import { deckIdByPublicId, listFlashcards, STATE_ACCEPTED } from "@/lib/flashcards";
 import { accountA, accountB } from "../fixtures/accounts";
 import { callEndpoint } from "../fixtures/endpoint";
 import { clientFor } from "../fixtures/session";
@@ -212,5 +213,107 @@ describe("account B is denied account A's flashcards", () => {
 
     const cards = await cardsOf(a, aDeckId);
     expect(cards[0].front).toBe(front);
+  });
+});
+
+/** Every column a state transition could move, read back as the owner. */
+async function rowOf(as: typeof a, cardPublicId: string) {
+  const { data, error } = await clientFor(as.cookieHeader)
+    .from("flashcard")
+    .select("public_id, front, back, state_id, created_at, updated_at")
+    .eq("public_id", cardPublicId)
+    .maybeSingle();
+  expect(error).toBeNull();
+  if (!data) throw new Error(`Card ${cardPublicId} is not readable by its owner.`);
+  return data;
+}
+
+describe("account B is denied a state transition on account A's flashcards", () => {
+  // S-05 adds the project's first lifecycle transition and its first MULTI-ROW mutation,
+  // which is a new write surface for Risk #1: every denial above covers a single-row write
+  // addressed by one public_id, and none of them touches /cards/batch. A bulk UPDATE that
+  // forgot its deck scoping would leak across accounts while every test above stayed green.
+  //
+  // `updated_at` is a meaningful witness here for the first time: Phase 1 narrowed the
+  // moddatetime trigger to `update of front, back`, so a state-only write no longer bumps
+  // it. A cross-account write that landed would therefore be visible in state_id, and a
+  // cross-account CONTENT write in updated_at — so the rows are compared column-for-column
+  // rather than on the one field the attack was aimed at.
+  let aDeckId: string;
+  let bDeckId: string;
+  let aCardId: string;
+
+  beforeAll(async () => {
+    aDeckId = await createDeck(a, `A's batch deck ${suffix}`);
+    bDeckId = await createDeck(b, `B's batch deck ${suffix}`);
+
+    const front = `A's batch front ${suffix}`;
+    const response = await callEndpoint(CreateCard, {
+      url: `/api/decks/${aDeckId}/cards`,
+      params: { publicId: aDeckId },
+      body: cardForm(front, `A's batch back ${suffix}`),
+      as: a,
+    });
+    expect(response.status).toBe(302);
+
+    const created = (await cardsOf(a, aDeckId)).find((card) => card.front === front);
+    if (!created) throw new Error(`Setup failed: A's batch card was never written to deck ${aDeckId}.`);
+    aCardId = created.public_id;
+  });
+
+  /** Posts the batch endpoint the review screen and the deck view both drive. */
+  function setState(as: typeof a, deckPublicId: string, cardPublicIds: string[], state: "accepted" | "rejected") {
+    return callEndpoint(BatchCards, {
+      url: `/api/decks/${deckPublicId}/cards/batch`,
+      params: { publicId: deckPublicId },
+      body: JSON.stringify({ action: "setState", cardPublicIds, state }),
+      as,
+    });
+  }
+
+  it("refuses B's transition on A's card and leaves A's row byte-identical", async () => {
+    const before = await rowOf(a, aCardId);
+    // The transition B attempts is a LEGAL one (accepted -> rejected), so nothing but the
+    // ownership boundary can stop it — a denial here cannot be the state gate in disguise.
+    expect(before.state_id).toBe(STATE_ACCEPTED);
+
+    const response = await setState(b, aDeckId, [aCardId], "rejected");
+
+    // B cannot resolve A's deck public_id at all, so the request dies before the UPDATE.
+    // 404 and not 403: an absent deck and an RLS-hidden one stay indistinguishable (§6.2).
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Content-Type")).toContain("application/json");
+    expect(await rowOf(a, aCardId)).toEqual(before);
+  });
+
+  it("refuses B's own deck paired with A's card id, changing nothing", async () => {
+    const before = await rowOf(a, aCardId);
+
+    // The containment case, and the one the multi-row write actually needs: B owns this
+    // deck, so the 404 that stops the test above never fires and the UPDATE really runs.
+    // What blocks the reach is `.eq("deck_id", deckId)` inside setFlashcardState, backed
+    // by RLS. The endpoint answers 200 — a zero-row write is not an error, it is a card
+    // that did not move — so `changed` being empty is the ONLY thing that separates a
+    // refused reach from a successful one. A status assertion alone would prove nothing.
+    const response = await setState(b, bDeckId, [aCardId], "rejected");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, changed: [], skipped: [aCardId] });
+
+    expect(await rowOf(a, aCardId)).toEqual(before);
+    // Nor did the card get dragged into B's deck by being named in its path.
+    expect(await cardsOf(b, bDeckId)).toHaveLength(0);
+  });
+
+  it("still lets A transition A's own card", async () => {
+    // Positive control. Without it, a wholesale-broken chain — a policy that denies
+    // everything, a batch endpoint that 404s unconditionally — passes both denials above.
+    const response = await setState(a, aDeckId, [aCardId], "rejected");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, changed: [aCardId], skipped: [] });
+
+    const after = await rowOf(a, aCardId);
+    expect(after.state_id).toBe(3);
+    // Reject is not delete (S-02's rule): the content survives the move intact.
+    expect(after.front).toBe(`A's batch front ${suffix}`);
   });
 });

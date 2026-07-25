@@ -1,9 +1,18 @@
 import * as React from "react";
+import { ClipboardList } from "lucide-react";
 import type { FlashcardView } from "@/lib/flashcards";
+import { ServerError } from "@/components/auth/ServerError";
 import { DeckContentToolbar } from "./DeckContentToolbar";
 import { FlashcardItem } from "./FlashcardItem";
 import { CreateFlashcardModal } from "./CreateFlashcardModal";
 import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
+import { ConfirmRejectModal } from "./ConfirmRejectModal";
+
+interface BatchResponse {
+  ok: true;
+  changed: string[];
+  skipped: string[];
+}
 
 // Polish plural for "wynik" (result): 1 → wynik; 2-4 (except the 12-14 teens) →
 // wyniki; everything else → wyników. Slice-local until a test runner exists (F-03).
@@ -43,10 +52,11 @@ interface Props {
 
 // The single client island for the card workspace: owns the create-modal open
 // state, which card (if any) is in inline-edit mode, and which card (if any) is
-// pending delete confirmation. Renders the content toolbar, the card list, the
-// create modal, and the delete-confirm modal. Mutations stay as native form POSTs
-// from the child components, so the slice keeps S-01's no-fetch, redirect-driven
-// model.
+// pending delete or reject confirmation. Renders the content toolbar, the permanent
+// review link, the card list, and the three modals. Create/edit/delete stay native
+// form POSTs from the child components, keeping S-01's redirect-driven model; only
+// the S-05 reject goes over JSON, because it shares the batch endpoint with the
+// review screen's bulk path — one transition, one code path.
 export default function FlashcardWorkspace({
   deckPublicId,
   cards,
@@ -64,6 +74,13 @@ export default function FlashcardWorkspace({
   const [activeEditId, setActiveEditId] = React.useState<string | null>(editId);
   // Which card is pending delete confirmation (null = modal closed).
   const [deleteCard, setDeleteCard] = React.useState<FlashcardView | null>(null);
+  // Which card is pending reject confirmation, and the state of the one request
+  // this island makes. Reject is NOT delete: the card keeps its content and stays
+  // reachable under the review screen's rejected view (S-02's rule).
+  const [rejectCard, setRejectCard] = React.useState<FlashcardView | null>(null);
+  const [rejecting, setRejecting] = React.useState(false);
+  const [rejectError, setRejectError] = React.useState<string | null>(null);
+  const [rejectMessage, setRejectMessage] = React.useState<string | null>(null);
   // Whether a keyword search is active — drives the count line and the distinct
   // "no matches" empty state (vs. the plain "deck is empty" copy).
   const isSearching = query.length > 0;
@@ -86,6 +103,46 @@ export default function FlashcardWorkspace({
     }
   }, []);
 
+  // accepted → rejected, through the same batch endpoint the review screen's bulk path
+  // uses (a one-element array, so there is exactly one code path and one error contract).
+  // A zero-row write is not an error under RLS, so the outcome is derived from `changed`,
+  // never from the absence of an error. On success we reload, as the review island does:
+  // the server re-renders the authoritative list and no optimistic state has to be
+  // reconciled. `rejecting` stays true through the reload so the controls stay inert.
+  async function runReject(card: FlashcardView) {
+    if (rejecting) return;
+    setRejecting(true);
+    setRejectError(null);
+    setRejectMessage(null);
+    try {
+      const res = await fetch(`/api/decks/${deckPublicId}/cards/batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "setState", cardPublicIds: [card.publicId], state: "rejected" }),
+      });
+      const data = (await res.json()) as BatchResponse | { error?: string };
+      if (!res.ok) {
+        setRejectError("error" in data ? (data.error ?? null) : "Nie udało się odrzucić fiszki.");
+        setRejecting(false);
+        setRejectCard(null);
+        return;
+      }
+      if ((data as BatchResponse).changed.length > 0) {
+        window.location.reload();
+        return;
+      }
+      // Nothing moved — the card was already rejected, or is no longer this account's.
+      // Three cases the server deliberately cannot tell apart, so the copy stays neutral.
+      setRejectMessage("Nic nie zmieniono — ta fiszka nie jest już w tej talii.");
+      setRejecting(false);
+      setRejectCard(null);
+    } catch {
+      setRejectError("Błąd sieci. Spróbuj ponownie.");
+      setRejecting(false);
+      setRejectCard(null);
+    }
+  }
+
   return (
     <div>
       {/* Sticky content toolbar: kept OUTSIDE the decorative panel because that
@@ -105,7 +162,34 @@ export default function FlashcardWorkspace({
             setCreateOpen(true);
           }}
         />
+        {/* A PERMANENT way into the review screen — a sibling of the toolbar, never
+            inside it, so DeckContentToolbar stays untouched. Permanent is the whole
+            point: the other two routes in (the generator's success link and the deck
+            list's chip) both disappear once nothing is pending, which is exactly the
+            state a freshly rejected card lands in — without this, "Odrzuć" would be a
+            one-way trap and "Przywróć" unreachable. The copy names the archive as well
+            as the queue, and carries no count, so it never reads as broken at zero. A
+            post-action message is no substitute: the reject reloads the page. */}
+        <div className="mt-2 flex justify-end">
+          <a
+            href={`/decks/${deckPublicId}/review`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-sm text-blue-100/80 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            <ClipboardList className="size-4" aria-hidden="true" />
+            Przegląd / odrzucone
+          </a>
+        </div>
       </div>
+
+      {rejectError && <ServerError message={rejectError} />}
+      {rejectMessage && (
+        <p
+          className="mt-3 rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm text-blue-100/80"
+          role="status"
+        >
+          {rejectMessage}
+        </p>
+      )}
 
       {/* Card grid lives inside this grouping panel, visually separated from the
           deck-level actions in the sticky header above. `mt-6` matches the toolbar's
@@ -152,6 +236,7 @@ export default function FlashcardWorkspace({
                   editing={activeEditId === card.publicId}
                   serverError={activeEditId === card.publicId ? editError : null}
                   justSaved={savedId === card.publicId}
+                  pending={rejecting}
                   onEdit={() => {
                     setActiveEditId(card.publicId);
                   }}
@@ -160,6 +245,9 @@ export default function FlashcardWorkspace({
                   }}
                   onDelete={() => {
                     setDeleteCard(card);
+                  }}
+                  onReject={() => {
+                    setRejectCard(card);
                   }}
                 />
               ))}
@@ -182,6 +270,17 @@ export default function FlashcardWorkspace({
         card={deleteCard}
         onClose={() => {
           setDeleteCard(null);
+        }}
+      />
+
+      <ConfirmRejectModal
+        card={rejectCard}
+        pending={rejecting}
+        onConfirm={() => {
+          if (rejectCard) void runReject(rejectCard);
+        }}
+        onClose={() => {
+          if (!rejecting) setRejectCard(null);
         }}
       />
     </div>

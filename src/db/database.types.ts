@@ -221,6 +221,7 @@ export type Database = {
           error_message: string | null
           generated_count: number
           id: number
+          idempotency_key: string | null
           language: string
           model: string
           public_id: string
@@ -237,6 +238,7 @@ export type Database = {
           error_message?: string | null
           generated_count: number
           id?: never
+          idempotency_key?: string | null
           language: string
           model: string
           public_id?: string
@@ -253,6 +255,7 @@ export type Database = {
           error_message?: string | null
           generated_count?: number
           id?: never
+          idempotency_key?: string | null
           language?: string
           model?: string
           public_id?: string
@@ -271,6 +274,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      candidate_counts_by_deck: {
+        Args: never
+        Returns: {
+          candidate_count: number
+          public_id: string
+        }[]
+      }
       f_unaccent: { Args: { "": string }; Returns: string }
       search_flashcards_in_deck: {
         Args: { p_deck_id: number; p_query: string }
@@ -279,6 +289,7 @@ export type Database = {
           created_at: string
           front: string
           public_id: string
+          source_id: number
           updated_at: string
         }[]
       }

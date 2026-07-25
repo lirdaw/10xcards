@@ -9,6 +9,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // `?error=<pl>&edit=<cardPublicId>` so the matching card re-enters inline-edit
 // mode with the message inside it. Only front/back change — deck_id, state_id and
 // source_id are never touched.
+//
+// The same form is posted from two screens, so the redirect target follows the caller:
+// the deck view by default, the review screen when the edit started there (S-05).
 export const POST: APIRoute = async (context) => {
   const { publicId, cardPublicId } = context.params;
   // Validate both route params as UUIDs before they land in a redirect `Location`
@@ -16,7 +19,20 @@ export const POST: APIRoute = async (context) => {
   if (!publicId || !UUID_RE.test(publicId) || !cardPublicId || !UUID_RE.test(cardPublicId)) {
     return new Response(null, { status: 404 });
   }
-  const errorUrl = (msg: string) => `/decks/${publicId}?error=${encodeURIComponent(msg)}&edit=${cardPublicId}`;
+
+  const form = await context.request.formData();
+  const front = ((form.get("front") as string | null) ?? "").trim();
+  const back = ((form.get("back") as string | null) ?? "").trim();
+
+  // `from` is a SWITCH with exactly one accepted value, never a redirect target, and
+  // `generation` rides along only as a uuid: both targets below are built server-side
+  // from the already-validated route params, so no client-supplied string can reach the
+  // `Location` header. Anything else falls back to the deck view.
+  const fromReview = form.get("from") === "review";
+  const generation = (form.get("generation") as string | null) ?? "";
+  const scope = fromReview && UUID_RE.test(generation) ? `generation=${generation}&` : "";
+  const basePath = fromReview ? `/decks/${publicId}/review` : `/decks/${publicId}`;
+  const errorUrl = (msg: string) => `${basePath}?${scope}error=${encodeURIComponent(msg)}&edit=${cardPublicId}`;
 
   const supabase = createClient(context.request.headers, context.cookies);
   if (!supabase) {
@@ -26,10 +42,6 @@ export const POST: APIRoute = async (context) => {
   if (!context.locals.user) {
     return context.redirect("/auth/signin");
   }
-
-  const form = await context.request.formData();
-  const front = ((form.get("front") as string | null) ?? "").trim();
-  const back = ((form.get("back") as string | null) ?? "").trim();
 
   // Resolve public_id → internal deck.id before validating field lengths, so a
   // nonexistent/foreign deck always resolves to a clean 404 rather than bouncing
@@ -62,7 +74,7 @@ export const POST: APIRoute = async (context) => {
     return new Response(null, { status: 404 });
   }
 
-  // `saved` lets the deck page play a one-shot "settle" animation on just this
-  // card as it returns to read-only view; the workspace strips the param on mount.
-  return context.redirect(`/decks/${publicId}?saved=${cardPublicId}`);
+  // `saved` lets the page play a one-shot "settle" animation on just this card as it
+  // returns to read-only view; both workspaces strip the param on mount.
+  return context.redirect(`${basePath}?${scope}saved=${cardPublicId}`);
 };

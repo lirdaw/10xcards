@@ -1,0 +1,235 @@
+---
+import AuthenticatedLayout from "@/layouts/AuthenticatedLayout.astro";
+import CandidateReviewWorkspace from "@/components/review/CandidateReviewWorkspace";
+import { createClient } from "@/lib/supabase";
+import { getDeckByPublicId } from "@/lib/decks";
+import { getGenerationSessionByPublicId, generationStateCounts } from "@/lib/generations";
+import {
+  listFlashcardsByState,
+  formatCardDate,
+  stateLabel,
+  sourceLabel,
+  STATE_GENERATED,
+  STATE_REJECTED,
+  type FlashcardView,
+} from "@/lib/flashcards";
+
+// The review screen: candidates in state `generated` (default) or the `rejected`
+// archive, server-rendered so they survive a reload — the gap that made this slice
+// necessary (until now a generation's candidates lived only in the generator island's
+// React state). The route folds under the existing `decks` sidebar item; middleware's
+// prefix-matched `/decks` already guards it, so no PROTECTED_ROUTES edit is needed.
+const { publicId } = Astro.params;
+// A malformed param would reach Postgres as an invalid uuid and come back as a query
+// ERROR, not an empty row — which would render the 500 state instead of the 404 a
+// bogus URL deserves. Shape-check it first (as study/[publicId].astro does).
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const deckPublicId = publicId && UUID_RE.test(publicId) ? publicId : null;
+
+const supabase = createClient(Astro.request.headers, Astro.cookies);
+// `null` means the deck does not exist OR RLS hid someone else's — either way a 404,
+// never 403. A transient DB error is a distinct 500 (lessons: SSR error-vs-empty). We
+// set the status rather than returning a Response — a top-level return in Astro
+// frontmatter crashes the typescript-eslint no-misused-promises rule (lessons).
+const { data: deck, error: deckError } =
+  supabase && deckPublicId ? await getDeckByPublicId(supabase, deckPublicId) : { data: null, error: null };
+if (deckError) {
+  Astro.response.status = 500;
+} else if (!deck) {
+  Astro.response.status = 404;
+}
+
+// The screen's own scope, both survive a reload (unlike the round-trip params below).
+// `state` switches the list between the two views; anything other than the literal
+// "rejected" keeps the default candidate view.
+const viewingRejected = Astro.url.searchParams.get("state") === "rejected";
+const view = viewingRejected ? "rejected" : "generated";
+const stateId = viewingRejected ? STATE_REJECTED : STATE_GENERATED;
+
+const generationParam = (Astro.url.searchParams.get("generation") ?? "").trim();
+const generationPublicId = UUID_RE.test(generationParam) ? generationParam : null;
+
+// Resolve `?generation=<sessionPublicId>` to the internal id flashcard.generation_id
+// holds. Branch on the query error before treating null as absent, so a DB hiccup is
+// not read as "this generation doesn't exist" (lessons: SSR error-vs-empty).
+let session: { id: number; public_id: string; requested_count: number; generated_count: number } | null = null;
+let sessionMissing = false;
+let loadError = false;
+if (deck && supabase && generationPublicId) {
+  const { data, error } = await getGenerationSessionByPublicId(supabase, generationPublicId);
+  if (error) {
+    loadError = true;
+  } else if (!data) {
+    // Absent or RLS-hidden. Rendering the whole deck's candidates instead would
+    // silently WIDEN the scope the URL asked for, so the screen says so and offers
+    // the unscoped view as an explicit choice.
+    sessionMissing = true;
+  } else {
+    session = data;
+  }
+}
+
+let cards: FlashcardView[] = [];
+let cardsError = loadError;
+if (deck && supabase && !sessionMissing && !loadError) {
+  const { data, error } = await listFlashcardsByState(supabase, deck.id, stateId, session?.id);
+  if (error) {
+    cardsError = true;
+  } else {
+    // The only loader that fills FlashcardView's optional badge fields — the deck
+    // view's two branches cannot both supply them, which is why they are optional.
+    cards = data.map((c) => ({
+      publicId: c.public_id,
+      front: c.front,
+      back: c.back,
+      createdAtLabel: formatCardDate(c.created_at),
+      updatedAtLabel: formatCardDate(c.updated_at),
+      edited: c.updated_at !== c.created_at,
+      state: stateLabel(c.state_id),
+      source: sourceLabel(c.source_id),
+    }));
+  }
+}
+
+// The acceptance metric (PRD's primary success criterion), shown only for a scoped
+// screen. The denominator is accepted + rejected + pending — the session's SURVIVING
+// rows — never a stored counter: `saved_count` is zeroed by the compensating update
+// and `generated_count` counts what the model returned before Zod dropped invalid
+// cards, so it can exceed what ever reached the deck (plan-review F6). That difference
+// is a GENERATION fact, not an acceptance fact, so it is stated on its own line and
+// never folded into the denominator.
+let metric: { accepted: number; rejected: number; pending: number; total: number } | null = null;
+if (session && supabase) {
+  const { data, error } = await generationStateCounts(supabase, session.id);
+  // A failed aggregate simply hides the metric line — the review itself still works,
+  // and a wrong figure would be worse than none for the PRD's headline number.
+  if (!error) {
+    metric = { ...data, total: data.accepted + data.rejected + data.pending };
+  }
+}
+
+// Mutation round-trips from the inline edit form (the batch endpoint answers JSON and
+// never redirects). `edit=<cardPublicId>` re-enters that card's edit form with the
+// message inside it; `saved=<cardPublicId>` plays the settle animation. The island
+// strips all three on mount.
+const error = Astro.url.searchParams.get("error");
+const editId = Astro.url.searchParams.get("edit");
+const savedId = Astro.url.searchParams.get("saved");
+
+const basePath = `/decks/${deckPublicId ?? ""}/review`;
+const scopeQuery = generationPublicId ? `generation=${generationPublicId}` : "";
+const candidatesHref = scopeQuery ? `${basePath}?${scopeQuery}` : basePath;
+const rejectedHref = scopeQuery ? `${basePath}?${scopeQuery}&state=rejected` : `${basePath}?state=rejected`;
+const tabClass = "rounded-lg border px-3 py-1.5 text-sm transition-colors";
+const tabActive = "border-purple-400/50 bg-purple-600/30 text-white";
+const tabIdle = "border-white/15 bg-white/5 text-blue-100/70 hover:bg-white/10 hover:text-white";
+---
+
+{
+  deckError ? (
+    <AuthenticatedLayout title="Błąd" activeItem="decks">
+      <div class="mx-auto max-w-4xl">
+        <div class="rounded-2xl border border-red-500/30 bg-red-900/20 p-8 text-center text-white backdrop-blur-xl">
+          <p class="text-red-200/90">Coś poszło nie tak podczas ładowania talii. Spróbuj ponownie.</p>
+          <a href="/decks" class="mt-4 inline-block text-purple-300 transition-colors hover:text-purple-100">
+            Wróć do talii
+          </a>
+        </div>
+      </div>
+    </AuthenticatedLayout>
+  ) : deck ? (
+    <AuthenticatedLayout title={`Przegląd — ${deck.name}`} activeItem="decks">
+      <div class="mx-auto w-full max-w-[3600px]">
+        <div class="mb-4 flex items-center gap-3">
+          <a
+            href={`/decks/${deck.public_id}`}
+            aria-label="Wróć do talii"
+            class="text-purple-300 transition-colors hover:text-purple-100"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m12 19-7-7 7-7" />
+              <path d="M19 12H5" />
+            </svg>
+          </a>
+          <h1 class="min-w-0 flex-1 truncate bg-gradient-to-r from-blue-200 to-purple-200 bg-clip-text text-2xl font-bold tracking-tight text-transparent">
+            Przegląd — {deck.name}
+          </h1>
+        </div>
+
+        <div class="mb-4 flex flex-wrap items-center gap-2">
+          <a href={candidatesHref} class:list={[tabClass, viewingRejected ? tabIdle : tabActive]}>
+            Do przeglądu
+          </a>
+          <a href={rejectedHref} class:list={[tabClass, viewingRejected ? tabActive : tabIdle]}>
+            Odrzucone
+          </a>
+          {generationPublicId && (
+            <a href={viewingRejected ? `${basePath}?state=rejected` : basePath} class:list={[tabClass, tabIdle]}>
+              Pokaż całą talię
+            </a>
+          )}
+        </div>
+
+        {metric && (
+          <div class="mb-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white backdrop-blur-xl">
+            <p>
+              Zaakceptowano <span class="tabular-nums">{metric.accepted}</span> z{" "}
+              <span class="tabular-nums">{metric.total}</span> — do przeglądu:{" "}
+              <span class="tabular-nums">{metric.pending}</span>, odrzucone:{" "}
+              <span class="tabular-nums">{metric.rejected}</span>.
+            </p>
+            {session && session.generated_count > metric.total && (
+              <p class="mt-1 text-xs text-blue-100/50">
+                Model zwrócił {session.generated_count} kart; w talii jest {metric.total} — różnica pochodzi z
+                generacji, nie z przeglądu.
+              </p>
+            )}
+          </div>
+        )}
+
+        {sessionMissing ? (
+          <div class="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-white">
+            <p class="text-blue-100/70">Nie znaleziono tej generacji.</p>
+            <a href={basePath} class="mt-4 inline-block text-purple-300 transition-colors hover:text-purple-100">
+              Pokaż wszystkie kandydatki w talii
+            </a>
+          </div>
+        ) : (
+          <CandidateReviewWorkspace
+            deckPublicId={deck.public_id}
+            cards={cards}
+            view={view}
+            generationPublicId={generationPublicId}
+            editId={editId}
+            editError={editId ? error : null}
+            savedId={savedId}
+            cardsError={cardsError}
+            client:load
+          />
+        )}
+      </div>
+    </AuthenticatedLayout>
+  ) : (
+    <AuthenticatedLayout title="Nie znaleziono" activeItem="decks">
+      <div class="mx-auto max-w-4xl">
+        <div class="rounded-2xl border border-white/10 bg-white/10 p-8 text-center text-white backdrop-blur-xl">
+          <p class="text-blue-100/70">Nie znaleziono talii.</p>
+          <a href="/decks" class="mt-4 inline-block text-purple-300 transition-colors hover:text-purple-100">
+            Wróć do talii
+          </a>
+        </div>
+      </div>
+    </AuthenticatedLayout>
+  )
+}

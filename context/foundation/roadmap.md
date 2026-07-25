@@ -175,7 +175,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 
 ### S-05: Przegląd i kuracja kandydatów
 
-- **Outcome:** użytkownik przegląda wygenerowanych kandydatów i akceptuje, edytuje lub odrzuca każdego — pojedynczo albo zbiorczo (bulk); zaakceptowane karty stają się częścią talii nadającą się do nauki.
+- **Outcome:** użytkownik przegląda wygenerowanych kandydatów i akceptuje, edytuje lub odrzuca każdego — pojedynczo albo zbiorczo (bulk); zaakceptowane karty stają się częścią talii nadającą się do nauki. Slice zamknął też dwa długi przypisane mu z nazwy przez wcześniejsze slice'y: filtr stanu w wyszukiwarce S-06 (tylko `accepted`) oraz idempotencję generacji (impl-review F5 z S-04) — „Ponów" po timeoucie klienta odtwarza zapisaną sesję zamiast dopisywać drugi komplet kandydatów, czym domyka Risk #2 z test-plan.md.
 - **Change ID:** candidate-review
 - **PRD refs:** US-01, FR-005, FR-006
 - **Prerequisites:** S-04
