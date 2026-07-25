@@ -656,14 +656,14 @@ a straight revert of the CSS token and the touched class lists.
 
 #### Automated
 
-- [x] 4.1 Linting passes: `npm run lint`
-- [x] 4.2 Production build succeeds: `npm run build`
-- [x] 4.3 Formatting is clean: `npx prettier --check .`
+- [x] 4.1 Linting passes: `npm run lint` — 5031d8e
+- [x] 4.2 Production build succeeds: `npm run build` — 5031d8e
+- [x] 4.3 Formatting is clean: `npx prettier --check .` — 5031d8e
 
 #### Manual
 
-- [x] 4.4 Every row in `verification.md` has a PO measurement, none below 3:1
-- [x] 4.5 No row has an empty "indicator (after)" cell
-- [x] 4.6 Focus-vs-selection contract section is present and unambiguous
-- [x] 4.7 `AGENTS.md` and `lessons.md` entries are readable without ticket context
-- [x] 4.8 `roadmap.md` H-01 change-id + cause corrected, `test-plan.md` §7 path fixed, Status untouched
+- [x] 4.4 Every row in `verification.md` has a PO measurement, none below 3:1 — 5031d8e
+- [x] 4.5 No row has an empty "indicator (after)" cell — 5031d8e
+- [x] 4.6 Focus-vs-selection contract section is present and unambiguous — 5031d8e
+- [x] 4.7 `AGENTS.md` and `lessons.md` entries are readable without ticket context — 5031d8e
+- [x] 4.8 `roadmap.md` H-01 change-id + cause corrected, `test-plan.md` §7 path fixed, Status untouched — 5031d8e
