@@ -52,7 +52,7 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 | S-04 | ai-candidate-generation | wkleić tekst i wygenerować kandydatów AI z postępem i retry                                             | F-01, S-01       | US-01, FR-003, FR-004, FR-006, FR-018            | done        |
 | S-05 | candidate-review        | przeglądać kandydatów i akceptować/edytować/odrzucać (bulk)                                             | S-04             | US-01, FR-005, FR-006                            | done        |
 | S-06 | deck-keyword-search     | wyszukiwać fiszki w talii po słowie kluczowym                                                           | S-02             | FR-015                                           | done        |
-| H-01 | focus-ring-a11y         | widzieć, gdzie jest focus klawiatury na każdym polu i przycisku (kontrast ≥ 3:1, oba motywy)            | MVP (S-01…S-06)  | NFR: baseline a11y (klawiatura / czytnik ekranu) | in-progress |
+| H-01 | focus-ring-a11y         | widzieć, gdzie jest focus klawiatury na każdym polu i przycisku (kontrast ≥ 3:1, oba motywy)            | MVP (S-01…S-06)  | NFR: baseline a11y (klawiatura / czytnik ekranu) | done        |
 
 Prefiks **`H-` (hardening)** oznacza pracę PO zamknięciu zakresu MVP: `F-01…F-03` i
 `S-01…S-06` są `done` i ta granica zostaje nienaruszona. Elementy `H-` nie są vertical
@@ -215,7 +215,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Defekt globalny, nie per-widok. Przyczyna ZMIERZONA (nie ta z ticketu): `ring-*` mapuje się na realny `box-shadow` poprawnie — problem jest w wartości tokena `--ring`, który zasila naraz `ring-*` na prymitywach ORAZ `outline-color` na `*`. Aplikacja renderuje się stale ciemno (`bg-cosmic`), a wariant `dark` nigdy się nie aktywuje, więc obowiązują tokeny motywu JASNEGO: 43 z 48 kontrolek mierzyło 2,3–2,7:1 wobec wymaganych 3:1. Druga część defektu to trzy lokalne łatki narosłe wokół zbyt słabej wartości domyślnej. Fix idzie w jedno miejsce — nie łatać per widok. Poza zakresem: model SELEKCJI elementów (widoczny obrys zaznaczonego wiersza), który należy do C10X-16. Brak automatycznej ochrony przed regresją: projekt nie ma warstwy e2e ani visual-diff — patrz `test-plan.md` §7; dowodem jest pomiar w `context/changes/focus-ring-a11y/verification.md`.
-- **Status:** in-progress
+- **Status:** done
 
 ## Backlog Handoff
 
@@ -263,6 +263,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **F-03: (foundation) skonfigurowany runner testów (Vitest przez `getViteConfig()`) i `context/foundation/test-plan.md` nazywający ryzyka, plus realne testy cross-account ćwiczące guardrail izolacji na zdolności dostarczonej przez S-01 — uruchamiane w CI jako bramka przed deployem.** — Archived 2026-07-15 → `context/archive/2026-07-15-verification-harness/`. Lesson: —.
 - **S-03: użytkownik rozpoczyna sesję nauki, w której gotowy algorytm SRS wybiera karty należne dziś, ocenia przypomnienie na każdej karcie, a harmonogram przeżywa między sesjami (żadna karta nie ginie, harmonogram się nie psuje).** — Archived 2026-07-24 → `context/archive/2026-07-24-srs-study-session/`. Lesson: —.
 - **S-05: użytkownik przegląda wygenerowanych kandydatów i akceptuje, edytuje lub odrzuca każdego — pojedynczo albo zbiorczo (bulk); zaakceptowane karty stają się częścią talii nadającą się do nauki. Slice zamknął też dwa długi przypisane mu z nazwy przez wcześniejsze slice'y: filtr stanu w wyszukiwarce S-06 (tylko `accepted`) oraz idempotencję generacji (impl-review F5 z S-04) — „Ponów" po timeoucie klienta odtwarza zapisaną sesję zamiast dopisywać drugi komplet kandydatów, czym domyka Risk #2 z test-plan.md.** — Archived 2026-07-25 → `context/archive/2026-07-25-candidate-review/`. Lesson: —.
+- **H-01: (hardening) użytkownik nawigujący klawiaturą widzi wyraźny, kontrastujący focus ring na input/button/select/textarea w obu motywach — ring pokazuje się tylko na `:focus-visible`, nie po kliknięciu myszą.** — Archived 2026-07-25 → `context/archive/2026-07-25-focus-ring-a11y/`. Lesson: —.
 
 ## Parked ideas (post-MVP → Jira "Pomysł")
 

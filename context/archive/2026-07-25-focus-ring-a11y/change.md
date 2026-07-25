@@ -1,10 +1,10 @@
 ---
 change_id: focus-ring-a11y
 title: Global focus ring renders no box-shadow on shared controls
-status: impl_reviewed
+status: archived
 created: 2026-07-25
 updated: 2026-07-25
-archived_at: null
+archived_at: 2026-07-25T19:45:28Z
 ---
 
 ## Notes
