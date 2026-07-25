@@ -24,6 +24,17 @@ const { variant = "info" } = Astro.props;
     text-decoration: underline;
     font-weight: 600;
   }
+  /* Local exception to the app-wide white focus outline (src/styles/global.css).
+     This banner is the ONLY light surface in the app — it renders outside every
+     `bg-cosmic` wrapper — so a white outline measures ~1.2:1 here. `currentColor`
+     is the banner's own dark foreground, which contrasts strongly with all three
+     variants' light backgrounds without branching per variant.
+     `:global()` is load-bearing: the link is slotted in from Layout.astro, so
+     Astro's scoping never reaches it and a scoped selector would match nothing. */
+  .banner :global(a:focus-visible) {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
   .banner--info {
     background: #dbeafe;
     color: #1e3a8a;

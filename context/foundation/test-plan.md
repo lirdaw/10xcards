@@ -10,7 +10,9 @@
 > Risk #1's surface to the first lifecycle transition and the first multi-row
 > write — §6.6 extended, §6.8 added; Phase 6 landed generation idempotency, so
 > **Risk #2 moved from characterized to covered** — §3, §6.5 and §6.6's Phase-2
-> entry rewritten)
+> entry rewritten. Also: §7 negative space corrected and extended from C10X-22 —
+> the `src/components/ui/` exclusion does not cover the global style layer, and
+> focus-ring rendering is named as untested. No change to §2 or §3.)
 
 ## 1. Strategy
 
@@ -70,13 +72,13 @@ Each row is a discrete rollout phase that will open its own change folder
 via `/10x-new`. Status moves left-to-right through the values below; the
 orchestrator updates Status as artifacts appear on disk.
 
-| #   | Phase name                      | Goal (one line)                                                                                 | Risks covered                                                | Test types                         | Status       | Change folder                                   |
-| --- | ------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------- | ------------ | ----------------------------------------------- |
-| 1   | Harness + per-account isolation | Stand up the runner and prove cross-account denial on read and write                            | #1                                                           | runner bootstrap, integration, RLS | complete     | `context/changes/verification-harness/`         |
+| #   | Phase name                      | Goal (one line)                                                                         | Risks covered                                                 | Test types                         | Status       | Change folder                                   |
+| --- | ------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------- | ------------ | ----------------------------------------------- |
+| 1   | Harness + per-account isolation | Stand up the runner and prove cross-account denial on read and write                    | #1                                                            | runner bootstrap, integration, RLS | complete     | `context/changes/verification-harness/`         |
 | 2   | Endpoint contract               | Prove the server does not trust the client and does not leak; stop duplication on retry | #2 (**covered** — idempotency landed in S-05 Phase 6), #4, #6 | integration                        | implementing | `context/changes/ai-candidate-generation-test/` |
-| 3   | Quality gates + schema drift    | Make green CI mean "tested and prod actually migrated"                                          | #5                                                           | gates                              | not started  | —                                               |
-| 4   | SRS schedule correctness        | Prove the schedule defers by rating, survives restart, and admits only accepted cards           | #3                                                           | unit + integration                 | complete     | `context/changes/srs-study-session/`            |
-| 5   | AI-native generation quality    | Prove cards match the source language and are usable, so the 75% thesis is measurable           | #7                                                           | LLM-as-judge                       | not started  | —                                               |
+| 3   | Quality gates + schema drift    | Make green CI mean "tested and prod actually migrated"                                  | #5                                                            | gates                              | not started  | —                                               |
+| 4   | SRS schedule correctness        | Prove the schedule defers by rating, survives restart, and admits only accepted cards   | #3                                                            | unit + integration                 | complete     | `context/changes/srs-study-session/`            |
+| 5   | AI-native generation quality    | Prove cards match the source language and are usable, so the 75% thesis is measurable   | #7                                                            | LLM-as-judge                       | not started  | —                                               |
 
 Sequencing notes:
 
@@ -184,7 +186,7 @@ at this layer.
 
 **"Independent source" has a sharp edge when the state is stored** (added by
 the S-03 impl-review). Feeding the row you just read back through the app's own
-mapper to build the expectation is *not* an independent recomputation: whatever
+mapper to build the expectation is _not_ an independent recomputation: whatever
 the store fails to persist is dropped on both sides at once, and the oracle
 agrees with the code on a wrong value. For a stateful transition, advance the
 oracle **independently of the store** — chain it in memory across several
@@ -415,13 +417,13 @@ Neither production edit was ever committed.
 
   What covers the risk now:
 
-  | Claim                                             | What proves it                                                                                                 |
-  | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-  | A retry writes one session, not two               | two POSTs with the same `idempotencyKey` → one `succeeded` session, one `generation_id`, `COUNT` cards          |
-  | …and the replay is usable, not just harmless      | the second response carries the **same** `sessionPublicId`, `deckPublicId` and `counts` as the first            |
-  | The dedup is keyed, not blanket                   | two different keys → two sessions; the control the "one session" claim would otherwise be satisfied by falsely |
-  | An old client still works                         | two POSTs with **no** key at all → two sessions (column nullable, request field optional)                       |
-  | A failure does not kill the retry (FR-018)        | a `failed` session seeded for a key → the same key still generates and succeeds                                 |
+  | Claim                                        | What proves it                                                                                                 |
+  | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+  | A retry writes one session, not two          | two POSTs with the same `idempotencyKey` → one `succeeded` session, one `generation_id`, `COUNT` cards         |
+  | …and the replay is usable, not just harmless | the second response carries the **same** `sessionPublicId`, `deckPublicId` and `counts` as the first           |
+  | The dedup is keyed, not blanket              | two different keys → two sessions; the control the "one session" claim would otherwise be satisfied by falsely |
+  | An old client still works                    | two POSTs with **no** key at all → two sessions (column nullable, request field optional)                      |
+  | A failure does not kill the retry (FR-018)   | a `failed` session seeded for a key → the same key still generates and succeeds                                |
 
   **The key is per ATTEMPT, not per request.** `GeneratorForm` mints a
   `crypto.randomUUID()` on submit and stores it in `lastPayload`; "Ponów"
@@ -432,7 +434,7 @@ Neither production edit was ever committed.
   **Two guards keep FR-018 alive, they are NOT independent, and only one of them is
   testable from the outside.** The partial unique index is scoped to
   `(user_id, idempotency_key) where idempotency_key is not null and status = 'succeeded'`,
-  and both failure-path *inserts* in `generate.ts` write the key as `null`. A `failed`
+  and both failure-path _inserts_ in `generate.ts` write the key as `null`. A `failed`
   audit row holding the key would make "Ponów" collide on its own insert and answer
   `500` — retry permanently dead after the first failure, the exact flow FR-018 exists
   for (plan-review F1). Note that the plan's own migration contract specified the index
@@ -442,7 +444,7 @@ Neither production edit was ever committed.
 
   **This entry used to say "either alone would do". That was wrong** (impl-review F3,
   2026-07-25). The two failure inserts are not the only route to a `failed` row:
-  `failGenerationSession` — the compensating update after a failed *card* insert — flips
+  `failGenerationSession` — the compensating update after a failed _card_ insert — flips
   an already-inserted `succeeded` row to `failed` and **leaves its key in place**
   (`src/lib/generations.ts`, which sets only `status`, `saved_count`, `error_message`).
   A keyed `failed` row is therefore reachable in ordinary operation, and the index
@@ -458,10 +460,9 @@ Neither production edit was ever committed.
   including the dedup case itself, stay green. That split is what proves the
   failed-key assertion observes the index predicate rather than an incidental
   success. Two things are worth knowing before you run it:
-
   - The widened index may refuse to **build at all** against a database that
     already holds a suite run's rows (`Key (user_id, idempotency_key)=… is
-    duplicated`, the seeded `failed` row against its own `succeeded` result).
+duplicated`, the seeded `failed` row against its own `succeeded` result).
     That failure is itself evidence, but run the check from a `db reset` if you
     want the red test rather than the build error.
   - Restore with `npx supabase db reset` and then **verify it** — dump
@@ -488,19 +489,19 @@ Neither production edit was ever committed.
 - **Phase 4 (`srs-study-session`, 2026-07-24)** — Risk #3 is **covered**.
   Precisely what that means:
 
-  | Claim from Risk #3                       | What proves it                                                                                                                             |
-  | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-  | Deferral follows the rating              | `schedule.test.ts` ordering property (no DB) + `study.test.ts` Easy-vs-Hard `due` persisted through the endpoint                           |
-  | The written schedule is the right one, at the FIRST review | `study.test.ts` exact-due oracle: `due`/`stability`/`difficulty`/`srs_state`/`reps`/`lapses`/`scheduled_days` vs a direct `scheduler.next` |
-  | …and at every review after it            | `study.test.ts` "stays faithful across consecutive reviews": three chained ratings vs an oracle Card advanced only in memory (added by impl-review F2) |
-  | The schedule survives between sessions   | re-read on a brand-new client, column-for-column, asserted still rated (not silently reset to New)                                         |
-  | A retry does not advance the schedule    | two identical POSTs → `reps` 0→1 (not 2), second answers `200 { alreadyApplied: true }`, row byte-identical                                |
-  | Only accepted cards enter                | a `generated` and a `rejected` sibling never come back from `listDueCards`; rating one is a 404 that writes no schedule row                |
-  | No cross-account write (extends Risk #1) | B rating A's card → 404 and A's row unchanged column-for-column, with A's own successful rate as the positive control                      |
+  | Claim from Risk #3                                         | What proves it                                                                                                                                         |
+  | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+  | Deferral follows the rating                                | `schedule.test.ts` ordering property (no DB) + `study.test.ts` Easy-vs-Hard `due` persisted through the endpoint                                       |
+  | The written schedule is the right one, at the FIRST review | `study.test.ts` exact-due oracle: `due`/`stability`/`difficulty`/`srs_state`/`reps`/`lapses`/`scheduled_days` vs a direct `scheduler.next`             |
+  | …and at every review after it                              | `study.test.ts` "stays faithful across consecutive reviews": three chained ratings vs an oracle Card advanced only in memory (added by impl-review F2) |
+  | The schedule survives between sessions                     | re-read on a brand-new client, column-for-column, asserted still rated (not silently reset to New)                                                     |
+  | A retry does not advance the schedule                      | two identical POSTs → `reps` 0→1 (not 2), second answers `200 { alreadyApplied: true }`, row byte-identical                                            |
+  | Only accepted cards enter                                  | a `generated` and a `rejected` sibling never come back from `listDueCards`; rating one is a 404 that writes no schedule row                            |
+  | No cross-account write (extends Risk #1)                   | B rating A's card → 404 and A's row unchanged column-for-column, with A's own successful rate as the positive control                                  |
 
   **What the single-transition oracle does NOT prove, and why there are now two
   rows for it** (added by impl-review F2, 2026-07-24). The exact-due oracle
-  recomputes its expectation from the row it just read back — i.e. *through*
+  recomputes its expectation from the row it just read back — i.e. _through_
   `scheduleRowToCard`, the app's own mapper. Any `ts-fsrs` `Card` field the
   schedule table fails to persist is therefore dropped on both sides at once, so
   the oracle and the code agree on a wrong value and the assertion passes. That
@@ -523,7 +524,7 @@ Neither production edit was ever committed.
   `src/lib/study.ts` (which restores the unpersisted-cursor bug) and run
   `npx vitest run tests/study/study.test.ts`. Exactly one assertion goes red —
   the chained case's `due` at review 2 (`expected 1780316400000 to be
-  1780488600000`) — and the other 14 cases stay green, including the
+1780488600000`) — and the other 14 cases stay green, including the
   single-transition oracle, which is the whole point. Restoring the flag restored
   green (46/46 for the full suite).
 
@@ -570,22 +571,22 @@ Neither production edit was ever committed.
 
   Extends the Phase 1 table by one row:
 
-  | Surface    | Non-owner denied on write                                                          | Non-owner denied on read |
-  | ---------- | ---------------------------------------------------------------------------------- | ------------------------ |
+  | Surface    | Non-owner denied on write                                                                  | Non-owner denied on read |
+  | ---------- | ------------------------------------------------------------------------------------------ | ------------------------ |
   | flashcards | **state transition, single and bulk, via `/cards/batch`** (`isolation/flashcards.test.ts`) | unchanged                |
 
   What the slice's own file (`tests/review/candidates.test.ts`) proves:
 
-  | Claim                                              | What proves it                                                                                             |
-  | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-  | Every legal edge of the transition table writes    | all four `(from,to)` pairs asserted on `RETURNING` **and** on the row re-read                               |
-  | Every illegal edge writes nothing                  | anything → `generated`, and a repeat of an applied move: empty `RETURNING`, row `toEqual(before)`           |
-  | A mixed batch writes only its legal subset         | one movable + one already-in-target card; `changed`/`skipped` split, sibling row byte-identical             |
-  | A zero-row write is a 200, not an error            | the endpoint's `{ ok, changed, skipped }` contract, with `skipped` = requested minus returned                |
-  | Route precedence cannot become a wrong write       | `batch` fails `UUID_RE` in `[cardPublicId].ts` → 404, never an edit                                          |
-  | A transition moves the card through the study gate | accepted → enters `listDueCards`; rejected → gone even at a far-future clock; Przywróć resumes at `reps` 1  |
-  | Search stays accepted-only, and carries `source_id` | one token, three cards, one per state — only the accepted one matches                                        |
-  | A transition is not a content edit                 | `updated_at === created_at` after a state write, while a real edit still bumps it                            |
+  | Claim                                               | What proves it                                                                                             |
+  | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+  | Every legal edge of the transition table writes     | all four `(from,to)` pairs asserted on `RETURNING` **and** on the row re-read                              |
+  | Every illegal edge writes nothing                   | anything → `generated`, and a repeat of an applied move: empty `RETURNING`, row `toEqual(before)`          |
+  | A mixed batch writes only its legal subset          | one movable + one already-in-target card; `changed`/`skipped` split, sibling row byte-identical            |
+  | A zero-row write is a 200, not an error             | the endpoint's `{ ok, changed, skipped }` contract, with `skipped` = requested minus returned              |
+  | Route precedence cannot become a wrong write        | `batch` fails `UUID_RE` in `[cardPublicId].ts` → 404, never an edit                                        |
+  | A transition moves the card through the study gate  | accepted → enters `listDueCards`; rejected → gone even at a far-future clock; Przywróć resumes at `reps` 1 |
+  | Search stays accepted-only, and carries `source_id` | one token, three cards, one per state — only the accepted one matches                                      |
+  | A transition is not a content edit                  | `updated_at === created_at` after a state write, while a real edit still bumps it                          |
 
   **What it does NOT prove.** The edit round-trip cases assert the `Location` header
   only — no test renders `review.astro`, so the review screen's own loader, its empty
@@ -601,7 +602,7 @@ Neither production edit was ever committed.
   **malformed query**, not on a behavioural assertion: `.in("state_id", …)` → `""`
   fails with `PGRST100`, and the `?? []` fallback → `["Stryker was here"]` fails with
   `22P02` (integer parse). Only **4 of 12** are behavioural — the ones that collapse the
-  allow-list to `[]` while leaving the query valid — and all four break *legal*
+  allow-list to `[]` while leaving the query valid — and all four break _legal_
   transitions. **No mutant in this run makes an illegal transition succeed**, because
   the operator that would has to substitute a string that Postgres rejects. So the
   direction that actually harms a user (a gate too permissive — a rejected card
@@ -609,8 +610,7 @@ Neither production edit was ever committed.
   Stryker. Per-mutant record: `context/changes/candidate-review/mutation-register.md`.
 
   **Three deliberate-breakage checks, all run, with observed results.**
-
-  1. *The transition guard.* Delete `.in("state_id", ALLOWED_FROM[target])` from
+  1. _The transition guard._ Delete `.in("state_id", ALLOWED_FROM[target])` from
      `setFlashcardState`. Exactly **3 of 16** red in `candidates.test.ts` — the
      off-graph case (`expected [ {…} ] to deeply equal []`), the mixed batch
      (2 returned instead of 1), and the endpoint's `changed`/`skipped` split. The
@@ -618,7 +618,7 @@ Neither production edit was ever committed.
      proves those three observe the gate rather than an incidental empty result.
      Reverting restored 16/16.
 
-  2. *Cross-account denial.* This one needs **three** policies neutered, not the two
+  2. _Cross-account denial._ This one needs **three** policies neutered, not the two
      the plan anticipated. With `deck_select` + `flashcard_update` set to
      `using (true)`, the new batch denial does go red — but only on its **status**
      (`expected 200 to be 404`, i.e. B resolved A's deck). The write half stayed
@@ -632,11 +632,11 @@ Neither production edit was ever committed.
      zero rows. This is the same "stops at the next policy down" trap §6.6 records for
      S-03, one layer deeper — the next contributor should start from all three.
 
-  3. *The trigger narrowing.* Restore the unqualified
+  3. _The trigger narrowing._ Restore the unqualified
      `before update on flashcard` moddatetime trigger. Exactly **1 of 25** red across
      both files — the `updated_at` assertion
      (`expected '…844183+00:00' to be '…839253+00:00'`) — and nothing else. A
-     migration whose only effect is a *non*-event has no other witness.
+     migration whose only effect is a _non_-event has no other witness.
 
   **Restores were verified, not assumed — and the verification earned its keep.** The
   first policy restore silently no-opped: the heredoc was piped to `docker exec`
@@ -754,7 +754,7 @@ Five facts that are invisible from the test file and will cost you an afternoon:
   nothing.** Under RLS an UPDATE that matches nothing reports no error, and the
   batch endpoint deliberately reports it as `{ ok: true, changed: [], skipped: [...] }`
   (the same benign shape `/api/study` uses for `alreadyApplied`). `changed` is
-  therefore the *only* signal that separates a refused reach from a successful one.
+  therefore the _only_ signal that separates a refused reach from a successful one.
   Always pair it with the row re-read as the owner.
 - **`skipped` is derived, not reported by the database**: it is the requested set
   minus what `RETURNING` produced. An id lands there for four indistinguishable
@@ -767,7 +767,7 @@ Five facts that are invisible from the test file and will cost you an afternoon:
   `flashcard_schedule.srs_state` is FSRS's (0 New / 1 Learning / 2 Review /
   3 Relearning). Asserting the wrong column proves nothing while reading as a pass.
 - **`generated` is not a reachable target, and it is refused twice.** The Zod union
-  on the endpoint rejects the *value* with a `400`, while `ALLOWED_FROM` has no key
+  on the endpoint rejects the _value_ with a `400`, while `ALLOWED_FROM` has no key
   for it so the lib layer matches an empty allow-list. Test the lib layer through
   `setFlashcardState` directly if you want the second guard — over HTTP you only ever
   see the first.
@@ -797,6 +797,44 @@ contributors should respect these unless the underlying assumption changes.
 - **shadcn-style primitives in `src/components/ui/`** — vendored library
   surface, not this project's logic. Re-evaluate if a primitive grows
   project-specific behaviour. (Source: Phase 2 interview Q5.)
+  > **Scope correction (2026-07-25, from C10X-22).** This exclusion covers the
+  > primitives' own behaviour. It does **not** extend to the global style layer
+  > they all inherit — `src/styles/global.css` is written by this project, not
+  > vendored, and a single line there breaks every input and button at once. Read
+  > the exclusion as "we don't test the vendored component", never as "we don't
+  > test anything rendered by `ui/`".
+- **Visual rendering of the focus ring (and contrast generally)** — no
+  automated coverage, by capacity, not by belief that it is safe. The defect
+  class is real and shipped: C10X-22 is invisible to `eslint-plugin-jsx-a11y`,
+  because the JSX is correct and so is the Tailwind ring configuration — the
+  ring rendered a real `box-shadow` all along. The fault was the **value** of
+  the shared `--ring` token, which feeds both the primitives' `ring-*` and the
+  app-wide `outline-color`, resolving to its light-theme grey on a permanently
+  dark surface: 43 of 48 controls measured 2.3–2.7:1 against a 3:1 bar. (The
+  ticket's own suspected cause — "`ring-*` never maps to a real box-shadow" —
+  was refuted by measurement; do not re-derive the plan from it.) Catching this
+  needs a computed style in a real browser — i.e. the e2e / visual-diff layer
+  §4 and §5 deliberately do not have. Re-evaluate the moment any §3 phase
+  wires e2e; that is the point at which this becomes cheap rather than a new
+  layer. Until then the guard is the measured acceptance check in the change
+  itself (contrast ≥ 3:1, **WCAG 1.4.11 only**), recorded per control before
+  and after in `context/changes/focus-ring-a11y/verification.md`. (Source:
+  C10X-22 / `context/changes/focus-ring-a11y/`.)
+  > **Citation corrected (2026-07-25, impl-review F4).** This bullet used to
+  > claim "WCAG 1.4.11 / 2.4.11". Only 1.4.11 (Non-text Contrast) is measured.
+  > **2.4.11 is Focus Not Obscured, and nothing tests it** — the harness reads a
+  > computed style on a control focused in place, so an indicator that paints
+  > correctly and is then scrolled underneath something reads as a pass. That is
+  > not hypothetical here: the deck page stacks two opaque `sticky` bars
+  > (`pages/decks/[publicId]/index.astro` `sticky top-0 h-16`,
+  > `components/flashcards/FlashcardWorkspace.tsx` `sticky top-16`) over the
+  > scroll container in `layouts/AuthenticatedLayout.astro`, and there is no
+  > `scroll-margin-*` or `scroll-padding-*` anywhere in `src/`, so Tab-driven
+  > scroll-into-view aligns a control with the top of the scrollport — i.e.
+  > under both bars. Treat Focus Not Obscured as untested negative space, not as
+  > covered by C10X-22. Fixing it is a one-property change
+  > (`scroll-padding-top`) but needs its own browser verification; deliberately
+  > left out of C10X-22 rather than claimed without evidence.
 - **Marketing/landing pages and static copy** — snapshot tests break
   constantly and catch nothing. Re-evaluate if the landing gains a real
   flow (e.g. the inline sign-in form parked as C10X-20). (Source: Phase 2

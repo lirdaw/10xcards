@@ -55,7 +55,7 @@ interface Props {
 }
 
 const panelClass = "rounded-2xl border border-white/10 bg-white/10 p-6 text-white backdrop-blur-xl";
-const fieldClass = "border-white/20 bg-white/5 text-white placeholder:text-blue-100/40 focus-visible:border-white/40";
+const fieldClass = "border-white/20 bg-white/5 text-white placeholder:text-blue-100/40";
 
 // Per-deck session cap. It governs how the NEXT session is built (the current batch
 // was already capped server-side), so saving it never disturbs the cards in hand.
