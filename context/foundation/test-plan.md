@@ -10,7 +10,9 @@
 > Risk #1's surface to the first lifecycle transition and the first multi-row
 > write — §6.6 extended, §6.8 added; Phase 6 landed generation idempotency, so
 > **Risk #2 moved from characterized to covered** — §3, §6.5 and §6.6's Phase-2
-> entry rewritten)
+> entry rewritten. Also: §7 negative space corrected and extended from C10X-22 —
+> the `src/components/ui/` exclusion does not cover the global style layer, and
+> focus-ring rendering is named as untested. No change to §2 or §3.)
 
 ## 1. Strategy
 
@@ -797,6 +799,23 @@ contributors should respect these unless the underlying assumption changes.
 - **shadcn-style primitives in `src/components/ui/`** — vendored library
   surface, not this project's logic. Re-evaluate if a primitive grows
   project-specific behaviour. (Source: Phase 2 interview Q5.)
+  > **Scope correction (2026-07-25, from C10X-22).** This exclusion covers the
+  > primitives' own behaviour. It does **not** extend to the global style layer
+  > they all inherit — `src/styles/global.css` is written by this project, not
+  > vendored, and a single line there breaks every input and button at once. Read
+  > the exclusion as "we don't test the vendored component", never as "we don't
+  > test anything rendered by `ui/`".
+- **Visual rendering of the focus ring (and contrast generally)** — no
+  automated coverage, by capacity, not by belief that it is safe. The defect
+  class is real and shipped: C10X-22 (`focus-visible:ring-[3px]` rendering no
+  `box-shadow`) is invisible to `eslint-plugin-jsx-a11y`, because the JSX is
+  correct and the fault is in the Tailwind 4 ring configuration. Catching it
+  needs a computed style in a real browser — i.e. the e2e / visual-diff layer
+  §4 and §5 deliberately do not have. Re-evaluate the moment any §3 phase
+  wires e2e; that is the point at which this becomes cheap rather than a new
+  layer. Until then the guard is the manual acceptance check in the change
+  itself (both themes, contrast ≥ 3:1, WCAG 1.4.11 / 2.4.11). (Source:
+  C10X-22 / `context/changes/bug-focus-ring-a11y/`.)
 - **Marketing/landing pages and static copy** — snapshot tests break
   constantly and catch nothing. Re-evaluate if the landing gains a real
   flow (e.g. the inline sign-in form parked as C10X-20). (Source: Phase 2

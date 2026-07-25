@@ -52,6 +52,14 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 | S-04  | ai-candidate-generation  | wkleić tekst i wygenerować kandydatów AI z postępem i retry   | F-01, S-01     | US-01, FR-003, FR-004, FR-006, FR-018      | done     |
 | S-05  | candidate-review         | przeglądać kandydatów i akceptować/edytować/odrzucać (bulk)   | S-04           | US-01, FR-005, FR-006                       | done     |
 | S-06  | deck-keyword-search      | wyszukiwać fiszki w talii po słowie kluczowym                 | S-02           | FR-015                                      | done |
+| H-01  | bug-focus-ring-a11y      | widzieć, gdzie jest focus klawiatury na każdym polu i przycisku (kontrast ≥ 3:1, oba motywy) | MVP (S-01…S-06) | NFR: baseline a11y (klawiatura / czytnik ekranu) | in-progress |
+
+Prefiks **`H-` (hardening)** oznacza pracę PO zamknięciu zakresu MVP: `F-01…F-03` i
+`S-01…S-06` są `done` i ta granica zostaje nienaruszona. Elementy `H-` nie są vertical
+slice'ami — nie mają prerekwizytów, nikogo nie odblokowują i nie wchodzą do `## Streams`
+ani do grafu zależności. Źródłem jest Jira (bug / dług / polish), nie PRD; kotwica w PRD
+jest wtórna. Mają wiersz tutaj i blok w `## Slices` wyłącznie po to, żeby `/10x-archive`
+miał co domknąć — bez tego zamknięty task znika z roadmapy bez śladu w `## Done`.
 
 ## Streams
 
@@ -196,6 +204,18 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **Unknowns:** —
 - **Risk:** Mały, samodzielny slice odczytu; celowo bez rankingu i bez live-as-you-type (to FR-019, parked). Niskie ryzyko; dobry kandydat na tor równoległy przy ograniczeniu przepustowości.
 - **Status:** done
+
+### H-01: Globalny focus ring na współdzielonych kontrolkach (post-MVP)
+
+- **Outcome:** (hardening) użytkownik nawigujący klawiaturą widzi wyraźny, kontrastujący focus ring na input/button/select/textarea w obu motywach — ring pokazuje się tylko na `:focus-visible`, nie po kliknięciu myszą.
+- **Change ID:** bug-focus-ring-a11y
+- **PRD refs:** NFR (baseline dostępność klawiatury i czytnika ekranu)
+- **Prerequisites:** — (dotyczy shellu w poprzek wszystkich widoków; nic nie odblokowuje)
+- **Parallel with:** — (praca po zamknięciu MVP, poza grafem zależności)
+- **Blockers:** —
+- **Unknowns:** —
+- **Risk:** Defekt globalny, nie per-widok: podejrzana przyczyna to konfiguracja ring w Tailwind 4 (`src/styles/global.css`), przez którą `ring-*` nie mapuje się na realny `box-shadow`. Fix idzie w jedno miejsce — nie łatać per widok. Poza zakresem: model SELEKCJI elementów (widoczny obrys zaznaczonego wiersza), który należy do C10X-16. Brak automatycznej ochrony przed regresją: projekt nie ma warstwy e2e ani visual-diff — patrz `test-plan.md` §7.
+- **Status:** in-progress
 
 ## Backlog Handoff
 
