@@ -1,5 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import * as CreateDeck from "@/pages/api/decks/index";
+import * as BatchCards from "@/pages/api/decks/[publicId]/cards/batch";
+import * as EditCard from "@/pages/api/decks/[publicId]/cards/[cardPublicId]";
 import { listDecks } from "@/lib/decks";
 import {
   countCandidatesByDeck,
@@ -17,9 +19,16 @@ import { accountA, accountB } from "../fixtures/accounts";
 import { callEndpoint } from "../fixtures/endpoint";
 import { clientFor } from "../fixtures/session";
 
-// The candidate-review data layer (S-05): the project's FIRST lifecycle state transition
-// and its first multi-row mutation. Both are what test-plan §2 Risk #1 names, and the
-// transition graph is the one piece of logic in this slice with a real branch structure.
+// Candidate review (S-05): the project's FIRST lifecycle state transition and its first
+// multi-row mutation, plus the JSON endpoint that exposes them. Both are what test-plan
+// §2 Risk #1 names, and the transition graph is the one piece of logic in this slice with
+// a real branch structure.
+//
+// Two layers in one file, deliberately: the lib functions carry the transition rule, and
+// /cards/batch is the only caller that can turn it into a per-id outcome. Splitting them
+// would put the guard and its contract in different places. Cross-account denial on the
+// same endpoint lives in tests/isolation/flashcards.test.ts, per §6.2's one-file-per-
+// resource rule.
 //
 // Pattern is §6.4's, unchanged: drive the real thing against the real local Postgres with
 // a real session cookie, assert on ROWS read back as their owner (a write that RLS or a
@@ -222,6 +231,165 @@ describe("setFlashcardState applies the legal transitions", () => {
     // The already-accepted sibling is untouched, not re-written: this is what lets the
     // endpoint derive `skipped` as "requested minus returned" instead of guessing.
     expect(await rowOf(a, already)).toEqual(alreadyBefore);
+  });
+});
+
+describe("POST /api/decks/[publicId]/cards/batch applies a transition over a set", () => {
+  it("answers JSON with the ids it changed and the ids it skipped", async () => {
+    const deckPublicId = await createDeck(a, `Batch deck ${suffix}`);
+    const candidate = await seedCard(a, deckPublicId, `Batch candidate ${suffix}`, STATE_GENERATED);
+    const already = await seedCard(a, deckPublicId, `Batch already ${suffix}`, STATE_ACCEPTED);
+    const alreadyBefore = await rowOf(a, already);
+
+    const response = await callEndpoint(BatchCards, {
+      url: `/api/decks/${deckPublicId}/cards/batch`,
+      params: { publicId: deckPublicId },
+      body: JSON.stringify({ action: "setState", cardPublicIds: [candidate, already], state: "accepted" }),
+      as: a,
+    });
+
+    // A JSON body, not a 302: every other card/deck endpoint in this project is
+    // formData + redirect, so the media type is what says the bulk path has its own
+    // contract. `skipped` is the requested set minus what RETURNING produced — an
+    // already-accepted card is not an error, it simply did not move.
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("application/json");
+    expect(await response.json()).toEqual({ ok: true, changed: [candidate], skipped: [already] });
+    expect((await rowOf(a, candidate)).state_id).toBe(STATE_ACCEPTED);
+    expect(await rowOf(a, already)).toEqual(alreadyBefore);
+  });
+
+  it("refuses a body it cannot trust with 400 and an unknown deck with 404, writing nothing", async () => {
+    const deckPublicId = await createDeck(a, `Batch guard deck ${suffix}`);
+    const candidate = await seedCard(a, deckPublicId, `Batch guard candidate ${suffix}`, STATE_GENERATED);
+    const before = await rowOf(a, candidate);
+
+    const post = (url: string, params: Record<string, string>, body: string) =>
+      callEndpoint(BatchCards, { url, params, body, as: a });
+    const batchUrl = `/api/decks/${deckPublicId}/cards/batch`;
+
+    const bad: [string, string][] = [
+      // `generated` is not a reachable target: a card never returns to being a candidate,
+      // so the value is refused at the schema rather than left to match an empty allow-list.
+      [
+        "a state outside the union",
+        JSON.stringify({ action: "setState", cardPublicIds: [candidate], state: "generated" }),
+      ],
+      ["an unknown action", JSON.stringify({ action: "delete", cardPublicIds: [candidate] })],
+      ["an empty id list", JSON.stringify({ action: "setState", cardPublicIds: [], state: "accepted" })],
+      [
+        "an id that is not a uuid",
+        JSON.stringify({ action: "setState", cardPublicIds: ["../../etc"], state: "accepted" }),
+      ],
+      ["a body that is not JSON at all", "nie-json"],
+    ];
+    for (const [label, body] of bad) {
+      const response = await post(batchUrl, { publicId: deckPublicId }, body);
+      expect(response.status, label).toBe(400);
+      expect(response.headers.get("Content-Type"), label).toContain("application/json");
+    }
+
+    // A well-formed uuid that resolves to no deck: absent and RLS-hidden must stay
+    // indistinguishable (§6.2's "404, never 403"), and the answer is still JSON — a
+    // redirect here would mean the request reached the edit endpoint instead.
+    const absent = await post(
+      `/api/decks/00000000-0000-4000-8000-000000000000/cards/batch`,
+      { publicId: "00000000-0000-4000-8000-000000000000" },
+      JSON.stringify({ action: "setState", cardPublicIds: [candidate], state: "accepted" }),
+    );
+    expect(absent.status).toBe(404);
+    expect(absent.headers.get("Content-Type")).toContain("application/json");
+
+    // The card named in every refused request is still exactly as it was — a 400/404 that
+    // wrote anyway would otherwise read as a passing status assertion.
+    expect(await rowOf(a, candidate)).toEqual(before);
+  });
+
+  it("leaves the edit endpoint unable to answer for the literal segment `batch`", async () => {
+    const deckPublicId = await createDeck(a, `Precedence deck ${suffix}`);
+
+    // `cards/batch.ts` is a STATIC segment sitting next to the dynamic `[cardPublicId].ts`,
+    // and Astro resolves the static one first. The Container API imports a module directly,
+    // so it cannot observe that resolution — what it CAN pin is the fallback the plan leans
+    // on: even if precedence ever changed, "batch" fails the UUID guard in the edit endpoint
+    // and yields a 404 rather than a wrong write.
+    const form = new FormData();
+    form.set("front", `Precedence front ${suffix}`);
+    form.set("back", `Precedence back ${suffix}`);
+    const response = await callEndpoint(EditCard, {
+      url: `/api/decks/${deckPublicId}/cards/batch`,
+      params: { publicId: deckPublicId, cardPublicId: "batch" },
+      body: form,
+      as: a,
+    });
+    expect(response.status).toBe(404);
+  });
+});
+
+describe("editing a card from the review screen returns to the review screen", () => {
+  let deckPublicId: string;
+  let cardPublicId: string;
+
+  beforeAll(async () => {
+    deckPublicId = await createDeck(a, `Round-trip deck ${suffix}`);
+    cardPublicId = await seedCard(a, deckPublicId, `Round-trip candidate ${suffix}`, STATE_GENERATED);
+  });
+
+  /** Posts the inline-edit form the review screen renders, with whatever extra fields. */
+  async function editFrom(extra: Record<string, string>): Promise<string | null> {
+    const form = new FormData();
+    form.set("front", `Round-trip front ${suffix}`);
+    form.set("back", `Round-trip back ${suffix}`);
+    for (const [key, value] of Object.entries(extra)) form.set(key, value);
+
+    const response = await callEndpoint(EditCard, {
+      url: `/api/decks/${deckPublicId}/cards/${cardPublicId}`,
+      params: { publicId: deckPublicId, cardPublicId },
+      body: form,
+      as: a,
+    });
+    expect(response.status).toBe(302);
+    return response.headers.get("Location");
+  }
+
+  it("lands back on the review screen with the generation scope preserved", async () => {
+    const generation = "11111111-1111-4111-8111-111111111111";
+    expect(await editFrom({ from: "review", generation })).toBe(
+      `/decks/${deckPublicId}/review?generation=${generation}&saved=${cardPublicId}`,
+    );
+
+    // Without a generation the review screen is unscoped — the param is dropped, not
+    // carried through empty.
+    expect(await editFrom({ from: "review" })).toBe(`/decks/${deckPublicId}/review?saved=${cardPublicId}`);
+
+    // No `from` at all is the deck view, unchanged: this is the same endpoint the deck
+    // page has always posted to, and its existing round-trip must not move.
+    expect(await editFrom({})).toBe(`/decks/${deckPublicId}?saved=${cardPublicId}`);
+  });
+
+  it("never echoes a client-supplied path into the Location header", async () => {
+    // `from` is a switch with exactly one accepted value, not a redirect target. Anything
+    // else falls back to the deck view rather than steering the browser somewhere the
+    // client chose — the target is built server-side from the already-validated route params.
+    expect(await editFrom({ from: "https://evil.example/phish" })).toBe(`/decks/${deckPublicId}?saved=${cardPublicId}`);
+    expect(await editFrom({ from: "Review" })).toBe(`/decks/${deckPublicId}?saved=${cardPublicId}`);
+
+    // Same rule one level down: `generation` rides along only when it is a uuid, so a
+    // crafted value cannot append arbitrary query string or path to the review URL.
+    expect(await editFrom({ from: "review", generation: "../../../auth/signin" })).toBe(
+      `/decks/${deckPublicId}/review?saved=${cardPublicId}`,
+    );
+  });
+
+  it("round-trips a validation error back to the review screen too", async () => {
+    const generation = "22222222-2222-4222-8222-222222222222";
+    const location = await editFrom({ from: "review", generation, front: "" });
+    // The error path is the one that strands a user on the wrong screen if it is forgotten:
+    // the card re-enters inline edit via `edit=<id>` wherever the message is rendered.
+    expect(location).toContain(`/decks/${deckPublicId}/review?`);
+    expect(location).toContain(`generation=${generation}`);
+    expect(location).toContain(`edit=${cardPublicId}`);
+    expect(location).toContain("error=");
   });
 });
 

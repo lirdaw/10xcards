@@ -984,30 +984,30 @@ for the first time. Nothing needs migrating for them.
 
 #### Automated
 
-- [x] 1.1 `npx astro sync` succeeds (route/content types)
-- [x] 1.2 Type checking and linting pass
-- [x] 1.3 Migrations apply cleanly on a reset stack
-- [x] 1.4 Existing suite still green
-- [x] 1.5 Search RPC returns only accepted cards
-- [x] 1.7 Supabase types regenerated via `npm run db:types`, lint still green
-- [x] 1.8 Search RPC grants survived the drop (anon/authenticated unchanged)
-- [x] 1.9 A `state_id`-only UPDATE leaves `updated_at` untouched; a content UPDATE bumps it
+- [x] 1.1 `npx astro sync` succeeds (route/content types) — feaca47
+- [x] 1.2 Type checking and linting pass — feaca47
+- [x] 1.3 Migrations apply cleanly on a reset stack — feaca47
+- [x] 1.4 Existing suite still green — feaca47
+- [x] 1.5 Search RPC returns only accepted cards — feaca47
+- [x] 1.7 Supabase types regenerated via `npm run db:types`, lint still green — feaca47
+- [x] 1.8 Search RPC grants survived the drop (anon/authenticated unchanged) — feaca47
+- [x] 1.9 A `state_id`-only UPDATE leaves `updated_at` untouched; a content UPDATE bumps it — feaca47
 
 #### Manual
 
-- [x] 1.6 Deck view is visually and behaviourally unchanged
+- [x] 1.6 Deck view is visually and behaviourally unchanged — feaca47
 
 ### Phase 2: The batch endpoint — accept and reject over JSON
 
 #### Automated
 
-- [ ] 2.1 Type checking and linting pass
-- [ ] 2.2 Build succeeds
-- [ ] 2.3 Smoke case proves `/cards/batch` returns JSON, not a redirect
+- [x] 2.1 Type checking and linting pass
+- [x] 2.2 Build succeeds
+- [x] 2.3 Smoke case proves `/cards/batch` returns JSON, not a redirect
 
 #### Manual
 
-- [ ] 2.4 Foreign deck's `publicId` answers 404 JSON and writes nothing
+- [x] 2.4 Foreign deck's `publicId` answers 404 JSON and writes nothing
 
 ### Phase 3: Review screen and review-local selection
 
