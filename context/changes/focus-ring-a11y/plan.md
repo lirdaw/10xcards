@@ -620,37 +620,37 @@ a straight revert of the CSS token and the touched class lists.
 
 #### Automated
 
-- [x] 2.1 Linting passes: `npm run lint`
-- [x] 2.2 Production build succeeds: `npm run build`
-- [x] 2.3 `grep -rn "ring-white/80\|focus-visible:border-white/40" src/` returns nothing
-- [x] 2.4 `grep -rn "ring-ring/50\|outline-ring/50" src/` returns nothing
+- [x] 2.1 Linting passes: `npm run lint` — e3d841f
+- [x] 2.2 Production build succeeds: `npm run build` — e3d841f
+- [x] 2.3 `grep -rn "ring-white/80\|focus-visible:border-white/40" src/` returns nothing — e3d841f
+- [x] 2.4 `grep -rn "ring-ring/50\|outline-ring/50" src/` returns nothing — e3d841f
 
 #### Manual
 
-- [x] 2.5 Sign-in submit button paints a white ring under `Tab`, spot-measured above 3:1
-- [x] 2.6 `destructive` button variant is visually unchanged
-- [x] 2.7 Mouse-clicking a button still paints no ring
-- [x] 2.8 Mouse-clicking a text input still paints a ring, now clearly visible
-- [x] 2.9 What the two generator `<select>`s now paint is recorded; nothing → they join Phase 3's scope
-- [x] 2.10 The base-layer outline is not clipped inside an `overflow-hidden` ancestor
+- [x] 2.5 Sign-in submit button paints a white ring under `Tab`, spot-measured above 3:1 — e3d841f
+- [x] 2.6 `destructive` button variant is visually unchanged — e3d841f
+- [x] 2.7 Mouse-clicking a button still paints no ring — e3d841f
+- [x] 2.8 Mouse-clicking a text input still paints a ring, now clearly visible — e3d841f
+- [x] 2.9 What the two generator `<select>`s now paint is recorded; nothing → they join Phase 3's scope — e3d841f
+- [x] 2.10 The base-layer outline is not clipped inside an `overflow-hidden` ancestor — e3d841f
 
 ### Phase 3: Sweep — auth field and controls with no indicator
 
 #### Automated
 
-- [ ] 3.1 Linting passes: `npm run lint`
-- [ ] 3.2 Production build succeeds: `npm run build`
-- [ ] 3.3 `grep -rn "focus:ring-purple-400" src/` returns nothing
-- [ ] 3.4 `grep -rn "focus:ring\|focus:outline\|focus:border" src/` returns nothing
-- [ ] 3.5 Test suite green: `npm run db:start` then `npm test`
+- [x] 3.1 Linting passes: `npm run lint`
+- [x] 3.2 Production build succeeds: `npm run build`
+- [x] 3.3 `grep -rn "focus:ring-purple-400" src/` returns nothing
+- [x] 3.4 `grep -rn "focus:ring\|focus:outline\|focus:border" src/` returns nothing
+- [x] 3.5 Test suite green: `npm run db:start` then `npm test`
 
 #### Manual
 
-- [ ] 3.6 Every control on Phase 1's "no indicator" list now paints one under `Tab`
-- [ ] 3.7 Auth field uses the shared colour and trigger; auth screens otherwise unchanged
-- [ ] 3.8 An auth field in error state still rings red
-- [ ] 3.9 Banner link's focus indicator is visible on the light banner
-- [ ] 3.10 No control gained a second, competing indicator
+- [x] 3.6 Every control on Phase 1's "no indicator" list now paints one under `Tab`
+- [x] 3.7 Auth field uses the shared colour and trigger; auth screens otherwise unchanged
+- [x] 3.8 An auth field in error state still rings red
+- [x] 3.9 Banner link's focus indicator is visible on the light banner
+- [x] 3.10 No control gained a second, competing indicator
 
 ### Phase 4: Proof and durability
 

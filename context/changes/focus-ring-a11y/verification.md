@@ -271,6 +271,93 @@ established by a real `Tab` per page, `:focus-visible === true` on every row.
 The banner remains the single failing surface, at the value Phase 3 §2 was written
 for. No control paints nothing.
 
+## Phase 3 spot-check (2026-07-25) — NOT the Phase 4 re-run
+
+Same status as the Phase 2 block above: evidence for Phase 3's own manual gate, not
+the like-for-like re-run. Method identical to §Method; `npm run dev` at
+`http://localhost:4328`, keyboard modality established by a real `Tab` per page,
+`:focus-visible === true` on every row. Only the two surfaces Phase 3 edited are
+covered — `FormField` and the banner.
+
+| Kontrolka | PRZED | Phase 3 spot-check | Δ |
+| --- | --- | --- | --- |
+| Banner link — `Banner.astro:22` | outline:auto `ring/50` **1.42** (Phase 2: 1.22) | outline solid 2px `currentColor` = `rgb(127,29,29)` **8.20** | ✅ |
+| e-mail field — `FormField.tsx:53` | ring 2px `purple-400` 4.93 | ring 2px `oklch(1 0 0)` **13.71** | ✅ |
+| password field — `FormField.tsx:53` | ring 2px `purple-400` 4.93 | ring 2px `oklch(1 0 0)` **13.71** | ✅ |
+| e-mail field, **error** state | ring 2px `red-400` (not measured in Phase 1) | ring 2px `oklch(70.4% 0.191 22.216)` **4.80** | ✅ red, not white |
+| password field, **error** state | — | ring 2px `red-400` **4.75** | ✅ red, not white |
+
+### What this settles
+
+1. **The banner exception works, and it is the variant's own foreground.** The
+   measured outline colour is `rgb(127,29,29)` — `#7f1d1d`, the `banner--error`
+   `color` — so `currentColor` resolves per variant as intended and needs no
+   branch. A zoomed screenshot of the focused link shows the dark ring painted on
+   the pink background. This was the single failing row after Phase 2; it now
+   measures 8.20:1.
+2. **The auth field joined the shared system without losing its click ring.** A
+   **real** mouse click (not synthetic) on the e-mail field reports
+   `:focus-visible === true` and paints the ring — the behaviour the plan predicted
+   for text inputs, and the reason the `focus:` → `focus-visible:` switch is safe
+   here. Its `outline-style` is `none`, so `focus-visible:outline-none` still beats
+   the new base-layer outline: one indicator, not two.
+3. **The error branch still rings red.** Only the trigger moved; the semantic red
+   is unchanged and measures 4.75–4.80:1.
+
+Nothing else was edited in Phase 3 — §3's scope list was empty (Finding §1 above),
+and the Phase 2 spot-check re-confirmed each of the plan's five candidates.
+
+### Full-app sweep (items 3.6 and 3.10)
+
+Because §3's scope list was empty, "every control on the no-indicator list now
+paints one" cannot be checked by walking a list — there is no list. It was checked
+the other way round instead: **every focusable control on every surface** was
+focused in sequence and classified as `ring` / `outline` / `NONE` / `BOTH`, where
+`BOTH` means a ring *and* an outline paint together (item 3.10's "second, competing
+indicator"). Selector:
+`a[href],button,input,select,textarea,[tabindex]:not([tabindex="-1"])`, filtered to
+visible and enabled. Keyboard modality re-established with a real `Tab` per page.
+
+| Surface | Controls | ring | outline | NONE | BOTH | min | max |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `/auth/signin` | 6 | 3 | 3 | 0 | 0 | 8.20 (banner) | 13.71 |
+| `/decks` (sidebar expanded) | 62 | 1 | 61 | 0 | 0 | 8.20 (banner) | 19.10 |
+| `/decks` (sidebar collapsed) | 61 | 1 | 60 | 0 | 0 | 8.20 (banner) | 19.10 |
+| `/decks` + `CreateDeckModal` | 3 | 3 | 0 | 0 | 0 | 18.11 | 18.11 |
+| deck page | 23 | 14 | 9 | 0 | 0 | 8.20 (banner) | 18.64 |
+| `/generate` | 12 | 3 | 9 | 0 | 0 | 8.20 (banner) | 18.97 |
+| review | 34 | 18 | 16 | 0 | 0 | 8.20 (banner) | 19.10 |
+| study (session + answer revealed) | 14 | 6 | 8 | 0 | 0 | 8.20 (banner) | 19.10 |
+
+**Zero `NONE`, zero `BOTH`, and `:focus-visible === true` on every row.** On every
+dark surface the lowest reading is the flashcard/candidate card at 12.4–12.7 (the
+`rgb(45,50,67)` backdrop Finding §6 predicted would be the worst case); the app-wide
+minimum is the banner link at 8.20, which is the light surface Phase 3 §2 fixed.
+Every control that is *not* a shared primitive reports `outline`, every primitive
+reports `ring` — the cascade-layer split holds across the whole app, not just the
+four surfaces Phase 2 spot-checked.
+
+The `border-ring` flip is still present on the primitives (Finding §4) and is not
+counted as a competing indicator: it recolours the resting border rather than adding
+an area, it is the same white token, and it was there before this change.
+
+### Focus vs. selection, observed (informs Phase 4 §2)
+
+On the review screen a candidate was selected and then keyboard-focused. The two
+indicators are on **different elements** and read apart cleanly: selection is the
+card's `ring-1 ring-purple-400/40` plus `border-purple-400/60`; focus is a **white**
+2px outline on the checkbox inside it. Colour, width, element and persistence all
+differ. Screenshot-confirmed. Phase 4 §2 writes this up as the binding contract.
+
+### One measurement trap, in addition to §Method's three
+
+**A real `Tab` must be pressed after *every* navigation, not once per session.** The
+first `/generate` sweep returned `NONE` for all 12 controls with `fv: false` across
+the board — the harness had lost keyboard modality on the page load. That is trap §3
+firing at page scope rather than per control, and it produces a uniformly alarming
+result that looks exactly like a total regression. If a whole page reads `NONE`,
+press `Tab` and re-run before believing it.
+
 <!-- Phase 4 fills the PO columns, the verdict below, and the focus-vs-selection
      contract section. Do not restructure the table; the row order is the
      like-for-like key. -->

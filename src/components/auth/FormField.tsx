@@ -2,8 +2,12 @@ import type { ReactNode } from "react";
 import { CircleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// The focus ring here is the shared one: same trigger (`focus-visible:`) and same
+// colour token (`ring-ring`, see src/styles/global.css) as the ui/ primitives. Only
+// the width differs (2px, to keep the auth layout unchanged). Do not reintroduce a
+// local colour — the token is the single source for the whole app.
 const inputBase =
-  "w-full rounded-lg bg-white/10 border px-3 py-2 pl-10 text-white placeholder-white/40 focus:outline-none focus:ring-2 transition-colors";
+  "w-full rounded-lg bg-white/10 border px-3 py-2 pl-10 text-white placeholder-white/40 focus-visible:outline-none focus-visible:ring-2 transition-colors";
 
 interface FormFieldProps {
   id: string;
@@ -50,7 +54,7 @@ export function FormField({
           placeholder={placeholder}
           className={cn(
             inputBase,
-            error ? "border-red-400/60 focus:ring-red-400" : "border-white/20 focus:ring-purple-400",
+            error ? "border-red-400/60 focus-visible:ring-red-400" : "focus-visible:ring-ring border-white/20",
           )}
         />
         {endContent}
