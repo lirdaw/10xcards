@@ -638,32 +638,32 @@ a straight revert of the CSS token and the touched class lists.
 
 #### Automated
 
-- [x] 3.1 Linting passes: `npm run lint`
-- [x] 3.2 Production build succeeds: `npm run build`
-- [x] 3.3 `grep -rn "focus:ring-purple-400" src/` returns nothing
-- [x] 3.4 `grep -rn "focus:ring\|focus:outline\|focus:border" src/` returns nothing
-- [x] 3.5 Test suite green: `npm run db:start` then `npm test`
+- [x] 3.1 Linting passes: `npm run lint` — 302dfad
+- [x] 3.2 Production build succeeds: `npm run build` — 302dfad
+- [x] 3.3 `grep -rn "focus:ring-purple-400" src/` returns nothing — 302dfad
+- [x] 3.4 `grep -rn "focus:ring\|focus:outline\|focus:border" src/` returns nothing — 302dfad
+- [x] 3.5 Test suite green: `npm run db:start` then `npm test` — 302dfad
 
 #### Manual
 
-- [x] 3.6 Every control on Phase 1's "no indicator" list now paints one under `Tab`
-- [x] 3.7 Auth field uses the shared colour and trigger; auth screens otherwise unchanged
-- [x] 3.8 An auth field in error state still rings red
-- [x] 3.9 Banner link's focus indicator is visible on the light banner
-- [x] 3.10 No control gained a second, competing indicator
+- [x] 3.6 Every control on Phase 1's "no indicator" list now paints one under `Tab` — 302dfad
+- [x] 3.7 Auth field uses the shared colour and trigger; auth screens otherwise unchanged — 302dfad
+- [x] 3.8 An auth field in error state still rings red — 302dfad
+- [x] 3.9 Banner link's focus indicator is visible on the light banner — 302dfad
+- [x] 3.10 No control gained a second, competing indicator — 302dfad
 
 ### Phase 4: Proof and durability
 
 #### Automated
 
-- [ ] 4.1 Linting passes: `npm run lint`
-- [ ] 4.2 Production build succeeds: `npm run build`
-- [ ] 4.3 Formatting is clean: `npx prettier --check .`
+- [x] 4.1 Linting passes: `npm run lint`
+- [x] 4.2 Production build succeeds: `npm run build`
+- [x] 4.3 Formatting is clean: `npx prettier --check .`
 
 #### Manual
 
-- [ ] 4.4 Every row in `verification.md` has a PO measurement, none below 3:1
-- [ ] 4.5 No row has an empty "indicator (after)" cell
-- [ ] 4.6 Focus-vs-selection contract section is present and unambiguous
-- [ ] 4.7 `AGENTS.md` and `lessons.md` entries are readable without ticket context
-- [ ] 4.8 `roadmap.md` H-01 change-id + cause corrected, `test-plan.md` §7 path fixed, Status untouched
+- [x] 4.4 Every row in `verification.md` has a PO measurement, none below 3:1
+- [x] 4.5 No row has an empty "indicator (after)" cell
+- [x] 4.6 Focus-vs-selection contract section is present and unambiguous
+- [x] 4.7 `AGENTS.md` and `lessons.md` entries are readable without ticket context
+- [x] 4.8 `roadmap.md` H-01 change-id + cause corrected, `test-plan.md` §7 path fixed, Status untouched

@@ -41,18 +41,18 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 
 ## At a glance
 
-| ID    | Change ID                | Outcome (użytkownik może …)                                   | Prerequisites  | PRD refs                                   | Status   |
-| ----- | ------------------------ | ------------------------------------------------------------- | -------------- | ------------------------------------------ | -------- |
-| F-01  | per-user-data-isolation  | (foundation) twarda izolacja danych per-konto (RLS) + rdzenne tabele | —              | Access Control, Guardrails, NFR: prywatność | done     |
-| F-02  | srs-library-choice       | (foundation) decyzja: gotowa biblioteka SRS + skala oceny przypomnienia | —              | Non-Goals (gotowy SRS), Open Questions #2  | done     |
-| S-01  | deck-workspace           | tworzyć i nazywać własne talie (prywatna przestrzeń)          | F-01           | US-03, FR-017, FR-001, FR-002              | done     |
-| F-03  | verification-harness     | (foundation) harness testowy + test-plan.md + testy cross-account (talie i fiszki, odczyt i zapis) w CI | S-01           | Guardrails, NFR: trwałość harmonogramu     | done     |
-| S-02  | manual-card-crud         | ręcznie tworzyć, przeglądać, edytować i usuwać fiszki w talii | S-01           | US-03, FR-007, FR-008, FR-009, FR-010      | done     |
-| S-03  | srs-study-session        | uczyć się talii w sesji SRS z oceną przypomnienia (gwiazda)   | F-01, F-02, S-02 | US-02, FR-011, FR-012                     | done     |
-| S-04  | ai-candidate-generation  | wkleić tekst i wygenerować kandydatów AI z postępem i retry   | F-01, S-01     | US-01, FR-003, FR-004, FR-006, FR-018      | done     |
-| S-05  | candidate-review         | przeglądać kandydatów i akceptować/edytować/odrzucać (bulk)   | S-04           | US-01, FR-005, FR-006                       | done     |
-| S-06  | deck-keyword-search      | wyszukiwać fiszki w talii po słowie kluczowym                 | S-02           | FR-015                                      | done |
-| H-01  | bug-focus-ring-a11y      | widzieć, gdzie jest focus klawiatury na każdym polu i przycisku (kontrast ≥ 3:1, oba motywy) | MVP (S-01…S-06) | NFR: baseline a11y (klawiatura / czytnik ekranu) | in-progress |
+| ID   | Change ID               | Outcome (użytkownik może …)                                                                             | Prerequisites    | PRD refs                                         | Status      |
+| ---- | ----------------------- | ------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------ | ----------- |
+| F-01 | per-user-data-isolation | (foundation) twarda izolacja danych per-konto (RLS) + rdzenne tabele                                    | —                | Access Control, Guardrails, NFR: prywatność      | done        |
+| F-02 | srs-library-choice      | (foundation) decyzja: gotowa biblioteka SRS + skala oceny przypomnienia                                 | —                | Non-Goals (gotowy SRS), Open Questions #2        | done        |
+| S-01 | deck-workspace          | tworzyć i nazywać własne talie (prywatna przestrzeń)                                                    | F-01             | US-03, FR-017, FR-001, FR-002                    | done        |
+| F-03 | verification-harness    | (foundation) harness testowy + test-plan.md + testy cross-account (talie i fiszki, odczyt i zapis) w CI | S-01             | Guardrails, NFR: trwałość harmonogramu           | done        |
+| S-02 | manual-card-crud        | ręcznie tworzyć, przeglądać, edytować i usuwać fiszki w talii                                           | S-01             | US-03, FR-007, FR-008, FR-009, FR-010            | done        |
+| S-03 | srs-study-session       | uczyć się talii w sesji SRS z oceną przypomnienia (gwiazda)                                             | F-01, F-02, S-02 | US-02, FR-011, FR-012                            | done        |
+| S-04 | ai-candidate-generation | wkleić tekst i wygenerować kandydatów AI z postępem i retry                                             | F-01, S-01       | US-01, FR-003, FR-004, FR-006, FR-018            | done        |
+| S-05 | candidate-review        | przeglądać kandydatów i akceptować/edytować/odrzucać (bulk)                                             | S-04             | US-01, FR-005, FR-006                            | done        |
+| S-06 | deck-keyword-search     | wyszukiwać fiszki w talii po słowie kluczowym                                                           | S-02             | FR-015                                           | done        |
+| H-01 | focus-ring-a11y         | widzieć, gdzie jest focus klawiatury na każdym polu i przycisku (kontrast ≥ 3:1, oba motywy)            | MVP (S-01…S-06)  | NFR: baseline a11y (klawiatura / czytnik ekranu) | in-progress |
 
 Prefiks **`H-` (hardening)** oznacza pracę PO zamknięciu zakresu MVP: `F-01…F-03` i
 `S-01…S-06` są `done` i ta granica zostaje nienaruszona. Elementy `H-` nie są vertical
@@ -67,11 +67,11 @@ Pomoc nawigacyjna — grupuje elementy dzielące łańcuch prerekwizytów. Kanon
 żyje w grafie zależności poniżej; ta tabela to proponowana kolejność czytania między
 równoległymi torami.
 
-| Stream | Theme                              | Chain                                        | Note                                                                      |
-| ------ | ---------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------- |
-| A      | Fundament i przestrzeń danych      | `F-01` → `S-01` → `F-03`                     | Izolacja per-user, pierwsza talia, i test cross-account weryfikujący `S-01`; odblokowuje resztę. |
+| Stream | Theme                                | Chain                                        | Note                                                                                                          |
+| ------ | ------------------------------------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| A      | Fundament i przestrzeń danych        | `F-01` → `S-01` → `F-03`                     | Izolacja per-user, pierwsza talia, i test cross-account weryfikujący `S-01`; odblokowuje resztę.              |
 | B      | Decyzja SRS, karty i nauka (gwiazda) | `F-02` / `S-02` → `S-03`, `S-06` obok `S-02` | Decyzja o bibliotece SRS (`F-02`) i karty ręczne (`S-02`) zbiegają się w gwiazdę `S-03`; odgałęzia od `S-01`. |
-| C      | Generacja AI i przegląd            | `S-04` → `S-05`                              | Odgałęzia się od `S-01` (stream A); biegnie równolegle do `S-03`.         |
+| C      | Generacja AI i przegląd              | `S-04` → `S-05`                              | Odgałęzia się od `S-01` (stream A); biegnie równolegle do `S-03`.                                             |
 
 ## Baseline
 
@@ -208,28 +208,28 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 ### H-01: Globalny focus ring na współdzielonych kontrolkach (post-MVP)
 
 - **Outcome:** (hardening) użytkownik nawigujący klawiaturą widzi wyraźny, kontrastujący focus ring na input/button/select/textarea w obu motywach — ring pokazuje się tylko na `:focus-visible`, nie po kliknięciu myszą.
-- **Change ID:** bug-focus-ring-a11y
+- **Change ID:** focus-ring-a11y
 - **PRD refs:** NFR (baseline dostępność klawiatury i czytnika ekranu)
 - **Prerequisites:** — (dotyczy shellu w poprzek wszystkich widoków; nic nie odblokowuje)
 - **Parallel with:** — (praca po zamknięciu MVP, poza grafem zależności)
 - **Blockers:** —
 - **Unknowns:** —
-- **Risk:** Defekt globalny, nie per-widok: podejrzana przyczyna to konfiguracja ring w Tailwind 4 (`src/styles/global.css`), przez którą `ring-*` nie mapuje się na realny `box-shadow`. Fix idzie w jedno miejsce — nie łatać per widok. Poza zakresem: model SELEKCJI elementów (widoczny obrys zaznaczonego wiersza), który należy do C10X-16. Brak automatycznej ochrony przed regresją: projekt nie ma warstwy e2e ani visual-diff — patrz `test-plan.md` §7.
+- **Risk:** Defekt globalny, nie per-widok. Przyczyna ZMIERZONA (nie ta z ticketu): `ring-*` mapuje się na realny `box-shadow` poprawnie — problem jest w wartości tokena `--ring`, który zasila naraz `ring-*` na prymitywach ORAZ `outline-color` na `*`. Aplikacja renderuje się stale ciemno (`bg-cosmic`), a wariant `dark` nigdy się nie aktywuje, więc obowiązują tokeny motywu JASNEGO: 43 z 48 kontrolek mierzyło 2,3–2,7:1 wobec wymaganych 3:1. Druga część defektu to trzy lokalne łatki narosłe wokół zbyt słabej wartości domyślnej. Fix idzie w jedno miejsce — nie łatać per widok. Poza zakresem: model SELEKCJI elementów (widoczny obrys zaznaczonego wiersza), który należy do C10X-16. Brak automatycznej ochrony przed regresją: projekt nie ma warstwy e2e ani visual-diff — patrz `test-plan.md` §7; dowodem jest pomiar w `context/changes/focus-ring-a11y/verification.md`.
 - **Status:** in-progress
 
 ## Backlog Handoff
 
-| Roadmap ID | Change ID                | Suggested issue title                                  | Ready for `/10x-plan` | Notes |
-| ---------- | ------------------------ | ------------------------------------------------------ | --------------------- | ----- |
-| F-01       | per-user-data-isolation  | Izolacja danych per-konto (RLS) + rdzenne tabele       | yes                   | Rekomendowany pierwszy ruch; odblokowuje S-01/S-03/S-04 |
-| F-02       | srs-library-choice       | Wybór gotowej biblioteki SRS + skala oceny             | yes                   | Decyzja odblokowująca gwiazdę S-03; można podjąć od razu |
-| S-01       | deck-workspace           | Tworzenie i nazywanie prywatnych talii                 | no                    | Czeka na F-01 |
-| F-03       | verification-harness     | Harness testowy + test-plan (test izolacji)            | no                    | Czeka na S-01 |
-| S-02       | manual-card-crud         | Ręczne CRUD fiszek w talii                             | no                    | Czeka na S-01 |
-| S-03       | srs-study-session        | Sesja nauki SRS (gwiazda przewodnia)                   | no                    | Czeka na F-02 (decyzja SRS) + S-02 |
-| S-04       | ai-candidate-generation  | Generacja kandydatów AI z wklejonego tekstu            | no                    | Czeka na F-01, S-01 |
-| S-05       | candidate-review         | Przegląd i kuracja kandydatów (accept/edit/reject)     | no                    | Czeka na S-04 |
-| S-06       | deck-keyword-search      | Wyszukiwanie fiszek po słowie kluczowym                | no                    | Czeka na S-02 |
+| Roadmap ID | Change ID               | Suggested issue title                              | Ready for `/10x-plan` | Notes                                                    |
+| ---------- | ----------------------- | -------------------------------------------------- | --------------------- | -------------------------------------------------------- |
+| F-01       | per-user-data-isolation | Izolacja danych per-konto (RLS) + rdzenne tabele   | yes                   | Rekomendowany pierwszy ruch; odblokowuje S-01/S-03/S-04  |
+| F-02       | srs-library-choice      | Wybór gotowej biblioteki SRS + skala oceny         | yes                   | Decyzja odblokowująca gwiazdę S-03; można podjąć od razu |
+| S-01       | deck-workspace          | Tworzenie i nazywanie prywatnych talii             | no                    | Czeka na F-01                                            |
+| F-03       | verification-harness    | Harness testowy + test-plan (test izolacji)        | no                    | Czeka na S-01                                            |
+| S-02       | manual-card-crud        | Ręczne CRUD fiszek w talii                         | no                    | Czeka na S-01                                            |
+| S-03       | srs-study-session       | Sesja nauki SRS (gwiazda przewodnia)               | no                    | Czeka na F-02 (decyzja SRS) + S-02                       |
+| S-04       | ai-candidate-generation | Generacja kandydatów AI z wklejonego tekstu        | no                    | Czeka na F-01, S-01                                      |
+| S-05       | candidate-review        | Przegląd i kuracja kandydatów (accept/edit/reject) | no                    | Czeka na S-04                                            |
+| S-06       | deck-keyword-search     | Wyszukiwanie fiszek po słowie kluczowym            | no                    | Czeka na S-02                                            |
 
 ## Open Roadmap Questions
 
