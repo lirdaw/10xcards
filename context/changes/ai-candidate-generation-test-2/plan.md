@@ -34,9 +34,19 @@ module-local literals, so the returned value still comes from a closed set and t
 property holds unchanged — but any mutation or copy-pinning argument that assumes uniformity is
 wrong about that one branch. Zod issues are discarded (`:123`).
 `err.message` is computed at `:210` and routed **exclusively** to the DB column (`:220`).
-Since commit `a018717`, `src/lib/http.ts:56` renders the endpoint's `error` string verbatim
-in every island — so "every error body is a fixed literal" now has a client-side consumer
-and is an invariant, not a habit.
+Since commit `a018717`, `src/lib/http.ts` renders the endpoint's `error` string in every
+island — so "every error body is a fixed literal" now has a client-side consumer and is an
+invariant, not a habit.
+
+> **Narrowed 2026-07-26, after C10X-27 merged** (`e1aee53`, the impl-review fixes, rewrote
+> `http.ts`). This used to read "`http.ts:56` renders … **verbatim** in every island". Two
+> corrections. The line moved: the render is now `readJsonResponse`'s `:61`
+> (`errorMessageOf(body) ?? fallback`), while `:56` is the `if (!parsed)` guard. And
+> "verbatim" is no longer true for **every** response — `:52-54` intercepts `401` and
+> `res.redirected` first and returns the client's own `SESSION_EXPIRED_MESSAGE`, ignoring the
+> endpoint's copy entirely. The claim still holds exactly where this plan uses it: 502 and
+> 422 (Phase 5's two branches) are neither 401 nor redirects, so their bodies do reach the
+> user verbatim. Do not restate the wider version.
 
 **The two auth routes are the codebase's only deviation.** `src/pages/api/auth/signin.ts:16`
 and `signup.ts:16` relay `error.message` verbatim into `?error=`. The value is rendered
@@ -110,12 +120,20 @@ when `75df78f` moved it to `:218` — two hours after the run that range records
 > contended phase and must re-derive its list against the post-C10X-27 file** rather than trust any
 > line number in this plan. Acting on the list as first written would mean re-fixing fixed text.
 >
-> **Resolved at plan-review (F4), 2026-07-26.** C10X-27's implementation has landed
-> (`a018717..bfe53dd`) but is **not merged to `main`**. User's direction: this change runs
-> **second**, and its implementation happens on a **separate branch / worktree cut from a `main`
-> that already contains C10X-27** — never from the current working tree, which is C10X-27's own
-> branch. Phase 6's re-derivation requirement stands unchanged and is the reason the branch base
-> matters.
+> **DISCHARGED 2026-07-26 — this whole constraint is now history, keep reading only for the
+> one rule that survives it.** C10X-27 merged (PR #13, `9817a07`) and was archived to
+> `context/archive/2026-07-26-srs-study-session-test/`, so the folder this note forbids
+> touching **no longer exists** under `context/changes/`. This change was cut from that merged
+> `main` as `C10X-28-ai-candidate-generation-test-2` (`60e0e97`), which is what the F4
+> resolution asked for.
+>
+> **What survives: Phase 6 must still re-derive its list, and harder than before.**
+> `test-plan.md` is **1352** lines on `main` now — it moved again after this plan was written
+> (1018 at that `HEAD`, 1332 in the then-working tree), because `e1aee53` touched it too.
+> Every line number this plan gives for that file is historical. The same commit rewrote
+> `src/lib/http.ts`; see the narrowing note in Current State Analysis for what that did to one
+> of this plan's own claims. Treat any other anchor into a C10X-27 file as suspect until
+> re-checked.
 
 ### Key Discoveries
 
@@ -822,12 +840,12 @@ auth mapper, following `context/changes/candidate-review/mutation-register.md`'s
 > (858 → 1338) and this phase must re-derive its list against the file as it will actually be,
 > never against a line number in this plan.
 >
-> **User's direction, 2026-07-26: this change runs SECOND.** C10X-27 ships first; nothing here
-> is started until then. When it does start, it starts **on its own branch / worktree cut from a
-> `main` that already contains C10X-27** — not from the current working tree, which is sitting
-> on `C10X-27-srs-study-session-test` with this change folder untracked. Cutting from today's
-> `main` instead would put this phase in front of a `test-plan.md` 480 lines behind the one it
-> describes, and the doc-sync edits would then conflict on merge.
+> **SATISFIED 2026-07-26.** The "runs SECOND" direction is discharged: C10X-27 merged (PR #13)
+> and archived, and this change now sits on `C10X-28-ai-candidate-generation-test-2`, cut from
+> that merged `main`. **The re-derivation requirement is untouched and is the live part of this
+> note.** `test-plan.md` is **1352** lines on `main` — different again from every figure this
+> plan quotes — so rebuild the list by reading the file, and treat the line numbers below as
+> historical without exception.
 
 **Intent**: Correct whatever is *still* false — having first established what is, rather than
 applying a list assembled before a sibling change rewrote the file.
@@ -953,7 +971,9 @@ verified `pg_policies` diff to prove the restore, and are never committed.
   §6.2, §6.4, §6.5, §7, §8
 - Endpoint bodies: `src/pages/api/generate.ts:89-336`
 - Auth relay: `src/pages/api/auth/signin.ts:16`, `src/pages/api/auth/signup.ts:16`,
-  `src/components/auth/ServerError.tsx:13`, `src/lib/http.ts:56`
+  `src/components/auth/ServerError.tsx:13`, `src/lib/http.ts:52-61` (the `401`/redirect
+  interception at `:52-54`, the verbatim render at `:61` — see the narrowing note in
+  Current State Analysis)
 - Key surface: `src/lib/openrouter.ts:149-158,165-186,194-211`
 - Audit surface: `src/lib/generations.ts:24,35,116-121`,
   `supabase/migrations/20260712162349_generation_session.sql:25,32-34,58-74`
