@@ -378,3 +378,201 @@ here and one pair of human eyes there.
 Also out of scope, deliberately, and named so it does not read as missed: the deck-name
 `1..100` bound (six copies) and the card-content `FRONT_MAX`/`BACK_MAX` endpoints — the
 latter being the half of C10X-30 this phase does not close.
+
+## Phase 4 — ambient disclosure: banner gate and the log boundary (C10X-34 / C10X-28)
+
+> **This section is MISSING and is not being reconstructed here.** Phase 4 shipped as
+> `34e8837`, whose contents are `plan.md`, `src/layouts/Layout.astro`,
+> `src/lib/config-status.ts` and `tests/lib/no-logging.test.ts` — this file is not among
+> them, so rows 4.3–4.6 were checked off without their observed outputs ever being written
+> down. Writing them from memory now would be exactly the "count with no run behind it"
+> this document's own header refuses. **Plan Phase 6 §1 owns the finished record**, so the
+> gap is carried there: re-run 4.6's breakage check (a `console.log` added under `src/`,
+> confirm `tests/lib/no-logging.test.ts` goes red, remove it) and re-do the three banner
+> checks in a browser, recording what is observed then. Noted 2026-07-26, during Phase 5.
+
+## Phase 5 — the project's first module double (C10X-28)
+
+### Automated
+
+| Check | Command | Result |
+| --- | --- | --- |
+| 5.1 New file alone | `npx vitest run tests/generation/failure-path.test.ts` | **4 passed / 4** — two 502 branches, the 422 branch, and the key pin |
+| 5.2 Full suite | `npm test` | **166 passed / 166, 14 files** (was 165/14 with the file's first three cases; 159/12 before this phase) |
+| 5.3 Lint | `npm run lint` | clean (only the pre-existing `astro-eslint-parser` `projectService` notices) |
+
+The seam is the one `research.md` § "Verified by execution" recommended and **not** the one
+`frame.md` proposed: `vi.mock("astro:env/server", { ...actual, OPENROUTER_API_KEY: SENTINEL })`
+plus a pass-through `globalThis.fetch`. `@/lib/openrouter` is never doubled, so every line of
+it runs — which is what makes the `Authorization` assertion below evidence rather than a
+restatement of the test's own wiring.
+
+### The plan's own breakage check 2 would NOT have gone red — so a fourth case was added
+
+The plan's row 5.5 says "make the 502 branch interpolate `err.message` into its body; confirm
+exactly the no-leak assertion goes red". Against the file as first written (three cases,
+matching the plan and the research spike) that check **passes**: on the HTTP-failure path
+`err.message` is `openrouter.ts`'s own `"OpenRouter HTTP <status>"` — a string carrying
+nothing private — so a body interpolating it leaks nothing observable and no assertion
+notices. The check would have been run, come back green, and been recorded as evidence for a
+claim it never tested.
+
+`err.message` is not incidental here: it is the value the endpoint routes into the
+`error_message` **column**, so interpolating it into the body is the most plausible real
+leak on this path. The fix is a fourth case rather than a weaker check — a **transport**
+failure (the fetch double throws), where the upstream string *is* `err.message`
+(`"OpenRouter fetch failed: <reason>"`). The contrast is then asserted on `error_message`
+itself: the row records it, the body does not, on one request. Check 5.5 below is run against
+that case and does go red.
+
+### 5.4 Deliberate-breakage check 1 — the seam itself
+
+**Edit**: the `vi.mock` specifier repointed to a non-existent module id
+(`"BREAKAGE-CHECK-1-astro:env/server"`), i.e. the factory is present but doubles nothing —
+the same effect as commenting it out, without leaving an unused `vi.hoisted` binding that
+lint would reject.
+
+**Observed**: **4 of 4 red**, every one on the decisive observation:
+
+```
+× 502s an upstream HTTP failure …          → expected 200 to be 502
+× 502s a transport failure …               → expected 200 to be 502
+× 422s a model answer whose cards …        → expected 200 to be 422
+× sends the key in the header …            → expected 200 to be 502
+```
+
+`200`, not a 500 and not a timeout: without the seam `OPENROUTER_API_KEY` is unset, so
+`generateCandidates` short-circuits to `mockCards` and the request **succeeds**. That is what
+proves these assertions observe the interception rather than an incidental failure. Re-run
+against the **final** four-case file, not the three-case one the first run used — the
+denominator has to match what ships.
+
+**Restore**: specifier reverted; `npx vitest run tests/generation/failure-path.test.ts` →
+4 passed / 4.
+
+### 5.5 Deliberate-breakage check 2 — the 502 body interpolates `err.message`
+
+**Edit**: in `src/pages/api/generate.ts`, the 502 return →
+``json(502, { error: `Nie udało się wygenerować fiszek: ${message}. Spróbuj ponownie.`, retriable: true })``.
+
+**Observed**: **exactly 1 of 4 red** — the transport case, on the no-leak assertion:
+
+```
+× 502s a transport failure: `error_message` records the upstream string, the body does not
+AssertionError: expected '{"error":"Nie udało się wygenerować f…' not to contain 'upstream-sentinel-ms24v80p'
+  tests/generation/failure-path.test.ts:257
+```
+
+The HTTP-failure case, the 422 case and the key pin stayed green — correctly, and that split
+is the finding above made concrete: only the transport path routes private material through
+`err.message`.
+
+### 5.5b Deliberate-breakage check 2b — the 502 body interpolates the source text
+
+Not in the plan; added because the `SOURCE_SENTINEL` assertions would otherwise never have
+been shown to be falsifiable at all (check 2 only exercises the upstream-string half).
+
+**Edit**: same return, ``…: ${sourceText}. Spróbuj ponownie.``
+
+**Observed**: **exactly 2 of 4 red** — both 502 cases, both on the source-text assertion:
+
+```
+× 502s an upstream HTTP failure …     → expected '{"error":"Nie udało się wygenerować f…' not to contain 'zrodlo-sentinel-ms24vjk2'
+× 502s a transport failure …          → expected …same…
+```
+
+The 422 case stayed green, which is right: it is a different branch with its own body. The
+key pin stayed green: it asserts on the captured request and the row, not on the body.
+
+**Restore** (both 2 and 2b): the literal reverted; `git diff -- src/` empty.
+
+### 5.6 Deliberate-breakage check 3 — `Authorization` moved into the request body
+
+**Edit**: in `src/lib/openrouter.ts`, `Authorization: \`Bearer ${OPENROUTER_API_KEY}\`` deleted
+from the `headers` object and added as an `authorization` property of the request `body` —
+so the key travels, but in the wrong place. (Modelled as a property of `body` rather than of
+the stringified copy on purpose: `rawRequest` is an alias of that object, so this reproduces
+the *whole* defect — key on the wire, key in the audit column — not just half of it.)
+
+**Observed**: **exactly 1 of 4 red**, and the failure is the positive control reporting the
+header now absent:
+
+```
+× sends the key in the header, keeps it out of the request body and out of the row
+AssertionError: expected null to be 'Bearer sk-or-harness-SENTINEL-2f7c1d9e'
+  tests/generation/failure-path.test.ts:331
+```
+
+**5.6b — the other two halves of that test are falsifiable too, and were checked rather than
+assumed.** The header assertion fails first, so the body and row assertions never execute
+under check 3 and could in principle have been dead. Re-run with the header assertion
+commented out and the same production edit still in place:
+
+```
+AssertionError: expected '{"authorization":"Bearer sk-or-harnes…' not to contain 'sk-or-harness-SENTINEL-2f7c1d9e'
+  tests/generation/failure-path.test.ts:338
+```
+
+So all three claims in that test — key in the header, key not in the body, key in no audit
+column — observe something real.
+
+**Restore**: header restored, the `body` property removed, the commented assertion
+uncommented.
+
+### 5.7 All production edits reverted, none committed
+
+```
+$ git diff --stat -- src/ supabase/
+(empty)
+$ git status --porcelain
+ M context/changes/ai-candidate-generation-test-2/plan.md
+ M context/foundation/test-plan.md
+?? tests/generation/failure-path.test.ts
+$ npm test
+Test Files  14 passed (14)     Tests  166 passed (166)
+```
+
+Three production files were edited across checks 2, 2b and 3 (`api/generate.ts`,
+`lib/openrouter.ts`); the `git diff` above is the proof each was put back, not a claim that
+it was.
+
+### 5.8 `globalThis.fetch` restored, and what actually verifies the double
+
+The double is installed in `beforeAll` and restored in `afterAll`. That restore protects the
+**intra**-file hazard only: `isolate: true` + `pool: "forks"` already keep a `vi.mock` out of
+every other file by configuration (so 5.2's green full suite is a smoke check, **not**
+evidence of confinement), while `restoreMocks`/`unstubGlobals` default to `false`.
+
+What proves the double **delegates rather than replaces** is not the teardown: it is that all
+four cases read their `generation_session` row and their deck count back over the same
+`globalThis.fetch`, after the double is installed. A double that swallowed the Supabase calls
+would go red on the row read in every test, long before teardown. Under check 1 those reads
+kept working while the four status assertions failed — a live demonstration that the
+pass-through half is independent of the `astro:env` half.
+
+### What this phase does NOT prove
+
+- **The provider contract.** No test here reaches the real OpenRouter. The upstream shapes
+  are fabricated by the fetch double, so a change to the prompt, the model or the real
+  response format is invisible — that is §3 Phase 5's job (LLM-as-judge), unchanged.
+- **The log-line half of Risk #4.** Nothing here reads a log. That half rests on Phase 4's
+  `tests/lib/no-logging.test.ts` (bounded to `src/`) plus the stated boundary on
+  dependency-emitted lines.
+- **The success path's audit columns.** Only the two failure branches are asserted.
+- **`error_message`'s exact wording on the 502 path.** Asserted as a non-empty string, not
+  pinned — the only copy assertion in the file is the 422 path's
+  `"Model nie zwrócił poprawnych kart"`, and it is there because substituting that literal
+  for the upstream string **is** the no-leak property on that branch.
+- **The client's handling of these two bodies.** `src/lib/http.ts` renders the `error` string
+  verbatim for a 502/422 (they are neither `401` nor redirects), which is what makes "every
+  body is a fixed literal" a user-visible invariant — but no layer in this project reaches
+  the island that renders it (`test-plan.md` §7).
+
+### Residue left on the local dev DB
+
+Each run of this file writes three `failed` `generation_session` rows (and none of the three
+decks, which is asserted). The breakage runs additionally left a handful of **`succeeded`**
+sessions plus their decks — under check 1 the requests fall through to mock mode and succeed
+— named `Talia 502 …` / `Talia 422 …` / `Talia klucz …` / `Talia transport …` under a spent
+per-run suffix. Harmless (every run mints fresh accounts and a fresh suffix) and cleared by
+`npx supabase db reset` if a reviewer wants a clean stack.

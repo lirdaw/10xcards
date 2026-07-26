@@ -173,7 +173,7 @@ The classic test base for this project. AI-native tools (if any) carry a
 | -------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | unit + integration   | Vitest                                                  | 4.1.10                                                                      | Configured through `getViteConfig()` from `astro/config` (`vitest.config.ts`), which is what resolves the `@/*` alias and `astro:env/server`. The adapter's `@cloudflare/vite-plugin` is stripped there — it fights Astro over the `ssr` environment and tests target Node; checked: 2026-07-15 |
 | endpoint rendering   | Astro Container API                                     | ships with Astro 6                                                          | `renderToResponse` with `routeType: "endpoint"` renders an API route against a real `Request`; checked: 2026-07-15                                                                                                                                                                              |
-| API mocking          | none yet — see Phase 2                                  | —                                                                           | Only the external HTTP edge (the LLM provider) needs a double; the database is real via local Supabase                                                                                                                                                                                          |
+| API mocking          | one confined module double — **see §6.9**               | Vitest's own `vi.mock` / `vi.hoisted`; no mocking library                    | Only the external HTTP edge (the LLM provider) is ever doubled; the database is real via local Supabase. Exactly one file does it (`tests/generation/failure-path.test.ts`), doubling **`astro:env/server`** plus a pass-through `globalThis.fetch` to reach the 502/422 branches the harness otherwise seals. Read §6.9 before copying it; checked: 2026-07-26 |
 | database under test  | Supabase CLI local stack                                | 2.98.2 (devDependency; `^2.23.4` in `package.json` is only the range floor) | Driven by `npm run db:start` / `db:stop` / `db:reset`; RLS is only meaningful against a real Postgres. CI starts the same stack and reads its URL + publishable key from `supabase status -o env`; checked: 2026-07-15                                                                          |
 | e2e                  | none yet — deliberately deferred                        | —                                                                           | No rollout phase claims e2e; promote only if a risk survives cheaper layers                                                                                                                                                                                                                     |
 | accessibility        | `eslint-plugin-jsx-a11y`                                | 6.10.2                                                                      | Lint-level only; PRD names baseline a11y but no risk in §2 requires an axe run yet                                                                                                                                                                                                              |
@@ -1212,6 +1212,79 @@ legal edge stays green. For the ownership half, neuter `deck_select`,
 Postgres applies the SELECT policy to an UPDATE's WHERE clause, so the write half
 stays invisible and you would conclude more than you tested. §6.6 records both runs
 and the restore-verification failure that nearly slipped through.
+
+### 6.9 Adding a test that needs a module double
+
+(Added by C10X-28 / §3 Phase 2's Risk #4 slice. It sits after §6.8 so every existing
+§6.x anchor keeps pointing where it did.)
+
+**The default is still "no doubles."** Every other file in this suite drives the real
+endpoint against the real local Postgres, and §6.4 explains why: the lock under test is
+RLS, and a double is the fastest way to mock away the thing you meant to prove. This
+section exists because exactly one claim could not be reached any other way — not to open
+the door generally.
+
+- **Location**: `tests/generation/failure-path.test.ts`. **Module doubles live in that one
+  file.** If you find yourself adding a second one somewhere else, that is the moment to
+  re-read this section rather than to imitate it.
+- **Run**: `npx vitest run tests/generation/failure-path.test.ts` (the local stack must be
+  up — the database is still real, so preflight still applies).
+- **Check §6.6 first**, as §6.2 requires: the C10X-28 entry there tabulates what the two
+  branches now prove and what they deliberately do not.
+
+**The only module ever doubled is `astro:env/server`**, and only to lift a clamp that is
+otherwise airtight in three independent places: preflight aborts the run when
+`OPENROUTER_API_KEY` is set (§6.4), `src/lib/openrouter.ts` short-circuits to `mockCards`
+when it is unset, and under Vitest an `astro:env` secret is a **transform-time inlined
+literal** — so `vi.stubEnv`, `process.env` and `setGetEnv` are all dead seams. Replacing
+the module is not the convenient option; it is the only one.
+
+**Why `@/lib/openrouter` is the WRONG module to double, and this is the load-bearing
+paragraph.** Doubling `generateCandidates` also reaches the 502 branch, so it looks
+equivalent and is not: `openrouter.ts`'s request-building code then never runs, no request
+is issued, and the `Authorization` header the key-pin exists to observe does not exist. The
+absence assertion ("the key is in no audit column") would still pass — because nothing was
+ever sent. Half the claim evaporates and the suite stays green. A double that removes the
+code your positive control observes is a false pass by construction; check for that before
+choosing a seam, not after.
+
+Four mechanical traps, three of which were only found by running it:
+
+1. **`vi.hoisted` is mandatory for the sentinel.** `vi.mock` factories are hoisted above
+   every import, so a plain module-scope `const SENTINEL` is in its TDZ when the factory
+   runs. Share it with `const { SENTINEL_KEY } = vi.hoisted(() => ({ SENTINEL_KEY: "…" }))`.
+2. **The factory must spread `...actual`,** for a reason unrelated to the key:
+   `SUPABASE_URL`/`SUPABASE_KEY` come from the same module (`src/lib/supabase.ts`). A
+   factory returning only the key makes `createClient` return `null`, and `/api/generate`
+   answers **500** without ever reaching the LLM call — which presents as a mysterious
+   failure rather than as the wiring error it is.
+3. **The `fetch` double must be a pass-through, not a replacement.** Inside one
+   `callEndpoint` the endpoint makes six Supabase calls over `globalThis.fetch`, and the
+   assertions read the audit row back the same way. Match on `openrouter.ts`'s
+   `OPENROUTER_URL` and delegate every other URL to the captured original.
+4. **Install the `fetch` double BEFORE the key seam.** The `astro:env` mock deliberately
+   lifts the clamp preflight exists to enforce (`lessons.md`: "Preflight musi domknąć KAŻDY
+   nielokalny szew"), so the pass-through is the **replacement guard**, not a convenience:
+   without it, a sentinel key produces a real, billed call to `openrouter.ai`.
+
+**The database and RLS are never doubled**, here or anywhere. Every row this file asserts
+on is read back through the app's own RLS-scoped client.
+
+**Isolation: know which hazard the config already handles.** Vitest 4.1.10's defaults apply
+(nothing is set in `vitest.config.ts`): `pool: "forks"`, `isolate: true`. So a `vi.mock`
+**cannot** leak into another file — which means "the full suite is still green" is a smoke
+check, not evidence that the double is confined. The live hazard is **intra**-file:
+`restoreMocks`, `clearMocks`, `mockReset` and `unstubGlobals` all default to `false`, so a
+`globalThis.fetch` replacement must be restored in an `afterAll` or a later `it()` in the
+same file reads the database through a stale double.
+
+**The deliberate-breakage check for this path** is the one that decides whether the seam is
+doing anything at all: **comment out the `vi.mock("astro:env/server", …)` factory.** The
+right red is `expected 200 to be 502` — without the seam the request falls through to mock
+mode and **succeeds**. Any other failure means the file is observing something else. §6.6
+records that run, plus the three that pin the individual assertions (a body interpolating
+`err.message`, a body interpolating the source text, and `Authorization` moved into the
+request body).
 
 ## 7. What We Deliberately Don't Test
 

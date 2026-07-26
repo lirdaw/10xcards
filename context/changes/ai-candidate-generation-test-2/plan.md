@@ -1091,36 +1091,36 @@ verified `pg_policies` diff to prove the restore, and are never committed.
 
 #### Automated
 
-- [x] 4.1 Full suite passes: `npm test`
-- [x] 4.2 Build passes: `npm run build`
+- [x] 4.1 Full suite passes: `npm test` — 34e8837
+- [x] 4.2 Build passes: `npm run build` — 34e8837
 
 #### Manual
 
-- [x] 4.3 Signed out, no OpenRouter banner on `/` or `/auth/signin`
-- [x] 4.4 Signed in, the OpenRouter banner still appears when the key is unset
-- [x] 4.5 With `SUPABASE_URL` unset, the Supabase banner still renders while signed out
-- [x] 4.6 Deliberate-breakage check recorded: a `console.log` in `src/` turns the guard red
+- [x] 4.3 Signed out, no OpenRouter banner on `/` or `/auth/signin` — 34e8837
+- [x] 4.4 Signed in, the OpenRouter banner still appears when the key is unset — 34e8837
+- [x] 4.5 With `SUPABASE_URL` unset, the Supabase banner still renders while signed out — 34e8837
+- [x] 4.6 Deliberate-breakage check recorded: a `console.log` in `src/` turns the guard red — 34e8837
 
 ### Phase 5: The project's first module double — no-leak and API-key pins
 
 #### Automated
 
-- [ ] 5.1 New file passes alone: `npx vitest run tests/generation/failure-path.test.ts` —
+- [x] 5.1 New file passes alone: `npx vitest run tests/generation/failure-path.test.ts` —
       covering 502 **and** 422
-- [ ] 5.2 Full suite passes: `npm test` (smoke check only — `isolate: true` already guarantees
+- [x] 5.2 Full suite passes: `npm test` (smoke check only — `isolate: true` already guarantees
       no cross-file leakage, so this is not the proof)
-- [ ] 5.3 Lint passes: `npm run lint`
+- [x] 5.3 Lint passes: `npm run lint`
 
 #### Manual
 
-- [ ] 5.4 Deliberate-breakage check 1 recorded: `vi.mock("astro:env/server", …)` commented out,
+- [x] 5.4 Deliberate-breakage check 1 recorded: `vi.mock("astro:env/server", …)` commented out,
       red on `expected 200 to be 502` (the seam, not an incidental pass)
-- [ ] 5.5 Deliberate-breakage check 2 recorded: 502 body interpolates `err.message`,
+- [x] 5.5 Deliberate-breakage check 2 recorded: 502 body interpolates `err.message`,
       exactly the no-leak assertion red
-- [ ] 5.6 Deliberate-breakage check 3 recorded: `Authorization` moved into the body,
+- [x] 5.6 Deliberate-breakage check 3 recorded: `Authorization` moved into the body,
       exactly the key assertion red while its positive control reports the header absent
-- [ ] 5.7 All production edits reverted, suite green, none committed
-- [ ] 5.8 `globalThis.fetch` restored in teardown — verified by a later `it()` in the same file
+- [x] 5.7 All production edits reverted, suite green, none committed
+- [x] 5.8 `globalThis.fetch` restored in teardown — verified by a later `it()` in the same file
       still reading the DB (intra-file is the real hazard, not cross-file)
 
 ### Phase 6: Verification sweep and test-plan sync
