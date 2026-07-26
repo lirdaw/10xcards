@@ -1,7 +1,7 @@
 ---
 change_id: ai-candidate-generation-test-2
 title: No source-text or API-key leak on the generation failure path
-status: implementing
+status: implemented
 created: 2026-07-26
 updated: 2026-07-26
 archived_at: null
@@ -46,6 +46,37 @@ Substantive fixes: Phase 3's "no write" oracle could not run at all (a
 local stack), and Phase 1's mapper chain depended on `@supabase/auth-js`, which is not a declared
 dependency. **Sequencing (F4, user's direction): this change runs SECOND**, after C10X-27 merges,
 on its own branch/worktree cut from a `main` that already contains it.
+
+2026-07-26 — **all six phases implemented on this branch; `status: implemented`.** Suite at
+completion: **166 passed / 166, 14 files**, lint and build clean, `git diff -- src/` empty
+after every deliberate-breakage check. Evidence: `verification.md` (one section per check,
+with the observed failure strings, the red/green split and its denominator, and a verified
+restore for each).
+
+**The delivered scope is wider than the ticket's framing, per the frame's Reframed Problem
+Statement — and the reframe is the finding.** C10X-28 asked for a test of the no-leak
+property on the `/api/generate` failure path. That property **already held by construction**
+(17 of 18 error returns are fixed Polish literals; the 18th picks between two module-local
+literals; `err.message` is routed only to the DB column), was **asserted nowhere**, and
+**could not be asserted at all** with the harness as it stood — three independent clamps seal
+the 502/422 branches. So the change pinned the property behind the project's first module
+double (`astro:env/server` only, never `@/lib/openrouter`, which would make the
+`Authorization` half unassertable), and closed the two surfaces where private data genuinely
+did escape and which the ticket never names: the auth routes' verbatim relay of an upstream
+message into a URL, and `generation_session`'s four private audit columns, which had no
+cross-account test whatsoever. Risk #6's source-text half came along with it, plus a
+whole-`src/` `console.*` guard and the OpenRouter banner gate.
+
+What is deliberately **not** claimed: no test reads a real log sink (the log half is a
+first-party source-tree guard); dependency-emitted lines are inside Risk #4 and unowned; the
+client-bundle half is closed by construction and recorded rather than re-tested; and Risk
+#6's card-content half is untested, which is why `test-plan.md` §3 Phase 2 stays
+`implementing` with that one test named as what flips it.
+
+**Two follow-ups for whoever merges this.** C10X-34 and C10X-30 had their work done under
+this branch and under `(C10X-28)` commit scopes, so they need closing or annotating in Jira —
+with C10X-30 closed only **partly** (its card-content half is untouched). And this plan plus
+Jira are the only trace of that attribution, since the scope key no longer carries it.
 
 2026-07-26 — split carried into Jira and `jira-map.md`. Only **one** of the two sibling tickets
 was new: **C10X-34** (`auth-error-copy`, Epic C10X-10, component `infra`, MVP, Medium, Triaż) for

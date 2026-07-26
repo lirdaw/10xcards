@@ -35,8 +35,9 @@ import { clientFor } from "../fixtures/session";
 //    generation apart from the mock simply repeating itself. The oracle is
 //    `generation_id`, which is unique per session.
 // 2. DO NOT assert on `saved_count`. The compensating update zeroes it
-//    (src/lib/generations.ts:29-34), so a duplicated-then-compensated run reads as 0
-//    while its row still exists.
+//    (`failGenerationSession`, src/lib/generations.ts:116-121 — the symbol, not the number,
+//    is the anchor: this comment pointed at a stale `:29-34` until C10X-28), so a
+//    duplicated-then-compensated run reads as 0 while its row still exists.
 //
 // Every count is scoped twice — by `source_text` and by this run's own deck. Cross-run
 // pollution is already handled elsewhere: provisionAccounts mints fresh accounts per run

@@ -1106,32 +1106,32 @@ verified `pg_policies` diff to prove the restore, and are never committed.
 #### Automated
 
 - [x] 5.1 New file passes alone: `npx vitest run tests/generation/failure-path.test.ts` —
-      covering 502 **and** 422
+      covering 502 **and** 422 — 8fa130e
 - [x] 5.2 Full suite passes: `npm test` (smoke check only — `isolate: true` already guarantees
-      no cross-file leakage, so this is not the proof)
-- [x] 5.3 Lint passes: `npm run lint`
+      no cross-file leakage, so this is not the proof) — 8fa130e
+- [x] 5.3 Lint passes: `npm run lint` — 8fa130e
 
 #### Manual
 
 - [x] 5.4 Deliberate-breakage check 1 recorded: `vi.mock("astro:env/server", …)` commented out,
-      red on `expected 200 to be 502` (the seam, not an incidental pass)
+      red on `expected 200 to be 502` (the seam, not an incidental pass) — 8fa130e
 - [x] 5.5 Deliberate-breakage check 2 recorded: 502 body interpolates `err.message`,
-      exactly the no-leak assertion red
+      exactly the no-leak assertion red — 8fa130e
 - [x] 5.6 Deliberate-breakage check 3 recorded: `Authorization` moved into the body,
-      exactly the key assertion red while its positive control reports the header absent
-- [x] 5.7 All production edits reverted, suite green, none committed
+      exactly the key assertion red while its positive control reports the header absent — 8fa130e
+- [x] 5.7 All production edits reverted, suite green, none committed — 8fa130e
 - [x] 5.8 `globalThis.fetch` restored in teardown — verified by a later `it()` in the same file
-      still reading the DB (intra-file is the real hazard, not cross-file)
+      still reading the DB (intra-file is the real hazard, not cross-file) — 8fa130e
 
 ### Phase 6: Verification sweep and test-plan sync
 
 #### Automated
 
-- [ ] 6.1 Full suite passes: `npm test`
-- [ ] 6.2 Lint + build pass: `npm run lint`, `npm run build`
+- [x] 6.1 Full suite passes: `npm test`
+- [x] 6.2 Lint + build pass: `npm run lint`, `npm run build`
 
 #### Manual
 
-- [ ] 6.3 Every claim in the new §6.6 entry traces to a named test or an explicit gap
-- [ ] 6.4 No statement in `test-plan.md` contradicts the measured suite state
-- [ ] 6.5 §6.6 alone tells a cold reader which half of Risk #4 is pinned, which documented
+- [x] 6.3 Every claim in the new §6.6 entry traces to a named test or an explicit gap
+- [x] 6.4 No statement in `test-plan.md` contradicts the measured suite state
+- [x] 6.5 §6.6 alone tells a cold reader which half of Risk #4 is pinned, which documented

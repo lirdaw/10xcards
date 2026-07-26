@@ -381,15 +381,115 @@ latter being the half of C10X-30 this phase does not close.
 
 ## Phase 4 — ambient disclosure: banner gate and the log boundary (C10X-34 / C10X-28)
 
-> **This section is MISSING and is not being reconstructed here.** Phase 4 shipped as
-> `34e8837`, whose contents are `plan.md`, `src/layouts/Layout.astro`,
-> `src/lib/config-status.ts` and `tests/lib/no-logging.test.ts` — this file is not among
-> them, so rows 4.3–4.6 were checked off without their observed outputs ever being written
-> down. Writing them from memory now would be exactly the "count with no run behind it"
-> this document's own header refuses. **Plan Phase 6 §1 owns the finished record**, so the
-> gap is carried there: re-run 4.6's breakage check (a `console.log` added under `src/`,
-> confirm `tests/lib/no-logging.test.ts` goes red, remove it) and re-do the three banner
-> checks in a browser, recording what is observed then. Noted 2026-07-26, during Phase 5.
+> **Written during Phase 6, not during Phase 4, and that is the reason it exists.** Phase 4
+> shipped as `34e8837` without touching this file, so rows 4.3–4.6 were checked off with no
+> observed output written down. Reconstructing them from memory was refused (this document's
+> header: "a count with no run behind it is worse than no count"), so Phase 6 **re-ran every
+> one of them** and recorded what it saw. Everything below is a run made on 2026-07-26 during
+> Phase 6 against the shipped files — not a recollection of Phase 4.
+
+### 4.6 Deliberate-breakage check — the `console.*` guard
+
+Baseline first: `npx vitest run tests/lib/no-logging.test.ts` → **3 passed / 3**.
+
+**Edit 1** (the plan's own wording): `console.log("BREAKAGE-CHECK-4.6", message);` added to
+`failGenerationSession` in `src/lib/generations.ts`.
+
+**Observed**: **exactly 1 of 3 red**, and the failure names the file and line:
+
+```
+FAIL  tests/lib/no-logging.test.ts > src/ writes no log lines > contains no console.* call anywhere
+AssertionError: expected [ Array(1) ] to deeply equal []
++ [ "lib/generations.ts:117: console.log(\"BREAKAGE-CHECK-4.6\", message);" ]
+```
+
+The other two cases stayed green — and they are the file's two positive controls (the walker
+finds >50 files including the four named ones; the regex fires on four spellings of a console
+call). That split is what says the red one observes a real occurrence rather than a broken
+walker.
+
+**Edit 2 — the widening (plan-review F5) is load-bearing, so it was checked separately.** The
+guard was widened from the three request-path directories to the whole of `src/` because
+`.astro` frontmatter runs server-side too. `console.log("BREAKAGE-CHECK-4.6b", decks);` added
+to `src/pages/generate.astro`'s frontmatter — the page that handles exactly the private data
+Risk #4 is about:
+
+```
++ [ "pages/generate.astro:14: console.log(\"BREAKAGE-CHECK-4.6b\", decks);" ]
+```
+
+**Exactly 1 of 3 red** again. A three-path guard would have been green here, which is the
+case the widening exists for.
+
+**And the reason this is a test rather than a lint rule was verified, not assumed.** With that
+same `console.log` still in `generate.astro`:
+
+```
+$ npm run lint
+src/pages/generate.astro
+  14:1  warning  Unexpected console statement  no-console
+✖ 1 problem (0 errors, 1 warning)
+EXIT=0
+```
+
+Exit **0** — `no-console` is `"warn"` and the script is a bare `eslint .` with no
+`--max-warnings`, so a `console.log(sourceText)` ships with CI green. The header comment in
+`tests/lib/no-logging.test.ts` claims exactly this; it is now measured.
+
+**Restore**: both edits reverted; `git diff --stat -- src/` **empty**;
+`npx vitest run tests/lib/no-logging.test.ts` → 3 passed / 3. Neither edit was committed.
+
+### 4.3 / 4.4 / 4.5 Manual checks — the banner gate
+
+Run against `npm run dev` (ports 4328–4330; 4321–4327 were taken). Driven with `curl` rather
+than a browser **on purpose**: both banners are server-rendered in `Layout.astro`'s
+frontmatter, so the bytes the server sends *are* the observation, and a grep over them is
+exact where a screenshot is a judgement call. The session for 4.4 is a real one, minted
+through the real endpoint.
+
+**4.3 — signed out, no OpenRouter banner** (`OPENROUTER_API_KEY` is unset locally, so an
+ungated entry *would* render):
+
+```
+== / ==            http=200   (no banner)
+== /auth/signin == http=200   (no banner)
+```
+
+Neither banner appears: OpenRouter's is gated behind the session, and Supabase's is simply
+not in `missingConfigs` — it is configured.
+
+**4.4 — signed in, the banner returns.** `POST /api/auth/signin` with a cookie jar
+(`dup-probe-c10x34@example.com`, the account Phase 1 left behind) → `302`, then:
+
+```
+== signed-in /decks ==     banner: OpenRouter nie jest skonfigurowany — generacja fiszek
+                                   działa w trybie mock (przykładowe karty).
+== signed-in /generate ==  banner: OpenRouter nie jest skonfigurowany — …
+```
+
+Same URL, same unset key, different answer by session — so 4.3's absence is the gate working,
+not the entry having gone missing.
+
+**4.5 — the trap: with Supabase unconfigured, its own banner must NOT hide itself.**
+`SUPABASE_URL` commented out in `.env` (backup taken first), dev server restarted so the
+`astro:env` value is re-read:
+
+```
+== / (signed out, SUPABASE_URL unset) ==            banner: Supabase nie jest skonfigurowany
+                                                            — funkcje uwierzytelniania są wyłączone.
+== /auth/signin (signed out, SUPABASE_URL unset) == banner: …same…
+```
+
+The Supabase banner renders **while signed out**, and the OpenRouter banner still does not —
+in one page load, which is the per-entry split `requiresSession` exists to produce. A
+block-level `Astro.locals.user` gate would have suppressed both: with Supabase down
+`createClient` returns `null`, middleware sets `locals.user = null`, and the warning about
+that very breakage would gate itself off exactly when it is needed.
+
+**Restore**: `.env` copied back from the backup, `diff` against the backup **empty**,
+`grep -c "^SUPABASE_URL=" .env` → 1. Dev server restarted once more on the restored file:
+signed out, `/` shows **no banner** — i.e. the check left no residue. All three dev servers
+were then stopped. `.env` is gitignored and was never committed either way.
 
 ## Phase 5 — the project's first module double (C10X-28)
 
@@ -576,3 +676,98 @@ sessions plus their decks — under check 1 the requests fall through to mock mo
 — named `Talia 502 …` / `Talia 422 …` / `Talia klucz …` / `Talia transport …` under a spent
 per-run suffix. Harmless (every run mints fresh accounts and a fresh suffix) and cleared by
 `npx supabase db reset` if a reviewer wants a clean stack.
+
+## Phase 6 — verification sweep and test-plan sync (C10X-28)
+
+### Automated — the measurement every claim in this change is dated against
+
+| Check | Command | Result |
+| --- | --- | --- |
+| 6.1 Full suite | `npm test` | **166 passed / 166, 14 files** |
+| 6.2 Lint | `npx astro sync && npm run lint` | exit **0**, clean (only the pre-existing `astro-eslint-parser` `projectService` notices) |
+| 6.2 Build | `npm run build` | server built in 5.69 s, Complete |
+
+Environment: local stack up, `OPENROUTER_API_KEY` unset, `git diff -- src/` empty. This is
+the figure written into `test-plan.md` §8 — **measured here, not copied**: the frame's
+"97/10" was dead on arrival and research's "109/11" is C10X-27's number, not this change's.
+
+### The doc-sync list was re-derived, not applied
+
+The plan's Phase 6 §2 carries a standing instruction — rebuild the list by reading the
+current `test-plan.md`, and treat every line number in the plan as historical. Done: the file
+is **1425 lines** at the start of this phase, a fourth different figure from the three the
+plan quotes (858 → 1018 → 1332 → 1352). What that re-derivation found:
+
+| Item | Verdict |
+| --- | --- |
+| §8's "69/69 green, 8 files" | **Already closed by C10X-27** — the ledger records 109/109, 11 files. Not touched. |
+| §6.6's "the middleware guard is untested" | **Already closed by C10X-27**, explicitly. Not touched. |
+| §6.5's `src/lib/generations.ts:29-34` anchor | **Already gone** from `test-plan.md`. Its twin in a live comment at `tests/generation/generate.test.ts` was **not**, and is fixed here. |
+| S-05's Stryker range `--mutate "src/lib/flashcards.ts:181-212"` | **Still open, fixed.** `grep -n` puts `ALLOWED_FROM` at `:202` and `setFlashcardState` at `:218-226`, so the recorded range had been mutating a different part of the file since `75df78f`. Corrected to `:202-226` **with both symbols named beside the numbers**, and a note that the span must be re-derived before running — Stryker completes happily on a stale range and reports a score for whatever it happens to contain. The frozen copy in the S-05 archive keeps the original range: it records what was actually run. |
+| **Every `context/changes/<archived-id>/…` evidence pointer** | **Not on the plan's list; found by re-derivation and fixed.** Thirteen pointers on twelve lines — in the header block, §3's phase table, §6.6, §6.7 and §7 — addressed `context/changes/`, but all five of those changes have been archived, so every "full evidence" link in the file was broken. Rewritten to `context/archive/<date>-<id>/…`, then the file's **whole** set of archive pointers was resolved against disk: **12 unique paths, 12 OK, 0 missing**. |
+| §6.5's "**No HTTP double is needed, and none exists**" | **Not on the plan's list; falsified by this change's own Phase 5.** Corrected in place, with the correction marked rather than the sentence silently rewritten. |
+| §6.3 "TBD — see §3 Phase 2" | **Written.** Phase 2 has now landed the validation-parity and no-leak-in-error-body contracts, so the placeholder was the last thing in the file still describing them as future work. §6.5's "belongs to §6.3, still TBD" pointer updated with it. |
+
+### What was added rather than corrected
+
+- **§6.6 gains this change's entry** — a 12-row claim/what-proves-it table, the four traps
+  the slice paid for (the 414, the status-filtered oracle, the select-policy backstop, and a
+  breakage check that would have been recorded green for a claim it never tested), and a
+  "what this does NOT prove" list of six items.
+- **§2's Risk #4 and #6 rows** are annotated with the coverage and its boundary.
+- **§3 Phase 2** stays `implementing`, and now says what would flip it: one crafted request
+  against the card-content endpoints. That is the deliberate call — the plan's F3 note
+  assumed Risk #6 was leaving with C10X-30 and it did not, but C10X-30's card-content half
+  was still excluded, so the answer was not automatic in either direction.
+- **§7** gains the dependency-emitted log lines as named negative space, and the islands
+  bullet gains `GeneratorForm`'s bounds mirror beside `SessionSizeControl`'s.
+- **§8** gains this change's ledger entry with the measurement above.
+
+### 6.3 / 6.4 / 6.5 — the manual reads
+
+- **6.3 — every claim in the new §6.6 entry traces to a named test or an explicit gap.**
+  Walked row by row against the files rather than against my own summary, and **it found
+  two overstatements in the entry as first written** — which is the only reason this check
+  is worth doing:
+  - the bounds row said "**seven** bounds cases". There are **six** refusal `it()`s
+    covering nine inputs, plus the boundary control which the table already lists as its
+    own row (7 tests added in total). Corrected to six.
+  - the 502/422 row said the row is asserted to hold the source text "inside
+    `request_payload.messages[1].content`". The assertion is
+    `JSON.stringify(row.request_payload)).toContain(SOURCE_SENTINEL)` — presence in the
+    column, not a JSON path. Corrected, and the raw-body half of the claim spelled out
+    (the assertions run on `await response.text()`, not on `payload.error`).
+
+  Everything else traced: `failure-path.test.ts` (4 cases), `candidates.test.ts`'s
+  audit-column describe (4, with `auditRowOf` re-read as the owner and `data` `toEqual([])`
+  as the refused-write signal), `generate.test.ts`'s input contract (6 + boundary control),
+  `errors.test.ts` (33, the endpoint case asserting the decoded param **and** the raw
+  `Location`), `no-logging.test.ts` (3, two of them controls). The one row that names no
+  test says so in bold — the banner gate is manual, and points here.
+- **6.4 — no statement in `test-plan.md` contradicts the measured suite state.** Checked by
+  enumerating every `N/N` figure in the file (`grep -no`), not by reading around: 20 of them.
+  **Three were live contradictions and are fixed**; the rest are dated records of a
+  particular run and say so.
+  - "full suite green at 69/69 … (**it is 109/109 now**)" — "now" was two changes ago. The
+    parenthetical is rewritten to carry all three figures with their dates.
+  - "The `1 of 13` split above **is still current** — `generate.test.ts` holds 13 cases,
+    re-counted 2026-07-26." It holds **20**: Phase 3 of this change added seven. The claim
+    is replaced by a statement that the denominator moved and **the run has not been
+    repeated** — the numerator is not asserted on its behalf.
+  - S-05's "3 of 16 red in `candidates.test.ts`" and "1 of 25 across both files": same
+    class, `candidates.test.ts` is now 20. A dated note is added above those checks rather
+    than the historical numbers being rewritten — the four cases this change added touch a
+    different table and no `ALLOWED_FROM` path, so the numerators should hold, and saying
+    "should" is the honest word for a run nobody repeated.
+
+  Two claims that could have gone stale were verified instead and **hold**: §4/§6.9's
+  "exactly one file doubles anything" (`grep -rln "vi\.mock\|vi\.spyOn\|vi\.fn" tests/` →
+  `tests/generation/failure-path.test.ts`, and nothing else), and "the endpoint and the
+  island both import the limits" (`grep -rn "generation-limits" src/` →
+  `pages/api/generate.ts` and `components/generate/GeneratorForm.tsx`).
+- **6.5 — a cold reader can tell which half of Risk #4 is pinned and which is documented.**
+  The §6.6 entry states the split in the first paragraph (the property held by construction,
+  was asserted nowhere, and could not be asserted at all), the table marks the banner row as
+  manual, and the "does NOT prove" list opens with "nothing in this suite reads a real log
+  sink". §2's row carries the same warning inline so a reader who never reaches §6.6 still
+  sees the boundary.
