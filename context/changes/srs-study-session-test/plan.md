@@ -774,11 +774,11 @@ return type. Phase 0's cloud check concerns an **existing** migration
 
 #### Automated
 
-- [ ] 0.1 `npx supabase migration list` attempted from the worktree; output (or its unavailability) captured
+- [x] 0.1 `npx supabase migration list` attempted from the worktree; output (or its unavailability) captured
 
 #### Manual
 
-- [ ] 0.2 `20260724220524` recorded as present / pending / unverifiable on cloud, raw output pasted into `verification.md`
+- [x] 0.2 `20260724220524` recorded as present / pending / unverifiable on cloud, raw output pasted into `verification.md`
 
 ### Phase 1: Stop the silent rating loss
 
@@ -828,13 +828,13 @@ return type. Phase 0's cloud check concerns an **existing** migration
 
 #### Automated
 
-- [x] 4.1 `npm test` green at the end, final count recorded
-- [x] 4.2 Narrowed Stryker run on `rateCard`'s re-derived span in `src/lib/study.ts` completes; span + report captured
-- [x] 4.3 `npm run lint` passes
-- [x] 4.4 `git diff` shows no production edit left behind from any breakage check
+- [x] 4.1 `npm test` green at the end, final count recorded — ff19b71
+- [x] 4.2 Narrowed Stryker run on `rateCard`'s re-derived span in `src/lib/study.ts` completes; span + report captured — ff19b71
+- [x] 4.3 `npm run lint` passes — ff19b71
+- [x] 4.4 `git diff` shows no production edit left behind from any breakage check — ff19b71
 
 #### Manual
 
-- [x] 4.5 Every restore verified by a before/after definition `diff`, result recorded
-- [x] 4.6 `test-plan.md` re-read end to end: no false statement, every count cites a run from this change
-- [x] 4.7 The survived-mutant register explains per mutant why an assertion was or was not added
+- [x] 4.5 Every restore verified by a before/after definition `diff`, result recorded — ff19b71
+- [x] 4.6 `test-plan.md` re-read end to end: no false statement, every count cites a run from this change — ff19b71
+- [x] 4.7 The survived-mutant register explains per mutant why an assertion was or was not added — ff19b71

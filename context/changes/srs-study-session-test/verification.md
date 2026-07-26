@@ -7,10 +7,41 @@ runs recorded here into `context/foundation/test-plan.md` §6.6.
 
 ## Phase 0 — cloud migration history
 
-Not run yet. `npx supabase migration list` still owes an answer on whether
-`20260724220524_srs_study_schedule_review_fixes.sql` reached the linked cloud project. The
-phase is explicitly **non-blocking** (plan-review F6) — every result below is against the
-local stack, where the migration is applied — so Phase 1 proceeded without it.
+Deferred through Phases 1–3 (it is explicitly **non-blocking**, plan-review F6 — every result
+below is against the local stack, where the migration is applied), then **run at the end of
+Phase 4**. Answer: **`20260724220524` is present on the remote.** Run from this worktree,
+branch confirmed first (`lessons.md`: never run a migration command from the parent folder):
+
+```
+$ git branch --show-current
+C10X-27-srs-study-session-test
+$ npx supabase migration list
+   Local          | Remote         | Time (UTC)
+  ----------------|----------------|---------------------
+   20260705180246 | 20260705180246 | 2026-07-05 18:02:46
+   20260710195327 | 20260710195327 | 2026-07-10 19:53:27
+   20260712162349 | 20260712162349 | 2026-07-12 16:23:49
+   20260712162359 | 20260712162359 | 2026-07-12 16:23:59
+   20260724195248 | 20260724195248 | 2026-07-24 19:52:48
+   20260724220524 | 20260724220524 | 2026-07-24 22:05:24
+   20260725112600 | 20260725112600 | 2026-07-25 11:26:00
+   20260725112700 | 20260725112700 | 2026-07-25 11:27:00
+   20260725133600 | 20260725133600 | 2026-07-25 13:36:00
+   20260725150000 | 20260725150000 | 2026-07-25 15:00:00
+```
+
+**Local and Remote match on every row** — all ten migrations, no pending push, no
+out-of-order gap. So the two objects this change's tests lean on are live in production: the
+`session_size between 1 and 100` CHECK and the `study_due_cards` tie-break definition. The
+S-03 impl-review's open question ("applied locally only, cloud push left to a later slice and
+never confirmed") is **closed**: it was pushed at some point between then and now.
+
+Nothing for `/ship` to carry on this front. **This change itself adds no migration**, so
+`/ship`'s migration step is a no-op for C10X-27.
+
+(Incidental: the CLI reports v2.109.1 available against v2.98.2 installed. Not acted on —
+`test-plan.md` §4 pins 2.98.2 as the checked version, and bumping it mid-change would
+invalidate that line without evidence.)
 
 ---
 

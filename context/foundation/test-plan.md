@@ -1323,9 +1323,12 @@ contributors should respect these unless the underlying assumption changes.
   status: the RPC's `f.id asc` tie-break has no assertion that observes its *presence*
   (only the batch's order), and §6.6's four-policy neuter no longer reproduces on a dev
   DB past PostgREST's `max_rows`. Both are described where they bite, in §6.6 and §6.7.
-- **Not verified: whether `20260724220524` reached the cloud project.** Phase 0 of
-  C10X-27 was explicitly non-blocking and was not run; every result above is against the
-  local stack, where the migration is applied. `/ship` owns that check.
+- **Cloud schema checked, and it matches.** `npx supabase migration list` run from the
+  worktree on 2026-07-26 shows Local == Remote on **all ten** migrations, including
+  `20260724220524` — the one carrying the `session_size` CHECK and the RPC tie-break these
+  tests lean on. The S-03 impl-review's open "applied locally only, cloud push never
+  confirmed" is closed. Note this is a point-in-time observation, not a gate: Risk #5 still
+  has no CI drift check, which is §3 Phase 3's job.
 
 Refresh (`/10x-test-plan --refresh`) when:
 
