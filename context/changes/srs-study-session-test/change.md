@@ -1,7 +1,7 @@
 ---
 change_id: srs-study-session-test
-title: SRS schedule correctness tests (test-plan Risk #3 / rollout Phase 4)
-status: new
+title: Study session — silent rating loss on a lost session + SRS schedule coverage gaps
+status: preparing
 created: 2026-07-26
 updated: 2026-07-26
 archived_at: null
@@ -9,4 +9,45 @@ archived_at: null
 
 ## Notes
 
-Cover test-plan Risk #3 / rollout Phase 4 (SRS schedule correctness): prove a card rated well-known is deferred further than one rated hard, that the review schedule survives a restart between sessions, and that only `accepted` cards enter a study session; layers are unit (rating -> next-review mapping) plus integration (persistence); the assertion must be a property or an independent recomputation, never a constant copied from the implementation, and a happy path without a restart does not count. Important prior state: roadmap S-03 `srs-study-session` already shipped and its Phase 5 landed tests/study/schedule.test.ts and tests/study/study.test.ts, test-plan §3 Phase 4 is already marked complete and §6.6 claims Risk #3 covered — so /10x-research must first establish what real gap (if any) remains (a known candidate: the signed-out path on /study and /api/study, which §6.6 Phase 1 explicitly deferred until the SRS routes landed) before any new test is written. (source: C10X-27)
+**Scope rewritten 2026-07-26 after the audit** (`research.md`; C10X-27 rewritten to match).
+The original brief asked for three Risk #3 tests — deferral by rating, schedule survives a
+restart, only `accepted` cards enter. **All three already exist**, shipped by S-03 (C10X-6)
+Phase 5 plus its impl-review triage: `tests/study/study.test.ts` (16 cases),
+`tests/study/schedule.test.ts` (6). Verified by execution, not by reading the docs: full
+suite 69/69, `tests/study` 22/22, no `.skip`/`.only`/`.todo` anywhere. The named candidate
+gap (the signed-out path) turned out to be half-closed already — the endpoint's own 401 has
+been tested since `f90f9e7`, unrecorded in the test-plan.
+
+This change therefore carries what the audit found _beyond_ the record:
+
+1. **BUG (highest priority) — `rate()` treats a signed-out redirect as success.**
+   `POST /api/study` on a lost session → middleware returns a 302 → `fetch` follows it →
+   `/auth/signin` renders 200 HTML → `StudySession.tsx:174` checks only `!res.ok` → the card
+   advances and the counter climbs with **no write**. The user walks the whole session, sees
+   no error, and nothing is scheduled. `rate()` is the only island method in the repo with
+   this ordering. Root cause is architectural: middleware answers a JSON endpoint with an
+   HTML redirect, so three correct 401 branches are unreachable in production.
+   **Scope decision (middleware / client / both) belongs in `/10x-plan`, before building** —
+   the middleware fix touches the shell (lessons: decide adjacent scope up front).
+2. **`session_size` → batch limit is unobserved.** The page passes `deck.session_size`
+   (`study/[publicId].astro:37`); every test passes the literal `20`. The setter is proven,
+   the reader is not, and its bounds are untested at all three layers.
+3. **"No card is lost" has no test.** Every `listDueCards` call uses `new Date()`; nothing
+   advances the clock and re-enters a session to prove a rated card comes _back_ when due.
+   The seam exists (`now` is a lib parameter), so this is cheap. Same for the RPC's
+   `order by … f.id asc` tie-break and `limit p_limit`.
+4. **Only `Good` reaches the database.** `Rating.Again` never takes the write path, so
+   `lapses` and the Review → Relearning transition are unproven.
+5. **Record corrections.** `enable_fuzz: false` is asserted as configured in three places
+   and is not configured anywhere in `src/` — determinism rests on an unpinned ts-fsrs
+   default under `^5.4.1`. §6.6's deliberate-breakage counts predate two cases added by
+   `e9b8cd9`, and its Phase 1 signed-out note is stale in both directions.
+
+Deliberately out of scope, recorded not fixed: the write-only `scheduled_days` column (same
+class as the `learning_steps` bug that shipped; inert today only because
+`enable_short_term: false`), the `supabase === null` empty-state masquerade on the study
+pages, the `cardsError`-ships-200 status inconsistency, `reviewed` counting
+`alreadyApplied`, the absent keyboard affordances, and the stuck-on-404 batch snapshot.
+
+Roadmap: tracked as **H-02** (hardening, post-MVP — not a vertical slice, unblocks nothing).
+(source: C10X-27)

@@ -6,7 +6,20 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-07-25 (roadmap S-05 `candidate-review`: Phase 5 extended
+> Last updated: 2026-07-26 (C10X-27 / roadmap H-02 audit of §3 Phase 4 — the first
+> entry in this file written by auditing the code instead of a shipping change, and
+> the first to move a phase BACKWARDS. **Phase 4 `complete` → `reopened`**: Risk #3's
+> scenario has two halves and only "writes the wrong date" was proven; "the session
+> loses a card" has no test, because nothing advances the clock and re-enters a
+> session. Same audit: a **production bug** on the study path (`StudySession.rate()`
+> reads the signed-out 302→HTML 200 as success and silently discards ratings),
+> `session_size` → `p_limit` unobserved, `Rating.Again` never on the write path, and
+> **§6.1's `enable_fuzz: false` claim is false** — the app never configures it. §6.6's
+> Phase-1 signed-out note was stale in both directions and is corrected; §6.7 gained
+> three traps; §3's Status vocabulary gained `reopened`. Evidence:
+> `context/changes/srs-study-session-test/research.md`.)
+>
+> Previously: 2026-07-25 (roadmap S-05 `candidate-review`: Phase 5 extended
 > Risk #1's surface to the first lifecycle transition and the first multi-row
 > write — §6.6 extended, §6.8 added; Phase 6 landed generation idempotency, so
 > **Risk #2 moved from characterized to covered** — §3, §6.5 and §6.6's Phase-2
@@ -69,16 +82,19 @@ research's job, see §1 principle #3).
 ## 3. Phased Rollout
 
 Each row is a discrete rollout phase that will open its own change folder
-via `/10x-new`. Status moves left-to-right through the values below; the
-orchestrator updates Status as artifacts appear on disk.
+via `/10x-new`. Status normally moves left-to-right (`not started` →
+`implementing` → `complete`); the orchestrator updates Status as artifacts
+appear on disk. A fourth value, **`reopened`**, exists because a later audit can
+show a `complete` phase never covered all of its risk — see Phase 4. Treat
+`complete` as a dated claim, not a permanent state.
 
-| #   | Phase name                      | Goal (one line)                                                                         | Risks covered                                                 | Test types                         | Status       | Change folder                                   |
-| --- | ------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------- | ------------ | ----------------------------------------------- |
-| 1   | Harness + per-account isolation | Stand up the runner and prove cross-account denial on read and write                    | #1                                                            | runner bootstrap, integration, RLS | complete     | `context/changes/verification-harness/`         |
-| 2   | Endpoint contract               | Prove the server does not trust the client and does not leak; stop duplication on retry | #2 (**covered** — idempotency landed in S-05 Phase 6), #4, #6 | integration                        | implementing | `context/changes/ai-candidate-generation-test/` |
-| 3   | Quality gates + schema drift    | Make green CI mean "tested and prod actually migrated"                                  | #5                                                            | gates                              | not started  | —                                               |
-| 4   | SRS schedule correctness        | Prove the schedule defers by rating, survives restart, and admits only accepted cards   | #3                                                            | unit + integration                 | complete     | `context/changes/srs-study-session/`            |
-| 5   | AI-native generation quality    | Prove cards match the source language and are usable, so the 75% thesis is measurable   | #7                                                            | LLM-as-judge                       | not started  | —                                               |
+| #   | Phase name                      | Goal (one line)                                                                         | Risks covered                                                        | Test types                         | Status       | Change folder                                                                    |
+| --- | ------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------- | ------------ | -------------------------------------------------------------------------------- |
+| 1   | Harness + per-account isolation | Stand up the runner and prove cross-account denial on read and write                    | #1                                                                   | runner bootstrap, integration, RLS | complete     | `context/changes/verification-harness/`                                          |
+| 2   | Endpoint contract               | Prove the server does not trust the client and does not leak; stop duplication on retry | #2 (**covered** — idempotency landed in S-05 Phase 6), #4, #6        | integration                        | implementing | `context/changes/ai-candidate-generation-test/`                                  |
+| 3   | Quality gates + schema drift    | Make green CI mean "tested and prod actually migrated"                                  | #5                                                                   | gates                              | not started  | —                                                                                |
+| 4   | SRS schedule correctness        | Prove the schedule defers by rating, survives restart, and admits only accepted cards   | #3 (**mostly** — "no card is lost" reopened by the 2026-07-26 audit) | unit + integration                 | reopened     | `context/changes/srs-study-session/` → `context/changes/srs-study-session-test/` |
+| 5   | AI-native generation quality    | Prove cards match the source language and are usable, so the 75% thesis is measurable   | #7                                                                   | LLM-as-judge                       | not started  | —                                                                                |
 
 Sequencing notes:
 
@@ -98,9 +114,21 @@ Sequencing notes:
 - Phase 4 shipped inside roadmap **S-03 `srs-study-session`** (its Phase 5),
   which is where the schedule itself was built — roadmap F-03 had already
   deferred this test to S-03, so the phase reused that change folder rather
-  than opening a competing one. Risk #3 is **covered**, not characterized:
-  read §6.6 for exactly what that claim does and does not include, and §6.7
-  for how to add the next SRS test.
+  than opening a competing one. Read §6.6 for exactly what that claim does and
+  does not include, and §6.7 for how to add the next SRS test.
+  **Reopened 2026-07-26** (status `complete` → `reopened`) by a full audit run
+  under C10X-27 / roadmap **H-02**, change folder
+  `context/changes/srs-study-session-test/`. The phase's own three claims hold and
+  were re-verified by execution (69/69) — what reopens it is that Risk #3's
+  scenario has two halves and only one is proven. "Writes the wrong next-review
+  date" is covered; "**the study session loses a card**" is not, because no test
+  ever advances the clock and re-enters a session. The same audit found a
+  **production bug** on this path (`StudySession.rate()` treats the signed-out
+  302 → HTML 200 as success and silently discards every rating) plus three
+  unobserved wires: `session_size` → `p_limit`, the RPC's `f.id` tie-break, and
+  `Rating.Again`. Details and evidence in §6.6's Phase 4 audit note. This is the
+  first phase in this file to move _right-to-left_: treat "complete" as a claim
+  with a date on it, not a permanent state.
 - Phase 5 depends on roadmap **S-05 `candidate-review`** shipping — the
   acceptance signal the judge calibrates against is produced there.
 
@@ -174,10 +202,25 @@ configuration and not just the library, and asserts the ordering
 `Easy.due > Good.due > Hard.due > Again.due` for a fixed `NOW`.
 
 Two things make this legitimate rather than circular. `ts-fsrs` is pure and
-immutable and the app configures it with `enable_fuzz: false`, so the
-transition is a deterministic function of `(card, now, grade)` — the library
-is an _independent_ oracle, and `next(card, now, grade)` takes `now` as a
-parameter, so nothing depends on the wall clock. What you must not do is
+immutable and fuzz is off, so the transition is a deterministic function of
+`(card, now, grade)` — the library is an _independent_ oracle, and
+`next(card, now, grade)` takes `now` as a parameter, so nothing depends on the
+wall clock.
+
+> **Correction (2026-07-26, C10X-27 audit).** This paragraph used to read "the app
+> configures it with `enable_fuzz: false`". **It does not.**
+> `generatorParameters(...)` at `src/lib/study.ts:28-30` passes only
+> `request_retention`, `maximum_interval` and `enable_short_term` — the string
+> `enable_fuzz` appears nowhere in `src/`. Fuzz is off solely because
+> `default_enable_fuzz = false` upstream (ts-fsrs 5.4.1), under a `^5.4.1` range.
+> So every exact-`due` oracle in `tests/study/study.test.ts` rests on an unpinned
+> third-party default: a flip inside the caret range turns them intermittently red
+> with no change in this repo. Pinning it explicitly is a one-line fix owed by
+> C10X-27; until it lands, do not repeat the claim that the app configures it. The
+> same false statement is copied into `tests/study/schedule.test.ts:7` and
+> `tests/study/study.test.ts:337`.
+
+What you must not do is
 paste the number the implementation currently produces into an
 `expect(...).toBe(...)`: that asserts the code agrees with itself and goes
 green even when the schedule is wrong. If a case cannot be phrased as a
@@ -383,14 +426,35 @@ Neither production edit was ever committed.
   not on a rendered page (see §6.4 on why pages are not rendered). Every
   denial is paired with an owner-side re-read and a positive control.
 
-  **Not covered, deliberately — the whole signed-out path.** The endpoint
-  driver always injects `locals.user`, so nothing here can exercise a request
-  from a logged-out visitor. That leaves two things untested: the middleware
-  guard (`PROTECTED_ROUTES` in `src/middleware.ts` is prefix-matched, so a
-  future route nobody adds to the array is unprotected), and each endpoint's
-  own `if (!context.locals.user)` branch. Out of scope by decision — Risk #1
-  is authorization, not authentication — and worth revisiting when Phase 4's
-  SRS routes land.
+  **Not covered by THIS phase — the signed-out path.** `callEndpoint` always
+  injects `locals.user` (`tests/fixtures/endpoint.ts:82`), so nothing driven
+  through it can exercise a request from a logged-out visitor. That left two
+  things untested: the middleware guard (`PROTECTED_ROUTES` in
+  `src/middleware.ts` is prefix-matched, so a future route nobody adds to the
+  array is unprotected), and each endpoint's own `if (!context.locals.user)`
+  branch. Out of scope by decision — Risk #1 is authorization, not
+  authentication — and worth revisiting when Phase 4's SRS routes land.
+
+  > **Correction (2026-07-26, C10X-27 audit). This paragraph was stale in BOTH
+  > directions and used to say "the whole signed-out path".** It overstated the
+  > gap: the **endpoint's own 401 branch is tested** for `/api/study`
+  > (`tests/study/study.test.ts:270-283`) and `/api/generate`
+  > (`tests/generation/generate.test.ts:347-359`). Both bypass `callEndpoint`
+  > with a local helper that renders the endpoint with `locals: { user: null }`
+  > (`study.test.ts:190-201`) — so widening the fixture was never needed. The
+  > `/api/study` case shipped in `f90f9e7` with the endpoint itself, was not in
+  > the S-03 plan's Phase 5 bullets, and never reached this file. It also
+  > understated the gap: nobody had named what the guard's _response shape_ does
+  > to a fetch client — see the Phase 4 audit note on `StudySession.rate()`.
+  >
+  > What genuinely remains untested is narrower: the **middleware guard** and the
+  > two `.astro` page loaders. The guard is correct and complete today (verified
+  > by enumeration; note `/study` does **not** prefix-match `/api/study`, so that
+  > separate array entry is load-bearing) and it is **cheap** to test — `onRequest`
+  > is an ordinary exported function taking a fabricable context, so a
+  > table-driven unit over `PROTECTED_ROUTES` needs neither a container nor a
+  > database. The seven redirect-style deck endpoints still have no signed-out
+  > test at all.
 
   Phase 1 also shipped one production fix: `deleteDeck` gained `RETURNING`,
   so a cross-account delete answers 404 instead of a redirect
@@ -486,18 +550,23 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   Phase 2 stays `implementing`: risks #4 (leakage in the error body) and #6
   (server-side validation parity) are untouched.
 
-- **Phase 4 (`srs-study-session`, 2026-07-24)** — Risk #3 is **covered**.
+- **Phase 4 (`srs-study-session`, 2026-07-24; audited and qualified 2026-07-26)** —
+  Risk #3 is **covered except for one named half**: "the schedule writes the wrong
+  next-review date" is covered, "**the study session loses a card**" is **not**. See
+  the two rows below and the audit note after the table. The rest of this entry
+  stands and was re-verified by execution (suite **69/69**, `tests/study` 22/22).
   Precisely what that means:
 
-  | Claim from Risk #3                                         | What proves it                                                                                                                                         |
-  | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-  | Deferral follows the rating                                | `schedule.test.ts` ordering property (no DB) + `study.test.ts` Easy-vs-Hard `due` persisted through the endpoint                                       |
-  | The written schedule is the right one, at the FIRST review | `study.test.ts` exact-due oracle: `due`/`stability`/`difficulty`/`srs_state`/`reps`/`lapses`/`scheduled_days` vs a direct `scheduler.next`             |
-  | …and at every review after it                              | `study.test.ts` "stays faithful across consecutive reviews": three chained ratings vs an oracle Card advanced only in memory (added by impl-review F2) |
-  | The schedule survives between sessions                     | re-read on a brand-new client, column-for-column, asserted still rated (not silently reset to New)                                                     |
-  | A retry does not advance the schedule                      | two identical POSTs → `reps` 0→1 (not 2), second answers `200 { alreadyApplied: true }`, row byte-identical                                            |
-  | Only accepted cards enter                                  | a `generated` and a `rejected` sibling never come back from `listDueCards`; rating one is a 404 that writes no schedule row                            |
-  | No cross-account write (extends Risk #1)                   | B rating A's card → 404 and A's row unchanged column-for-column, with A's own successful rate as the positive control                                  |
+  | Claim from Risk #3                                             | What proves it                                                                                                                                                                     |
+  | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Deferral follows the rating                                    | `schedule.test.ts` ordering property (no DB) + `study.test.ts` Easy-vs-Hard `due` persisted through the endpoint                                                                   |
+  | The written schedule is the right one, at the FIRST review     | `study.test.ts` exact-due oracle: `due`/`stability`/`difficulty`/`srs_state`/`reps`/`lapses`/`scheduled_days` vs a direct `scheduler.next`                                         |
+  | …and at every review after it                                  | `study.test.ts` "stays faithful across consecutive reviews": three chained ratings vs an oracle Card advanced only in memory (added by impl-review F2)                             |
+  | The written schedule survives a re-read                        | re-read on a brand-new client, column-for-column, asserted still rated (not silently reset to New). This is read-after-write, **not** a restart — same process, milliseconds apart |
+  | …and the card comes BACK when it falls due ("no card is lost") | **NOTHING.** Every `listDueCards` call in the suite passes `new Date()`; no test advances the clock and re-enters a session. Owed by C10X-27 / roadmap H-02                        |
+  | A retry does not advance the schedule                          | two identical POSTs → `reps` 0→1 (not 2), second answers `200 { alreadyApplied: true }`, row byte-identical                                                                        |
+  | Only accepted cards enter                                      | a `generated` and a `rejected` sibling never come back from `listDueCards`; rating one is a 404 that writes no schedule row                                                        |
+  | No cross-account write (extends Risk #1)                       | B rating A's card → 404 and A's row unchanged column-for-column, with A's own successful rate as the positive control                                                              |
 
   **What the single-transition oracle does NOT prove, and why there are now two
   rows for it** (added by impl-review F2, 2026-07-24). The exact-due oracle
@@ -560,6 +629,54 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   RPCs. Both are `security invoker`, so an anon caller still gets zero rows
   under RLS. This matches the untouched `search_flashcards_in_deck`
   precedent — it is a project-wide pattern, not something S-03 introduced.
+  Refined by the 2026-07-26 audit: an anon call actually fails with _permission
+  denied for table flashcard_ (`init_core_schema` revokes it) rather than returning
+  zero rows under RLS. Safe either way, still untested.
+
+  **Audit note (2026-07-26, C10X-27 / roadmap H-02). Read this before trusting any
+  count above.** A full audit re-verified this entry against the code and by
+  execution. What it changed:
+  - **Every deliberate-breakage count in this entry is stale.** They read "the other
+    14 cases stay green" (15 total) and "the other 13 cases stayed green" (14 total),
+    but `tests/study/study.test.ts` now holds **16** `it()`s — `e9b8cd9` added two
+    _after_ this note was written (the chained-oracle case and the
+    accepted-then-un-accepted case). The `45/45` / `46/46` full-suite figures are
+    superseded twice over: 66/66 after S-05, **69/69** today. **No recorded
+    deliberate-breakage run has been executed against the current file.** Re-run
+    them before citing them.
+  - **`session_size` → `p_limit` is the biggest untested wire on this surface.**
+    `src/pages/study/[publicId].astro:37` caps the batch with `deck.session_size`,
+    but every test call passes the literal `20` (`study.test.ts:104`, `:531-536`;
+    `candidates.test.ts:626`) and no test creates more due cards than the limit. A
+    regression to a hardcoded value, to the RPC's own `default 20`, or to dropping
+    `p_limit` would be invisible, while `study.test.ts:601-618` (the setter) kept
+    passing. The setter is proven; the reader is not. Its bounds are untested at all
+    three layers (client mirror, endpoint Zod, DB CHECK `between 1 and 100`).
+  - **The RPC's `order by … , f.id asc` tie-break and `limit p_limit` have no
+    assertion.** Every test checks membership with `find`/`toContain`, never order —
+    even though M2 added the tie-break precisely so batch composition would stop
+    being planner-dependent.
+  - **Only `Rating.Good` ever reaches the database.** Easy and Hard appear once each,
+    in the ordering case (`:507`, `:512`); **`Rating.Again` never takes the write
+    path at all**, so `lapses` and the Review → Relearning transition are unproven
+    on persistence — that is the "hard card resurfaces sooner" half of US-02.
+  - **A production bug on this path was found that no document had named**, and it is
+    a Risk #3 failure in the user's terms: `StudySession.rate()`
+    (`src/components/study/StudySession.tsx:174`) checks only `!res.ok`, while
+    middleware answers a signed-out `POST /api/study` with a **302 to an HTML page**
+    that `fetch` follows to a `200`. The card advances, the counter climbs, and no
+    rating is written. The endpoint's own correct 401 (`src/pages/api/study.ts:52-55`)
+    is therefore unreachable in production, as are `/api/generate`'s and
+    `cards/batch`'s. Carried by C10X-27.
+  - Also recorded, deliberately not fixed there: `scheduled_days` is written
+    (`src/lib/study.ts:97`) and never read back (`:284` omits it; `DueCardRow` has no
+    field), so it is the same un-round-tripped class as impl-review F1's
+    `learning_steps` bug — inert today **only** because `enable_short_term: false`
+    makes `LongTermScheduler` zero it on input. F1's own Fix B blind spot said the
+    class remains; it still does.
+
+  Full evidence, including the per-assertion mapping this table was checked against:
+  `context/changes/srs-study-session-test/research.md`.
 
 - **Roadmap slice S-05 (`candidate-review`, 2026-07-25)** — not a §3 rollout phase.
   It is recorded here because it widened **Risk #1's surface**: the project's first
@@ -708,6 +825,28 @@ cost you an afternoon if you rediscover them the hard way:
   (`createNonAcceptedCard` in `study.test.ts`). That seam is deliberate and
   stays RLS-scoped — it is a shortcut around the _UI_, not around the lock.
 
+Three more, added by the 2026-07-26 audit (C10X-27). These are the traps that let a
+green suite sit on top of untested behaviour:
+
+- **Never pass a literal batch limit again.** Every existing call is
+  `listDueCards(client, deckId, <date>, 20)` — a literal, never the deck's own
+  `session_size`, which is what production uses
+  (`src/pages/study/[publicId].astro:37`). Copying that call shape is how the wire
+  stayed unobserved. A new case must set `session_size` on the deck and let the
+  value reach `p_limit`, with more due cards than the cap, or it proves nothing
+  about bounding.
+- **`new Date()` is the wrong clock for a durability claim.** `now` is a lib
+  parameter on `listDueCards`/`rateCard`, so a re-entry test rates at `T`, then
+  calls `listDueCards` at `T + interval` and asserts the card comes back — and at
+  `T + 1 min` asserts it does not. Passing `new Date()` (as every current call
+  does) can only ever prove read-after-write, which is why "no card is lost" went
+  unproven for two days under a table that said otherwise.
+- **`Rating.Good` is not a representative grade.** It is the only grade that has
+  ever taken the write path. `Rating.Again` drives a _different_ transition
+  (`lapses + 1`, Review → Relearning) and nothing exercises it, so a lapse bug
+  would be invisible. When adding a grade case, assert `lapses` and `srs_state`
+  against an oracle advanced in memory (§6.1's rule), not against the row.
+
 **The deliberate-breakage check for this path** runs against the live local DB
 (`docker exec … psql`), not through a `db:reset` — the behaviour under test
 lives in SQL, and a reset would wipe the dev data a reviewer is likely
@@ -843,12 +982,33 @@ contributors should respect these unless the underlying assumption changes.
   require adding the safeguard first. Re-evaluate if a limit is
   implemented; the cost exposure is partially covered by Risk #6
   (server-side length enforcement). (Source: Phase 3 challenger pass.)
+- **React islands' own fetch-response handling** — untested by _construction_, not
+  by decision, and named here because that distinction was invisible until it cost
+  something. §6.4's "pages are deliberately not rendered" is well known; the islands
+  those pages mount are equally unreachable, and nobody had written it down. The
+  gap is not academic: **the one production bug the C10X-27 audit found lives
+  exactly there** — `StudySession.rate()` checks `!res.ok` on a response that
+  middleware turned into an HTML `200`, so every rating is silently discarded while
+  the UI reports progress. Four sibling islands parse before checking `ok` and would
+  survive it; only `rate()` inverts the order, and no layer in this plan could see
+  the difference. What follows: an island's response handling is **reviewed by
+  reading, deliberately and every time** — when a change touches a `fetch` in an
+  island, diff its ok/parse/redirect handling against `GeneratorForm.tsx`,
+  `FlashcardWorkspace.tsx` and `CandidateReviewWorkspace.tsx` rather than trusting
+  the suite. Re-evaluate the moment any §3 phase wires e2e; that is the layer this
+  belongs to. (Source: C10X-27 audit, 2026-07-26.)
 
 ## 8. Freshness Ledger
 
 - Strategy (§1–§5) last reviewed: 2026-07-15
 - Stack versions last verified: 2026-07-15
 - AI-native tool references last verified: 2026-07-15
+- §3 Phase 4 / Risk #3 coverage claims last **audited against the code**:
+  2026-07-26 (C10X-27). Suite state at that moment: 69/69 green, 8 files, local
+  stack up, `OPENROUTER_API_KEY` unset. Three claims in this file were found false
+  or stale and are corrected in place — see the header. **A coverage claim in §6.6
+  is only as good as its audit date**; the two-day-old Phase 4 table already
+  overstated one row.
 
 Refresh (`/10x-test-plan --refresh`) when:
 
