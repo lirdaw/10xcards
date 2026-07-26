@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { createClient } from "@/lib/supabase";
+import { authErrorMessage, AUTH_UNAVAILABLE_MESSAGE } from "@/lib/auth-errors";
 
 export const POST: APIRoute = async (context) => {
   const form = await context.request.formData();
@@ -8,12 +9,14 @@ export const POST: APIRoute = async (context) => {
 
   const supabase = createClient(context.request.headers, context.cookies);
   if (!supabase) {
-    return context.redirect(`/auth/signin?error=${encodeURIComponent("Supabase is not configured")}`);
+    return context.redirect(`/auth/signin?error=${encodeURIComponent(AUTH_UNAVAILABLE_MESSAGE)}`);
   }
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    return context.redirect(`/auth/signin?error=${encodeURIComponent(error.message)}`);
+    // Never `error.message`: it lands in the URL, i.e. in browser history and the access
+    // log, and upstream copy interpolates the submitted address (see @/lib/auth-errors).
+    return context.redirect(`/auth/signin?error=${encodeURIComponent(authErrorMessage(error))}`);
   }
 
   return context.redirect("/decks");

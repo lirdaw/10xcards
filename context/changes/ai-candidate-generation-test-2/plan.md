@@ -1031,16 +1031,16 @@ verified `pg_policies` diff to prove the restore, and are never committed.
 
 #### Automated
 
-- [ ] 1.1 Lint passes: `npm run lint`
-- [ ] 1.2 Full suite passes: `npm test`
-- [ ] 1.3 New file passes alone: `npx vitest run tests/auth/errors.test.ts`
-- [ ] 1.4 Stryker narrowed to the mapper leaves no class-changing survivor
+- [x] 1.1 Lint passes: `npm run lint`
+- [x] 1.2 Full suite passes: `npm test`
+- [x] 1.3 New file passes alone: `npx vitest run tests/auth/errors.test.ts`
+- [x] 1.4 Stryker narrowed to the mapper leaves no class-changing survivor
 
 #### Manual
 
-- [ ] 1.5 Wrong password shows actionable Polish copy; `?error=` is a known constant
-- [ ] 1.6 Already-registered address shows its own distinct message
-- [ ] 1.7 Deliberate-breakage check recorded: one mapping broken, exactly that class red
+- [x] 1.5 Wrong password shows actionable Polish copy; `?error=` is a known constant
+- [x] 1.6 Already-registered address shows its own distinct message
+- [x] 1.7 Deliberate-breakage check recorded: one mapping broken, exactly that class red
 
 ### Phase 2: Cross-account isolation of the audit columns
 
