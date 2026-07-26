@@ -1,12 +1,21 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { experimental_AstroContainer as AstroContainer } from "astro/container";
 import { createEmptyCard, Rating, State } from "ts-fsrs";
+import type { Grade } from "ts-fsrs";
 import * as CreateDeck from "@/pages/api/decks/index";
 import * as CreateCard from "@/pages/api/decks/[publicId]/cards/index";
 import * as Study from "@/pages/api/study";
 import { listDecks } from "@/lib/decks";
 import { deckIdByPublicId, listFlashcards } from "@/lib/flashcards";
-import { listDueCounts, listDueCards, rateCard, scheduleRowToCard, scheduler } from "@/lib/study";
+import {
+  getStudyDeck,
+  listDueCounts,
+  listDueCards,
+  rateCard,
+  scheduleRowToCard,
+  scheduler,
+  setSessionSize,
+} from "@/lib/study";
 import { accountA, accountB } from "../fixtures/accounts";
 import { callEndpoint } from "../fixtures/endpoint";
 import { clientFor } from "../fixtures/session";
@@ -33,6 +42,12 @@ const b = accountB();
 const suffix = Date.now().toString(36);
 
 const RATING = { AGAIN: 1, HARD: 2, GOOD: 3, EASY: 4 } as const;
+
+// The four graded recalls, in the order the session island shows them. Rating.Manual (0)
+// is not a grade and the endpoint rejects it.
+const GRADES: Grade[] = [Rating.Again, Rating.Hard, Rating.Good, Rating.Easy];
+
+const MINUTE_MS = 60_000;
 
 // Lifecycle state ids (flashcard.state_id), a different axis from the FSRS srs_state.
 const STATE_GENERATED = 1;
@@ -138,6 +153,21 @@ async function deckIdOf(as: typeof a, deckPublicId: string): Promise<number> {
   expect(error).toBeNull();
   if (!deck) throw new Error(`Deck ${deckPublicId} is not readable by its owner.`);
   return deck.id;
+}
+
+/**
+ * Resolves a deck the way the real session loader does (src/pages/study/[publicId].astro):
+ * one round-trip for the internal id AND the deck's own batch cap.
+ *
+ * Use this — never a literal — wherever a test needs a `limit` for listDueCards. Copying the
+ * `listDueCards(..., 20)` call shape of the cases above is exactly how the session_size wire
+ * stayed unobserved through 69 green tests (test-plan §6.7).
+ */
+async function studyDeckOf(as: typeof a, deckPublicId: string): Promise<{ id: number; sessionSize: number }> {
+  const { data, error } = await getStudyDeck(clientFor(as.cookieHeader), deckPublicId);
+  expect(error).toBeNull();
+  if (!data) throw new Error(`Deck ${deckPublicId} is not readable by its owner.`);
+  return { id: data.id, sessionSize: data.session_size };
 }
 
 /** Every persisted FSRS column, so a transition can be asserted column-for-column. */
@@ -615,5 +645,235 @@ describe("/api/study setSessionSize updates the per-deck cap", () => {
       .maybeSingle();
     expect(error).toBeNull();
     expect(data?.session_size).toBe(7);
+  });
+});
+
+// ── C10X-27: the four gaps the 2026-07-26 audit found beyond the record ─────────────────
+//
+// Everything above this line predates that audit. Each describe below closes one thing the
+// suite reported as covered and did not observe: the deck's own cap reaching the batch (and
+// being bounded in turn), the batch's composition, a rated card coming BACK when it falls
+// due, and the three grades that had never taken the write path.
+
+describe("Risk #3 — the batch is bounded by the deck's own session_size", () => {
+  it("caps the batch at the deck's cap and composes it deterministically", async () => {
+    const CAP = 3;
+    const TOTAL = 5;
+    const deckPublicId = await createDeck(a, `Cap deck ${suffix}`);
+
+    // Set through the real endpoint, so the cap under test is one a user could actually set.
+    const set = await study({ action: "setSessionSize", deckPublicId, size: CAP }, a);
+    expect(set.status).toBe(200);
+
+    const created: string[] = [];
+    for (let i = 1; i <= TOTAL; i++) {
+      created.push(await createCard(a, deckPublicId, `Cap front ${i} ${suffix}`, `back ${i} ${suffix}`));
+    }
+
+    // The wire this case exists for: the limit comes from the deck row, exactly as
+    // src/pages/study/[publicId].astro reads it. The setter was proven; the reader was not.
+    const deck = await studyDeckOf(a, deckPublicId);
+    expect(deck.sessionSize).toBe(CAP);
+
+    const { data: batch, error } = await listDueCards(clientFor(a.cookieHeader), deck.id, new Date(), deck.sessionSize);
+    expect(error).toBeNull();
+    // Bounded: five cards are due, three come back. A regression to a hardcoded 20, to the
+    // RPC's own `default 20`, or to dropping p_limit altogether returns all five — and with
+    // fewer due cards than the cap none of those would be visible, which is why TOTAL > CAP.
+    expect(batch).toHaveLength(CAP);
+    // ...and composed deterministically rather than planner-dependently. Every card here is
+    // unseeded, so `coalesce(s.due, p_now)` collapses to p_now for all five and the RPC's
+    // `f.id asc` tie-break (added by 20260724220524 for precisely this reason) degenerates to
+    // insertion order. toEqual, not toContain: the order IS the claim.
+    expect(batch?.map((card) => card.publicId)).toEqual(created.slice(0, CAP));
+  });
+
+  it("refuses an out-of-range cap at the endpoint and, one layer down, at the database", async () => {
+    const deckPublicId = await createDeck(a, `Bounds deck ${suffix}`);
+    const accepted = await study({ action: "setSessionSize", deckPublicId, size: 5 }, a);
+    expect(accepted.status).toBe(200);
+
+    // Layer 1 — the endpoint's Zod bound (`int().min(1).max(SIZE_MAX)`). Row-based, not
+    // status-only: a 400 returned after the write had already landed would read as a pass.
+    for (const size of [0, -1, 101, 2.5]) {
+      const response = await study({ action: "setSessionSize", deckPublicId, size }, a);
+      expect(response.status).toBe(400);
+      await expectErrorBody(response);
+      expect((await studyDeckOf(a, deckPublicId)).sessionSize).toBe(5);
+    }
+
+    // Layer 2 — the DB CHECK `deck_session_size_check` (`between 1 and 100`, added by
+    // 20260724220524). This is the backstop src/lib/study.ts's comment claims and nothing had
+    // ever exercised; reaching it means calling the lib function directly, below the Zod bound.
+    const client = clientFor(a.cookieHeader);
+    for (const size of [0, 101]) {
+      const { data, error } = await setSessionSize(client, deckPublicId, size);
+      // A refused write, not a silent no-op. The constraint name is what pins WHICH guard
+      // refused it — an RLS failure or a missing row would also produce a null `data`.
+      const failure = error as { code?: string; message?: string } | null;
+      expect(failure?.code).toBe("23514");
+      expect(failure?.message).toContain("deck_session_size_check");
+      expect(data).toBeNull();
+      expect((await studyDeckOf(a, deckPublicId)).sessionSize).toBe(5);
+    }
+
+    // Positive control: the same call with an in-range value does land, so the two refusals
+    // above are the CHECK and not a wholesale-broken update path.
+    const { error: okError } = await setSessionSize(client, deckPublicId, 9);
+    expect(okError).toBeNull();
+    expect((await studyDeckOf(a, deckPublicId)).sessionSize).toBe(9);
+
+    // The third layer — SessionSizeControl's own SIZE_MIN/SIZE_MAX mirror — stays uncovered:
+    // no layer in this project reaches an island's JSX (test-plan §7). Do not read this case
+    // as proving the bound end to end.
+  });
+});
+
+describe("Risk #3 — a rated card comes back exactly when it falls due", () => {
+  it("returns the card at its persisted due and withholds it a minute after the rating", async () => {
+    const deckPublicId = await createDeck(a, `Re-entry deck ${suffix}`);
+    const cardPublicId = await createCard(a, deckPublicId, `Re-entry front ${suffix}`, `back ${suffix}`);
+    const deck = await studyDeckOf(a, deckPublicId);
+    const expectedReps = await loadSession(a, deckPublicId, cardPublicId);
+
+    const result = await rateCard(
+      clientFor(a.cookieHeader),
+      deck.id,
+      cardPublicId,
+      Rating.Good,
+      expectedReps,
+      FIXED_NOW,
+    );
+    expect(result.error).toBeNull();
+    expect(result.alreadyApplied).toBe(false);
+
+    const persisted = await scheduleOf(a, cardPublicId);
+    if (!persisted) throw new Error("Schedule row missing after a successful rate.");
+    const due = new Date(persisted.due);
+
+    // The negative half FIRST, because it is the half that separates durability from "the RPC
+    // returned something". A `coalesce(s.due, p_now) <= p_now` predicate that was always true,
+    // or a rating whose interval never persisted, passes the positive half on its own — which
+    // is why every `new Date()` call in this file could only ever prove read-after-write.
+    const early = await listDueCards(
+      clientFor(a.cookieHeader),
+      deck.id,
+      new Date(FIXED_NOW.getTime() + MINUTE_MS),
+      deck.sessionSize,
+    );
+    expect(early.error).toBeNull();
+    expect(early.data?.map((card) => card.publicId)).not.toContain(cardPublicId);
+
+    // ...and the card is not lost: at the instant it falls due it is back in the batch, read
+    // on a brand-new client. `now` is a lib parameter — the only reason this is reachable at
+    // all, since the endpoint deliberately never lets a caller supply a clock.
+    const atDue = await listDueCards(clientFor(a.cookieHeader), deck.id, due, deck.sessionSize);
+    expect(atDue.error).toBeNull();
+    const returned = atDue.data?.find((card) => card.publicId === cardPublicId);
+    expect(returned).toBeDefined();
+    // And it came back as the RATED card, not as a row that quietly reset to New — which
+    // would also satisfy "it is in the batch" while losing the schedule entirely.
+    expect(returned?.reps).toBe(expectedReps + 1);
+  });
+});
+
+describe("Risk #3 — every grade takes the write path, not just Good", () => {
+  it("persists what ts-fsrs computes for Again/Hard/Good/Easy, against an in-memory oracle", async () => {
+    const deckPublicId = await createDeck(a, `Grades deck ${suffix}`);
+    const deckId = await deckIdOf(a, deckPublicId);
+
+    for (const grade of GRADES) {
+      const cardPublicId = await createCard(a, deckPublicId, `Grade ${grade} front ${suffix}`, `back ${suffix}`);
+      const expectedReps = await loadSession(a, deckPublicId, cardPublicId);
+      expect(expectedReps).toBe(0);
+
+      // §6.1's independent-oracle rule: built by ts-fsrs' own constructor and advanced purely
+      // in memory, never through scheduleRowToCard. Recomputing from the row just read back
+      // would drop any unpersisted Card field on both sides at once, so the oracle and the
+      // code would agree on a wrong value. A seeded row's `due` does not feed the
+      // New -> first transition, which is what makes createEmptyCard a faithful start.
+      const oracle = scheduler.next(createEmptyCard(FIXED_NOW), FIXED_NOW, grade).card;
+
+      const result = await rateCard(clientFor(a.cookieHeader), deckId, cardPublicId, grade, expectedReps, FIXED_NOW);
+      expect(result.error).toBeNull();
+      expect(result.alreadyApplied).toBe(false);
+
+      const persisted = await scheduleOf(a, cardPublicId);
+      if (!persisted) throw new Error(`Schedule row missing after rating grade ${grade}.`);
+      expect(new Date(persisted.due).getTime()).toBe(oracle.due.getTime());
+      expect(persisted.stability).toBeCloseTo(oracle.stability, 6);
+      expect(persisted.difficulty).toBeCloseTo(oracle.difficulty, 6);
+      expect(persisted.srs_state).toBe(oracle.state);
+      expect(persisted.reps).toBe(oracle.reps);
+      expect(persisted.lapses).toBe(oracle.lapses);
+      expect(persisted.scheduled_days).toBe(oracle.scheduled_days);
+    }
+  });
+
+  it("increments lapses on Again from Review and resurfaces the card sooner than Good would", async () => {
+    const deckPublicId = await createDeck(a, `Lapse deck ${suffix}`);
+    const cardPublicId = await createCard(a, deckPublicId, `Lapse front ${suffix}`, `back ${suffix}`);
+    const deckId = await deckIdOf(a, deckPublicId);
+    await loadSession(a, deckPublicId, cardPublicId);
+
+    // Three Good ratings first, so the lapse happens from a settled Review state rather than
+    // from New. Oracle and row advance in step, the oracle only in memory.
+    let oracle = createEmptyCard(FIXED_NOW);
+    let now = FIXED_NOW;
+    for (let review = 1; review <= 3; review++) {
+      oracle = scheduler.next(oracle, now, Rating.Good).card;
+      const good = await rateCard(clientFor(a.cookieHeader), deckId, cardPublicId, Rating.Good, review - 1, now);
+      expect(good.error).toBeNull();
+      expect(good.alreadyApplied).toBe(false);
+      now = oracle.due; // the next review happens when the card actually comes due
+    }
+    const settled = await scheduleOf(a, cardPublicId);
+    expect(settled?.srs_state).toBe(State.Review);
+    expect(settled?.lapses).toBe(0);
+
+    // Both branches computed from the SAME oracle at the SAME `now`, so anything that differs
+    // between them is a property of the grade and of nothing else.
+    const lapsed = scheduler.next(oracle, now, Rating.Again).card;
+    const ifGood = scheduler.next(oracle, now, Rating.Good).card;
+    expect(lapsed.lapses).toBe(oracle.lapses + 1);
+
+    const result = await rateCard(clientFor(a.cookieHeader), deckId, cardPublicId, Rating.Again, 3, now);
+    expect(result.error).toBeNull();
+    expect(result.alreadyApplied).toBe(false);
+
+    const persisted = await scheduleOf(a, cardPublicId);
+    if (!persisted) throw new Error("Schedule row missing after a lapse.");
+    // Against the oracle, never inside a toEqual self-comparison — that is exactly how
+    // `lapses` stayed unobserved while 69 tests reported the schedule as covered.
+    expect(persisted.lapses).toBe(lapsed.lapses);
+    expect(persisted.lapses).toBe(1);
+    expect(new Date(persisted.due).getTime()).toBe(lapsed.due.getTime());
+    expect(persisted.stability).toBeCloseTo(lapsed.stability, 6);
+    expect(persisted.difficulty).toBeCloseTo(lapsed.difficulty, 6);
+
+    // US-02's user-facing half, stated without reference to the oracle: the card the user
+    // struggled with comes back sooner, and less strongly remembered, than the same card
+    // would have if they had known it.
+    expect(new Date(persisted.due).getTime()).toBeLessThan(ifGood.due.getTime());
+    expect(persisted.stability).toBeLessThan(ifGood.stability);
+
+    // NOT Relearning, and this is the one assertion here worth reading twice. With
+    // `enable_short_term: false` ts-fsrs runs LongTermScheduler, whose next_state sends every
+    // grade — Again included — to State.Review. State.Relearning is assigned at exactly one
+    // site, BasicScheduler.reviewState, which this configuration never instantiates. Both
+    // test-plan §6.7 and the C10X-27 audit note say "Review -> Relearning"; both are wrong,
+    // and asserting it would fail.
+    expect(persisted.srs_state).toBe(State.Review);
+  });
+
+  it("never writes srs_state 3 — the canary for a flipped enable_short_term", async () => {
+    // A single Relearning row means LongTermScheduler is no longer the scheduler in play, and
+    // every exact-`due` oracle in this file is suspect. RLS scopes the read to account A, so
+    // this observes the rows this run wrote and nothing else.
+    const { data, error } = await clientFor(a.cookieHeader).from("flashcard_schedule").select("srs_state");
+    expect(error).toBeNull();
+    // Positive control: an empty result would satisfy the claim vacuously.
+    expect(data?.length ?? 0).toBeGreaterThan(0);
+    expect(data?.map((row) => row.srs_state)).not.toContain(State.Relearning);
   });
 });

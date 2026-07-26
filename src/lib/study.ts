@@ -16,6 +16,13 @@ type Client = SupabaseClient<Database>;
 // deterministic function of (card, now, grade) so Risk #3's oracle test can assert an
 // exact `due` rather than a fuzzed range.
 //
+// `enable_fuzz: false` is passed EXPLICITLY, and that is the point. It matches ts-fsrs
+// 5.4.1's `default_enable_fuzz`, so it changes nothing today — but the dependency range is
+// `^5.4.1`, and the exact-`due` oracles in tests/study/study.test.ts rest on this value.
+// Left implicit, an upstream flip inside the caret range would turn those assertions
+// intermittently red with no change in this repo. Three documents asserted the app
+// configured it while nothing did (C10X-27); now the statement is true.
+//
 // `enable_short_term: false` is load-bearing, not a preference. With short-term steps ON,
 // ts-fsrs walks a card through `learning_steps` (['1m','10m']) using a `Card.learning_steps`
 // CURSOR, and only that cursor graduates the card to State.Review. This app persists a
@@ -26,7 +33,12 @@ type Client = SupabaseClient<Database>;
 // model: the batch is built once and the island runs to the end, so an intra-day re-queue
 // would never be shown inside a session anyway.
 export const scheduler = fsrs(
-  generatorParameters({ request_retention: 0.9, maximum_interval: 36500, enable_short_term: false }),
+  generatorParameters({
+    request_retention: 0.9,
+    maximum_interval: 36500,
+    enable_short_term: false,
+    enable_fuzz: false,
+  }),
 );
 
 // Relative "za N minut/godzin/dni" label for a rating button. An interval is a
