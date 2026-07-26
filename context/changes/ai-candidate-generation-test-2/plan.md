@@ -1060,15 +1060,15 @@ verified `pg_policies` diff to prove the restore, and are never committed.
 
 #### Automated
 
-- [x] 2.1 Full suite passes: `npm test`
-- [x] 2.2 File passes alone: `npx vitest run tests/review/candidates.test.ts`
+- [x] 2.1 Full suite passes: `npm test` — f95fcd5
+- [x] 2.2 File passes alone: `npx vitest run tests/review/candidates.test.ts` — f95fcd5
 
 #### Manual
 
-- [x] 2.3 Deliberate-breakage check recorded: `generation_session_select` neutered, reads red
-- [x] 2.4 Deliberate-breakage check recorded: `generation_session_update` neutered, write red
-- [x] 2.5 Restore verified by `pg_policies` before/after diff, diff empty
-- [x] 2.6 Full suite green after restore
+- [x] 2.3 Deliberate-breakage check recorded: `generation_session_select` neutered, reads red — f95fcd5
+- [x] 2.4 Deliberate-breakage check recorded: `generation_session_update` neutered, write red — f95fcd5
+- [x] 2.5 Restore verified by `pg_policies` before/after diff, diff empty — f95fcd5
+- [x] 2.6 Full suite green after restore — f95fcd5
 
 ### Phase 3: Server-side bounds parity (Risk #6) + single-source `SOURCE_MAX`
 
@@ -1077,14 +1077,14 @@ verified `pg_policies` diff to prove the restore, and are never committed.
 
 #### Automated
 
-- [ ] 3.1 `npx astro sync` then lint passes: `npm run lint`
-- [ ] 3.2 Build passes: `npm run build`
-- [ ] 3.3 Full suite passes: `npm test`
+- [x] 3.1 `npx astro sync` then lint passes: `npm run lint`
+- [x] 3.2 Build passes: `npm run build`
+- [x] 3.3 Full suite passes: `npm test`
 
 #### Manual
 
-- [ ] 3.4 Generator form still enforces the limit client-side after the import swap
-- [ ] 3.5 Deliberate-breakage check recorded: server limit raised, over-length case red,
+- [x] 3.4 Generator form still enforces the limit client-side after the import swap
+- [x] 3.5 Deliberate-breakage check recorded: server limit raised, over-length case red,
       boundary control green
 
 ### Phase 4: Ambient disclosure — banner gate and the log boundary

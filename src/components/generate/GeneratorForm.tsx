@@ -6,12 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ServerError } from "@/components/auth/ServerError";
 import { cn } from "@/lib/utils";
+import { SOURCE_MAX, COUNT_MIN, COUNT_MAX, LANGUAGES, type Language } from "@/lib/generation-limits";
 
-// Source-text hard cap (FR-003) — a business rule enforced on the client and
-// re-validated by the endpoint after trim. Count bounds mirror the endpoint.
-const SOURCE_MAX = 10_000;
-const COUNT_MIN = 1;
-const COUNT_MAX = 15;
+// SOURCE_MAX / COUNT_MIN / COUNT_MAX / LANGUAGES are IMPORTED, not redeclared: this file
+// used to carry its own copies of all four against src/pages/api/generate.ts, so the
+// client guard and the server schema could drift apart silently (test-plan §2 Risk #6).
+// The endpoint imports the same module, so the two ends now move together.
 const NEW_DECK = "__new__";
 
 // Client-side fetch timeout. MUST be longer than the server's OpenRouter timeout (~40s)
@@ -20,14 +20,17 @@ const NEW_DECK = "__new__";
 // idempotency key below, not by this ordering, which only ever narrowed it.
 const CLIENT_TIMEOUT_MS = 55_000;
 
-const LANGUAGES = [
-  { value: "auto", label: "Ten sam co tekst" },
-  { value: "polski", label: "Polski" },
-  { value: "angielski", label: "Angielski" },
-  { value: "hiszpański", label: "Hiszpański" },
-  { value: "niemiecki", label: "Niemiecki" },
-  { value: "francuski", label: "Francuski" },
-] as const;
+// The lib exports VALUES; the labels are UI and stay here. Typing the map by the
+// `Language` union is what keeps them in step: add a language to generation-limits.ts
+// without a label and this object stops compiling.
+const LANGUAGE_LABELS: Record<Language, string> = {
+  auto: "Ten sam co tekst",
+  polski: "Polski",
+  angielski: "Angielski",
+  hiszpański: "Hiszpański",
+  niemiecki: "Niemiecki",
+  francuski: "Francuski",
+};
 
 interface DeckOption {
   publicId: string;
@@ -232,8 +235,8 @@ export function GeneratorForm({ decks }: Props) {
               className={cn("h-9 w-full rounded-md border px-3 text-sm", fieldClass)}
             >
               {LANGUAGES.map((l) => (
-                <option key={l.value} value={l.value} className="bg-slate-900">
-                  {l.label}
+                <option key={l} value={l} className="bg-slate-900">
+                  {LANGUAGE_LABELS[l]}
                 </option>
               ))}
             </select>

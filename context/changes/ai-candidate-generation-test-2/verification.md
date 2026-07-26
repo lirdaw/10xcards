@@ -221,3 +221,160 @@ Every `psql` invocation used `-c` rather than a piped heredoc, so S-05's
 `npm test` → **152 passed / 152, 12 files**. `git status --porcelain` shows only
 `context/changes/ai-candidate-generation-test-2/plan.md` and `tests/review/candidates.test.ts`
 — no production file was touched by this phase at all, and no breakage edit was committed.
+
+## Phase 3 — server-side bounds parity + single-source `SOURCE_MAX` (C10X-30)
+
+### Automated
+
+| Check | Command | Result |
+| --- | --- | --- |
+| 3.1 `astro sync` + lint | `npx astro sync && npm run lint` | types generated, lint clean (only the pre-existing `astro-eslint-parser` `projectService` notices) |
+| 3.2 Build | `npm run build` | server built in 5.09 s, complete |
+| 3.3 Full suite | `npm test` | **159 passed / 159, 12 files** (was 152/12 after Phase 2; this phase adds 7) |
+| — file alone | `npx vitest run tests/generation/generate.test.ts` | **20 passed / 20** (was 13) |
+
+The four constants now live in `src/lib/generation-limits.ts`, imported by both
+`src/pages/api/generate.ts` and `src/components/generate/GeneratorForm.tsx`. **Why a new
+module and not an existing one** is argued in its header: `flashcards.ts` would work
+mechanically but is the wrong resource, and `generations.ts` is the right concern but has
+never shipped to the browser. `LANGUAGES` exports **values**; the island keeps its labels in
+a `Record<Language, string>`, so a language added to the lib without a label fails to
+compile rather than rendering blank.
+
+### The 414 the plan warns about — re-measured here, not inherited
+
+The scoping rule in `tests/generation/generate.test.ts` (prefix marker + `.like()`, never
+`.eq("source_text", <body>)`) rests on a measurement made during plan-review. It was re-run
+against this stack rather than trusted, because the whole oracle depends on it:
+
+```
+$ curl -G "$SUPABASE_URL/rest/v1/generation_session" \
+    --data-urlencode "select=id" --data-urlencode "source_text=eq.$(python -c "print('a'*N)")"
+n=8000  -> HTTP 401     (reached PostgREST; refused on auth, not on length)
+n=10000 -> HTTP 414
+n=10001 -> HTTP 414
+```
+
+So an `.eq()` on a body at the cap is refused **by Kong, before the query runs** — a test
+scoped that way would go red on `expect(error).toBeNull()` for a reason with nothing to do
+with the behaviour under test. Note the ceiling sits at or below `SOURCE_MAX` itself, i.e.
+exactly at the boundary this phase has to read back.
+
+`succeededSessions` carried the same latent defect and was widened in the same edit; it had
+simply never been handed a long string. The new status-agnostic `allSessions` is what the
+rejection cases assert against — `succeededSessions` filters `status = 'succeeded'` and is
+blind to the `failed` rows `generate.ts` writes on the 502/422 paths, so it would have been
+an argument that nothing landed rather than an assertion.
+
+**These oracles are not vacuously green.** A `.like()` pattern that matched nothing would
+satisfy every "writes nothing" assertion. The boundary control uses the same `scope()` and
+asserts `toHaveLength(1)`, and the six pre-existing dedup cases assert 1 and 2 through the
+same helper — so the scoping is proven to find rows it should.
+
+### 3.5 Deliberate-breakage check
+
+**Edit**: in `src/pages/api/generate.ts`, decouple the schema from the shared constant —
+`sourceText: z.string().min(1).max(SOURCE_MAX)` → `.max(SOURCE_MAX * 2)`.
+
+**Adapted from the plan's wording, and the adaptation is the point.** The plan says "raise
+the server's `SOURCE_MAX` above the client's former literal". After this phase there is no
+"server's `SOURCE_MAX`" to raise: there is one constant, and the test imports it too, so
+raising it moves client, server **and** oracle together and the suite stays green while
+proving nothing. Loosening the endpoint's own schema away from the shared value reproduces
+the same defect — the server accepting what the client refuses — and is precisely the drift
+Risk #6 names.
+
+**Observed**: `npx vitest run tests/generation/generate.test.ts` → **exactly 2 of 20 red**,
+both of them the over-limit cases and both on the decisive observation (the endpoint
+*accepted* the crafted body):
+
+```
+× 400s a sourceText one character over the limit, and writes nothing
+  → expected 200 to be 400 // Object.is equality
+× 400s a sourceText over the limit even when it trims back under it
+  → expected 200 to be 400 // Object.is equality
+```
+
+**The boundary control stayed green**, which is what the check is for: the two reds observe
+the cap moving, not an endpoint that started refusing everything. So did the other 17 —
+including every count/language/id/deck-name bound, so those are pinned by their own guards
+and not by this one.
+
+Two reds rather than the one the plan's row implies, and correctly so: both cases assert the
+same `.max()` clause, the second adding only that the cap governs the **raw** string. Under a
+doubled cap a 10 001-character body passes either way.
+
+**Restore**: `.max(SOURCE_MAX)` reverted; `grep -n "max(SOURCE_MAX" src/pages/api/generate.ts`
+→ `50: sourceText: z.string().min(1).max(SOURCE_MAX),`, `git diff --stat src/` shows only the
+phase's two intended files, `npm test` → **159 passed / 159**. No breakage edit was committed.
+
+### 3.4 Manual check — the client still enforces the limit after the import swap
+
+Run in a real browser against `npm run dev` (`http://localhost:4327`; 4321-4326 were taken),
+signed in as `dup-probe-c10x34@example.com`, on `/generate`. This is the check no automated
+layer here can make (§7), so it was driven as a user would drive it, not read off the source.
+
+**The four attributes now come from the shared module, and they arrived intact:**
+
+```
+textareaMaxLength: 10000        countMin: "1"   countMax: "15"   (type=number)
+deckNameMaxLength: 100          counter: "0 / 10000"
+languages: auto => Ten sam co tekst | polski => Polski | angielski => Angielski
+           hiszpański => Hiszpański | niemiecki => Niemiecki | francuski => Francuski
+```
+
+The language list is the one thing the swap restructured — the island used to hold
+`{value,label}` objects and now derives labels from a `Record<Language,string>` over the
+lib's values. All six render, and each `<option value>` still matches the endpoint's enum
+exactly (confirmed again by the positive control below, which sends a **non-default**
+language).
+
+**`maxLength` truncation, driven through the real editing pipeline** (`execCommand
+insertText`, not an assigned `value` — an assigned value bypasses `maxLength` and would have
+faked a pass):
+
+```
+attempted: 10001   inField: 10000   head: "PROBE-aaaa"   tail: "aaaaa-END!"
+counter: "10000 / 10000"   counterClass: …text-blue-100/50   aria-invalid: null
+```
+
+The 10 001st character was dropped by the browser (the probe's tail `-END!!` arrived as
+`-END!`), React state followed, and the counter reads the cap. Not red and not
+`aria-invalid`, correctly: the value sits **at** the cap, not over it. Note what this means —
+`CharCount`'s red state and the island's own `text.length > SOURCE_MAX` branch are
+**unreachable through the UI**, because `maxLength` gets there first. They are a second belt,
+not the visible guard.
+
+**The reachable client guard, and proof it refuses without touching the wire.** `count` is a
+number input, so `min`/`max` do not stop a typed value: with `20` entered and `window.fetch`
+wrapped to record calls, submitting rendered
+
+> Liczba kart musi być w zakresie 1–15.
+
+with `fetchCalls: []` — **no request was issued at all**, and no "Ponów" button (correct: a
+pure validation error is not retriable). That message interpolates `COUNT_MIN`/`COUNT_MAX`,
+so it also shows the imported constants reaching the client's *validation*, not only its HTML
+attributes.
+
+**Positive control — the happy path still works after the swap.** Same form, `count` 3,
+language deliberately set to `hiszpański` rather than the default `auto`:
+`fetchCalls: ["/api/generate"]`, banner "Zapisano 3 — kandydaci trafili do talii jako karty
+do przeglądu.", 3 candidates rendered. So the derived option values are ones the server's
+whitelist accepts; had the swap changed what travels, this is where it would have 400'd.
+
+Left behind on the local dev DB, deliberately and harmlessly: one deck
+`Sonda C10X-30 1785088993728` with its 3 mock cards and one `succeeded` session.
+
+### What this phase does NOT prove
+
+The client half of the parity **as a standing guarantee**. The check above is a human run at
+a point in time; no layer in this project reaches an island's JSX
+(`test-plan.md` §7), so `GeneratorForm`'s `maxLength`, `min`/`max`, `<select>` and char
+counter are covered by manual check 3.4 alone — the same gap §6.6's Phase 4 entry records for
+`SessionSizeControl`'s `SIZE_MIN`/`SIZE_MAX`. What single-sourcing buys is that the two ends
+can no longer disagree about the **value**; that each end still enforces it is one assertion
+here and one pair of human eyes there.
+
+Also out of scope, deliberately, and named so it does not read as missed: the deck-name
+`1..100` bound (six copies) and the card-content `FRONT_MAX`/`BACK_MAX` endpoints — the
+latter being the half of C10X-30 this phase does not close.
