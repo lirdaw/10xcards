@@ -801,28 +801,28 @@ return type. Phase 0's cloud check concerns an **existing** migration
 
 #### Automated
 
-- [x] 2.1 Whole suite green immediately after the `enable_fuzz` edit, before any new test
-- [x] 2.2 `npx vitest run tests/study/study.test.ts` passes with the new cases
-- [x] 2.3 `npm run lint` passes
+- [x] 2.1 Whole suite green immediately after the `enable_fuzz` edit, before any new test — 4756060
+- [x] 2.2 `npx vitest run tests/study/study.test.ts` passes with the new cases — 4756060
+- [x] 2.3 `npm run lint` passes — 4756060
 
 #### Manual
 
-- [x] 2.4 A small session size set in the UI caps the batch at that value
-- [x] 2.5 Re-entering the session uses the deck's cap, not a default
+- [x] 2.4 A small session size set in the UI caps the batch at that value — 4756060
+- [x] 2.5 Re-entering the session uses the deck's cap, not a default — 4756060
 
 ### Phase 3: The three recorded-but-unfixed items
 
 #### Automated
 
-- [ ] 3.1 `npm test` passes, including the exact-`due` oracles (the `scheduled_days` neutrality check)
-- [ ] 3.2 `npm run lint` passes
-- [ ] 3.3 `npm run build` passes
+- [x] 3.1 `npm test` passes, including the exact-`due` oracles (the `scheduled_days` neutrality check)
+- [x] 3.2 `npm run lint` passes
+- [x] 3.3 `npm run build` passes
 
 #### Manual
 
-- [ ] 3.4 Rating the same card twice increases the counter by one
-- [ ] 3.5 A card rejected elsewhere offers "Pomiń kartę" and the session continues
-- [ ] 3.6 A network failure still shows retry-in-place with no skip offered
+- [x] 3.4 Rating the same card twice increases the counter by one
+- [x] 3.5 A card rejected elsewhere offers "Pomiń kartę" and the session continues
+- [x] 3.6 A network failure still shows retry-in-place with no skip offered
 
 ### Phase 4: Produce the evidence, then rewrite the record
 
