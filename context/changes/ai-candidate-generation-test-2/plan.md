@@ -1077,29 +1077,29 @@ verified `pg_policies` diff to prove the restore, and are never committed.
 
 #### Automated
 
-- [x] 3.1 `npx astro sync` then lint passes: `npm run lint`
-- [x] 3.2 Build passes: `npm run build`
-- [x] 3.3 Full suite passes: `npm test`
+- [x] 3.1 `npx astro sync` then lint passes: `npm run lint` — b520b90
+- [x] 3.2 Build passes: `npm run build` — b520b90
+- [x] 3.3 Full suite passes: `npm test` — b520b90
 
 #### Manual
 
-- [x] 3.4 Generator form still enforces the limit client-side after the import swap
+- [x] 3.4 Generator form still enforces the limit client-side after the import swap — b520b90
 - [x] 3.5 Deliberate-breakage check recorded: server limit raised, over-length case red,
-      boundary control green
+      boundary control green — b520b90
 
 ### Phase 4: Ambient disclosure — banner gate and the log boundary
 
 #### Automated
 
-- [ ] 4.1 Full suite passes: `npm test`
-- [ ] 4.2 Build passes: `npm run build`
+- [x] 4.1 Full suite passes: `npm test`
+- [x] 4.2 Build passes: `npm run build`
 
 #### Manual
 
-- [ ] 4.3 Signed out, no OpenRouter banner on `/` or `/auth/signin`
-- [ ] 4.4 Signed in, the OpenRouter banner still appears when the key is unset
-- [ ] 4.5 With `SUPABASE_URL` unset, the Supabase banner still renders while signed out
-- [ ] 4.6 Deliberate-breakage check recorded: a `console.log` in `src/` turns the guard red
+- [x] 4.3 Signed out, no OpenRouter banner on `/` or `/auth/signin`
+- [x] 4.4 Signed in, the OpenRouter banner still appears when the key is unset
+- [x] 4.5 With `SUPABASE_URL` unset, the Supabase banner still renders while signed out
+- [x] 4.6 Deliberate-breakage check recorded: a `console.log` in `src/` turns the guard red
 
 ### Phase 5: The project's first module double — no-leak and API-key pins
 
