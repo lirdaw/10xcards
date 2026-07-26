@@ -814,27 +814,27 @@ return type. Phase 0's cloud check concerns an **existing** migration
 
 #### Automated
 
-- [x] 3.1 `npm test` passes, including the exact-`due` oracles (the `scheduled_days` neutrality check)
-- [x] 3.2 `npm run lint` passes
-- [x] 3.3 `npm run build` passes
+- [x] 3.1 `npm test` passes, including the exact-`due` oracles (the `scheduled_days` neutrality check) — da5e9c2
+- [x] 3.2 `npm run lint` passes — da5e9c2
+- [x] 3.3 `npm run build` passes — da5e9c2
 
 #### Manual
 
-- [x] 3.4 Rating the same card twice increases the counter by one
-- [x] 3.5 A card rejected elsewhere offers "Pomiń kartę" and the session continues
-- [x] 3.6 A network failure still shows retry-in-place with no skip offered
+- [x] 3.4 Rating the same card twice increases the counter by one — da5e9c2
+- [x] 3.5 A card rejected elsewhere offers "Pomiń kartę" and the session continues — da5e9c2
+- [x] 3.6 A network failure still shows retry-in-place with no skip offered — da5e9c2
 
 ### Phase 4: Produce the evidence, then rewrite the record
 
 #### Automated
 
-- [ ] 4.1 `npm test` green at the end, final count recorded
-- [ ] 4.2 Narrowed Stryker run on `rateCard`'s re-derived span in `src/lib/study.ts` completes; span + report captured
-- [ ] 4.3 `npm run lint` passes
-- [ ] 4.4 `git diff` shows no production edit left behind from any breakage check
+- [x] 4.1 `npm test` green at the end, final count recorded
+- [x] 4.2 Narrowed Stryker run on `rateCard`'s re-derived span in `src/lib/study.ts` completes; span + report captured
+- [x] 4.3 `npm run lint` passes
+- [x] 4.4 `git diff` shows no production edit left behind from any breakage check
 
 #### Manual
 
-- [ ] 4.5 Every restore verified by a before/after definition `diff`, result recorded
-- [ ] 4.6 `test-plan.md` re-read end to end: no false statement, every count cites a run from this change
-- [ ] 4.7 The survived-mutant register explains per mutant why an assertion was or was not added
+- [x] 4.5 Every restore verified by a before/after definition `diff`, result recorded
+- [x] 4.6 `test-plan.md` re-read end to end: no false statement, every count cites a run from this change
+- [x] 4.7 The survived-mutant register explains per mutant why an assertion was or was not added

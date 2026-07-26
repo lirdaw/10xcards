@@ -4,8 +4,12 @@ import type { Grade } from "ts-fsrs";
 import { formatInterval, scheduleRowToCard, scheduler } from "@/lib/study";
 
 // Pure unit tests for the SRS scheduler module — no DB. The scheduler is a
-// deterministic, independent oracle (ts-fsrs is pure/immutable, enable_fuzz:false),
-// so these assert the *property* Risk #3 cares about, never a copied constant.
+// deterministic, independent oracle: ts-fsrs is pure/immutable and `enable_fuzz: false`
+// is passed EXPLICITLY in src/lib/study.ts. That last part was untrue when this line was
+// first written — determinism rested on ts-fsrs 5.4.1's `default_enable_fuzz` under a
+// `^5.4.1` range, so an upstream flip would have turned the exact-`due` oracles in
+// study.test.ts intermittently red with no change here (C10X-27 closed it).
+// So these assert the *property* Risk #3 cares about, never a copied constant.
 
 const NOW = new Date("2026-01-01T00:00:00.000Z");
 

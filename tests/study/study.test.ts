@@ -363,10 +363,12 @@ describe("listDueCounts backs the deck picker", () => {
 
 // ── Risk #3: the schedule must be correct, durable, and admit only accepted cards ──
 //
-// ts-fsrs is the oracle, not a copied constant: it is pure, immutable and configured
-// with enable_fuzz:false, so the transition is a deterministic function of (persisted
-// card, now, grade). Each case below recomputes the expectation from the row as it
-// stands BEFORE the write, then asserts what actually landed in Postgres.
+// ts-fsrs is the oracle, not a copied constant: it is pure, immutable and configured with
+// `enable_fuzz: false` — passed explicitly in src/lib/study.ts since C10X-27, where before
+// it was merely ts-fsrs 5.4.1's default under a `^5.4.1` range. So the transition is a
+// deterministic function of (persisted card, now, grade). Each case below recomputes the
+// expectation from the row as it stands BEFORE the write, then asserts what actually
+// landed in Postgres.
 
 describe("Risk #3 — the persisted schedule is exactly what ts-fsrs computes", () => {
   it("writes due/stability/difficulty/srs_state matching a direct scheduler.next for a fixed now", async () => {

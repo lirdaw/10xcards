@@ -1,7 +1,7 @@
 ---
 change_id: srs-study-session-test
 title: Study session — silent rating loss on a lost session + SRS schedule coverage gaps
-status: implementing
+status: implemented
 created: 2026-07-26
 updated: 2026-07-26
 archived_at: null
@@ -37,17 +37,41 @@ This change therefore carries what the audit found _beyond_ the record:
    The seam exists (`now` is a lib parameter), so this is cheap. Same for the RPC's
    `order by … f.id asc` tie-break and `limit p_limit`.
 4. **Only `Good` reaches the database.** `Rating.Again` never takes the write path, so
-   `lapses` and the Review → Relearning transition are unproven.
+   `lapses` and the ~~Review → Relearning~~ transition are unproven.
+   > Corrected during Phase 2, by execution: **`Relearning` is unreachable in this app.**
+   > Under `enable_short_term: false` ts-fsrs runs `LongTermScheduler`, which sends every
+   > grade — `Again` included — to `State.Review`; the single `Relearning` assignment
+   > lives in a scheduler this config never instantiates. `lapses += 1` is real. The
+   > user-facing claim is asserted on `due`/`stability` instead, plus a canary that no row
+   > ever carries `srs_state = 3`.
 5. **Record corrections.** `enable_fuzz: false` is asserted as configured in three places
    and is not configured anywhere in `src/` — determinism rests on an unpinned ts-fsrs
    default under `^5.4.1`. §6.6's deliberate-breakage counts predate two cases added by
    `e9b8cd9`, and its Phase 1 signed-out note is stale in both directions.
 
-Deliberately out of scope, recorded not fixed: the write-only `scheduled_days` column (same
-class as the `learning_steps` bug that shipped; inert today only because
-`enable_short_term: false`), the `supabase === null` empty-state masquerade on the study
-pages, the `cardsError`-ships-200 status inconsistency, `reviewed` counting
-`alreadyApplied`, the absent keyboard affordances, and the stuck-on-404 batch snapshot.
+**Scope grew during planning: three of the "recorded not fixed" items were pulled in** and
+shipped in Phase 3, because all three sat on surfaces Phases 1–2 already touched:
+
+- `reviewed` now counts real transitions, not every `200` — an `alreadyApplied` reply no
+  longer inflates the end-of-session summary.
+- `scheduled_days` round-trips on the `rateCard` path instead of being write-only. **This
+  is hygiene, not risk closure, and it is NOT the `learning_steps` class** — that one was a
+  scheduler *input*, while this column is output-only in ts-fsrs 5.4.1 under either config
+  (nothing reads it). Neutrality was confirmed by the exact-`due` oracles staying green.
+- A session stuck on a card that left the batch (rejected elsewhere, rated in another tab)
+  now offers "Pomiń kartę" on a `404`, keyed off the status rather than the message text.
+
+Still deliberately out of scope, recorded not fixed: the `supabase === null` empty-state
+masquerade on the study pages, the `cardsError`-ships-200 status inconsistency, the absent
+keyboard affordances (1–4 shortcuts, autofocus), and `elapsed_days` / the RPC's half of the
+`scheduled_days` round-trip (both would need a `drop function` migration; both inert today).
+
+**Two gaps this change found and left open, named rather than smoothed over**: the RPC's
+`f.id asc` tie-break has no assertion observing its *presence* (only the batch's order —
+removing the clause leaves the suite green), and `test-plan.md` §6.6's four-policy neuter has
+silently stopped working, because the dev database outgrew PostgREST's `max_rows` and the
+`listDueCounts` denial now passes while the guard is fully disabled. Both are written into
+`test-plan.md` where they bite; evidence in `verification.md`.
 
 Roadmap: tracked as **H-02** (hardening, post-MVP — not a vertical slice, unblocks nothing).
 (source: C10X-27)
