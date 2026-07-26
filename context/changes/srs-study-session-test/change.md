@@ -1,7 +1,7 @@
 ---
 change_id: srs-study-session-test
 title: Study session — silent rating loss on a lost session + SRS schedule coverage gaps
-status: implemented
+status: impl_reviewed
 created: 2026-07-26
 updated: 2026-07-26
 archived_at: null
@@ -60,6 +60,19 @@ shipped in Phase 3, because all three sat on surfaces Phases 1–2 already touch
   (nothing reads it). Neutrality was confirmed by the exact-`due` oracles staying green.
 - A session stuck on a card that left the batch (rejected elsewhere, rated in another tab)
   now offers "Pomiń kartę" on a `404`, keyed off the status rather than the message text.
+
+Phase 3 delivered those last two through a **second pure module the plan never named** —
+`src/lib/study-session.ts` (`rateOutcome`) plus `tests/lib/study-session.test.ts`. Kept (same
+extraction Phase 1 authorised for `http.ts`, and not the forbidden shared `postJson()`), but
+recorded as an addendum in `plan.md` Phase 3 rather than left invisible (impl-review F3).
+
+`/10x-impl-review` then found — and this change **closed** — the last silent rating loss in the
+codebase (impl-review F2). `alreadyApplied` keys on the `reps` **version**, not on the grade, so a
+second tab rating the same card with a *different* grade landed there and that grade was discarded
+with no message. It no longer advances: the island holds the card, shows a neutral notice, and
+adopts the `progress.reps` the endpoint always returned and nobody read, so re-rating applies.
+Verified live — an `Again` that used to vanish now lands (`lapses` 0 → 1, `due` 8 days → 1 day).
+No migration and no API change: the data was already in the response.
 
 Still deliberately out of scope, recorded not fixed: the `supabase === null` empty-state
 masquerade on the study pages, the `cardsError`-ships-200 status inconsistency, the absent

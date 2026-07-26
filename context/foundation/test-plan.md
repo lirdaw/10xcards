@@ -1289,11 +1289,25 @@ contributors should respect these unless the underlying assumption changes.
   > tested; the **JSX remains unreachable**. Rather than add a DOM environment and a
   > component-test layer — which §4 would need a new row and a `checked:` date for — the
   > two decisions that failed were extracted into pure functions and covered directly:
-  > `readJsonResponse` in `src/lib/http.ts` (`tests/lib/http.test.ts`, 7 cases, including
+  > `readJsonResponse` in `src/lib/http.ts` (`tests/lib/http.test.ts`, 9 cases, including
   > the defect's exact `200 text/html` shape) and `rateOutcome` in
-  > `src/lib/study-session.ts` (`tests/lib/study-session.test.ts`, 4 cases: counting a
-  > real transition, not counting `alreadyApplied`, offering a skip on 404 and not on a
-  > retryable failure). What is still uncovered by construction is everything around
+  > `src/lib/study-session.ts` (`tests/lib/study-session.test.ts`, 7 cases: counting a
+  > real transition, holding the card and offering a recovery on `alreadyApplied`,
+  > offering a skip on a JSON 404 and withholding it on an unparseable one or a
+  > retryable failure).
+  >
+  > **Both were widened again the same day by `/10x-impl-review` on this change**, and the
+  > second one closed a defect rather than adding coverage. `JsonResult`'s failure variant
+  > gained `parsed`, because collapsing "unparseable" into `status: 0` lost the real status
+  > and made a 404 behind a proxy's HTML error page indistinguishable from "not an HTTP
+  > failure" — leaving the user stuck on a card the skip affordance existed to release. And
+  > `alreadyApplied` no longer advances: the compare-and-set keys on the `reps` **version**,
+  > not the grade, so a second tab rating the same card with a *different* grade landed
+  > there and that grade was discarded in silence. The island now holds the card, says so
+  > neutrally, and adopts the `progress.reps` the endpoint always returned and nobody read,
+  > so re-rating applies. Evidence, including the row-level before/after showing an `Again`
+  > actually landing after recovery:
+  > `context/changes/srs-study-session-test/verification.md`. What is still uncovered by construction is everything around
   > them — the island's rendering, its state wiring, whether `rate()` actually calls the
   > helper. So the review-by-reading rule above **stands unchanged**; the extraction
   > shrinks what a reading has to catch, it does not remove the need for one. The same

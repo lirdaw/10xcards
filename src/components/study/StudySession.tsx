@@ -83,13 +83,18 @@ function SessionSizeControl({ deckPublicId, sessionSize }: { deckPublicId: strin
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "setSessionSize", deckPublicId, size }),
       });
-      const data = (await res.json()) as { size?: number; error?: string };
-      if (!res.ok) {
-        setError(data.error ?? "Nie udało się zapisać rozmiaru sesji.");
+      // Same decision, same helper as rate() below. This branch was already safe — it parsed
+      // before checking `ok`, so it could never read a followed redirect as success — but
+      // leaving it hand-rolled made one screen answer the same lost session two different
+      // ways (the endpoint's terse copy here, SESSION_EXPIRED_MESSAGE there) and never look
+      // at `res.redirected` at all.
+      const result = await readJsonResponse<{ size?: number }>(res, "Nie udało się zapisać rozmiaru sesji.");
+      if (!result.ok) {
+        setError(result.message);
         setStatus("error");
         return;
       }
-      if (typeof data.size === "number") setSize(data.size);
+      if (typeof result.data.size === "number") setSize(result.data.size);
       setSaved(true);
       setStatus("idle");
     } catch {
@@ -152,6 +157,15 @@ export default function StudySession({ deckPublicId, cards, sessionSize }: Props
   // screen or rated in another tab can never be rated here, and without an exit the
   // session is stuck until a page reload.
   const [skippable, setSkippable] = React.useState(false);
+  // Neutral copy for something that is NOT a failure — today only "this card was rated
+  // elsewhere". Kept apart from `error` so it can render without the destructive styling and
+  // WITHOUT putting the session in the error state, which would hide the rating buttons the
+  // user needs in order to try again.
+  const [notice, setNotice] = React.useState<string | null>(null);
+  // A fresher optimistic-lock version than the one the batch was served with, adopted after
+  // the server tells us the card moved on. Null means "use the served value". Cleared on
+  // advance, because it belongs to the card currently in hand.
+  const [syncedReps, setSyncedReps] = React.useState<number | null>(null);
 
   // `finished` (not a null card) is the end-of-session signal: tsconfig has no
   // noUncheckedIndexedAccess, so cards[index] is typed non-nullable and a `!card`
@@ -164,6 +178,8 @@ export default function StudySession({ deckPublicId, cards, sessionSize }: Props
   // (which counts separately) and the skip affordance (which must never count).
   function advance() {
     setError(null);
+    setNotice(null);
+    setSyncedReps(null);
     setSkippable(false);
     setRevealed(false);
     setIndex((i) => i + 1);
@@ -174,6 +190,7 @@ export default function StudySession({ deckPublicId, cards, sessionSize }: Props
     if (finished) return;
     setStatus("pending");
     setError(null);
+    setNotice(null);
     setSkippable(false);
     try {
       const res = await fetch("/api/study", {
@@ -187,7 +204,9 @@ export default function StudySession({ deckPublicId, cards, sessionSize }: Props
           // The optimistic-lock version the card was served with. The server applies
           // the transition only if it still matches, so a double-click or a retried
           // submit can never advance the schedule twice (it answers a benign 200).
-          expectedReps: card.reps,
+          // `syncedReps` overrides it once the server has told us the card moved on, so
+          // the user's second attempt carries the current version and actually applies.
+          expectedReps: syncedReps ?? card.reps,
         }),
       });
       const result = await readJsonResponse<RateResponse>(res, "Nie udało się zapisać oceny. Spróbuj ponownie.");
@@ -197,14 +216,23 @@ export default function StudySession({ deckPublicId, cards, sessionSize }: Props
       // successful rating: the card advanced and the counter climbed with no write at all.
       // The decision itself lives in @/lib/study-session, where it is actually testable.
       const outcome = rateOutcome(result);
+      if (outcome.syncReps !== null) setSyncedReps(outcome.syncReps);
       if (!outcome.advance) {
-        setError(outcome.message);
         setSkippable(outcome.skippable);
-        setStatus("error");
+        if (outcome.notice) {
+          // Not a failure — the card simply moved on. Stay on `idle` so the rating buttons
+          // remain live: with `syncedReps` now adopted, the next click applies for real.
+          setNotice(outcome.notice);
+          setStatus("idle");
+        } else {
+          setError(outcome.message);
+          setStatus("error");
+        }
         return;
       }
-      // Only a real transition counts: the endpoint answers a replayed rating with a benign
-      // `alreadyApplied: true` and writes nothing, so counting it would overstate the summary.
+      // Only a real transition counts, and only a real transition advances. A rating the
+      // server did not apply neither counts nor moves on — that was the last place a grade
+      // could be discarded in silence.
       if (outcome.countReviewed) setReviewed((n) => n + 1);
       advance();
     } catch {
@@ -266,6 +294,17 @@ export default function StudySession({ deckPublicId, cards, sessionSize }: Props
           </div>
         )}
       </div>
+
+      {/* Neutral, not destructive: nothing failed, the card just moved on. `role="status"`
+          rather than an alert for the same reason. */}
+      {notice && (
+        <div
+          role="status"
+          className="rounded-xl border border-amber-200/25 bg-amber-200/10 px-4 py-3 text-sm text-amber-50"
+        >
+          {notice}
+        </div>
+      )}
 
       {status === "error" && (
         <div className="space-y-2">

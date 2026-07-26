@@ -26,6 +26,9 @@ export const PROTECTED_ROUTES = [
  * the ambiguous cases first: `document` is a navigation whatever else it carries, `empty` is
  * a fetch/XHR.
  */
+/** The request headers `wantsJson` reads — every one of them selects the representation. */
+const VARY_ON_CALLER = "Sec-Fetch-Dest, Content-Type, Accept";
+
 function wantsJson(request: Request): boolean {
   const dest = request.headers.get("Sec-Fetch-Dest");
   if (dest === "document") return false;
@@ -60,13 +63,20 @@ export const onRequest = defineMiddleware(async (context, next) => {
       // a session, including /api/auth/signin — which presents as "the login form does
       // nothing". A JSON caller gets the same 401 shape its endpoint would have returned
       // (src/pages/api/study.ts), so the island's existing error branch just works.
+      // `Vary` on BOTH branches: one URL now has two representations chosen by request
+      // headers, so a shared cache that stored the 401 could serve it to a document
+      // navigation — the dead-end JSON page this discriminator exists to prevent. Neither
+      // response is cacheable today (no Cache-Control; 302 is not cacheable by default), so
+      // this closes the class rather than fixing a live bug.
       if (wantsJson(context.request)) {
         return new Response(JSON.stringify({ error: "Nie jesteś zalogowany" }), {
           status: 401,
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", Vary: VARY_ON_CALLER },
         });
       }
-      return context.redirect("/auth/signin");
+      const toSignIn = context.redirect("/auth/signin");
+      toSignIn.headers.set("Vary", VARY_ON_CALLER);
+      return toSignIn;
     }
   }
 

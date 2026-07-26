@@ -579,6 +579,25 @@ no skip offered. This reads `status` off Phase 1's failure result — already pi
 so this phase **consumes** the shape and does not change it (plan-review F3). Never infer
 the 404 from the message text.
 
+#### Addendum — a second extracted module, recorded after the fact (impl-review F3, 2026-07-26)
+
+§1 and §3 above both name `src/components/study/StudySession.tsx` as their only file. What
+actually shipped puts the two decisions in a **new pure module**,
+`src/lib/study-session.ts` (`rateOutcome`), covered by `tests/lib/study-session.test.ts`
+(4 cases). Neither file appears anywhere else in this plan.
+
+Kept, not reverted. It is the same move Phase 1 §2 authorised for `http.ts` — extract the
+decision so it is testable without the DOM layer this change refuses to add — and it is *not*
+the shared `postJson()` the "What We're NOT Doing" list forbids: it is study-specific and
+touches no other island. It is recorded in `test-plan.md` §7 as the narrowing of that
+negative-space bullet.
+
+Written down because the plan is the ground truth the next review reads, and a production
+module that exists in the tree but not in the plan silently degrades that. The rule this
+re-earns is already in `lessons.md` ("zakres sąsiednich rozstrzygaj PRZED budową"): a second
+new module is a scope decision, and it belongs in the plan before it is built, not in an
+addendum after.
+
 ### Success Criteria:
 
 #### Automated Verification:
@@ -722,8 +741,11 @@ out of scope" list edited to reflect the three items Phase 3 pulled in. `roadmap
 - `tests/middleware.test.ts` — table-driven over `PROTECTED_ROUTES`: `/api/*` → 401 JSON,
   pages → 302, public paths → `next`, `/study` vs `/api/study`, plus a signed-in positive
   control.
-- `tests/study/schedule.test.ts` — unchanged apart from its header correction; the ordering
-  property already covers all four grades at the library layer.
+- `tests/study/schedule.test.ts` — its header correction, plus (added during Phase 3, recorded
+  here by impl-review F4) two pure `scheduleRowToCard` cases for the `scheduled_days`
+  round-trip: a persisted value is preferred over the New-card literal, and an absent one still
+  falls back to `0` — the RPC path cannot project the column, which is why the field is
+  optional. The ordering property already covers all four grades at the library layer.
 
 ### Integration Tests:
 

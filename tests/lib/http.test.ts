@@ -50,7 +50,7 @@ describe("readJsonResponse", () => {
   it("surfaces the server's own error copy on a 4xx/5xx JSON body, with its status", async () => {
     const result = await readJsonResponse(jsonResponse(500, { error: "Nie udało się odczytać talii" }), FALLBACK);
 
-    expect(result).toEqual({ ok: false, message: "Nie udało się odczytać talii", status: 500 });
+    expect(result).toEqual({ ok: false, message: "Nie udało się odczytać talii", status: 500, parsed: true });
   });
 
   it("keeps a 404 distinguishable by status, so a caller can offer a skip", async () => {
@@ -79,8 +79,10 @@ describe("readJsonResponse", () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
     expect(result.message).toBe(FALLBACK);
-    // Not a real HTTP failure: 0 keeps it apart from a genuine 404 (see the skip affordance).
-    expect(result.status).toBe(0);
+    // The status is reported truthfully — it really was a 200. `parsed: false` is what keeps
+    // it apart from an API answer (see the skip affordance in @/lib/study-session).
+    expect(result.status).toBe(200);
+    expect(result.parsed).toBe(false);
   });
 
   it("fails on a followed redirect even when the body parses as JSON", async () => {
@@ -94,6 +96,15 @@ describe("readJsonResponse", () => {
   it("falls back instead of throwing when the body is not JSON at all", async () => {
     const result = await readJsonResponse(new Response("not json", { status: 502 }), FALLBACK);
 
-    expect(result).toEqual({ ok: false, message: FALLBACK, status: 0 });
+    expect(result).toEqual({ ok: false, message: FALLBACK, status: 502, parsed: false });
+  });
+
+  // The two facts are independent, so a caller can act on either. Losing the real status was
+  // what made a 404 behind an HTML error page indistinguishable from "not an HTTP failure"
+  // (impl-review F7).
+  it("keeps the real status on an unparseable 404, and marks it unparsed", async () => {
+    const result = await readJsonResponse(new Response("<html>Not Found</html>", { status: 404 }), FALLBACK);
+
+    expect(result).toEqual({ ok: false, message: FALLBACK, status: 404, parsed: false });
   });
 });

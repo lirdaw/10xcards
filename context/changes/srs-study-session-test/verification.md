@@ -244,13 +244,151 @@ the suite.
 
 ## Phase 3 — the three recorded-but-unfixed items
 
-Committed as `da5e9c2`. Its automated criteria (3.1–3.3) and manual criteria (3.4–3.6) were met
-and confirmed at the time; the phase's own **evidence** is deliberately not duplicated here,
-because Phase 4 owns every deliberate-breakage run in this change. The one Phase 3 claim that
-needed re-checking — that the `scheduled_days` round-trip is behaviour-**neutral**, with the
-exact-`due` oracles as the check — was re-verified by execution at the top of Phase 4: the full
-suite is green at **109/109**, including `study.test.ts`'s single-transition and chained oracles.
-Had the round-trip moved anything, those two would be red.
+Committed as `da5e9c2`. Its automated criteria (3.1–3.3) were met and confirmed at the time. The
+one Phase 3 claim that needed re-checking — that the `scheduled_days` round-trip is
+behaviour-**neutral**, with the exact-`due` oracles as the check — was re-verified by execution at
+the top of Phase 4: the full suite is green at **109/109**, including `study.test.ts`'s
+single-transition and chained oracles. Had the round-trip moved anything, those two would be red.
+
+### Manual (3.4–3.6) — re-run 2026-07-26 during `/10x-impl-review`
+
+> **This section originally recorded only "were met and confirmed at the time", with no
+> observation.** Phases 1 and 2 carry deck ids and row-level dumps; Phase 3 carried a sentence —
+> and these three behaviours are precisely the ones that live in the island's JSX, which §7 of
+> the test plan records as unreachable by any test layer here. So the manual observation was
+> worth *more* in this phase than in either of the others, and it was the only one missing
+> (impl-review F6). Re-run in full rather than asserted; what follows is what was observed.
+
+Fixture: account `c10x27-review@example.com`, deck **Review C10X-27**
+(`e73b8bfa-a2ef-4b7c-90f5-8ec9eddfe709`), 3 accepted cards seeded via `psql`. Dev server on
+`http://localhost:4324` (4321–4323 were still held by the Phase 1/2 instances). Ratings were
+driven by dispatching real DOM clicks on the island's own buttons, because the controlled-input
+harness note above applies to clicks after a navigation too.
+
+**3.4 — the counter increments once per real transition.** Staged so an `alreadyApplied` reply is
+guaranteed rather than hoped for: the same session was opened in **two tabs**, so both hold a
+batch built at `reps = 0`. Karta 1 was rated **Dobre** in tab B (a real transition), then rated
+again in tab A, whose `expectedReps` is still `0` — the compare-and-set matches zero rows and the
+endpoint answers `200 { alreadyApplied: true }`.
+
+Tab A then rated all three cards and finished the session:
+
+```
+Karta 1 -> "Karta 2 z 3"   (alreadyApplied — advanced, no error shown)
+Karta 2 -> "Karta 3 z 3"
+Karta 3 -> "Sesja zakończona  Powtórzono kart: 2"
+```
+
+**Four rating clicks, three writes, counter 2.** Before Phase 3 that summary read **3**. Row-level
+confirmation that each card was written exactly once — i.e. the un-counted rating also wrote
+nothing:
+
+```
+      front      | reps | srs_state
+-----------------+------+-----------
+ Karta 1 — przód |    1 |         2
+ Karta 2 — przód |    1 |         2
+ Karta 3 — przód |    1 |         2
+```
+
+Note what this also demonstrates: the card still **advances** on `alreadyApplied`. Only the tally
+changed, which is the intended split.
+
+**3.5 — a card that left the batch offers a way out.** With the session open on Karta 1, that card
+was rejected out-of-band (`state_id` 2 → 3), exactly as the review screen would. Rating it:
+
+```
+main:    "… Karta 1 z 3 … Karta nie istnieje  Pomiń kartę  Powtórz…  Trudne…  Dobre…  Łatwe…"
+buttons: ["Wyloguj","Zapisz","Pomiń kartę","Powtórz za 1 dzień","Trudne za 2 dni","Dobre za 3 dni","Łatwe za 8 dni"]
+```
+
+The error is the endpoint's own copy, the skip is offered, and the card did **not** advance.
+Clicking **Pomiń kartę** then moved the session to `"Karta 2 z 3"`, cleared the error, and stopped
+offering the skip — the session continues instead of needing a page reload.
+
+**3.6 — a network failure keeps retry-in-place and offers no skip.** `window.fetch` was overridden
+to reject on `/api/study` only (a `TypeError`, which is what a real network failure delivers to the
+island's `catch`), then Karta 2 was rated:
+
+```
+main:                  "… Karta 2 z 3 … Błąd sieci. Spróbuj ponownie.  Powtórz…  Trudne…  Dobre…  Łatwe…"
+skipOffered:           false
+ratingsStillAvailable: true
+```
+
+No skip — which is the point: walking the user past a card that was never rated would be the
+silent-loss bug wearing a button. The rating buttons stay live so the retry happens in place. The
+override was removed immediately afterwards.
+
+**Neither 3.5 nor 3.6 wrote anything**, confirmed at the row level after both:
+
+```
+      front      | state_id | reps | srs_state | last_review
+-----------------+----------+------+-----------+-------------
+ Karta 1 — przód |        3 |    0 |         0 |
+ Karta 2 — przód |        2 |    0 |         0 |
+ Karta 3 — przód |        2 |    0 |         0 |
+```
+
+The fixture deck is left in place (Karta 1 rejected, schedules cleared) so the run is reproducible.
+
+### The last silent rating loss, closed (impl-review F2, Fix B)
+
+The review found one path where a grade was still discarded without a word, and it is the same
+failure class this whole change exists to end. `rateCard`'s compare-and-set is
+`.eq("reps", expectedReps)` — it keys on the optimistic-lock **version**, not on the grade. So
+`alreadyApplied: true` does not mean "this exact rating already landed"; it means "this card was
+rated since the session served it, by someone". A second tab rating the same card with a
+**different** grade lands there too, and `rateOutcome` answered it with `advance: true,
+message: null`: the session moved on, and the user's grade was gone.
+
+Closed without a migration and without an API change, because the endpoint **already returns what
+was missing**: `src/pages/api/study.ts:113` sends `progress: { reps, due }`, and the island simply
+ignored it. Now `rateOutcome` holds the card, returns a neutral `notice`, and hands back
+`progress.reps` as `syncReps`; the island adopts it as `expectedReps`, so the user's **next** click
+carries the current version and actually applies.
+
+> One approach was considered and **rejected**: inferring "was it the same grade?" from the
+> per-grade interval previews on the rating buttons. Those previews are computed from
+> `scheduled_days = 0` while `rateCard` uses the persisted value — a divergence this change itself
+> documented in `src/lib/study.ts`. The inference would have been quietly wrong. The server cannot
+> distinguish the two cases either (the CAS never compares grades), which is why re-rating is left
+> to the user rather than retried automatically.
+
+Verified live on `http://localhost:4325`, same fixture deck, both tabs confirmed hydrated on
+"Karta 1 z 3" **before** either rated — a reload in between destroys the stale snapshot the case
+depends on, and the first attempt at this run did exactly that.
+
+Tab B rated Karta 1 **Łatwe**; tab A then rated the same card **Powtórz** — deliberately a
+different grade, which is the defect's exact shape:
+
+```
+main:             "… Karta 1 z 3 … Ta karta została w międzyczasie oceniona gdzie indziej.
+                   Oceń ją ponownie, jeśli chcesz zmienić harmonogram.
+                   Powtórz…  Trudne…  Dobre…  Łatwe…"
+ratingsStillLive: true
+skipOffered:      false
+```
+
+The card did **not** advance, the copy is a notice rather than an error, and the rating buttons
+stayed live. Clicking **Powtórz** once more then applied it — the row before and after the
+recovery:
+
+```
+             | reps | lapses | due                  | stability
+ after Łatwe |    1 |      0 | 2026-08-03 14:28:04  |     8.296
+ after retry |    2 |      1 | 2026-07-27 14:28:36  |     1.182
+```
+
+`lapses` 0 → 1 and `due` 8 days → 1 day: the user's `Again` landed. That is US-02's "a hard card
+resurfaces sooner" — the half that used to be discarded in silence. Finishing the session showed
+**"Powtórzono kart: 3"**, so the recovered rating counted as the real transition it was, while the
+refused first attempt counted for nothing and advanced nothing.
+
+Suite after the change: **115/115 green, 11 files** (113 → 115). `tests/lib/study-session.test.ts`
+grew to 7 cases; the case that used to assert `advance: true` for `alreadyApplied` was **inverted,
+not deleted**, following this project's own precedent for a characterization test whose behaviour
+has since been fixed.
 
 Phase 3 also grew the suite by one file: `tests/lib/study-session.test.ts` (4 cases over the
 pure `rateOutcome` decision), which is why the count is 11 files / 109 tests rather than
@@ -510,7 +648,13 @@ split was hand-counted as "26 behavioural / 7 structural" and is actually **27 /
 by script over the JSON report. A register whose own arithmetic goes unchecked is the same
 failure mode as the stale counts this change exists to replace.
 
-**Phase 0 (0.1 / 0.2) — still not run**, and deliberately so: it is non-blocking by design
-(plan-review F6), every result above is against the local stack where `20260724220524` is
-applied, and `npx supabase migration list` needs an active `supabase link` that lives in
-gitignored `supabase/.temp/`. `20260724220524` goes to `/ship` as **unverified against cloud**.
+**Phase 0 (0.1 / 0.2) — run at the end of this phase; see the Phase 0 section at the top of
+this file for the raw output.** Answer: `20260724220524` is present on the remote, Local ==
+Remote on all ten migrations, and nothing is owed to `/ship` on that front.
+
+> This paragraph used to say the opposite ("still not run … goes to `/ship` as unverified"),
+> which was true while Phases 1–4 ran and stopped being true the moment Phase 0 was executed.
+> The epilogue rewrote the top section and left this one standing, so the file contradicted
+> itself for one commit (impl-review F1). Recorded rather than quietly overwritten, because a
+> stale sentence surviving an edit elsewhere in the same document is exactly the failure mode
+> this change spent Phase 4 correcting in `test-plan.md`.

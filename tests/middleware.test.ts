@@ -121,6 +121,31 @@ describe("the route guard answers in the caller's own format", () => {
     expect(response.status).toBe(401);
     expect(response.headers.get("Content-Type")).toContain("application/json");
   });
+
+  // The third branch of wantsJson, and the only one nothing else covers. A body-less JSON GET
+  // carries no Content-Type and an `Accept` a page could also send, so `Sec-Fetch-Dest` is the
+  // ONLY thing that tells it apart from a navigation. No caller in the app issues one today —
+  // which is precisely why it needs its own row: every other JSON case here also carries a
+  // JSON Content-Type, so deleting `if (dest === "empty")` left the whole suite green.
+  it("answers a body-less fetch (Sec-Fetch-Dest: empty) with a 401, not a redirect", async () => {
+    const { response, nextCalled } = await runGuard("/api/study", {
+      headers: { "Sec-Fetch-Dest": "empty", Accept: "*/*" },
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("Content-Type")).toContain("application/json");
+    expect(nextCalled).toBe(false);
+  });
+
+  // Both representations must advertise what selected them, or a shared cache could serve one
+  // caller's answer to the other.
+  it("marks both representations as varying on the caller's headers", async () => {
+    const json = await runGuard("/api/study", { method: "POST", headers: JSON_CALLER });
+    const page = await runGuard("/decks", { headers: PAGE_CALLER });
+
+    expect(json.response.headers.get("Vary")).toBe("Sec-Fetch-Dest, Content-Type, Accept");
+    expect(page.response.headers.get("Vary")).toBe("Sec-Fetch-Dest, Content-Type, Accept");
+  });
 });
 
 describe("the route guard's matching", () => {

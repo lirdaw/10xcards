@@ -15,14 +15,19 @@
 /** Shown whenever the response says the caller is no longer signed in. */
 export const SESSION_EXPIRED_MESSAGE = "Twoja sesja wygasła. Zaloguj się ponownie.";
 
-export type JsonResult<T> = { ok: true; data: T } | { ok: false; message: string; status: number };
-
 /**
- * `status` is the response's own status, except when the body could not be parsed at all —
- * then it is 0, so "this was never a real JSON reply" stays distinguishable from a genuine
- * 404 (which callers use to offer a skip affordance).
+ * `status` is always the response's OWN status, and `parsed` says whether a JSON body came
+ * with it. Two fields rather than one because a caller needs both halves: the skip
+ * affordance in @/lib/study-session must fire on a genuine 404 and must NOT fire on an HTML
+ * error page that merely happens to carry one.
+ *
+ * This started life as a single `status`, with 0 standing in for "unparseable". That
+ * collapsed the two facts into one and lost the real status — so a 404 served behind a
+ * proxy's HTML error page (or a 204, which `res.json()` also rejects on) read as "retry in
+ * place" and left the user stuck on a card that can never be rated: exactly the state the
+ * skip affordance exists to end. Widened by impl-review F7.
  */
-const UNPARSEABLE = 0;
+export type JsonResult<T> = { ok: true; data: T } | { ok: false; message: string; status: number; parsed: boolean };
 
 function errorMessageOf(body: unknown): string | null {
   if (typeof body !== "object" || body === null) return null;
@@ -45,15 +50,15 @@ export async function readJsonResponse<T>(res: Response, fallback: string): Prom
   // A 401 or a redirect the client followed both mean the same thing to the user: the
   // session is gone. Say so, rather than passing on the endpoint's terser copy.
   if (res.status === 401 || res.redirected) {
-    return { ok: false, message: SESSION_EXPIRED_MESSAGE, status: res.status };
+    return { ok: false, message: SESSION_EXPIRED_MESSAGE, status: res.status, parsed };
   }
 
   if (!parsed) {
-    return { ok: false, message: fallback, status: UNPARSEABLE };
+    return { ok: false, message: fallback, status: res.status, parsed: false };
   }
 
   if (!res.ok) {
-    return { ok: false, message: errorMessageOf(body) ?? fallback, status: res.status };
+    return { ok: false, message: errorMessageOf(body) ?? fallback, status: res.status, parsed: true };
   }
 
   return { ok: true, data: body as T };
