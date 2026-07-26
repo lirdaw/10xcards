@@ -50,8 +50,11 @@ across `tests/study/study.test.ts` (16) and `tests/study/schedule.test.ts` (6), 
   `20260724220524` precisely so `LIMIT` would stop being planner-dependent) has no
   assertion; every check uses `find`/`toContain`.
 - Only `Rating.Good` ever reaches the write path. `Again` never does, so `lapses` and the
-  Review → Relearning transition — the "hard card resurfaces sooner" half of US-02 — are
-  unproven through persistence.
+  lapse transition — the "hard card resurfaces sooner" half of US-02 — are unproven through
+  persistence. (Note: under `enable_short_term: false` that transition lands in
+  `State.Review`, **not** `Relearning`, which is unreachable here — see Phase 2 §4. The
+  audit note and `test-plan.md` §6.7 both say "Review → Relearning"; both are wrong and
+  Phase 4 corrects them.)
 - `src/middleware.ts` has **zero** automated coverage, including the prefix-match trap that
   `context/archive/2026-07-15-verification-harness/` explicitly deferred to "when Phase 4's
   SRS routes land". They landed; nothing was revisited.
@@ -102,10 +105,16 @@ dated claim naming what closed it.
 - `now` is a trailing parameter on `rateCard`/`listDueCards`/`listDueCounts` and is
   deliberately unreachable from a request body (`src/pages/api/study.ts:94-102`). Exact
   `due` and future-clock assertions are possible at the lib layer and impossible over HTTP.
-- With `enable_short_term: false`, ts-fsrs' `LongTermScheduler` zeroes the incoming card's
-  `scheduled_days` and `elapsed_days` before computing
-  (`node_modules/ts-fsrs/dist/index.cjs:1183-1184`) — so round-tripping `scheduled_days` is
-  behaviour-neutral today and must stay that way (the existing oracles will catch it if not).
+- `scheduled_days` is **output-only** in ts-fsrs 5.4.1 under either config, so round-tripping
+  it is behaviour-neutral: `LongTermScheduler` zeroes it (`index.cjs:1183-1184`),
+  `BasicScheduler` overwrites it (`:1023`, `:1041`, `:1048`), and the only read is `buildLog`
+  (`:424`), whose review_log this app never persists. Must stay that way — the existing
+  oracles will catch it if not.
+- `State.Relearning` is **unreachable** here: `LongTermScheduler.next_state` sets every
+  grade, `Again` included, to `State.Review` (`index.cjs:1271`); the single `Relearning`
+  assignment is `BasicScheduler`'s (`:1102`), and `enable_short_term: false` never
+  instantiates it. `srs_state` can only be `0` or `2`. `Again` still does `lapses += 1`
+  (`:1237`).
 - An all-unseeded deck collapses every sort key to `p_now`, so the tie-break degenerates to
   `f.id asc` — i.e. insertion order. That is what makes a batch-composition assertion
   writable without seeding schedules by hand.
@@ -143,15 +152,23 @@ lib layer, where the `now` seam makes exact assertions possible. Phase 3 pulls i
 recorded-but-unfixed items, all on surfaces the earlier phases already touched. Phase 4
 produces the evidence and rewrites the record against it.
 
-Phase 0 is a read-only check against the linked cloud project, run before any code, because
-Phase 2's `session_size` bounds assume a CHECK constraint that may only exist locally.
+Phase 0 is a read-only, **non-blocking** check against the linked cloud project, run before
+any code as ship-hygiene: `20260724220524` was recorded as applied locally only, and finding
+a pending push now is cheaper than finding it at `/ship`. It gates nothing — every test here
+runs against the local stack, where the migration is applied (plan-review F6).
 
 ## Critical Implementation Details
 
-**Ordering inside the middleware guard.** The `/api/*` branch must sit **inside** the
+**Ordering inside the middleware guard.** The JSON-caller branch must sit **inside** the
 existing `PROTECTED_ROUTES` check, not before it. Hoisting it would make every `/api/` path
 require a session, including `/api/auth/signin` — which would lock out sign-in entirely and
 present as "the login form does nothing".
+
+**The guard branches on the caller, not on the path** (plan-review F1). `/api/decks*` is
+protected but is reached by native form navigations, not by `fetch`; answering those with
+JSON would replace a working redirect-to-sign-in with a dead-end JSON page. Phase 1 §1
+carries the full list and the discriminator; Phase 1 §4 carries the two table rows that
+keep it honest.
 
 **`scheduled_days` must stay behaviour-neutral.** Feeding the persisted value back into
 `scheduleRowToCard` changes the `Card` handed to `next()`. Under `enable_short_term: false`
@@ -179,6 +196,15 @@ Confirm that `20260724220524_srs_study_schedule_review_fixes.sql` — which carr
 reached the linked cloud project. The S-03 impl-review recorded it as applied to the
 **local stack only**, with the cloud push left to a later slice and never confirmed.
 
+**This phase is NOT a gate** (plan-review F6). Every test in this plan runs against the
+local stack, where the migration is applied, so no local result depends on the answer. The
+rationale here is ship-hygiene — finding a pending push now rather than at `/ship` — not a
+Phase 2 prerequisite. `npx supabase migration list` also needs an active `supabase link`
+(the link lives in gitignored `supabase/.temp/`, `lessons.md:147-150`) and a non-interactive
+session may have neither. If the check cannot be run at all, record **that** in
+`verification.md`, hand `20260724220524` to `/ship` as unverified, and proceed to Phase 1.
+Do not stall the change on it.
+
 ### Changes Required:
 
 #### 1. Migration history check (read-only, no code)
@@ -190,21 +216,25 @@ those tests assume exist on production, so a drift is found now rather than at s
 
 **Contract**: Run from **this worktree** and confirm the branch first
 (`lessons.md:110-115`): `git branch --show-current` → `npx supabase migration list`. The
-`20260724220524` row must show a Remote timestamp. Record the observed output verbatim in
-`context/changes/srs-study-session-test/verification.md`. If the row is local-only, do
-**not** run `db push` here — record it as a ship-time action for `/ship` and note that the
-plan's local tests are unaffected (they run against the local stack).
+`20260724220524` row should show a Remote timestamp. Record the observed output verbatim in
+`context/changes/srs-study-session-test/verification.md`. Three outcomes, all of which
+continue to Phase 1: present → note it; local-only → do **not** run `db push` here, record
+it as a ship-time action for `/ship`; command unavailable (not linked / no interactive
+login) → record that verbatim and hand it to `/ship` unverified. The plan's local tests are
+unaffected in every case.
 
 ### Success Criteria:
 
 #### Automated Verification:
 
-- `npx supabase migration list` runs from the worktree and its output is captured
+- `npx supabase migration list` is attempted from the worktree and its output — or its
+  unavailability — is captured
 
 #### Manual Verification:
 
-- `20260724220524` is confirmed present (or explicitly recorded as pending) on the linked
-  cloud project, with the raw output pasted into `verification.md`
+- `20260724220524` is recorded as present, pending, or unverifiable on the linked cloud
+  project, with the raw output pasted into `verification.md`; the phase does not block
+  Phase 1 in any of the three cases
 
 ---
 
@@ -227,10 +257,33 @@ ever inverted again.
 redirect for pages. This is the fix that makes three well-written 401 branches reachable.
 
 **Contract**: Inside the existing `PROTECTED_ROUTES` branch (never before it — see Critical
-Implementation Details), when `context.url.pathname.startsWith("/api/")`, return a `401`
-`Response` with `Content-Type: application/json` and the same body shape the endpoints use
+Implementation Details), when the request is a **JSON caller**, return a `401` `Response`
+with `Content-Type: application/json` and the same body shape the endpoints use
 (`{ error: "Nie jesteś zalogowany" }`, matching `src/pages/api/study.ts:54`). Everything
-else keeps `context.redirect("/auth/signin")`. `PROTECTED_ROUTES` itself is unchanged.
+else keeps `context.redirect("/auth/signin")`. `PROTECTED_ROUTES` itself is unchanged
+except for the `export` Phase 1 §4 needs.
+
+**The discriminator is the caller, NOT the path prefix** (plan-review F1). A blanket
+`pathname.startsWith("/api/")` is wrong here: six of the protected `/api/*` routes are
+native `<form method="POST">` targets, i.e. full-page navigations —
+`/api/decks` (`CreateDeckModal.tsx:61`), `/api/decks/{id}` (`DeckActions.tsx:78-79`),
+`/api/decks/{id}/delete` (`DeckActions.tsx:126`), `/api/decks/{id}/cards`
+(`CreateFlashcardModal.tsx:76-77`), `/api/decks/{id}/cards/{card}`
+(`FlashcardItem.tsx:108-109`, `CandidateItem.tsx:123-124`) and
+`/api/decks/{id}/cards/{card}/delete` (`ConfirmDeleteModal.tsx:21`). Today a signed-out
+submit on any of them lands on the sign-in page; a 401 JSON body would render as a
+dead-end page with no way back — in exactly the expired-session scenario this change
+exists to fix. Only three protected paths are fetch-driven, and they are the three the
+Desired End State names.
+
+Detect the JSON caller from the request, not from a second path list: all three fetch
+sites send `Content-Type: application/json` (`StudySession.tsx:80` and `:162`,
+`GeneratorForm.tsx`, `FlashcardWorkspace.tsx:118`, `CandidateReviewWorkspace.tsx:106`) and
+no native form ever does (forms send `application/x-www-form-urlencoded`). Widen with the
+`Accept` header (a JSON preference) and/or `Sec-Fetch-Dest: empty` vs `document` so a
+future body-less JSON `GET` is covered too. This keeps the "remove the class, not one
+case" property — a new JSON endpoint needs no registration — while page and form
+navigations keep their redirect.
 
 #### 2. The response-handling decision, extracted
 
@@ -246,12 +299,19 @@ user-facing Polish message. It must treat as failure: a non-`ok` status, a `401`
 session-lost message distinct from the generic one), a followed redirect
 (`res.redirected`), and a body that is not JSON. Parsing happens before the `ok` check, the
 way the four correct islands already do it. This signature is consumed by Phase 3, so pin
-it here:
+it here — **including `status`**, which Phase 3 §3's skip affordance needs to tell a 404
+apart from every other failure (plan-review F3; pinning it now avoids rewriting `http.ts`,
+its consumer and its tests two phases after they were declared frozen):
 
 ```ts
-export type JsonResult<T> = { ok: true; data: T } | { ok: false; message: string };
+export type JsonResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; message: string; status: number };
 export async function readJsonResponse<T>(res: Response, fallback: string): Promise<JsonResult<T>>;
 ```
+
+`status` is the response's own status (`0` for a body that could not be parsed at all, so
+"not a real HTTP failure" stays distinguishable from a 404).
 
 #### 3. `rate()` uses it
 
@@ -273,12 +333,25 @@ describing the removed guard.
 **Intent**: The guard has never had a test, and this change alters it. Cover both the new
 branch and the prefix-match trap that F-03 deferred and Phase 4 never revisited.
 
-**Contract**: Table-driven over `PROTECTED_ROUTES`, calling the exported `onRequest` with a
-fabricated context (`url`, `request`, a minimal `cookies` stub, `locals`, `redirect`, and a
-`next` spy). For each protected prefix assert: an `/api/*` path answers `401` with a JSON
-content-type and an `error` string, a page path answers a `302` to `/auth/signin`, and
-`next` was not called. Assert explicitly that `/api/study` is matched by its own entry and
-not by `/study`. Public paths (`/auth/signin`, `/api/auth/signin`) must reach `next`.
+**Contract**: Table-driven over the **real, imported** `PROTECTED_ROUTES` — add `export` to
+its declaration in `src/middleware.ts` (plan-review F4; the array's contents stay
+unchanged). Do **not** copy the list into the test: this table exists for the prefix-match
+trap ("a future route nobody adds to the array is unprotected"), and a duplicated list
+stays green while production drifts. With the real array imported, adding a protected route
+automatically adds a row.
+
+Calling the exported `onRequest` with a fabricated context (`url`, `request`, a minimal `cookies` stub, `locals`, `redirect`, and a
+`next` spy). For each protected prefix assert: a request carrying the **JSON-caller
+headers** answers `401` with a JSON content-type and an `error` string, a page navigation
+answers a `302` to `/auth/signin`, and `next` was not called in either case. Assert
+explicitly that `/api/study` is matched by its own entry and not by `/study`. Public paths
+(`/auth/signin`, `/api/auth/signin`) must reach `next`.
+
+**Two rows exist specifically to stop F1 coming back**: a native form POST to
+`/api/decks/{id}` (`Content-Type: application/x-www-form-urlencoded`, `Accept: text/html`)
+must answer a `302`, **not** a 401 — and the same path with `Content-Type:
+application/json` must answer the 401. Those two rows are the whole discriminator; a table
+that only varies the path would enshrine the regression instead of catching it.
 Positive control in the same file: a request carrying `accountA`'s real cookie header to a
 protected path passes through — without it, a wholesale-broken guard reads as perfect
 protection. Signed-out rows need no database (see Key Discoveries).
@@ -314,6 +387,8 @@ rather than throw.
 - A normal session still rates and advances with no visible change
 - Generation and the review screen still show their own error copy when the session is gone
   (they consume the new 401 through their existing branches)
+- With the session gone, submitting a deck/card **form** (rename, create, delete) still
+  lands on `/auth/signin` — not on a raw JSON page (the F1 regression check)
 
 **Implementation Note**: After completing this phase and all automated verification passes,
 pause here for manual confirmation from the human before proceeding.
@@ -325,9 +400,9 @@ pause here for manual confirmation from the human before proceeding.
 ### Overview
 
 Make determinism real rather than inherited, then cover the three promises the schedule
-makes that nothing observed: the batch is bounded by the deck's own cap and composed
-deterministically, a rated card comes back exactly when due, and every grade — not just
-`Good` — writes what ts-fsrs computes.
+makes that nothing observed: the batch is bounded by the deck's own cap (and that cap is
+bounded in turn) and composed deterministically, a rated card comes back exactly when due,
+and every grade — not just `Good` — writes what ts-fsrs computes.
 
 ### Changes Required:
 
@@ -359,6 +434,18 @@ creation order (all cards are unseeded, so every sort key collapses to `p_now` a
 tie-break degenerates to `f.id asc`). §6.7's new trap note applies: copying the existing
 `listDueCards(..., 20)` call shape is exactly how this stayed unobserved.
 
+**Plus the bounds, which the audit named and nothing tests at any of its three layers**
+(plan-review F6). A second `it()` in the same `describe`: `POST /api/study` with
+`action: "setSessionSize"` and a size of `0`, of `101`, and a non-integer must each answer a
+`4xx` and leave `deck.session_size` **unchanged on re-read** — that is the endpoint's Zod
+bound. Then, one layer down, call `setSessionSize` directly with an out-of-range value
+through an RLS-scoped client and assert the write is refused by the DB CHECK
+(`deck_session_size_check`, `between 1 and 100`, added by `20260724220524`) instead of
+landing — the backstop `src/lib/study.ts:229`'s comment claims and nothing has ever
+exercised. The third layer, the island's own `SIZE_MIN`/`SIZE_MAX` mirror, stays uncovered
+for the reason §7 records (islands are unreachable by any test layer here); Phase 4 must say
+so rather than imply the bound is proven end to end.
+
 #### 3. A card comes back when it falls due
 
 **File**: `tests/study/study.test.ts`
@@ -376,18 +463,31 @@ p_now` predicate that was always true would pass the positive half alone.
 
 **File**: `tests/study/study.test.ts`
 
-**Intent**: `Rating.Again` has never reached persistence, so `lapses` and the
-Review → Relearning transition are unproven — the "hard card resurfaces sooner" half of
-US-02.
+**Intent**: `Rating.Again` has never reached persistence, so `lapses` and the lapse
+transition are unproven — the "hard card resurfaces sooner" half of US-02.
 
-**Contract**: Two additions. First, a matrix case: four fresh cards, one per grade
+**`Relearning` is unreachable in this app — do not assert it** (plan-review F2). With
+`enable_short_term: false` ts-fsrs runs `LongTermScheduler`, whose `next_state` sets
+**every** grade, `Again` included, to `State.Review`
+(`node_modules/ts-fsrs/dist/index.cjs:1271`). `State.Relearning` is assigned at exactly one
+site, `BasicScheduler.reviewState` (`:1102`), which this configuration never instantiates —
+so `srs_state` can only ever be `0` or `2`. `lapses += 1` on `Again` is real (`:1237`). Any
+plan text, test-plan bullet or comment saying "Review → Relearning" is false and must be
+corrected rather than repeated: this change exists to remove false statements, not add one.
+
+**Contract**: Three additions. First, a matrix case: four fresh cards, one per grade
 (Again/Hard/Good/Easy), each rated through `rateCard` at `FIXED_NOW`, each asserted
 column-for-column against an oracle built by `createEmptyCard` and advanced **in memory**
 (§6.1's independent-oracle rule — never through `scheduleRowToCard`). Second, the lapse
 case: take one card to `State.Review` with three `Good` ratings, then rate `Again` and
-assert `lapses` incremented by exactly one and `srs_state` is `Relearning`, both against
-the in-memory oracle. Assert `lapses` against the oracle, never inside a `toEqual`
-self-comparison — that is how it stayed unobserved.
+assert `lapses` incremented by exactly one, and that the persisted `due` and `stability`
+are strictly below what the same card would have got for `Good` at the same `now` — that
+is the user-facing "hard card resurfaces sooner" claim, and it is observable where
+`srs_state` is not. Both against the in-memory oracle; assert `lapses` against the oracle,
+never inside a `toEqual` self-comparison — that is how it stayed unobserved. Third, a
+one-line **canary**: `srs_state` is never `3` on any row this suite writes. If it ever
+fires, `enable_short_term` was flipped and every exact-`due` oracle in the file is
+suspect.
 
 ### Success Criteria:
 
@@ -436,10 +536,19 @@ card, not a failure.
 
 **File**: `src/lib/study.ts`
 
-**Intent**: `cardToScheduleColumns` writes it (`:97`) and nothing reads it back — the same
-class as the `learning_steps` bug that pinned cards in Learning at +10 min forever
-(S-03 impl-review F1), inert today only because the scheduler config removes it from the
-calculation.
+**Intent**: `cardToScheduleColumns` writes it (`:97`) and nothing reads it back — a
+write-only column, and the persisted value is what FR-016 ("due in 1 / 5 / 10 days") will
+want to read. Hygiene, not risk closure.
+
+**It is NOT the `learning_steps` class, and Phase 4 must not record it as such**
+(plan-review F7). `learning_steps` was a genuine *input* — a cursor the scheduler read, so
+losing it changed the transition and pinned cards in Learning at +10 min forever (S-03
+impl-review F1). `scheduled_days` is *output-only* in ts-fsrs 5.4.1 under **either**
+config: `LongTermScheduler` zeroes it (`index.cjs:1183`), `BasicScheduler` overwrites it
+(`:1023`, `:1041`, `:1048`), and the single read is `buildLog` (`:424`), whose review_log
+this app never persists. So the round-trip is behaviour-neutral for a stronger reason than
+"the config removes it from the calculation" — nothing reads it in the first place — and it
+closes no risk class.
 
 **Contract**: `rateCard`'s schedule re-read (`:284`) selects `scheduled_days`, `DueCardRow`
 gains it as an **optional** nullable field, and `scheduleRowToCard` prefers the persisted
@@ -448,7 +557,12 @@ return the column (verified) and widening its `returns table` would need a `drop
 migration — out of scope. Behaviour must not move: the existing exact-`due` oracles are the
 check (see Critical Implementation Details). Update the comment at `:65-72`, which
 currently lists `scheduled_days` among the fields the table does not store, and record in
-the same comment that `elapsed_days` and the RPC path remain outside the round-trip.
+the same comment that `elapsed_days` and the RPC path remain outside the round-trip —
+including the consequence: because `study_due_cards` does not return the column, the preview
+intervals a session shows are computed from `scheduled_days = 0` while `rateCard` now uses
+the persisted value. Harmless precisely because the column is output-only (see Intent), and
+the sentence exists so a future reader who makes it an input sees the divergence
+immediately.
 
 #### 3. A stuck session gets an exit
 
@@ -461,8 +575,9 @@ skip affordance — the session is stuck until the page is reloaded.
 **Contract**: When a rating fails with a 404 (the card is no longer part of this session),
 the error panel offers a "Pomiń kartę" action that advances the index without incrementing
 `reviewed` and clears the error. Other failures keep today's retry-in-place behaviour, with
-no skip offered. This needs the failure result to carry the status — extend Phase 1's
-failure shape with the response status rather than inferring it from the message.
+no skip offered. This reads `status` off Phase 1's failure result — already pinned there,
+so this phase **consumes** the shape and does not change it (plan-review F3). Never infer
+the 404 from the message text.
 
 ### Success Criteria:
 
@@ -504,9 +619,12 @@ study path, and only then correct `test-plan.md` — against observed output, no
 makes the new tests' claims checkable and replaces stale counts with real ones.
 
 **Contract**: For each new assertion, neuter the thing it observes and record the exact
-red/green split: the guard's `/api/*` branch (Phase 1), the `p_limit` argument and the RPC's
-`f.id asc` tie-break (Phase 2), the `due <= p_now` predicate (Phase 2), and the
-`ok`-before-parse ordering (Phase 1). Re-run the three checks §6.6 already documents —
+red/green split: the guard's JSON-caller discriminator (Phase 1 — neuter it **both ways**:
+widen it to every `/api/*` path and confirm the deck-form row goes red, then disable it and
+confirm the JSON rows go red; a one-directional check would have missed F1), the `p_limit`
+argument and the RPC's `f.id asc` tie-break (Phase 2), the `due <= p_now` predicate
+(Phase 2), the `session_size` Zod bound and the `deck_session_size_check` CHECK (Phase 2),
+and the `ok`-before-parse ordering (Phase 1). Re-run the three checks §6.6 already documents —
 `study_due_cards`' `and f.state_id = 2` predicate, the four-policy neuter, and removing
 `enable_short_term: false` — and record today's numbers. SQL-level checks run against the
 live local DB via `docker exec … psql` (§6.7), not a `db:reset`. **Dump each object's
@@ -519,8 +637,15 @@ result. No production edit is ever committed.
 
 **Intent**: The `mutate` list has never covered the study path.
 
-**Contract**: Run Stryker narrowed with `--mutate "src/lib/study.ts:257-316"` (`rateCard`)
-— the permanent `mutate` list stays untouched, per CLAUDE.md. Record every survived mutant
+**Contract**: Run Stryker narrowed to **`rateCard`'s span in `src/lib/study.ts` as it
+stands when this phase runs** — `--mutate "src/lib/study.ts:<start>-<end>"`, the permanent
+`mutate` list untouched, per CLAUDE.md. **Re-derive the two line numbers; do not carry a
+literal forward** (plan-review F5): the span was 257–316 when this plan was written, but
+Phase 3 §2 edits the same file above it (the comment at `:65-72`, a `DueCardRow` field, a
+line in `scheduleRowToCard`), shifting `rateCard` down several lines. A stale range still
+completes and still produces a plausible-looking register while mutating the tail of
+`setSessionSize` instead. Record the derived numbers, and the command as actually run, in
+`verification.md`. Record every survived mutant
 individually and add an assertion **only** where the mutant is a user-visible or
 business-relevant bug. Do not chase 100%. Follow S-05's precedent in the register: for each
 killed mutant, note whether it died on a behavioural assertion or on a malformed
@@ -538,9 +663,18 @@ that the parameter is configured, with the ts-fsrs default noted as history. (b)
 Phase 4 — the "…and the card comes BACK when it falls due" row moves from **NOTHING** to
 the new test; every breakage count is replaced with the Phase 4 run's real numbers; the
 audit note's open items that this change closed are marked closed and the ones it did not
-(the `.astro` loaders, the rest of the island) stay open. (c) §6.6 Phase 1 — the signed-out
-note gains the middleware guard's new coverage. (d) §6.7 — the three trap bullets added by
-the audit are updated to point at the tests that now close them. (e) §7 — the "React
+(the `.astro` loaders, the rest of the island, the island's `SIZE_MIN`/`SIZE_MAX` mirror)
+stay open. The `scheduled_days` round-trip is recorded as **hygiene on a write-only column,
+not as closing the `learning_steps` class** — that class needs an *input*, and this column
+is not one under either scheduler config (plan-review F7). (c) §6.6 Phase 1 — the signed-out
+note gains the middleware guard's new coverage, including the fact that the guard
+discriminates on the caller and that the deck form endpoints deliberately keep their
+redirect (plan-review F1). (d) §6.7 — the three trap bullets added by
+the audit are updated to point at the tests that now close them, and the third bullet's
+claim that `Rating.Again` drives "Review → Relearning" is **corrected, not repointed**: it
+is false under `enable_short_term: false` (plan-review F2; `State.Relearning` has a single
+assignment site, in a scheduler this app never instantiates). The same correction applies
+to the Phase 4 audit note's wording. (e) §7 — the "React
 islands' own fetch-response handling" bullet records that the decision is now covered by a
 pure function while the JSX remains unreachable. (f) §3 — Phase 4 `reopened` → `complete`,
 with a dated line naming what closed it, and the `reopened` vocabulary entry kept. (g) §8 —
@@ -563,7 +697,8 @@ out of scope" list edited to reflect the three items Phase 3 pulled in. `roadmap
 #### Automated Verification:
 
 - `npm test` green at the end, with the final count recorded
-- `npx stryker run --mutate "src/lib/study.ts:257-316"` completes and its report is captured
+- `npx stryker run --mutate "src/lib/study.ts:<rateCard's span, re-derived>"` completes, and
+  both the derived span and the report are captured
 - `npm run lint` passes
 - `git diff` shows no production edit left behind from any breakage check
 
@@ -639,11 +774,11 @@ return type. Phase 0's cloud check concerns an **existing** migration
 
 #### Automated
 
-- [ ] 0.1 `npx supabase migration list` runs from the worktree and its output is captured
+- [ ] 0.1 `npx supabase migration list` attempted from the worktree; output (or its unavailability) captured
 
 #### Manual
 
-- [ ] 0.2 `20260724220524` confirmed present (or recorded as pending) on cloud, output pasted into `verification.md`
+- [ ] 0.2 `20260724220524` recorded as present / pending / unverifiable on cloud, raw output pasted into `verification.md`
 
 ### Phase 1: Stop the silent rating loss
 
@@ -660,6 +795,7 @@ return type. Phase 0's cloud check concerns an **existing** migration
 - [ ] 1.6 Signing out in a second tab then rating shows an error and does not advance the card
 - [ ] 1.7 A normal session still rates and advances unchanged
 - [ ] 1.8 Generation and the review screen show their own error copy on an expired session
+- [ ] 1.9 A deck/card form submitted on an expired session still lands on `/auth/signin`, not on raw JSON
 
 ### Phase 2: Close the four named coverage gaps
 
@@ -693,7 +829,7 @@ return type. Phase 0's cloud check concerns an **existing** migration
 #### Automated
 
 - [ ] 4.1 `npm test` green at the end, final count recorded
-- [ ] 4.2 Narrowed Stryker run on `src/lib/study.ts:257-316` completes and its report is captured
+- [ ] 4.2 Narrowed Stryker run on `rateCard`'s re-derived span in `src/lib/study.ts` completes; span + report captured
 - [ ] 4.3 `npm run lint` passes
 - [ ] 4.4 `git diff` shows no production edit left behind from any breakage check
 

@@ -29,8 +29,8 @@ A lost session produces an error on the first rating instead of a silent walk-th
 all three JSON endpoints answer an unauthenticated caller with a 401 their islands already
 display. The batch is bounded by the deck's own cap and composed deterministically, a rated
 card returns exactly when it falls due and not a minute earlier, and all four grades —
-including the lapse transition — are asserted against an oracle advanced independently of
-the database. `test-plan.md` contains no false statement and every count in it comes from a
+including the lapse transition (`lapses` +1, with `due`/`stability` below `Good`) — are
+asserted against an oracle advanced independently of the database. `test-plan.md` contains no false statement and every count in it comes from a
 run executed against the current files.
 
 ## Key Decisions Made
@@ -38,18 +38,18 @@ run executed against the current files.
 | Decision                          | Choice                                                            | Why (1 sentence)                                                                                     | Source   |
 | --------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------- |
 | Where to fix the defect           | Both middleware and client                                        | `lessons.md:187-192` names both halves as required; together they make the endpoint's 401 reachable.  | Plan     |
-| Middleware blast radius           | Every `/api/*` inside `PROTECTED_ROUTES`                          | Removes the class, not one case; `/api/auth/*` is unprotected so sign-in is untouched.                | Plan     |
+| Middleware blast radius           | JSON **callers** inside `PROTECTED_ROUTES`, not every `/api/*` path | Removes the class without breaking the six native deck/card forms, which are page navigations and must keep the redirect (plan-review F1). | Plan     |
 | Client blast radius               | Only `rate()`, matched to its siblings                            | The other four islands already parse before `ok`; refactoring them would be adjacent-scope creep.     | Plan     |
 | Determinism                       | Explicit `enable_fuzz: false` in the config                       | Makes true what three documents already claim, without pinning the whole library.                     | Plan     |
 | Middleware coverage               | Table-driven over `PROTECTED_ROUTES` + response-contract asserts  | Also closes the prefix-match trap F-03 deferred; needs no container and no database.                  | Plan     |
 | Client coverage                   | Extract the decision to a pure function, test it in node          | Covers the logic that actually failed without adding a DOM/testing-library stack layer.               | Plan     |
-| `session_size` test depth         | Cap from the deck + deterministic ordering                        | One setup covers the unobserved reader and the `f.id` tie-break added to defuse the planner.          | Plan     |
+| `session_size` test depth         | Cap from the deck + deterministic ordering + the Zod/CHECK bounds | One setup covers the unobserved reader and the `f.id` tie-break; the bounds close the audit's "untested at all three layers" (plan-review F6; the island mirror stays uncovered by construction). | Plan     |
 | "No card is lost" test            | Returns at `T + interval`, absent at `T + 1 min`                  | The negative control is what separates durability from "the RPC returned something".                  | Plan     |
-| Grade coverage                    | Full four-grade write matrix, plus the lapse case                 | `Again` has never reached persistence, so `lapses` and Review → Relearning are unproven.              | Plan     |
+| Grade coverage                    | Full four-grade write matrix, plus the lapse case + a `srs_state != 3` canary | `Again` has never reached persistence, so `lapses` is unproven; `Relearning` is unreachable under `enable_short_term: false`, so the lapse is asserted on `lapses` and on `due`/`stability` below `Good` (plan-review F2). | Plan     |
 | Evidence                          | New + all three existing breakage checks, plus narrowed Stryker   | No recorded run exists against the current files; stale counts are the problem this change fixes.     | Plan     |
 | Record                            | Full correction + Phase 4 `reopened` → `complete`                 | The named half of Risk #3 gets proven here, which is exactly what `reopened` was waiting for.         | Plan     |
 | Previously deferred items         | Pull in `reviewed`, `scheduled_days`, skip affordance             | All three sit on surfaces this change already touches; scope settled before building.                 | Plan     |
-| Cloud migration question          | Verify before building (Phase 0)                                  | Phase 2 assumes a CHECK that may exist only locally; better found now than at ship.                   | Plan     |
+| Cloud migration question          | Check early, but **non-blocking** (Phase 0)                       | Ship-hygiene, not a prerequisite: every test runs against the local stack, where the migration is applied (plan-review F6). | Plan     |
 
 ## Scope
 
@@ -84,7 +84,7 @@ when due" is cheap rather than an e2e problem.
 
 | Phase                          | What it delivers                                              | Key risk                                                                     |
 | ------------------------------ | ------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| 0. Cloud schema check          | Confirmation that `20260724220524` reached production          | Needs interactive cloud auth; may reveal a pending push                      |
+| 0. Cloud schema check          | Confirmation that `20260724220524` reached production          | Non-blocking: needs interactive cloud auth, so "unverifiable" is a valid outcome that hands the push to `/ship` |
 | 1. Stop the silent loss        | 401 JSON guard, hardened `rate()`, two new test files          | Middleware touches every route — the `/api/*` branch must stay *inside* the guard, or sign-in breaks |
 | 2. Named coverage gaps         | `enable_fuzz`, session cap + ordering, due re-entry, 4 grades  | The `enable_fuzz` edit must be behaviour-neutral; a red suite invalidates the premise |
 | 3. Previously deferred items   | Honest counter, `scheduled_days` round-trip, skip affordance   | The round-trip changes the `Card` fed to `next()` — the exact-`due` oracles are the neutrality check |
@@ -97,8 +97,9 @@ function neuters with verified restores).
 
 ## Open Risks & Assumptions
 
-- **Assumed:** `20260724220524` is applied on cloud. Phase 0 exists to settle it; if it is
-  pending, `db push` moves to `/ship` and nothing in the local plan changes.
+- **Assumed:** `20260724220524` is applied on cloud. Phase 0 tries to settle it but gates
+  nothing; if it is pending — or if the check cannot run at all — `db push` moves to `/ship`
+  and nothing in the local plan changes.
 - The `scheduled_days` round-trip is behaviour-neutral **only** because
   `enable_short_term: false` makes ts-fsrs zero it on input. If an oracle goes red, stop and
   re-scope rather than update the expectation.
