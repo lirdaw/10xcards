@@ -53,7 +53,7 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 | S-05 | candidate-review        | przeglądać kandydatów i akceptować/edytować/odrzucać (bulk)                                             | S-04             | US-01, FR-005, FR-006                            | done        |
 | S-06 | deck-keyword-search     | wyszukiwać fiszki w talii po słowie kluczowym                                                           | S-02             | FR-015                                           | done        |
 | H-01 | focus-ring-a11y         | widzieć, gdzie jest focus klawiatury na każdym polu i przycisku (kontrast ≥ 3:1, oba motywy)            | MVP (S-01…S-06)  | NFR: baseline a11y (klawiatura / czytnik ekranu) | done        |
-| H-02 | srs-study-session-test  | ufać, że każda oceniona karta faktycznie trafia do harmonogramu — także gdy sesja wygasła w tle         | MVP (S-01…S-06)  | Guardrails: poprawność harmonogramu SRS, US-02   | in progress |
+| H-02 | srs-study-session-test  | ufać, że każda oceniona karta faktycznie trafia do harmonogramu — także gdy sesja wygasła w tle         | MVP (S-01…S-06)  | Guardrails: poprawność harmonogramu SRS, US-02   | done        |
 
 Prefiks **`H-` (hardening)** oznacza pracę PO zamknięciu zakresu MVP: `F-01…F-03` i
 `S-01…S-06` są `done` i ta granica zostaje nienaruszona. Elementy `H-` nie są vertical
@@ -230,7 +230,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **Blockers:** —
 - **Unknowns:** decyzja zakresu dla F1 — naprawa w middleware (401 JSON dla `/api/*`, dotyka shellu, naprawia trzy endpointy naraz) czy w kliencie (`res.redirected` / parse-before-ok w `rate()`, zostaje w slice'ie), czy oba. Do rozstrzygnięcia w `/10x-plan`, PRZED budową.
 - **Risk:** Ticket przepisany po pełnym audycie — pierwotnie prosił o trzy testy Ryzyka #3, które JUŻ istnieją (dostarczył je S-03, suite 69/69 potwierdzony uruchomieniem). Realne znalezisko jest inne i cięższe: `StudySession.tsx:174` sprawdza tylko `!res.ok`, a middleware odpowiada endpointowi JSON redirectem HTML — `fetch` podąża, `/auth/signin` zwraca 200, więc karta się przewija bez zapisu. Trafia wprost w Outcome S-03 („żadna karta nie ginie"), którego druga połowa nigdy nie miała testu: żadne wywołanie `listDueCards` nie przesuwa zegara w przyszłość. Poza tym `session_size` jest podpięte do limitu batcha, ale każdy test przekazuje literał `20` — setter udowodniony, czytelnik nie. Świadomie poza zakresem (zapisane, nienaprawiane): write-only `scheduled_days` (ta sama klasa co bug `learning_steps`, dziś bezczynna tylko dzięki `enable_short_term: false`), maskarada stanu pustego przy braku sekretu, brak obsługi klawiatury w wyspie. Dowód i pełna lista: `context/changes/srs-study-session-test/research.md`.
-- **Status:** in progress
+- **Status:** done
 
 ## Backlog Handoff
 
@@ -279,6 +279,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **S-03: użytkownik rozpoczyna sesję nauki, w której gotowy algorytm SRS wybiera karty należne dziś, ocenia przypomnienie na każdej karcie, a harmonogram przeżywa między sesjami (żadna karta nie ginie, harmonogram się nie psuje).** — Archived 2026-07-24 → `context/archive/2026-07-24-srs-study-session/`. Lesson: —.
 - **S-05: użytkownik przegląda wygenerowanych kandydatów i akceptuje, edytuje lub odrzuca każdego — pojedynczo albo zbiorczo (bulk); zaakceptowane karty stają się częścią talii nadającą się do nauki. Slice zamknął też dwa długi przypisane mu z nazwy przez wcześniejsze slice'y: filtr stanu w wyszukiwarce S-06 (tylko `accepted`) oraz idempotencję generacji (impl-review F5 z S-04) — „Ponów" po timeoucie klienta odtwarza zapisaną sesję zamiast dopisywać drugi komplet kandydatów, czym domyka Risk #2 z test-plan.md.** — Archived 2026-07-25 → `context/archive/2026-07-25-candidate-review/`. Lesson: —.
 - **H-01: (hardening) użytkownik nawigujący klawiaturą widzi wyraźny, kontrastujący focus ring na input/button/select/textarea w obu motywach — ring pokazuje się tylko na `:focus-visible`, nie po kliknięciu myszą.** — Archived 2026-07-25 → `context/archive/2026-07-25-focus-ring-a11y/`. Lesson: —.
+- **H-02: (hardening) użytkownik, którego sesja wygasła lub została unieważniona w tle, NIE przechodzi całej sesji nauki w przekonaniu, że się uczy — zamiast cichego awansu karty widzi błąd, a harmonogram nie gubi ocen. Do tego harmonogram zyskuje pokrycie tych obietnic, których dotąd nikt nie sprawdzał: rozmiar sesji brany z talii, powrót karty gdy nadejdzie `due`, i ocena „Again".** — Archived 2026-07-26 → `context/archive/2026-07-26-srs-study-session-test/`. Lesson: —.
 
 ## Parked ideas (post-MVP → Jira "Pomysł")
 

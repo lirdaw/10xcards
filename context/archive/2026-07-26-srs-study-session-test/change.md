@@ -1,10 +1,10 @@
 ---
 change_id: srs-study-session-test
 title: Study session — silent rating loss on a lost session + SRS schedule coverage gaps
-status: impl_reviewed
+status: archived
 created: 2026-07-26
 updated: 2026-07-26
-archived_at: null
+archived_at: 2026-07-26T15:54:04Z
 ---
 
 ## Notes
