@@ -6,7 +6,27 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-07-26, second entry of the day (C10X-27 shipped — the change the
+> Last updated: 2026-07-26, third entry of the day (C10X-28 shipped, with C10X-34 and
+> C10X-30's source-text half riding along). **Risk #4 is covered; Risk #6 is half covered;
+> §3 Phase 2 deliberately stays `implementing`** — the row now names the one test that
+> flips it (a crafted request against the card-content endpoints) so "implementing" reads
+> as a decision rather than as leftover state.
+>
+> What the slice proved, and what it refuses to claim. The no-leak property on
+> `/api/generate` already held by construction and is now **asserted** on both failure
+> branches, behind the project's first module double (`astro:env/server` only — never
+> `@/lib/openrouter`, which would make the `Authorization` half unassertable); the key is
+> pinned to the header by production code. The two surfaces where private data genuinely
+> *did* escape — the auth routes' verbatim relay of an upstream message into a URL, and
+> `generation_session`'s four private audit columns, which had no cross-account test at
+> all — are closed. The log half is a first-party guard over the whole of `src/` and
+> nothing more: **no test here reads a log sink**, and dependency-emitted lines are in
+> scope but unowned (§7). Three pointer-level falsehoods in this file are corrected —
+> every archived-change evidence path (each verified to resolve), the S-05 Stryker range,
+> and a stale anchor in a live test comment. Suite at completion: **166/166, 14 files**.
+> Evidence: `context/changes/ai-candidate-generation-test-2/verification.md`.
+>
+> Previously: 2026-07-26, second entry of the day (C10X-27 shipped — the change the
 > morning's audit opened). **Phase 4 `reopened` → `complete`**: "the session loses a
 > card" now has a test that advances the clock and re-enters the session, so both halves
 > of Risk #3's scenario are proven. The production bug is fixed on both sides (middleware
@@ -21,7 +41,7 @@
 > composition assertion observes ORDER, not the presence of the `f.id asc` tie-break:
 > removing the clause leaves the suite green. Both are recorded as open gaps rather than
 > smoothed over. Every count in §6.6 now comes from a run executed against the current
-> files. Evidence: `context/changes/srs-study-session-test/verification.md` and
+> files. Evidence: `context/archive/2026-07-26-srs-study-session-test/verification.md` and
 > `mutation-register.md`.
 >
 > Previously: 2026-07-26 (C10X-27 / roadmap H-02 audit of §3 Phase 4 — the first
@@ -35,7 +55,7 @@
 > **§6.1's `enable_fuzz: false` claim is false** — the app never configures it. §6.6's
 > Phase-1 signed-out note was stale in both directions and is corrected; §6.7 gained
 > three traps; §3's Status vocabulary gained `reopened`. Evidence:
-> `context/changes/srs-study-session-test/research.md`.)
+> `context/archive/2026-07-26-srs-study-session-test/research.md`.)
 >
 > Previously: 2026-07-25 (roadmap S-05 `candidate-review`: Phase 5 extended
 > Risk #1's surface to the first lifecycle transition and the first multi-row
@@ -80,9 +100,9 @@ research's job, see §1 principle #3).
 | 1   | A new or changed API endpoint lets one account read or modify another account's deck or flashcards — the ownership check does not hold, RLS is bypassed, or a `publicId` from the URL is treated as authorization. Private content leaks across accounts. | High   | High       | interview Q1, interview Q3; PRD §Guardrails (per-account data isolation), PRD §Access Control; hot-spot dir `src/lib/` (18 commits/30d); hot-spot dir `src/pages/api/decks/[publicId]/cards/` (4 commits/30d)                          |
 | 2   | A retry after a generation timeout writes a second set of candidates — the user gets duplicated cards and a duplicated generation session.                                                                                                                | Medium | High       | `context/foundation/lessons.md` (recorded tradeoff: write is not idempotent under client+server timeout with a retry button); PRD FR-018; hot-spot dir `src/lib/` (18 commits/30d)                                                     |
 | 3   | The study session loses a card or writes the wrong next-review date, and cards that were never accepted enter review — the schedule stops being trustworthy.                                                                                              | High   | Medium     | PRD §Guardrails (spaced-repetition scheduling correctness), PRD §NFR (schedule survives across sessions), PRD US-02 acceptance criteria, PRD FR-006; roadmap S-03 (north star, next in sequence)                                       |
-| 4   | Private source text or the LLM API key escapes into a log line or an error response body.                                                                                                                                                                 | High   | Medium     | PRD §Guardrails (privacy of pasted source text), PRD §NFR (privacy); `context/foundation/lessons.md` (prod secret is separate from `.env`; missing secret silently degraded to mock mode); abuse lens (secret/PII leakage)             |
+| 4   | Private source text or the LLM API key escapes into a log line or an error response body. **Covered 2026-07-26 (C10X-28), with a named boundary: the response-body half is pinned on both failure branches, the log half only for what `src/` itself writes. Read §6.6's C10X-28 entry before citing this as closed.**                                                                                                                                                                 | High   | Medium     | PRD §Guardrails (privacy of pasted source text), PRD §NFR (privacy); `context/foundation/lessons.md` (prod secret is separate from `.env`; missing secret silently degraded to mock mode); abuse lens (secret/PII leakage)             |
 | 5   | The production schema drifts from the migration history — the deployed app writes against an un-migrated database.                                                                                                                                        | High   | Medium     | interview Q2 (real incident during M2L5); `context/foundation/lessons.md` ×2 (cloud migration is a step distinct from app deploy; blind `migration repair` desynced prod history); hot-spot dir `supabase/migrations/` (6 commits/30d) |
-| 6   | The server trusts the client — a crafted request bypasses the source-text length limit and the card content rules that the UI enforces.                                                                                                                   | Medium | Medium     | PRD FR-003 (maximum source-text length), PRD FR-007; abuse lens (untrusted input, server-side validation parity); hot-spot dir `src/lib/` (18 commits/30d)                                                                             |
+| 6   | The server trusts the client — a crafted request bypasses the source-text length limit and the card content rules that the UI enforces. **PARTLY covered 2026-07-26 (C10X-28): the source-text half is pinned at `/api/generate` and that limit now has one definition; the card-content half (the `FRONT_MAX`/`BACK_MAX` endpoints) is still untested.**                                                                                                                   | Medium | Medium     | PRD FR-003 (maximum source-text length), PRD FR-007; abuse lens (untrusted input, server-side validation parity); hot-spot dir `src/lib/` (18 commits/30d)                                                                             |
 | 7   | Generation returns cards in the wrong language or cards that are unusable, so the acceptance rate falls below 75% and the product thesis fails.                                                                                                           | High   | Medium     | PRD §Success Criteria (≥75% of generated cards accepted; ≥75% of cards created via generation), PRD §NFR (cards follow the source-text language: PL/EN/ES); roadmap S-05                                                               |
 
 ### Risk Response Guidance
@@ -108,10 +128,10 @@ show a `complete` phase never covered all of its risk — see Phase 4. Treat
 
 | #   | Phase name                      | Goal (one line)                                                                         | Risks covered                                                        | Test types                         | Status       | Change folder                                                                    |
 | --- | ------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------- | ------------ | -------------------------------------------------------------------------------- |
-| 1   | Harness + per-account isolation | Stand up the runner and prove cross-account denial on read and write                    | #1                                                                   | runner bootstrap, integration, RLS | complete     | `context/changes/verification-harness/`                                          |
-| 2   | Endpoint contract               | Prove the server does not trust the client and does not leak; stop duplication on retry | #2 (**covered** — idempotency landed in S-05 Phase 6), #4, #6        | integration                        | implementing | `context/changes/ai-candidate-generation-test/`                                  |
+| 1   | Harness + per-account isolation | Stand up the runner and prove cross-account denial on read and write                    | #1                                                                   | runner bootstrap, integration, RLS | complete     | `context/archive/2026-07-15-verification-harness/`                                          |
+| 2   | Endpoint contract               | Prove the server does not trust the client and does not leak; stop duplication on retry | #2 (**covered** — S-05 Phase 6), #4 (**covered** — C10X-28), #6 (**partly** — source-text half only) | integration | implementing | `context/archive/2026-07-18-ai-candidate-generation-test/` → `context/changes/ai-candidate-generation-test-2/` |
 | 3   | Quality gates + schema drift    | Make green CI mean "tested and prod actually migrated"                                  | #5                                                                   | gates                              | not started  | —                                                                                |
-| 4   | SRS schedule correctness        | Prove the schedule defers by rating, survives restart, and admits only accepted cards   | #3 (**covered** — both halves; closed by C10X-27, 2026-07-26)        | unit + integration                 | complete     | `context/changes/srs-study-session/` → `context/changes/srs-study-session-test/` |
+| 4   | SRS schedule correctness        | Prove the schedule defers by rating, survives restart, and admits only accepted cards   | #3 (**covered** — both halves; closed by C10X-27, 2026-07-26)        | unit + integration                 | complete     | `context/archive/2026-07-24-srs-study-session/` → `context/archive/2026-07-26-srs-study-session-test/` |
 | 5   | AI-native generation quality    | Prove cards match the source language and are usable, so the 75% thesis is measurable   | #7                                                                   | LLM-as-judge                       | not started  | —                                                                                |
 
 Sequencing notes:
@@ -127,8 +147,18 @@ Sequencing notes:
   Roadmap slice **S-05 Phase 6 landed that idempotency**, so the standing
   instruction was carried out — the assertion was inverted (2 sessions → 1),
   not deleted, and Risk #2 is now **covered**. §6.6's Phase-2 entry records
-  exactly what the inverted suite does and does not prove. Risks #4 and #6
-  are still untouched, so the phase stays `implementing`.
+  exactly what the inverted suite does and does not prove.
+  **Phase 2's second slice (`ai-candidate-generation-test-2`, C10X-28, 2026-07-26)
+  covered Risk #4 and half of Risk #6**, and the phase **stays `implementing`** — read
+  that as a deliberate call, not as leftover state. What it now takes to flip: nothing
+  on #2 or #4, and on #6 only the **card-content** half — a crafted request against
+  `POST/PATCH /api/decks/[publicId]/cards*` that breaches `FRONT_MAX`/`BACK_MAX` and is
+  shown to write nothing. That half was excluded on purpose (those endpoints already
+  share one constant with their islands, so they are the low-drift side of #6), which is
+  why the outstanding work is one named test rather than a slice. C10X-30
+  (`server-side-validation-test`) is the ticket that owns it; whoever lands it flips this
+  row to `complete` and dates the claim. Claiming `complete` from C10X-28 would be exactly
+  the dated-claim failure the `reopened` vocabulary above exists to record.
 - Phase 4 shipped inside roadmap **S-03 `srs-study-session`** (its Phase 5),
   which is where the schedule itself was built — roadmap F-03 had already
   deferred this test to S-03, so the phase reused that change folder rather
@@ -136,7 +166,7 @@ Sequencing notes:
   does not include, and §6.7 for how to add the next SRS test.
   **Reopened 2026-07-26** (status `complete` → `reopened`) by a full audit run
   under C10X-27 / roadmap **H-02**, change folder
-  `context/changes/srs-study-session-test/`. The phase's own three claims hold and
+  `context/archive/2026-07-26-srs-study-session-test/`. The phase's own three claims hold and
   were re-verified by execution (69/69) — what reopens it is that Risk #3's
   scenario has two halves and only one is proven. "Writes the wrong next-review
   date" is covered; "**the study session loses a card**" is not, because no test
@@ -173,7 +203,7 @@ The classic test base for this project. AI-native tools (if any) carry a
 | -------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | unit + integration   | Vitest                                                  | 4.1.10                                                                      | Configured through `getViteConfig()` from `astro/config` (`vitest.config.ts`), which is what resolves the `@/*` alias and `astro:env/server`. The adapter's `@cloudflare/vite-plugin` is stripped there — it fights Astro over the `ssr` environment and tests target Node; checked: 2026-07-15 |
 | endpoint rendering   | Astro Container API                                     | ships with Astro 6                                                          | `renderToResponse` with `routeType: "endpoint"` renders an API route against a real `Request`; checked: 2026-07-15                                                                                                                                                                              |
-| API mocking          | none yet — see Phase 2                                  | —                                                                           | Only the external HTTP edge (the LLM provider) needs a double; the database is real via local Supabase                                                                                                                                                                                          |
+| API mocking          | one confined module double — **see §6.9**               | Vitest's own `vi.mock` / `vi.hoisted`; no mocking library                    | Only the external HTTP edge (the LLM provider) is ever doubled; the database is real via local Supabase. Exactly one file does it (`tests/generation/failure-path.test.ts`), doubling **`astro:env/server`** plus a pass-through `globalThis.fetch` to reach the 502/422 branches the harness otherwise seals. Read §6.9 before copying it; checked: 2026-07-26 |
 | database under test  | Supabase CLI local stack                                | 2.98.2 (devDependency; `^2.23.4` in `package.json` is only the range floor) | Driven by `npm run db:start` / `db:stop` / `db:reset`; RLS is only meaningful against a real Postgres. CI starts the same stack and reads its URL + publishable key from `supabase status -o env`; checked: 2026-07-15                                                                          |
 | e2e                  | none yet — deliberately deferred                        | —                                                                           | No rollout phase claims e2e; promote only if a risk survives cheaper layers                                                                                                                                                                                                                     |
 | accessibility        | `eslint-plugin-jsx-a11y`                                | 6.10.2                                                                      | Lint-level only; PRD names baseline a11y but no risk in §2 requires an axe run yet                                                                                                                                                                                                              |
@@ -307,8 +337,35 @@ records the bug this rule was written from.
 
 ### 6.3 Adding a test for a new API endpoint
 
-- TBD — see §3 Phase 2 for the server-side validation-parity and
-  no-leak-in-error-body patterns.
+(Filled in 2026-07-26 by C10X-28; it read "TBD — see §3 Phase 2" until then, and §6.5
+had to warn readers off inferring the contract from §6.2's ownership rule.)
+
+Two contracts, and they are separate claims — assert both:
+
+- **Validation parity — a 4xx AND no write.** Copy
+  `tests/generation/generate.test.ts`'s input-contract block. A status assertion alone
+  is not enough: a 400 returned *after* a write had landed reads as a pass. Every
+  rejection case re-counts the rows it could have created and asserts zero, and the
+  block carries a **boundary-value success** so the refusals cannot be an endpoint
+  refusing everything. Two traps live here, both recorded in §6.6's C10X-28 entry: a
+  **status-filtered** count is an argument rather than an assertion, and a PostgREST
+  filter scoped by a long value answers **414** before the query runs — scope by a short
+  per-case marker with `.like()`.
+- **No leak in the error body.** The invariant is that every `error` string an endpoint
+  returns comes from a closed set of module-level literals, never from an upstream
+  message, an exception, a Zod issue, or user input. It has a consumer:
+  `src/lib/http.ts` renders that string verbatim in every island for anything that is
+  neither a `401` nor a redirect. Where private material must be kept (an audit row, a
+  log), assert the **contrast on one request** — the row records it, the body does not —
+  rather than asserting the status. `tests/generation/failure-path.test.ts` is the
+  reference, and reaching a sealed failure branch is the one case where a module double
+  is permitted: read **§6.9** first.
+
+Everything else follows §6.4 — real endpoint, real cookie, real Postgres, row-based
+assertions with a positive control, **404 never 403** for ownership, and a file-level
+`Date.now().toString(36)` namespace (§6.5). A signed-out case needs no fixture change:
+render the endpoint with `locals: { user: null }` through a local container helper, as
+`generate.test.ts` and `study.test.ts` already do.
 
 ### 6.4 Adding a test for a data-access or ownership rule
 
@@ -398,11 +455,11 @@ No test could see that from the outside.
 - **Run**: `npm test` (the local stack must be up — `npm run db:start`).
 - **Check §6.6 first**, as §6.2 requires: the case you are about to add may
   already exist, and §6.6 is where its absence is visible.
-- **Not here**: input-validation cases (bad `count`, over-length source
-  text) belong to §6.3, still TBD — §3 Phase 2 owns risks #4 and #6 and has
-  not landed the status-code and error-body contract yet. Do not infer it
-  from §6.2's "404, never 403" rule: that rule is about ownership, not bad
-  input.
+- **Read §6.3 before adding an input-validation case** (bad `count`, over-length
+  source text). It owns the status-code and error-body contract, and as of
+  C10X-28 it is written rather than TBD — the cases themselves live in *this*
+  file's input-contract block. Do not infer that contract from §6.2's "404,
+  never 403" rule: that rule is about ownership, not bad input.
 - **Pattern**: identical to §6.4 — drive the real endpoint with a real
   session cookie against the real local Postgres, and read the result back
   with `clientFor(...)`. `callEndpoint` accepts a JSON string body and sets
@@ -419,13 +476,20 @@ No test could see that from the outside.
 Four project-specific facts that are not visible from the test file and
 will cost you a wasted afternoon if you rediscover them the hard way:
 
-- **No HTTP double is needed, and none exists.** `OPENROUTER_API_KEY` is
-  unset locally and in `.github/workflows/ci.yml`, so `generateCandidates`
-  short-circuits to `mockCards(count)` (`src/lib/openrouter.ts:149-158`)
-  and returns instantly. The outbound seam is already neutralised; do not
-  add a mocking library for it. The corollary is that no test in this suite
-  exercises the real provider — a change to the prompt or the response
-  contract is invisible here (that is §3 Phase 5's job).
+- **No HTTP double is needed in THIS file, and one exists in exactly one other.**
+  `OPENROUTER_API_KEY` is unset locally and in `.github/workflows/ci.yml`, so
+  `generateCandidates` short-circuits to `mockCards(count)`
+  (`src/lib/openrouter.ts:149-158`) and returns instantly. The outbound seam is
+  already neutralised for every case here; do not add a mocking library for it.
+  The corollary is that no test in this suite exercises the real provider — a
+  change to the prompt or the response contract is invisible (that is §3 Phase 5's
+  job).
+  > **Corrected 2026-07-26 (C10X-28); this bullet used to end "and none exists".**
+  > That was true until the failure branches had to be reached: the same clamp that
+  > makes mock mode reliable also seals 502 and 422, so `tests/generation/failure-path.test.ts`
+  > lifts it with a confined `astro:env/server` double plus a pass-through `fetch`.
+  > It is the **only** file in the suite that doubles anything, and §6.9 states the
+  > conditions. Nothing above changes for a test that stays on the success path.
 - **Card content is not an oracle.** Mock output is identical on every call
   (`Przykładowe pytanie 1..N`), so grouping by `front` cannot tell a
   duplicated generation apart from the mock repeating itself. Use
@@ -626,8 +690,13 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   - Restore with `npx supabase db reset` and then **verify it** — dump
     `indexdef` from `pg_indexes` before and after and `diff`. Done here; the
     restored definition came back identical, full suite green at **69/69** _as the
-    suite stood on 2026-07-26 before C10X-27_ (it is 109/109 now). The `1 of 13` split
-    above is still current — `generate.test.ts` holds 13 cases, re-counted 2026-07-26.
+    suite stood on 2026-07-26 before C10X-27_ (109/109 after it; **166/166** after
+    C10X-28 — read every figure here with the date attached to it).
+    **The `1 of 13` split's denominator is stale and the run has not been repeated**
+    (corrected 2026-07-26 by C10X-28): `generate.test.ts` held 13 cases when that check
+    ran and holds **20** now, because Phase 3 of C10X-28 added seven. Nothing suggests
+    the failed-key case stopped observing the index predicate, but "1 of 13" is a claim
+    about a run, so re-run it before citing the split.
 
   One case in the file still looks like protection and is not: two identical
   `newDeckName` requests produce a 409 and exactly one session. That comes from
@@ -759,7 +828,7 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
 
   **Four more breakage runs, added by C10X-27 (2026-07-26)** for the assertions that
   slice added. Full detail, including the observed failure strings, is in
-  `context/changes/srs-study-session-test/verification.md`:
+  `context/archive/2026-07-26-srs-study-session-test/verification.md`:
 
   | Neuter | Result |
   | --- | --- |
@@ -794,7 +863,7 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   mutated: `npx stryker run --mutate "src/lib/study.ts:291-350"` (permanent `mutate`
   list untouched) → **56.90% total / 71.74% covered — 33 killed, 13 survived, 12 no
   coverage**. **No assertion was added**; every survivor is classified individually in
-  `context/changes/srs-study-session-test/mutation-register.md`. Two results worth
+  `context/archive/2026-07-26-srs-study-session-test/mutation-register.md`. Two results worth
   carrying:
   - **The span had to be re-derived.** The plan recorded `257-316`; Phase 3's edits
     above `rateCard` pushed it to `291-350`. A stale range completes happily while
@@ -921,7 +990,7 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
     because the column is output-only, and recorded so a future reader who makes it an
     input sees the divergence immediately.
 
-  Full evidence: `context/changes/srs-study-session-test/research.md` for the audit that
+  Full evidence: `context/archive/2026-07-26-srs-study-session-test/research.md` for the audit that
   opened these items, and `verification.md` + `mutation-register.md` in the same folder
   for the runs that closed them.
 
@@ -960,8 +1029,20 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   Nothing here exercises the signed-out path, for the same reason Phase 1 records.
 
   **Selective mutation testing, and why its 100% is weak evidence.** Stryker narrowed
-  to the transition function (`--mutate "src/lib/flashcards.ts:181-212"`, permanent
-  `mutate` list untouched): 100% — 12 killed, **0 survived**. Do not read that as "the
+  to the transition function — `ALLOWED_FROM` + `setFlashcardState`, today
+  `--mutate "src/lib/flashcards.ts:202-226"`, permanent `mutate` list untouched:
+  100% — 12 killed, **0 survived**.
+
+  > **The range in this line was wrong for a day and is now corrected (C10X-28,
+  > 2026-07-26).** It read `:181-212`, which is where those two symbols sat when the run
+  > was made; `75df78f` moved `setFlashcardState` to `:218` **two hours later**, so the
+  > recorded command had since been mutating a different part of the file — and Stryker
+  > completes happily on a stale range, reporting a score for code nobody meant to test.
+  > The symbols are named beside the numbers deliberately: **re-derive the span before
+  > running it** (`grep -n "ALLOWED_FROM\|setFlashcardState" src/lib/flashcards.ts`) rather
+  > than trusting either figure. The frozen copy in
+  > `context/archive/2026-07-25-candidate-review/mutation-register.md:3` keeps the original
+  > range on purpose — it records what was actually run that day. Do not read that as "the
   gate is well asserted". Reproducing the two gate mutants by hand shows both die on a
   **malformed query**, not on a behavioural assertion: `.in("state_id", …)` → `""`
   fails with `PGRST100`, and the `?? []` fallback → `["Stryker was here"]` fails with
@@ -971,9 +1052,17 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   the operator that would has to substitute a string that Postgres rejects. So the
   direction that actually harms a user (a gate too permissive — a rejected card
   drifting back into the deck) is carried by deliberate-breakage check 1 below, not by
-  Stryker. Per-mutant record: `context/changes/candidate-review/mutation-register.md`.
+  Stryker. Per-mutant record: `context/archive/2026-07-25-candidate-review/mutation-register.md`.
 
   **Three deliberate-breakage checks, all run, with observed results.**
+
+  > **Denominators below are dated, not current (noted 2026-07-26 by C10X-28).**
+  > `candidates.test.ts` held **16** cases when these ran and holds **20** now — C10X-28
+  > added the four generation-session audit-column cases, which touch a different table
+  > and no `ALLOWED_FROM` path, so the *numerators* should be unchanged. Neither check has
+  > been re-run since. Same rule as everywhere in this file: a split is a claim about a
+  > run, so re-run it before citing it.
+
   1. _The transition guard._ Delete `.in("state_id", ALLOWED_FROM[target])` from
      `setFlashcardState`. Exactly **3 of 16** red in `candidates.test.ts` — the
      off-graph case (`expected [ {…} ] to deeply equal []`), the mixed batch
@@ -1009,6 +1098,99 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   pass would have left the suite testing nothing. Second attempt with `-i`: diff
   identical. The trigger was likewise re-dumped with `pg_get_triggerdef` and matched
   byte-for-byte. Full suite green afterwards: **66/66**.
+
+- **Phase 2, second slice (`ai-candidate-generation-test-2`, 2026-07-26)** — Risk #4 is
+  **covered, with a boundary this entry states rather than hides**; Risk #6 is **half**
+  covered. Three tickets own the work and one branch carried it: **C10X-28** (audit-column
+  isolation, the module double, the `console.*` guard, this doc-sync), **C10X-34** (auth error
+  copy, the banner gate), **C10X-30** (bounds parity — its source-text half only).
+
+  What the slice found first is why it is not the change its ticket described: the no-leak
+  property on `/api/generate` **already held by construction** — 17 of its 18 error returns are
+  fixed Polish literals and the 18th is a double ternary over two module-local literals, while
+  `err.message` is computed once and routed **only** to the DB column. It was asserted nowhere,
+  and it could not be asserted at all with the harness as it stood. So the slice pinned the
+  property, and closed the two surfaces where private data genuinely did escape — neither of
+  which the risk row names.
+
+  | Claim | What proves it |
+  | --- | --- |
+  | On a failed generation the response body carries **neither** the pasted source text **nor** the upstream error string **nor** the key — while the audit row carries the first two | `tests/generation/failure-path.test.ts`, three cases (502 upstream HTTP, 502 transport, 422). One request each: the **raw** body (not just `error`) is asserted free of both sentinels and of the key, while the row is asserted to hold the source text in `source_text` **and** inside `request_payload`, the upstream string inside `response_payload`, and a non-empty `error_message` — the payload assertions run over the serialised column, so they pin presence, not a JSON path |
+  | …and those branches are genuinely reached, not simulated | the only module doubled is `astro:env/server` (`OPENROUTER_API_KEY` → a sentinel) plus a pass-through `globalThis.fetch`. `@/lib/openrouter` is **never** doubled, so `OpenRouterError`'s identity, the request build and the audit payloads are production's own. Breakage: remove the seam → **4 of 4 red on `expected 200 to be 502/422`** — without it the request falls through to mock mode and *succeeds* |
+  | 422's contrast is its own, not 502's with two extra rows | on that branch `error_message` is the fixed literal `"Model nie zwrócił poprawnych kart"` — asserted by **equality**, because substituting that literal for the upstream string *is* the no-leak property here — while the upstream sentinel is asserted inside `response_payload`; both together with `generated_count > 0` and `saved_count = 0`, the pair that separates 422 from 502 |
+  | `OPENROUTER_API_KEY` travels in `Authorization` and lands in no audit column | the same file's key pin: the sentinel **is** in the captured header (the positive control — built by `openrouter.ts`, not by the test), **is not** in the captured request body, and appears in **no** field of the persisted row |
+  | This repo writes no log line at all | `tests/lib/no-logging.test.ts` — a textual scan of the **whole** `src/` tree (`.astro` frontmatter included), with two positive controls: the walker finds >50 files including four named ones, and the regex fires on four spellings of a console call |
+  | Account B cannot read A's four private audit columns | `tests/review/candidates.test.ts` → "returns none of the four private columns to B, while A reads every one of them": B's select resolves to `null` (absence, §6.4's below-HTTP form of "404, never 403") while A resolves all four with per-run-unique values |
+  | …nor overwrite or delete the row | "refuses B's overwrite of the audit columns and leaves A's row byte-identical" (empty `RETURNING`, A re-reads column-for-column) and "refuses B's delete of A's session", with "still lets A rewrite A's own audit columns" as the positive control |
+  | A crafted request outside the UI gets a 4xx **and writes nothing** | `tests/generation/generate.test.ts`, **six** refusal cases covering nine inputs — `sourceText` over the cap (raw, and again when it trims back under it), `count` below/above/non-integer, `language` off the whitelist, malformed `deckPublicId` and malformed `idempotencyKey`, `newDeckName` over 100 — each asserting the status **and** a **status-agnostic** session count, plus a deck count on the one path that could have created a deck |
+  | …with a boundary control, so the refusals are not an endpoint refusing everything | "accepts a sourceText at exactly the limit and stores it whole" |
+  | The source-text limit has exactly one definition | `src/lib/generation-limits.ts`, imported by `api/generate.ts` **and** `GeneratorForm.tsx` (with `COUNT_MIN`, `COUNT_MAX` and `LANGUAGES`). Breakage: decouple the endpoint's own `.max()` from the shared constant → **exactly 2 of 20 red**, both over-limit cases, both on `expected 200 to be 400`, boundary control green |
+  | No upstream auth string can reach a URL | `tests/auth/errors.test.ts` (33 cases): a mapper keyed on `AuthError.code` with a documented `code → name → status → default` chain, "never lets an input substring reach the output", "has no empty constant in the closed set", and one endpoint case asserting the `?error=` param **equals** a project constant and contains neither the submitted address nor `{` |
+  | An anonymous visitor is not told whether generation is live | **not a test — manual, and named as such.** The gate is per **entry** (`requiresSession` on `ConfigStatus`), applied in `Layout.astro`; the three browser-level checks are recorded in the change's `verification.md` |
+
+  **Four traps this slice paid for, so the next contributor does not.**
+  - **Never scope a PostgREST filter by a long body.** `.eq("source_text", <a 10 000-char
+    string>)` answers **`414 URI too long`** — PostgREST carries filters in the query string and
+    Kong caps the request line at ~8 KB. Measured against this stack: `n=8000` through,
+    `n=10000` and `n=10001` → 414. That is exactly the over-limit case and its boundary control,
+    so the oracle would have gone red for a reason unrelated to the behaviour. Scope by a short
+    `<suffix>-<case>` marker in the first characters of every `sourceText` and query
+    `.like("<marker>%")`. `succeededSessions` carried the same latent defect and was widened in
+    the same edit.
+  - **A status-filtered count is an argument, not an assertion.** `succeededSessions` filters
+    `status = 'succeeded'`, so it is blind to the `failed` rows the 502/422 paths write. The
+    bounds cases assert against a status-agnostic count instead; it happens to be sound either
+    way today (every input-contract rejection returns before the first DB statement), which is
+    precisely why the defect was invisible.
+  - **On `generation_session`, neutering a write policy alone proves nothing.** With
+    `generation_session_update` wide open the suite stays **20/20 green**: Postgres applies the
+    **SELECT** policy to an UPDATE whose `WHERE` reads a column, so the restrictive select hides
+    the row and the write matches nothing. Neuter select **with** the write policy. Same trap
+    §6.8 records for S-05, one table over. Observed splits, from a `db`-live run: select alone →
+    **2 of 20 red**; select + update → **3 of 20**; select + delete → **4 of 20** (the fourth
+    being the positive control as a second-order knock-on). Restore verified by a `pg_policies`
+    before/after dump, **diff empty**.
+  - **A breakage check can come back green and be recorded as evidence for a claim it never
+    tested.** The plan's own check for Phase 5 — "make the 502 body interpolate `err.message`" —
+    **passes** against the HTTP-failure case, because there `err.message` is
+    `"OpenRouter HTTP <status>"`, a string carrying nothing private. A fourth test case (a
+    **transport** failure, where the upstream string *is* `err.message`) was added rather than
+    the check weakened; it then goes **1 of 4 red**, and a variant interpolating the source text
+    goes **2 of 4**. Check what your check would observe before you trust its green.
+
+  **What this does NOT prove — read this before citing Risk #4 as closed.**
+  - **The dependency-emitted log lines.** They are inside Risk #4's scope and are **not owned
+    here**: `@supabase/ssr/…/cookies.js:22,29` and `@supabase/auth-js/…/fetch.js:110` reach
+    Workers Logs via `wrangler.jsonc`'s `observability`. They were measured and carry
+    session/transport material — on `fetch.js:110` a fetch `TypeError`, not the request `init` —
+    never pasted text. Pinning `node_modules` internals would break on every patch bump with no
+    user-visible cause. **Nothing in this suite reads a real log sink**; the log half is a
+    source-tree guard over first-party code, nothing more.
+  - **The client-bundle half of the key question.** Closed by construction at three independent
+    layers (`astro:env`'s `ServerOnlyModule` throw at build, the `_internalGetSecret`
+    indirection, the key absent from CI) and deliberately recorded rather than re-tested.
+  - **The provider contract.** The upstream shapes are fabricated by the fetch double, so a
+    change to the prompt, the model or the real response format is invisible here. That is §3
+    Phase 5's job, unchanged.
+  - **The success path's audit columns.** Only the two failure branches are asserted.
+  - **Anything an island renders**, as always (§7): `GeneratorForm`'s `maxLength`, `min`/`max`,
+    `<select>` and char counter, and the banner gate itself, rest on the manual checks in the
+    change's `verification.md`. Single-sourcing buys that the two ends cannot disagree about the
+    **value**; that each end still enforces it is one assertion here and one pair of human eyes
+    there.
+  - **The card-content half of Risk #6** — the `FRONT_MAX`/`BACK_MAX` endpoints, excluded on
+    purpose (they already share one constant with their islands). It is the single thing between
+    §3 Phase 2 and `complete`.
+  - **The 502/422 error copy.** `error_message`'s wording on the 502 path is asserted non-empty,
+    not pinned; the only copy assertion in the file is 422's literal, and it is there because
+    substituting it for the upstream string **is** the no-leak property on that branch.
+
+  Full evidence — every breakage edit, its observed failure string, its red/green split with the
+  denominator, and each verified restore:
+  `context/changes/ai-candidate-generation-test-2/verification.md` (after archiving:
+  `context/archive/<date>-ai-candidate-generation-test-2/verification.md`). Before adding a
+  module double of your own, read **§6.9** — it exists because of this slice and says where the
+  seam may and may not go.
 
 ### 6.7 Adding a test for the SRS / study path
 
@@ -1213,6 +1395,79 @@ Postgres applies the SELECT policy to an UPDATE's WHERE clause, so the write hal
 stays invisible and you would conclude more than you tested. §6.6 records both runs
 and the restore-verification failure that nearly slipped through.
 
+### 6.9 Adding a test that needs a module double
+
+(Added by C10X-28 / §3 Phase 2's Risk #4 slice. It sits after §6.8 so every existing
+§6.x anchor keeps pointing where it did.)
+
+**The default is still "no doubles."** Every other file in this suite drives the real
+endpoint against the real local Postgres, and §6.4 explains why: the lock under test is
+RLS, and a double is the fastest way to mock away the thing you meant to prove. This
+section exists because exactly one claim could not be reached any other way — not to open
+the door generally.
+
+- **Location**: `tests/generation/failure-path.test.ts`. **Module doubles live in that one
+  file.** If you find yourself adding a second one somewhere else, that is the moment to
+  re-read this section rather than to imitate it.
+- **Run**: `npx vitest run tests/generation/failure-path.test.ts` (the local stack must be
+  up — the database is still real, so preflight still applies).
+- **Check §6.6 first**, as §6.2 requires: the C10X-28 entry there tabulates what the two
+  branches now prove and what they deliberately do not.
+
+**The only module ever doubled is `astro:env/server`**, and only to lift a clamp that is
+otherwise airtight in three independent places: preflight aborts the run when
+`OPENROUTER_API_KEY` is set (§6.4), `src/lib/openrouter.ts` short-circuits to `mockCards`
+when it is unset, and under Vitest an `astro:env` secret is a **transform-time inlined
+literal** — so `vi.stubEnv`, `process.env` and `setGetEnv` are all dead seams. Replacing
+the module is not the convenient option; it is the only one.
+
+**Why `@/lib/openrouter` is the WRONG module to double, and this is the load-bearing
+paragraph.** Doubling `generateCandidates` also reaches the 502 branch, so it looks
+equivalent and is not: `openrouter.ts`'s request-building code then never runs, no request
+is issued, and the `Authorization` header the key-pin exists to observe does not exist. The
+absence assertion ("the key is in no audit column") would still pass — because nothing was
+ever sent. Half the claim evaporates and the suite stays green. A double that removes the
+code your positive control observes is a false pass by construction; check for that before
+choosing a seam, not after.
+
+Four mechanical traps, three of which were only found by running it:
+
+1. **`vi.hoisted` is mandatory for the sentinel.** `vi.mock` factories are hoisted above
+   every import, so a plain module-scope `const SENTINEL` is in its TDZ when the factory
+   runs. Share it with `const { SENTINEL_KEY } = vi.hoisted(() => ({ SENTINEL_KEY: "…" }))`.
+2. **The factory must spread `...actual`,** for a reason unrelated to the key:
+   `SUPABASE_URL`/`SUPABASE_KEY` come from the same module (`src/lib/supabase.ts`). A
+   factory returning only the key makes `createClient` return `null`, and `/api/generate`
+   answers **500** without ever reaching the LLM call — which presents as a mysterious
+   failure rather than as the wiring error it is.
+3. **The `fetch` double must be a pass-through, not a replacement.** Inside one
+   `callEndpoint` the endpoint makes six Supabase calls over `globalThis.fetch`, and the
+   assertions read the audit row back the same way. Match on `openrouter.ts`'s
+   `OPENROUTER_URL` and delegate every other URL to the captured original.
+4. **Install the `fetch` double BEFORE the key seam.** The `astro:env` mock deliberately
+   lifts the clamp preflight exists to enforce (`lessons.md`: "Preflight musi domknąć KAŻDY
+   nielokalny szew"), so the pass-through is the **replacement guard**, not a convenience:
+   without it, a sentinel key produces a real, billed call to `openrouter.ai`.
+
+**The database and RLS are never doubled**, here or anywhere. Every row this file asserts
+on is read back through the app's own RLS-scoped client.
+
+**Isolation: know which hazard the config already handles.** Vitest 4.1.10's defaults apply
+(nothing is set in `vitest.config.ts`): `pool: "forks"`, `isolate: true`. So a `vi.mock`
+**cannot** leak into another file — which means "the full suite is still green" is a smoke
+check, not evidence that the double is confined. The live hazard is **intra**-file:
+`restoreMocks`, `clearMocks`, `mockReset` and `unstubGlobals` all default to `false`, so a
+`globalThis.fetch` replacement must be restored in an `afterAll` or a later `it()` in the
+same file reads the database through a stale double.
+
+**The deliberate-breakage check for this path** is the one that decides whether the seam is
+doing anything at all: **comment out the `vi.mock("astro:env/server", …)` factory.** The
+right red is `expected 200 to be 502` — without the seam the request falls through to mock
+mode and **succeeds**. Any other failure means the file is observing something else. §6.6
+records that run, plus the three that pin the individual assertions (a body interpolating
+`err.message`, a body interpolating the source text, and `Authorization` moved into the
+request body).
+
 ## 7. What We Deliberately Don't Test
 
 Exclusions agreed during the rollout (Phase 2 interview, Q5). Future
@@ -1266,6 +1521,18 @@ contributors should respect these unless the underlying assumption changes.
   constantly and catch nothing. Re-evaluate if the landing gains a real
   flow (e.g. the inline sign-in form parked as C10X-20). (Source: Phase 2
   interview Q5.)
+- **Log lines emitted by dependencies** — inside Risk #4's scope, deliberately not
+  owned. `@supabase/ssr/dist/module/cookies.js:22,29` and
+  `@supabase/auth-js/dist/module/lib/fetch.js:110` do write to Workers Logs via
+  `wrangler.jsonc`'s `observability`, and they were **measured** rather than assumed
+  safe: they carry session/transport material — on `fetch.js:110` a fetch `TypeError`
+  (message + stack), not the request `init` — never pasted source text. Pinning
+  `node_modules` internals would break on every patch bump with no user-visible cause.
+  What *is* guarded is first-party code: `tests/lib/no-logging.test.ts` fails on any
+  `console.*` anywhere under `src/`, which is a real gate because `no-console` is
+  configured `"warn"` and `npm run lint` exits **0** on a warning (measured, C10X-28).
+  Re-evaluate if a dependency is ever found logging request bodies. (Source: C10X-28 /
+  `context/changes/ai-candidate-generation-test-2/`.)
 - **Rate limiting on generation** — no rate limit exists, so a test would
   require adding the safeguard first. Re-evaluate if a limit is
   implemented; the cost exposure is partially covered by Risk #6
@@ -1307,12 +1574,23 @@ contributors should respect these unless the underlying assumption changes.
   > neutrally, and adopts the `progress.reps` the endpoint always returned and nobody read,
   > so re-rating applies. Evidence, including the row-level before/after showing an `Again`
   > actually landing after recovery:
-  > `context/changes/srs-study-session-test/verification.md`. What is still uncovered by construction is everything around
+  > `context/archive/2026-07-26-srs-study-session-test/verification.md`. What is still uncovered by construction is everything around
   > them — the island's rendering, its state wiring, whether `rate()` actually calls the
   > helper. So the review-by-reading rule above **stands unchanged**; the extraction
   > shrinks what a reading has to catch, it does not remove the need for one. The same
   > applies to `SessionSizeControl`'s `SIZE_MIN`/`SIZE_MAX` mirror, which §6.6's Phase 4
   > entry names as the one bound layer no test reaches.
+  >
+  > **A second instance, and it shows what single-sourcing does and does not buy (C10X-28,
+  > 2026-07-26).** `GeneratorForm`'s `maxLength`, `min`/`max`, `<select>` options and char
+  > counter now import their values from `src/lib/generation-limits.ts`, the same module the
+  > endpoint imports — so the two ends can no longer disagree about the **value**. That each
+  > end still *enforces* it is a different claim: the server half is asserted
+  > (`tests/generation/generate.test.ts`), the client half is one manual browser run
+  > recorded in the change's `verification.md`, exactly as with `SessionSizeControl`. Worth
+  > knowing before writing a case against it: `maxLength` truncates first, so the island's
+  > own `text.length > SOURCE_MAX` branch and `CharCount`'s red state are **unreachable
+  > through the UI** — a second belt, not the visible guard.
 
 ## 8. Freshness Ledger
 
@@ -1332,11 +1610,38 @@ contributors should respect these unless the underlying assumption changes.
   executed against these files, and each restore was confirmed by a before/after
   definition `diff`. Mutation coverage on `rateCard`: 56.90% (33 killed / 13 survived /
   12 uncovered), no assertion added — register in
-  `context/changes/srs-study-session-test/mutation-register.md`.
+  `context/archive/2026-07-26-srs-study-session-test/mutation-register.md`.
 - **Two coverage gaps are open and named**, deliberately not folded into the `complete`
   status: the RPC's `f.id asc` tie-break has no assertion that observes its *presence*
   (only the batch's order), and §6.6's four-policy neuter no longer reproduces on a dev
   DB past PostgREST's `max_rows`. Both are described where they bite, in §6.6 and §6.7.
+- §3 Phase 2 / Risks #4 and #6 coverage claims last **proven by execution**: 2026-07-26
+  (C10X-28 / C10X-34 / C10X-30, change folder `ai-candidate-generation-test-2`). Suite state
+  measured at completion: **166 passed / 166, 14 files**, local stack up,
+  `OPENROUTER_API_KEY` unset, `npm run lint` and `npm run build` clean, and
+  `git diff -- src/` empty after every deliberate-breakage check. Every count in §6.6's
+  C10X-28 entry comes from a run against these files; each RLS restore was confirmed by a
+  `pg_policies` before/after `diff` (empty), and the `.env` edit behind the banner check by a
+  `diff` against its backup (empty). Mutation coverage on the new auth mapper: **93.33%**
+  (42 killed / 3 survived / 0 uncovered) — the three survivors are equivalent mutants,
+  each checked individually rather than assumed, and one assertion was added because of the
+  run (every constant in the exported closed set is non-empty; an empty one renders as no
+  reason at all). Register: the change's `verification.md`.
+- **Three false or stale statements in THIS file were corrected by that slice**, all of them
+  pointers rather than claims — and pointers rot silently: every
+  `context/changes/<archived-id>/…` evidence path was rewritten to its
+  `context/archive/<date>-<id>/…` form and **each one verified to resolve on disk**; the S-05
+  Stryker command's line range (`src/lib/flashcards.ts:181-212`) was corrected and the two
+  symbols named beside it, because `75df78f` had moved them two hours after the recorded run
+  and Stryker reports a score for whatever the stale range happens to contain; and the same
+  wrong `generations.ts` anchor was fixed in a live comment at
+  `tests/generation/generate.test.ts`. Three earlier items this change's research had listed
+  were already closed by C10X-27 and are not re-fixed.
+- **Risk #4's boundary and Risk #6's remaining half are named, not folded into the
+  headline.** Risk #4: no test reads a real log sink, and dependency-emitted lines are in
+  scope but unowned. Risk #6: the card-content endpoints are untested, which is the single
+  item between §3 Phase 2 and `complete`. Both are described where they bite, in §6.6's
+  C10X-28 entry and §7.
 - **Cloud schema checked, and it matches.** `npx supabase migration list` run from the
   worktree on 2026-07-26 shows Local == Remote on **all ten** migrations, including
   `20260724220524` — the one carrying the `session_size` CHECK and the RPC tie-break these

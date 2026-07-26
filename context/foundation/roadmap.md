@@ -54,6 +54,7 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 | S-06 | deck-keyword-search     | wyszukiwać fiszki w talii po słowie kluczowym                                                           | S-02             | FR-015                                           | done        |
 | H-01 | focus-ring-a11y         | widzieć, gdzie jest focus klawiatury na każdym polu i przycisku (kontrast ≥ 3:1, oba motywy)            | MVP (S-01…S-06)  | NFR: baseline a11y (klawiatura / czytnik ekranu) | done        |
 | H-02 | srs-study-session-test  | ufać, że każda oceniona karta faktycznie trafia do harmonogramu — także gdy sesja wygasła w tle         | MVP (S-01…S-06)  | Guardrails: poprawność harmonogramu SRS, US-02   | done        |
+| H-03 | auth-error-copy         | dowiedzieć się po polsku, czemu logowanie nie wyszło, bez odpowiedzi serwera auth w pasku adresu        | MVP (S-01…S-06)  | FR-001, FR-002, NFR: UI po polsku, Guardrails    | not started |
 
 Prefiks **`H-` (hardening)** oznacza pracę PO zamknięciu zakresu MVP: `F-01…F-03` i
 `S-01…S-06` są `done` i ta granica zostaje nienaruszona. Elementy `H-` nie są vertical
@@ -61,6 +62,12 @@ slice'ami — nie mają prerekwizytów, nikogo nie odblokowują i nie wchodzą d
 ani do grafu zależności. Źródłem jest Jira (bug / dług / polish), nie PRD; kotwica w PRD
 jest wtórna. Mają wiersz tutaj i blok w `## Slices` wyłącznie po to, żeby `/10x-archive`
 miał co domknąć — bez tego zamknięty task znika z roadmapy bez śladu w `## Done`.
+
+> **Uwaga do wiersza H-03: jego `not started` jest nieaktualne — kod już wyszedł, pod obcym
+> `Change ID`.** Przeczytaj blok `### H-03` w `## Slices`, zanim cokolwiek z niego weźmiesz do
+> roboty. To jest zarazem ogólniejsza pułapka tej tabeli: `/10x-archive` przestawia Status,
+> dopasowując archiwizowaną zmianę po `Change ID`, więc **praca wykonana pod cudzym change-id
+> zostawia tu wiersz, którego nikt automatycznie nie domknie**.
 
 ## Streams
 
@@ -231,6 +238,19 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **Unknowns:** decyzja zakresu dla F1 — naprawa w middleware (401 JSON dla `/api/*`, dotyka shellu, naprawia trzy endpointy naraz) czy w kliencie (`res.redirected` / parse-before-ok w `rate()`, zostaje w slice'ie), czy oba. Do rozstrzygnięcia w `/10x-plan`, PRZED budową.
 - **Risk:** Ticket przepisany po pełnym audycie — pierwotnie prosił o trzy testy Ryzyka #3, które JUŻ istnieją (dostarczył je S-03, suite 69/69 potwierdzony uruchomieniem). Realne znalezisko jest inne i cięższe: `StudySession.tsx:174` sprawdza tylko `!res.ok`, a middleware odpowiada endpointowi JSON redirectem HTML — `fetch` podąża, `/auth/signin` zwraca 200, więc karta się przewija bez zapisu. Trafia wprost w Outcome S-03 („żadna karta nie ginie"), którego druga połowa nigdy nie miała testu: żadne wywołanie `listDueCards` nie przesuwa zegara w przyszłość. Poza tym `session_size` jest podpięte do limitu batcha, ale każdy test przekazuje literał `20` — setter udowodniony, czytelnik nie. Świadomie poza zakresem (zapisane, nienaprawiane): write-only `scheduled_days` (ta sama klasa co bug `learning_steps`, dziś bezczynna tylko dzięki `enable_short_term: false`), maskarada stanu pustego przy braku sekretu, brak obsługi klawiatury w wyspie. Dowód i pełna lista: `context/changes/srs-study-session-test/research.md`.
 - **Status:** done
+
+### H-03: Copy błędów logowania + ujawnianie stanu generacji anonimowi (post-MVP)
+
+- **Outcome:** (hardening) użytkownik, któremu nie udało się zalogować lub zarejestrować, dowiaduje się po polsku, co poszło nie tak i co z tym zrobić — a to, co odpowiedział serwer uwierzytelniania, nie trafia do jego paska adresu, historii przeglądarki ani do logu dostępowego. Do tego anonimowy odwiedzający przestaje być informowany, czy generacja AI działa naprawdę, czy w trybie mock.
+- **Change ID:** auth-error-copy
+- **PRD refs:** FR-001, FR-002, §NFR (interfejs po polsku), §Guardrails (prywatność — rozszerzająco: chodzi o dane uwierzytelniania, nie o wklejony tekst)
+- **Prerequisites:** — (dwie trasy auth + layout; nic nie odblokowuje)
+- **Parallel with:** — (praca po zamknięciu MVP, poza grafem zależności)
+- **Blockers:** —
+- **Unknowns:** czy walidacja po stronie serwera tras auth (`signin.ts`/`signup.ts` nie sprawdzają dziś niczego przed wywołaniem supabase-js) wchodzi w zakres. **Właścicielem tej decyzji jest C10X-30** (Ryzyko #6, „serwer ufa klientowi"), nawet jeśli ten element jest najtańszym miejscem wykonania, bo i tak przepisuje oba pliki. Nie wciągać bez uzgodnienia.
+- **Risk:** Nie jest to samodzielne odkrycie — wypadło z framingu C10X-28 (Ryzyko #4) jako jedyne miejsce w repo, gdzie prywatne dane naprawdę uciekają: `signin.ts:16` i `signup.ts:16` przekazują `error.message` z GoTrue **dosłownie** do `?error=`. Wartość renderuje się escapowana (`ServerError.tsx:13`), więc to nie XSS — ale ląduje w URL, a copy GoTrue interpoluje podany adres e-mail (`Email address %q is invalid`), zaś auth-js na nierozpoznanym kształcie odpowiedzi robi `JSON.stringify(err)`. Dwie pułapki wykonawcze, obie zapisane: mapper musi kluczować na `error.name`/`code`/`status` i typować parametr **strukturalnie**, bo `@supabase/auth-js` **nie jest zadeklarowaną zależnością** (tranzytywna, a root `@supabase/supabase-js` nie reeksportuje ani `AuthError`, ani type guardów); bramkę bannera trzeba założyć **per wpis, nie per blok**, bo przy nieskonfigurowanym Supabase `locals.user` jest zawsze `null` i ostrzeżenie o zepsutym Supabase ukryłoby samo siebie. Weryfikacja ręczna przypadku „adres już zarejestrowany" jest osiągalna **tylko lokalnie** (`enable_confirmations = false`); na produkcji GoTrue celowo odpowiada 200 bez błędu (anty-enumeracja).
+- **⚠️ ZAKRES TEGO ELEMENTU JEST JUŻ ZAIMPLEMENTOWANY — nie buduj go od nowa (impl-review F3, 2026-07-26).** Cały H-03 — mapper `src/lib/auth-errors.ts` + obie trasy auth (`b0ab625`) oraz bramka bannera per wpis (`34e8837`) — wyszedł na gałęzi **`C10X-28-ai-candidate-generation-test-2`**, jako Faza 1 i Faza 4 §1 zmiany `ai-candidate-generation-test-2`. Wszystkie commity noszą scope `(C10X-28)`, więc **`git log` nie wspomina C10X-34 ani `auth-error-copy`** i ten wiersz jest jedynym miejscem, gdzie ta atrybucja jest widoczna z roadmapy. Ta linia zastępuje wcześniejszą instrukcję „podnieś Fazę 1 i 4 §1 dosłownie", która po zamknięciu tamtej zmiany kazałaby zaimplementować kod już istniejący. Dowód i pułapki wykonawcze (opisane wyżej — one nadal są prawdziwe i warto je przeczytać przed dotknięciem tych plików): `context/changes/ai-candidate-generation-test-2/verification.md` § Faza 1 i § Faza 4, po archiwizacji `context/archive/<data>-ai-candidate-generation-test-2/`.
+- **Status:** not started — **etykieta, nie stan faktyczny.** Kod jest na miejscu; otwarte pozostaje wyłącznie domknięcie **C10X-34** w Jirze. Status zostaje nietknięty, bo flip należy do `/10x-archive` (patrz nota pod `## Done`) — a ten go tu **nie zrobi**, bo dopasowuje po `Change ID`, a ta praca wyszła pod `ai-candidate-generation-test-2`, nie pod `auth-error-copy`. **Zostawione świadomie, decyzja właściciela z 2026-07-26 przy triage'u impl-review (F3): ten wiersz zmieni się wtedy, gdy autor dojdzie do H-03.** To jest odroczenie, nie przeoczenie — nie „naprawiaj" go mimochodem przy innej zmianie.
 
 ## Backlog Handoff
 

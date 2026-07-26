@@ -16,6 +16,7 @@ import {
   updateFlashcard,
 } from "@/lib/flashcards";
 import { generationStateCounts, getGenerationSessionByPublicId } from "@/lib/generations";
+import type { Json } from "@/db/database.types";
 import { listDueCards, rateCard } from "@/lib/study";
 import { accountA, accountB } from "../fixtures/accounts";
 import { callEndpoint } from "../fixtures/endpoint";
@@ -111,16 +112,29 @@ async function seedCard(
 }
 
 /**
- * Inserts a `succeeded` generation session as the account and returns its ids.
+ * Inserts a generation session as the account and returns its ids. Defaults to the
+ * `succeeded` shape; `audit` writes the failure-path columns instead.
  *
  * The alternative — driving /api/generate — would pull the whole generation path (and its
  * mock-card contract) into a data-layer file for the sake of a parent row. RLS-scoped, so
  * the session is genuinely owned by the account, exactly as the endpoint would write it.
+ *
+ * The three private columns are optional but NOT decorative: they are NULL on every row
+ * this helper wrote before C10X-28, and an isolation assertion run against a NULL is
+ * vacuously green whatever RLS does. Any test about who may read them must set them.
+ * `status` rides along because `error_message` on a `succeeded` row is a shape production
+ * never writes — the failure path is what fills these columns (src/lib/generations.ts).
  */
 async function seedGenerationSession(
   as: typeof a,
   sourceText: string,
   counts: { requested: number; generated: number; saved: number },
+  audit: {
+    status?: "succeeded" | "failed";
+    requestPayload?: Json;
+    responsePayload?: Json;
+    errorMessage?: string;
+  } = {},
 ): Promise<{ id: number; publicId: string }> {
   const { data, error } = await clientFor(as.cookieHeader)
     .from("generation_session")
@@ -132,7 +146,10 @@ async function seedGenerationSession(
       requested_count: counts.requested,
       generated_count: counts.generated,
       saved_count: counts.saved,
-      status: "succeeded",
+      status: audit.status ?? "succeeded",
+      request_payload: audit.requestPayload ?? null,
+      response_payload: audit.responsePayload ?? null,
+      error_message: audit.errorMessage ?? null,
     })
     .select("id, public_id")
     .single();
@@ -542,6 +559,131 @@ describe("the acceptance metric is an aggregate over the session's surviving row
     // not a broken lookup.
     const owner = await getGenerationSessionByPublicId(clientFor(a.cookieHeader), session.publicId);
     expect(owner.data?.id).toBe(session.id);
+  });
+});
+
+describe("account B is denied account A's generation-session audit columns", () => {
+  // The four columns this table keeps private are exactly what test-plan Risk #4 names:
+  // `source_text` is the pasted material itself, `request_payload` carries a verbatim copy
+  // of it inside the prompt (src/lib/openrouter.ts), `response_payload` the upstream body,
+  // and `error_message` the upstream failure string.
+  //
+  // The case directly above proves only that B cannot RESOLVE the row through
+  // getGenerationSessionByPublicId, whose projection is `id, public_id, requested_count,
+  // generated_count` — not one private column among them. So until this describe, nothing
+  // in the repo read a private column across accounts, and this table had no cross-account
+  // WRITE test at all.
+  //
+  // Seeded as a `failed` row because that is the shape production writes on the path the
+  // leak would happen (generate.ts's 502/422 branches), and the only status for which
+  // `error_message` is non-null.
+  const AUDIT_COLUMNS = "source_text, request_payload, response_payload, error_message";
+
+  let session: { id: number; publicId: string };
+  let sourceText: string;
+  let upstreamMessage: string;
+
+  beforeAll(async () => {
+    sourceText = `Audit private source ${suffix}`;
+    upstreamMessage = `Audit upstream failure ${suffix}`;
+    session = await seedGenerationSession(
+      a,
+      sourceText,
+      { requested: 3, generated: 0, saved: 0 },
+      {
+        status: "failed",
+        // The prompt embeds the pasted text verbatim, so the private material lands in TWO
+        // columns. Asserting on source_text alone would cover half the surface.
+        requestPayload: { messages: [{ role: "user", content: sourceText }] },
+        responsePayload: { error: { message: upstreamMessage } },
+        errorMessage: upstreamMessage,
+      },
+    );
+  });
+
+  /** The whole row read back as its owner — the only trustworthy view of what landed. */
+  async function auditRowOf(as: typeof a) {
+    const { data, error } = await clientFor(as.cookieHeader)
+      .from("generation_session")
+      .select("*")
+      .eq("public_id", session.publicId)
+      .maybeSingle();
+    expect(error).toBeNull();
+    if (!data) throw new Error(`Generation session ${session.publicId} is not readable by its owner.`);
+    return data;
+  }
+
+  it("returns none of the four private columns to B, while A reads every one of them", async () => {
+    const foreign = await clientFor(b.cookieHeader)
+      .from("generation_session")
+      .select(AUDIT_COLUMNS)
+      .eq("public_id", session.publicId)
+      .maybeSingle();
+    // Absence, not a raised denial — RLS hides the row rather than refusing the read, which
+    // is the below-HTTP form of "404, never 403" (§6.4).
+    expect(foreign.error).toBeNull();
+    expect(foreign.data).toBeNull();
+
+    // Positive control, and the reason the seed helper had to be widened first: every column
+    // the denial covers carries a non-null, per-run value. Against the NULLs this helper
+    // wrote before, the denial would pass with the policy dropped.
+    const owner = await auditRowOf(a);
+    expect(owner.source_text).toBe(sourceText);
+    expect(owner.request_payload).toEqual({ messages: [{ role: "user", content: sourceText }] });
+    expect(owner.response_payload).toEqual({ error: { message: upstreamMessage } });
+    expect(owner.error_message).toBe(upstreamMessage);
+  });
+
+  it("refuses B's overwrite of the audit columns and leaves A's row byte-identical", async () => {
+    const before = await auditRowOf(a);
+
+    const { data, error } = await clientFor(b.cookieHeader)
+      .from("generation_session")
+      .update({
+        source_text: `Overwritten by B ${suffix}`,
+        request_payload: { messages: [] },
+        response_payload: null,
+        error_message: `Overwritten by B ${suffix}`,
+      })
+      .eq("public_id", session.publicId)
+      .select();
+
+    // A cross-tenant UPDATE under RLS is a silent 0-row no-op, never an error, so the
+    // RETURNING set is the only thing separating a refused write from a landed one
+    // (lessons: "Add RETURNING to RLS write-isolation tests"). An error-only assertion
+    // reads identically whether or not B's values landed.
+    expect(error).toBeNull();
+    expect(data).toEqual([]);
+    expect(await auditRowOf(a)).toEqual(before);
+  });
+
+  it("refuses B's delete of A's session and leaves the row in place", async () => {
+    const before = await auditRowOf(a);
+
+    const { data, error } = await clientFor(b.cookieHeader)
+      .from("generation_session")
+      .delete()
+      .eq("public_id", session.publicId)
+      .select();
+
+    expect(error).toBeNull();
+    expect(data).toEqual([]);
+    expect(await auditRowOf(a)).toEqual(before);
+  });
+
+  it("still lets A rewrite A's own audit columns", async () => {
+    // Positive control for both denials above. Without it, a wholesale-broken write path —
+    // a policy that denies everyone, a grant nobody holds — satisfies them both.
+    const repaired = `Audit repaired ${suffix}`;
+    const { data, error } = await clientFor(a.cookieHeader)
+      .from("generation_session")
+      .update({ error_message: repaired })
+      .eq("public_id", session.publicId)
+      .select("public_id, error_message");
+
+    expect(error).toBeNull();
+    expect(data).toEqual([{ public_id: session.publicId, error_message: repaired }]);
+    expect((await auditRowOf(a)).error_message).toBe(repaired);
   });
 });
 

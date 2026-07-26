@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase";
 import { createDeck, deckNameExists, deleteDeck } from "@/lib/decks";
 import { deckIdByPublicId } from "@/lib/flashcards";
 import { generateCandidates, resolveModel, OpenRouterError } from "@/lib/openrouter";
+import { SOURCE_MAX, COUNT_MIN, COUNT_MAX, LANGUAGES } from "@/lib/generation-limits";
 import {
   createGenerationSession,
   failGenerationSession,
@@ -19,15 +20,12 @@ import {
 // (candidates + counts) plus retriable error codes to drive the "Ponów" button
 // (FR-018). All copy stays Polish; validation is Zod (mirrors the LLM layer).
 
-const SOURCE_MAX = 10_000;
-const COUNT_MIN = 1;
-const COUNT_MAX = 15;
-
-// Allowed target languages — kept in sync with the island's LANGUAGES options
-// (src/components/generate/GeneratorForm.tsx). Whitelisted here so a hand-crafted body
-// can't inject arbitrary text into the LLM system prompt (impl-review F3). `auto` =
-// "same language as the source text".
-const LANGUAGES = ["auto", "polski", "angielski", "hiszpański", "niemiecki", "francuski"] as const;
+// SOURCE_MAX / COUNT_MIN / COUNT_MAX / LANGUAGES now come from @/lib/generation-limits,
+// which the island imports too — they used to be declared here AND at
+// GeneratorForm.tsx:12-30, i.e. one business rule with two definitions, which is the
+// drift test-plan §2 Risk #6 is about. The whitelist still does the job it was added for
+// (impl-review F3): a hand-crafted body cannot inject arbitrary text into the LLM system
+// prompt.
 
 // Server-side OpenRouter timeout. MUST be clearly shorter than the client's fetch
 // timeout (~55s) so the server almost always answers first — otherwise the client aborts
