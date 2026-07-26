@@ -28,8 +28,17 @@ also close Risk #6.
 > | 3 | **C10X-30** `server-side-validation-test` (**already existed** — the Risk #6 ticket) | Single-sourcing the four generation constants, server-side bounds tests. Covers only C10X-30's source-text half; its card-content half stays open |
 >
 > The phase texts stay in `plan.md` verbatim so each new ticket's `/10x-plan` can lift its
-> phase **with the traps intact** — that is the part a rewrite would lose. **Do not implement
-> Phases 1, 3 or Phase 4 §1 from this folder.**
+> phase **with the traps intact** — that is the part a rewrite would lose.
+>
+> **REVISED, and this supersedes what stood here (user's direction, 2026-07-26; the stale
+> sentence was caught by impl-review F4).** This paragraph used to end "Do not implement
+> Phases 1, 3 or Phase 4 §1 from this folder." **That no longer holds — and did not hold when
+> the work was done.** The split above is *bookkeeping*: three tickets own three parts of this
+> plan, and nothing more. **All six phases were executed here, on
+> `C10X-28-ai-candidate-generation-test-2`**, every commit scoped `(C10X-28)` because the
+> branch is C10X-28's and a foreign key in a subject line reads as drift. So the scope key
+> does not carry the attribution — this brief, `plan.md`'s `## Progress` table, and Jira are
+> the only places it lives. See `change.md`'s "OPEN AFTER THIS CHANGE".
 >
 > **Consequence, and it is the price of the split:** §3 Phase 2 covers risks #2, #4 **and #6**,
 > so it does **not** flip to `complete` here. This ticket closes #4 and leaves Phase 2
@@ -127,7 +136,9 @@ ticket, **#6** = Risk #6 bounds-parity ticket.
 `main` (F4). Local Supabase stack up (`npm run db:start`), `OPENROUTER_API_KEY` unset
 (preflight aborts otherwise). Frame brief read.
 **Estimated effort:** ~2–3 sessions for C10X-28's four phases; the two sibling tickets carry
-the rest.
+the rest. *(Historical — the estimate as written before execution. In the event all six
+phases were done here, in this change; the "Ticket" column above is attribution, not a
+division of labour. See the revision note at the top.)*
 
 ## Open Risks & Assumptions
 
