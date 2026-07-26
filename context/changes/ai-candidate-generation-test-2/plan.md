@@ -255,9 +255,10 @@ deliberate-breakage runs in `verification.md`.
 > **Revised 2026-07-26 (user's direction): the split is bookkeeping, not an execution boundary.**
 > This paragraph used to end "Do not implement Phases 1, 3 or 4 from this plan folder" — that no
 > longer holds. **All six phases are executed here, on this branch**; the tickets above own the
-> *attribution*, which shows up as the commit scope key (`(C10X-34)` for Phase 1 and Phase 4 §1,
-> `(C10X-30)` for Phase 3, `(C10X-28)` for the rest). See the scope table at the top of
-> `## Progress`.
+> *attribution* only. It used to show up as the commit scope key too — that was **revoked later
+> the same day**: every commit on this branch carries `(C10X-28)`, because the branch is
+> C10X-28's and a foreign key in the subject line reads as drift. See the scope note at the top
+> of `## Progress` for what that costs and where attribution lives instead.
 >
 > Two things follow. **Phase 6 must re-evaluate the §3 Phase 2 status** rather than inherit the
 > "stays `implementing`" note below: that note assumed Risk #6 was leaving with C10X-30, and it
@@ -323,7 +324,8 @@ the alternative seam could not deliver.
 ## Phase 1: Auth error copy — stop the verbatim relay
 
 > **Attributed to `C10X-34` (`auth-error-copy`, roadmap H-03) by the scope split (F3), together
-> with Phase 4 §1 — but implemented HERE.** Commits for this phase carry the `(C10X-34)` scope.
+> with Phase 4 §1 — but implemented HERE.** Its commit carries `(C10X-28)` like every other on
+> this branch; see the scope note at the top of `## Progress`.
 
 ### Overview
 
@@ -508,7 +510,7 @@ control that separates "policy denied B" from "the write path is broken for ever
 ## Phase 3: Server-side bounds parity (Risk #6) + single-source `SOURCE_MAX`
 
 > **Attributed to `C10X-30` (`server-side-validation-test`), the pre-existing Risk #6 ticket —
-> but implemented HERE.** Commits carry the `(C10X-30)` scope. It covers only that ticket's
+> but implemented HERE.** Commits carry `(C10X-28)`, as everywhere on this branch. It covers only that ticket's
 > source-text half, not its card-content half, so C10X-30 does **not** close on this alone.
 > Read the traps below before writing anything — in
 > particular the 414 trap and the pre-trim/post-trim asymmetry below, which are the two things a
@@ -626,8 +628,8 @@ quietly change that.
 > **Split by ATTRIBUTION only (F3) — both sections are implemented here.** The **banner gate**
 > (§1) is attributed to `C10X-34` with Phase 1, being a user-facing disclosure change rather
 > than a leak test; the **`console.*` guard** (§2) is C10X-28's, as the log-line half of Risk #4
-> that Phase 6's §6.6 entry has to describe. Practically: §1's commit carries `(C10X-34)`, §2's
-> carries `(C10X-28)`. Steps 4.3–4.5 verify §1, step 4.6 verifies §2.
+> that Phase 6's §6.6 entry has to describe. Steps 4.3–4.5 verify §1, step 4.6 verifies §2.
+> Both commits carry `(C10X-28)` — the scope key stopped encoding attribution (see `## Progress`).
 
 ### Overview
 
@@ -1003,16 +1005,27 @@ verified `pg_policies` diff to prove the restore, and are never committed.
 > as a *bookkeeping* fact — three tickets own three parts of this plan — but **not** as an
 > execution boundary: nothing here is skipped. Every step below gets done.
 >
-> What the split still buys is the **commit scope**, so the history says who owns what:
+> **Every commit on this branch carries `(C10X-28)` — user's direction, 2026-07-26, later the
+> same day.** The reason is the branch itself: it is `C10X-28-ai-candidate-generation-test-2`,
+> so a foreign key in a subject line reads as drift rather than as attribution. This supersedes
+> the per-phase scope table that stood here, which had already been applied once — Phase 1's
+> commit was rewritten in place (`340a2eb` → `b0ab625`, unpushed, message only).
 >
-> | Steps | Commit scope | Owning ticket |
-> | --- | --- | --- |
-> | 1.1 – 1.7 | `(C10X-34)` | auth error copy — roadmap H-03 |
-> | 2.1 – 2.6 | `(C10X-28)` | audit-column isolation |
-> | 3.1 – 3.5 | `(C10X-30)` | Risk #6 bounds parity |
-> | 4.3 – 4.5 (banner gate) | `(C10X-34)` | ambient disclosure |
-> | 4.1, 4.2, 4.6 (`console.*` guard) | `(C10X-28)` | log-line half of Risk #4 |
-> | 5.1 – 5.8, 6.1 – 6.5 | `(C10X-28)` | module double, doc-sync |
+> Attribution is not lost; it moves off the subject line into the two places that already
+> carried it — the phase headers below, and Jira:
+>
+> | Steps | Attributed to (NOT the commit scope) |
+> | --- | --- |
+> | 1.1 – 1.7 | C10X-34 — auth error copy, roadmap H-03 |
+> | 2.1 – 2.6 | C10X-28 — audit-column isolation |
+> | 3.1 – 3.5 | C10X-30 — Risk #6 bounds parity |
+> | 4.3 – 4.5 (banner gate) | C10X-34 — ambient disclosure |
+> | 4.1, 4.2, 4.6 (`console.*` guard) | C10X-28 — log-line half of Risk #4 |
+> | 5.1 – 5.8, 6.1 – 6.5 | C10X-28 — module double, doc-sync |
+>
+> One consequence sharpens rather than softens: with the scope key no longer encoding it,
+> **this plan and Jira are the only trace of C10X-34's and C10X-30's work**, so the
+> "close or annotate after merge" item below stops being hygiene and becomes the sole link.
 >
 > **One consequence is a gain and Phase 6 must act on it.** F3 said §3 Phase 2 could not flip to
 > `complete`, because it covers risks #2, #4 **and #6** and #6 was leaving with C10X-30. Doing
@@ -1021,45 +1034,46 @@ verified `pg_policies` diff to prove the restore, and are never committed.
 > note written under the split assumption. The card-content half of C10X-30 (S-02's endpoints)
 > is still deliberately out of scope, so the answer is not automatic.
 >
-> **Two consequences to settle at the end, not now:** C10X-34 and C10X-30 will have had their
-> work done outside themselves, so they need closing or annotating after merge; and this branch
-> will carry commits under three scope keys, which is intended, not drift.
+> **One consequence to settle at the end, not now:** C10X-34 and C10X-30 will have had their
+> work done outside themselves, so they need closing or annotating after merge. (This paragraph
+> used to name a second one — "the branch will carry commits under three scope keys, which is
+> intended, not drift". That is void: the scope note above settled on one key, `(C10X-28)`.)
 
 ### Phase 1: Auth error copy — stop the verbatim relay
 
-> Owned by C10X-34 (roadmap H-03) — **executed here**, commits scoped `(C10X-34)`.
+> Attributed to C10X-34 (roadmap H-03) — **executed here**, commit scoped `(C10X-28)`.
 
 #### Automated
 
-- [x] 1.1 Lint passes: `npm run lint`
-- [x] 1.2 Full suite passes: `npm test`
-- [x] 1.3 New file passes alone: `npx vitest run tests/auth/errors.test.ts`
-- [x] 1.4 Stryker narrowed to the mapper leaves no class-changing survivor
+- [x] 1.1 Lint passes: `npm run lint` — b0ab625
+- [x] 1.2 Full suite passes: `npm test` — b0ab625
+- [x] 1.3 New file passes alone: `npx vitest run tests/auth/errors.test.ts` — b0ab625
+- [x] 1.4 Stryker narrowed to the mapper leaves no class-changing survivor — b0ab625
 
 #### Manual
 
-- [x] 1.5 Wrong password shows actionable Polish copy; `?error=` is a known constant
-- [x] 1.6 Already-registered address shows its own distinct message
-- [x] 1.7 Deliberate-breakage check recorded: one mapping broken, exactly that class red
+- [x] 1.5 Wrong password shows actionable Polish copy; `?error=` is a known constant — b0ab625
+- [x] 1.6 Already-registered address shows its own distinct message — b0ab625
+- [x] 1.7 Deliberate-breakage check recorded: one mapping broken, exactly that class red — b0ab625
 
 ### Phase 2: Cross-account isolation of the audit columns
 
 #### Automated
 
-- [ ] 2.1 Full suite passes: `npm test`
-- [ ] 2.2 File passes alone: `npx vitest run tests/review/candidates.test.ts`
+- [x] 2.1 Full suite passes: `npm test`
+- [x] 2.2 File passes alone: `npx vitest run tests/review/candidates.test.ts`
 
 #### Manual
 
-- [ ] 2.3 Deliberate-breakage check recorded: `generation_session_select` neutered, reads red
-- [ ] 2.4 Deliberate-breakage check recorded: `generation_session_update` neutered, write red
-- [ ] 2.5 Restore verified by `pg_policies` before/after diff, diff empty
-- [ ] 2.6 Full suite green after restore
+- [x] 2.3 Deliberate-breakage check recorded: `generation_session_select` neutered, reads red
+- [x] 2.4 Deliberate-breakage check recorded: `generation_session_update` neutered, write red
+- [x] 2.5 Restore verified by `pg_policies` before/after diff, diff empty
+- [x] 2.6 Full suite green after restore
 
 ### Phase 3: Server-side bounds parity (Risk #6) + single-source `SOURCE_MAX`
 
-> Owned by C10X-30 (`server-side-validation-test`) — **executed here**, commits scoped
-> `(C10X-30)`.
+> Attributed to C10X-30 (`server-side-validation-test`) — **executed here**, commits scoped
+> `(C10X-28)`.
 
 #### Automated
 

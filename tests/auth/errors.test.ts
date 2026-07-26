@@ -149,7 +149,6 @@ describe("authErrorMessage — the invariant", () => {
     }
   });
 
-
   // The whole point of the module. Every branch of the chain is exercised with a sentinel in
   // the place upstream prose occupies; none of them may echo it.
   it("never lets an input substring reach the output", () => {

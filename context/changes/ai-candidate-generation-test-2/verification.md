@@ -110,3 +110,114 @@ the mapper can change — do not treat its absence in production as a regression
 Left behind on the local dev DB, deliberately: the one `dup-probe-c10x34@example.com` row
 (`auth.users`, verified exactly 1 row). Harmless, and re-running 1.6 needs an already-registered
 address anyway.
+
+## Phase 2 — cross-account isolation of the audit columns (C10X-28)
+
+### Automated
+
+| Check | Command | Result |
+| --- | --- | --- |
+| 2.2 File alone | `npx vitest run tests/review/candidates.test.ts` | **20 passed / 20** (was 16; this phase adds 4) |
+| 2.1 Full suite | `npm test` | **152 passed / 152, 12 files** (was 148/12 after Phase 1) |
+
+The seed helper `seedGenerationSession` gained an optional `audit` argument
+(`status`, `requestPayload`, `responsePayload`, `errorMessage`); all four pre-existing call
+sites (`:402`, `:407`, `:490`, `:529` in the pre-edit file) pass three arguments and are
+unchanged. `status` was added beyond the plan's three columns on purpose: `error_message` on a
+`succeeded` row is a shape production never writes, and the failure path is what fills these
+columns.
+
+### The breakage checks did not split the way the plan assumed — read this before re-running
+
+The plan writes 2.3 and 2.4 as two independent single-policy neuters. **2.4 as written does not
+reproduce.** Neutering `generation_session_update` alone leaves the suite fully green
+(**20/20**), because Postgres applies the **SELECT** policy to an UPDATE whose `WHERE` reads a
+column — and B's update is addressed `.eq("public_id", …)`. The restrictive select policy hides
+the row, so the UPDATE matches nothing and the denial passes for a reason that has nothing to do
+with the update policy.
+
+This is exactly the trap `test-plan.md` §6.8 records for S-05 (`deck_select` + `flashcard_update`
+were not enough; `flashcard_select` had to go too), one table over. The checks below therefore
+neuter **select + the write policy together**, which is what makes the write half observable.
+Recorded rather than smoothed over: as written, the write denials are *backstopped* by the read
+policy, and only the pairwise neuter shows they also observe their own.
+
+### 2.3 — `generation_session_select` neutered
+
+**Edit**: `alter policy generation_session_select on generation_session using (true);`
+
+**Observed**: **exactly 2 of 20 red**, and the first one is the leak itself — B read A's pasted
+source text out of two columns at once:
+
+```
+FAIL … > account B is denied account A's generation-session audit columns
+       > returns none of the four private columns to B, while A reads every one of them
+AssertionError: expected { …(4) } to be null
++ {
++   "error_message": "Audit upstream failure ms22qm9y",
++   "request_payload": { "messages": [ { "content": "Audit private source ms22qm9y", … } ] },
++   "response_payload": { "error": { "message": "Audit upstream failure ms22qm9y" } },
++   "source_text": "Audit private source ms22qm9y",
++ }
+```
+
+The second red is the pre-existing `returns no session for another account's public_id` — a
+genuine knock-on, same policy. The write and delete denials **stayed green**, which is the split
+that proves the read assertion observes the read policy and nothing else.
+
+### 2.4 — `generation_session_update` neutered (with `_select` also open)
+
+**Edit**: `alter policy generation_session_update … using (true) with check (true);` plus the
+2.3 neuter still in place.
+
+**Observed**: **3 of 20 red** — the two above, plus B genuinely rewriting A's audit row:
+
+```
+FAIL … > refuses B's overwrite of the audit columns and leaves A's row byte-identical
+AssertionError: expected [ { id: 100536, …(14) } ] to deeply equal []
++ [ { "source_text": "Overwritten by B ms22r46j",
++     "error_message": "Overwritten by B ms22r46j",
++     "request_payload": { "messages": [] }, "response_payload": null, … } ]
+```
+
+The `RETURNING` set is what caught it (`.select()` after `.update()`, per `lessons.md`). The
+delete denial stayed green — separate policy, untouched.
+
+### 2.4b — `generation_session_delete` neutered (with `_select` also open)
+
+Not in the plan's row list; run because the delete denial is an assertion this phase adds and an
+unobserved assertion is not evidence. Update restored first.
+
+**Observed**: **4 of 20 red** — the two read knock-ons, the delete denial itself, and the
+positive control as a second-order knock-on (B had deleted the row, so A's own update then
+matched nothing):
+
+```
+FAIL … > refuses B's delete of A's session and leaves the row in place
+FAIL … > still lets A rewrite A's own audit columns
+AssertionError: expected [] to deeply equal [ { …(2) } ]
+```
+
+The write denial stayed green throughout, so the two write assertions are not each other's
+knock-on.
+
+### 2.5 — restore verified, not assumed
+
+`policyname, cmd, qual, with_check` dumped from `pg_policies` **before** the first neuter and
+again after the last restore; `Compare-Object` over the two dumps → **DIFF EMPTY**. Final state:
+
+```
+generation_session_delete|DELETE|(user_id = ( SELECT auth.uid() AS uid))|
+generation_session_insert|INSERT||(user_id = ( SELECT auth.uid() AS uid))
+generation_session_select|SELECT|(user_id = ( SELECT auth.uid() AS uid))|
+generation_session_update|UPDATE|(user_id = ( SELECT auth.uid() AS uid))|(user_id = ( SELECT auth.uid() AS uid))
+```
+
+Every `psql` invocation used `-c` rather than a piped heredoc, so S-05's
+`docker exec`-without-`-i` silent no-op cannot occur here.
+
+### 2.6 — after the restore
+
+`npm test` → **152 passed / 152, 12 files**. `git status --porcelain` shows only
+`context/changes/ai-candidate-generation-test-2/plan.md` and `tests/review/candidates.test.ts`
+— no production file was touched by this phase at all, and no breakage edit was committed.
