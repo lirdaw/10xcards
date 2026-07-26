@@ -7,6 +7,37 @@ updated: 2026-07-26
 archived_at: null
 ---
 
+## OPEN AFTER THIS CHANGE — read this first
+
+> Four items outlive `status: implemented`. They are listed here, at the top, because each
+> one is invisible from the code and from `git log`: the work landed under a **different
+> ticket's** branch, so the usual traces point at the wrong place. Whoever picks this up
+> next — ship, archive, or a fresh session — owns them.
+
+1. **C10X-34 (`auth-error-copy`) needs closing in Jira.** Its whole scope — Phase 1's
+   `src/lib/auth-errors.ts` mapper + the two auth routes, and Phase 4 §1's banner gate — was
+   implemented **here**, on branch `C10X-28-ai-candidate-generation-test-2`, in commits
+   `b0ab625` and `34e8837`. Both carry the `(C10X-28)` scope key, so nothing in `git log`
+   mentions C10X-34. Close it with a comment pointing at this change-id and at both the
+   current path (`context/changes/ai-candidate-generation-test-2/`) and the future archive
+   path (`context/archive/<date>-ai-candidate-generation-test-2/`).
+2. **C10X-30 (`server-side-validation-test`) may be annotated but NOT closed.** Phase 3
+   (`b520b90`) covered only its **source-text** half — the single-sourced
+   `src/lib/generation-limits.ts` plus six refusal cases on `/api/generate`. Its
+   **card-content** half (a crafted request breaching `FRONT_MAX`/`BACK_MAX` on
+   `POST/PATCH /api/decks/[publicId]/cards*`, asserting a 4xx **and** no write) was
+   deliberately excluded and is untouched. Closing C10X-30 on Phase 3 alone would record a
+   half-covered risk as covered.
+3. **`test-plan.md` §3 Phase 2 stays `implementing`, and item 2 is the only thing between it
+   and `complete`.** The row already names that test. Whoever lands it flips the status and
+   dates the claim — do not flip it for any other reason.
+4. **A defect class this change proved is live, twice: recorded line ranges and counts rot
+   within hours.** The S-05 Stryker range had been mutating the wrong part of a file since a
+   commit made two hours after the run; twelve `context/changes/…` evidence links were dead;
+   two suite figures said "now" about a state two changes old. If you touch `test-plan.md`,
+   re-derive its numbers by reading the code — never trust a figure in it, including the ones
+   this change wrote.
+
 ## Notes
 
 Prove Risk #4 from test-plan.md §2: neither the error response body nor any log line leaks the pasted source text or the LLM API key. Scope: integration tests on the /api/generate failure path (FR-018), i.e. test-plan §3 Phase 2 "Endpoint contract", alongside risks #2 and #6. Acceptance: assertions are on payload and log CONTENT, never on the status code — the assumption to challenge is "a 500 is harmless"; cover both what is returned to the client and what is written to logs. Prereq: /10x-research pins the oracle and the cheapest layer before any test is written. (source: C10X-28)

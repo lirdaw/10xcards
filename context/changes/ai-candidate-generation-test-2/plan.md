@@ -998,6 +998,15 @@ verified `pg_policies` diff to prove the restore, and are never committed.
 
 ## Progress
 
+> **ALL SIX PHASES ARE DONE (2026-07-26) — but four things are deliberately left open, and
+> they are NOT in this section.** Every box below is `[x]`, so a reader who stops here will
+> conclude the change is finished in every sense. It is not: C10X-34 still needs closing in
+> Jira, C10X-30 must **not** be closed on this alone, `test-plan.md` §3 Phase 2 stays
+> `implementing` until Risk #6's card-content half lands, and every line number this file
+> gives is historical. They are written out, with the reason each is invisible from `git
+> log`, at the **top of `change.md`** under "OPEN AFTER THIS CHANGE". Read that before
+> archiving, shipping, or picking this up in a new session.
+>
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands.
 > Do not rename step titles. See `references/progress-format.md`.
 >
