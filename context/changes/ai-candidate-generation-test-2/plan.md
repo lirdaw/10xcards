@@ -1127,11 +1127,11 @@ verified `pg_policies` diff to prove the restore, and are never committed.
 
 #### Automated
 
-- [x] 6.1 Full suite passes: `npm test`
-- [x] 6.2 Lint + build pass: `npm run lint`, `npm run build`
+- [x] 6.1 Full suite passes: `npm test` — 74dc597
+- [x] 6.2 Lint + build pass: `npm run lint`, `npm run build` — 74dc597
 
 #### Manual
 
-- [x] 6.3 Every claim in the new §6.6 entry traces to a named test or an explicit gap
-- [x] 6.4 No statement in `test-plan.md` contradicts the measured suite state
-- [x] 6.5 §6.6 alone tells a cold reader which half of Risk #4 is pinned, which documented
+- [x] 6.3 Every claim in the new §6.6 entry traces to a named test or an explicit gap — 74dc597
+- [x] 6.4 No statement in `test-plan.md` contradicts the measured suite state — 74dc597
+- [x] 6.5 §6.6 alone tells a cold reader which half of Risk #4 is pinned, which documented — 74dc597
