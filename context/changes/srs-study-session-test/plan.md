@@ -784,18 +784,18 @@ return type. Phase 0's cloud check concerns an **existing** migration
 
 #### Automated
 
-- [ ] 1.1 `npx astro sync` completes
-- [ ] 1.2 `npm run lint` passes
-- [ ] 1.3 `npm run build` passes
-- [ ] 1.4 `npm test` passes, including the two new files
-- [ ] 1.5 `tests/lib/http.test.ts` goes red when the `ok` check is moved before the parse (observed, then reverted)
+- [x] 1.1 `npx astro sync` completes
+- [x] 1.2 `npm run lint` passes
+- [x] 1.3 `npm run build` passes
+- [x] 1.4 `npm test` passes, including the two new files
+- [x] 1.5 `tests/lib/http.test.ts` goes red when the `ok` check is moved before the parse (observed, then reverted)
 
 #### Manual
 
-- [ ] 1.6 Signing out in a second tab then rating shows an error and does not advance the card
-- [ ] 1.7 A normal session still rates and advances unchanged
-- [ ] 1.8 Generation and the review screen show their own error copy on an expired session
-- [ ] 1.9 A deck/card form submitted on an expired session still lands on `/auth/signin`, not on raw JSON
+- [x] 1.6 Signing out in a second tab then rating shows an error and does not advance the card
+- [x] 1.7 A normal session still rates and advances unchanged
+- [x] 1.8 Generation and the review screen show their own error copy on an expired session
+- [x] 1.9 A deck/card form submitted on an expired session still lands on `/auth/signin`, not on raw JSON
 
 ### Phase 2: Close the four named coverage gaps
 

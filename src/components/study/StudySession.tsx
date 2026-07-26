@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ServerError } from "@/components/auth/ServerError";
 import { cn } from "@/lib/utils";
+import { readJsonResponse } from "@/lib/http";
 import type { DueCardView } from "@/lib/study";
 
 // The study session island: reveal the back, rate recall, advance. It holds NO
@@ -13,6 +14,12 @@ import type { DueCardView } from "@/lib/study";
 // only sends the grade and moves on. Mirrors the fetch-JSON state machine of
 // GeneratorForm.tsx; there is no timeout apparatus because /api/study is DB-only.
 type Status = "idle" | "pending" | "error";
+
+// The success shape of POST /api/study { action: "rate" } (src/pages/api/study.ts:113).
+interface RateResponse {
+  ok: boolean;
+  alreadyApplied: boolean;
+}
 
 // Mirrors the endpoint's Zod bound (SIZE_MAX in src/pages/api/study.ts).
 const SIZE_MIN = 1;
@@ -171,14 +178,16 @@ export default function StudySession({ deckPublicId, cards, sessionSize }: Props
           expectedReps: card.reps,
         }),
       });
-      if (!res.ok) {
-        const data = (await res.json()) as { error?: string };
-        setError(data.error ?? "Nie udało się zapisać oceny. Spróbuj ponownie.");
+      const result = await readJsonResponse<RateResponse>(res, "Nie udało się zapisać oceny. Spróbuj ponownie.");
+      if (!result.ok) {
+        setError(result.message);
         setStatus("error");
         return;
       }
-      // Advance only on a 200 — a client-side guard layered over the server's
-      // idempotency, never a substitute for it.
+      // Advance only on a genuine JSON success — a client-side guard layered over the
+      // server's idempotency, never a substitute for it. This used to branch on `!res.ok`
+      // alone, which read a signed-out redirect (followed by fetch to a 200 HTML page) as a
+      // successful rating: the card advanced and the counter climbed with no write at all.
       setReviewed((n) => n + 1);
       setRevealed(false);
       setIndex((i) => i + 1);
