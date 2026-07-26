@@ -1,10 +1,10 @@
 ---
 change_id: ai-candidate-generation-test-2
 title: No source-text or API-key leak on the generation failure path
-status: impl_reviewed
+status: archived
 created: 2026-07-26
 updated: 2026-07-26
-archived_at: null
+archived_at: 2026-07-26T20:47:00Z
 ---
 
 ## OPEN AFTER THIS CHANGE — read this first
