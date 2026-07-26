@@ -125,10 +125,18 @@ function messageByStatus(status: number | undefined): string | null {
 export function authErrorMessage(error: AuthErrorLike | null | undefined): string {
   if (!error) return AUTH_GENERIC_MESSAGE;
 
-  const byCode = error.code === undefined ? undefined : MESSAGE_BY_CODE[error.code];
+  // `Object.hasOwn`, never a bare lookup. Both maps are plain object literals, so
+  // `MESSAGE_BY_CODE["constructor"]` walks the prototype chain and yields a native
+  // function — truthy, returned as if it were copy, and NOT a member of the closed set
+  // this module promises. `code` is read off the GoTrue response body (see the header),
+  // i.e. it is upstream-controlled, which is exactly the input class this module exists to
+  // keep out of a URL. Same for `name`. Found by impl-review F1.
+  const byCode =
+    error.code !== undefined && Object.hasOwn(MESSAGE_BY_CODE, error.code) ? MESSAGE_BY_CODE[error.code] : undefined;
   if (byCode) return byCode;
 
-  const byName = error.name === undefined ? undefined : MESSAGE_BY_NAME[error.name];
+  const byName =
+    error.name !== undefined && Object.hasOwn(MESSAGE_BY_NAME, error.name) ? MESSAGE_BY_NAME[error.name] : undefined;
   if (byName) return byName;
 
   return messageByStatus(error.status) ?? AUTH_GENERIC_MESSAGE;

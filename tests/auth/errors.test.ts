@@ -170,6 +170,16 @@ describe("authErrorMessage — the invariant", () => {
       withSentinelMessage({ name: "AuthRetryableFetchError", status: 503 }),
       withSentinelMessage({ name: "AuthInvalidCredentialsError", status: 400 }),
       withSentinelMessage({ code: `unknown_${SENTINEL}`, name: `Name_${SENTINEL}`, status: 418 }),
+      // Prototype keys, and they are not a curiosity: the maps are plain object literals,
+      // so a bare `MESSAGE_BY_CODE[code]` returned `function Object() { [native code] }`
+      // for `code: "constructor"` — truthy, so it was returned as copy and reached
+      // `encodeURIComponent` in the address bar. `code` comes from the GoTrue response
+      // body, so it is upstream-controlled. The closed-set assertion below is what fails
+      // on the regression; `not.toContain(SENTINEL)` alone would not (impl-review F1).
+      withSentinelMessage({ code: "constructor", status: 400 }),
+      withSentinelMessage({ code: "toString", status: 400 }),
+      withSentinelMessage({ name: "valueOf", status: 400 }),
+      withSentinelMessage({ name: "hasOwnProperty", status: 400 }),
       // The `JSON.stringify(err)` fallback shape — the worst case, an entire GoTrue body.
       { message: JSON.stringify({ email: `${SENTINEL}@example.com`, hint: SENTINEL }), status: 400 },
     ];

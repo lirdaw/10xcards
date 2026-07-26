@@ -7,7 +7,12 @@ import { FRONT_MAX, BACK_MAX } from "@/lib/flashcards";
 // the null-check convention of src/lib/supabase.ts: no API key => mock mode so dev
 // works offline. Error mapping to Polish copy stays in the endpoint (Phase 3).
 
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+// Exported for tests/generation/failure-path.test.ts, whose pass-through `fetch` double
+// must recognise this exact URL to intercept it. That file used to carry its own copy of
+// the literal — and its predicate delegates anything it does not recognise to the REAL
+// network, so a drift between the two would have turned a sealed test into a live request
+// to openrouter.ai carrying the test's source text (impl-review F2).
+export const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 // Default model MUST support structured outputs (response_format json_schema).
 // Overridable via OPENROUTER_MODEL for tuning without a code change.

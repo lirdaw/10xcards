@@ -1,8 +1,13 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { SUPABASE_URL } from "astro:env/server";
 import * as Generate from "@/pages/api/generate";
 import { FRONT_MAX } from "@/lib/flashcards";
+// The URL is IMPORTED from production, never re-declared: see the fetch double below, whose
+// predicate is fail-closed and would otherwise be keyed on a copy that can drift.
+import { OPENROUTER_URL } from "@/lib/openrouter";
 import { accountA } from "../fixtures/accounts";
 import { callEndpoint } from "../fixtures/endpoint";
+import { createScoping } from "../fixtures/scoping";
 import { clientFor } from "../fixtures/session";
 
 // test-plan §2 Risk #4 — "private source text or the LLM API key escapes into a log line
@@ -56,24 +61,13 @@ vi.mock("astro:env/server", async (importOriginal) => {
   return { ...actual, OPENROUTER_API_KEY: SENTINEL_KEY };
 });
 
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-
 const a = accountA();
 const suffix = Date.now().toString(36);
 const COUNT = 3;
 
-// Same prefix-scoping rule as tests/generation/generate.test.ts, for the same reason:
-// PostgREST carries filters in the query string and Kong caps the request line at ~8 KB,
-// so a filter on the whole source_text answers `414 URI too long`. Scope by the marker.
-function mark(caseName: string): string {
-  return `[${suffix}:${caseName}]`;
-}
-
-function scope(sourceText: string): string {
-  const end = sourceText.indexOf("]");
-  if (end < 0) throw new Error(`Setup failed: "${sourceText.slice(0, 40)}…" carries no marker.`);
-  return `${sourceText.slice(0, end + 1)}%`;
-}
+// Same prefix-scoping rule as tests/generation/generate.test.ts, and now literally the same
+// code: shared via tests/fixtures/scoping.ts, which carries the 414 rationale (impl-review F7).
+const { mark, scope } = createScoping(suffix);
 
 // Every private value carries a per-run sentinel token rather than being matched whole:
 // `not.toContain(<the entire source text>)` would pass on a partial leak, which is the
@@ -99,11 +93,30 @@ let captured: { authorization: string | null; body: string } | null = null;
 
 const fetchDouble: typeof globalThis.fetch = (input, init) => {
   const url = input instanceof Request ? input.url : String(input);
-  // Everything that is not OpenRouter is DELEGATED, not answered. Inside one callEndpoint
-  // the endpoint makes six Supabase calls over globalThis.fetch and the assertions read
-  // the audit row back the same way; a replacement double would break both.
+
+  // FAIL-CLOSED, and that is the whole point of the shape (impl-review F2). This file
+  // deliberately lifts the preflight clamp that keeps the suite off the real provider, so
+  // this double IS that clamp for the duration. The predicate used to be "anything that is
+  // not OpenRouter goes to the real network", which fails in the dangerous direction: an
+  // OpenRouter URL the predicate stopped recognising would have been DELEGATED — a real,
+  // billed request to openrouter.ai carrying the pasted source text below and an
+  // Authorization header built by production code. Now the only host that reaches the
+  // network is Supabase, and anything else is a loud failure rather than a silent call.
+  //
+  // Supabase must still be delegated for real: inside one callEndpoint the endpoint makes
+  // six Supabase calls over globalThis.fetch and the assertions read the audit row back the
+  // same way, so a replacement double would break both.
   if (!url.startsWith(OPENROUTER_URL)) {
-    return realFetch(input, init);
+    if (SUPABASE_URL && url.startsWith(SUPABASE_URL)) {
+      return realFetch(input, init);
+    }
+    return Promise.reject(
+      new Error(
+        `Blocked an un-allow-listed outbound request to ${url}. This file runs with the ` +
+          `preflight clamp lifted, so only Supabase may reach the network. If a new host is ` +
+          `legitimate, allow-list it here deliberately — do not widen the predicate.`,
+      ),
+    );
   }
   const headers = new Headers(init?.headers);
   captured = {

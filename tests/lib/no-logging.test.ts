@@ -35,7 +35,20 @@ const SRC_DIR = fileURLToPath(new URL("../../src", import.meta.url));
  * is that a mention inside a comment or a string also trips the guard; that is the intended
  * trade (reword the comment) and the failure message names file and line.
  */
-const CONSOLE_CALL = /console\s*\.\s*[A-Za-z_$][\w$]*\s*\(/;
+const CONSOLE_CALL = /(?<![\w$])console\s*(?:\.\s*[A-Za-z_$][\w$]*|\[[^\]\n]*\])\s*\(/;
+
+// What this pattern does and does NOT catch, spelled out so nobody reads it as total
+// (impl-review F8 — the first version missed the first two and got the third wrong):
+//
+//   caught  console.log(x) · console . error ( e ) · globalThis.console.debug(x)
+//   caught  console["log"](x) — bracket access, which ESLint's no-console also catches
+//   NOT     const c = console; c.log(x) — an alias is not textually a console call, and
+//           nothing short of an AST pass over .astro files could see it. ESLint misses it
+//           too. Accepted: this guard is against the accidental debug line that ships, not
+//           against someone routing around it.
+//   NOT     a call split across lines — the scan is line-by-line (see consoleCallsIn).
+//   not a false positive on `myconsole.log(x)`: the lookbehind requires a non-identifier
+//           character before `console`.
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -73,9 +86,17 @@ describe("src/ writes no log lines", () => {
       "console . error ( e )",
       "console.warn(`${a}`)",
       "globalThis.console.debug(",
+      // Bracket access — the spelling a plain `includes("console.")` and the first version
+      // of this regex both missed, and the obvious way to sidestep a dot-only guard.
+      "console['log'](x)",
+      'console["error"] ( e )',
     ])
       expect(CONSOLE_CALL.test(sample)).toBe(true);
-    expect(CONSOLE_CALL.test("// the console shows it")).toBe(false);
+
+    // False positives matter as much: this file fails the build, so a guard that fires on
+    // prose or on an unrelated identifier gets weakened by the next person it annoys.
+    for (const sample of ["// the console shows it", "myconsole.log(x)", "const c = console;"])
+      expect(CONSOLE_CALL.test(sample)).toBe(false);
   });
 
   it("contains no console.* call anywhere", () => {

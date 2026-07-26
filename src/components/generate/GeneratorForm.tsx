@@ -291,6 +291,16 @@ export function GeneratorForm({ decks }: Props) {
               if (error) setError(null);
             }}
             placeholder="Wklej notatki, fragment podręcznika lub artykułu…"
+            // Two different mechanisms on two different strings, deliberately (impl-review
+            // F6 asked whether this is a bug — it is not, but it was undocumented).
+            // `maxLength` is the browser's INPUT STOP and can only count raw characters;
+            // everything that VALIDATES counts the trimmed string, because trimmed is what
+            // `validate()` actually submits (`sourceText: text`) and therefore what the
+            // server's cap will see: this attribute, `CharCount`, and validate()'s own
+            // check all agree on `.trim()`. Consequence worth knowing before writing a test
+            // against it: with `maxLength` in place neither the aria-invalid state nor
+            // CharCount's red state is reachable through the UI — they are a second belt,
+            // not the visible guard (test-plan §7).
             maxLength={SOURCE_MAX}
             disabled={pending}
             aria-invalid={sourceText.trim().length > SOURCE_MAX ? true : undefined}
