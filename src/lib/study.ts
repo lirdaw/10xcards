@@ -16,6 +16,13 @@ type Client = SupabaseClient<Database>;
 // deterministic function of (card, now, grade) so Risk #3's oracle test can assert an
 // exact `due` rather than a fuzzed range.
 //
+// `enable_fuzz: false` is passed EXPLICITLY, and that is the point. It matches ts-fsrs
+// 5.4.1's `default_enable_fuzz`, so it changes nothing today — but the dependency range is
+// `^5.4.1`, and the exact-`due` oracles in tests/study/study.test.ts rest on this value.
+// Left implicit, an upstream flip inside the caret range would turn those assertions
+// intermittently red with no change in this repo. Three documents asserted the app
+// configured it while nothing did (C10X-27); now the statement is true.
+//
 // `enable_short_term: false` is load-bearing, not a preference. With short-term steps ON,
 // ts-fsrs walks a card through `learning_steps` (['1m','10m']) using a `Card.learning_steps`
 // CURSOR, and only that cursor graduates the card to State.Review. This app persists a
@@ -26,7 +33,12 @@ type Client = SupabaseClient<Database>;
 // model: the batch is built once and the island runs to the end, so an intra-day re-queue
 // would never be shown inside a session anyway.
 export const scheduler = fsrs(
-  generatorParameters({ request_retention: 0.9, maximum_interval: 36500, enable_short_term: false }),
+  generatorParameters({
+    request_retention: 0.9,
+    maximum_interval: 36500,
+    enable_short_term: false,
+    enable_fuzz: false,
+  }),
 );
 
 // Relative "za N minut/godzin/dni" label for a rating button. An interval is a
@@ -60,16 +72,37 @@ export interface DueCardRow {
   reps: number | null;
   lapses: number | null;
   last_review: string | null;
+  // Optional, unlike every field above: the study_due_cards RPC's `returns table (...)`
+  // ends at last_review and does NOT project this column, so the RPC path legitimately
+  // has no value for it. Only rateCard's direct schedule re-read supplies it.
+  scheduled_days?: number | null;
 }
 
 // Builds a ts-fsrs Card from a schedule row, coalescing every NULL FSRS field to
 // its New-card literal (not just `due`) so repeat()/next() get a valid Card even
 // for a card that has no schedule row yet. createEmptyCard supplies the fields this
-// table does not store (elapsed_days/scheduled_days/learning_steps); persisted columns
-// override the rest. That is only sound because none of the unstored fields feeds the
-// transition under this scheduler's config — `learning_steps` in particular is inert
-// only because `enable_short_term` is false (see the scheduler comment above). Adding a
-// Card field to the calculation without adding its column silently resets it every load.
+// table does not store (elapsed_days/learning_steps); persisted columns override the
+// rest. That is only sound because none of the unstored fields feeds the transition
+// under this scheduler's config — `learning_steps` in particular is inert only because
+// `enable_short_term` is false (see the scheduler comment above). Adding a Card field to
+// the calculation without adding its column silently resets it every load.
+//
+// `scheduled_days` used to be in that unstored list and no longer is: the column was
+// always WRITTEN (cardToScheduleColumns) and never read back, so every load re-derived it
+// as 0. Round-tripping it is deliberately behaviour-NEUTRAL, and for a stronger reason
+// than `learning_steps`': that one was a genuine scheduler INPUT, while this one is
+// output-only in ts-fsrs 5.4.1 under either config — LongTermScheduler zeroes it on input,
+// BasicScheduler overwrites it, and the single read is buildLog's review_log, which this
+// app never persists. So this closes no risk class; it is hygiene on the value FR-016
+// ("due in 1 / 5 / 10 days") will want to read. The exact-`due` oracles in
+// tests/study/study.test.ts are the neutrality check — if one moves, the round-trip is
+// NOT neutral and the change is wrong, not the expectation.
+//
+// Two things stay outside the round-trip, on purpose. `elapsed_days` has no column at all.
+// And the RPC path cannot supply `scheduled_days` (study_due_cards does not project it), so
+// the preview intervals a session shows are still computed from 0 while rateCard now uses
+// the persisted value. Harmless only because the column is output-only; if anything ever
+// makes it an input, that divergence becomes a bug and this is where to look.
 export function scheduleRowToCard(row: DueCardRow, now: Date): Card {
   const base = createEmptyCard(row.due ? new Date(row.due) : now);
   return {
@@ -78,6 +111,7 @@ export function scheduleRowToCard(row: DueCardRow, now: Date): Card {
     difficulty: row.difficulty ?? 0,
     reps: row.reps ?? 0,
     lapses: row.lapses ?? 0,
+    scheduled_days: row.scheduled_days ?? 0,
     state: row.srs_state != null ? TypeConvert.state(row.srs_state) : State.New,
     last_review: row.last_review ? new Date(row.last_review) : undefined,
   };
@@ -281,7 +315,7 @@ export async function rateCard(
 
   const { data: sched, error: schedError } = await supabase
     .from("flashcard_schedule")
-    .select("due, stability, difficulty, srs_state, reps, lapses, last_review")
+    .select("due, stability, difficulty, srs_state, reps, lapses, last_review, scheduled_days")
     .eq("flashcard_id", resolved.id)
     .maybeSingle();
   if (schedError) return { data: null, error: schedError, alreadyApplied: false };

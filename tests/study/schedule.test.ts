@@ -4,8 +4,12 @@ import type { Grade } from "ts-fsrs";
 import { formatInterval, scheduleRowToCard, scheduler } from "@/lib/study";
 
 // Pure unit tests for the SRS scheduler module — no DB. The scheduler is a
-// deterministic, independent oracle (ts-fsrs is pure/immutable, enable_fuzz:false),
-// so these assert the *property* Risk #3 cares about, never a copied constant.
+// deterministic, independent oracle: ts-fsrs is pure/immutable and `enable_fuzz: false`
+// is passed EXPLICITLY in src/lib/study.ts. That last part was untrue when this line was
+// first written — determinism rested on ts-fsrs 5.4.1's `default_enable_fuzz` under a
+// `^5.4.1` range, so an upstream flip would have turned the exact-`due` oracles in
+// study.test.ts intermittently red with no change here (C10X-27 closed it).
+// So these assert the *property* Risk #3 cares about, never a copied constant.
 
 const NOW = new Date("2026-01-01T00:00:00.000Z");
 
@@ -77,6 +81,48 @@ describe("scheduleRowToCard — DB row → ts-fsrs Card", () => {
     // A New card mapped this way must be schedulable — a smoke check that the
     // shape ts-fsrs needs is intact, so `repeat` doesn't throw on a null-derived card.
     expect(() => scheduler.repeat(card, NOW)).not.toThrow();
+  });
+
+  // `scheduled_days` is written by cardToScheduleColumns and, until C10X-27, never read
+  // back — so every load silently re-derived it as createEmptyCard's 0. Behaviour-neutral
+  // today (the column is output-only in ts-fsrs 5.4.1 under either scheduler config), but
+  // the persisted value is what FR-016's "due in 1 / 5 / 10 days" filter will read, and a
+  // write-only column is the shape the learning_steps bug already shipped in once.
+  it("prefers a persisted scheduled_days over the New-card literal", () => {
+    const row = {
+      public_id: "p",
+      front: "f",
+      back: "b",
+      due: "2026-01-05T09:00:00.000Z",
+      stability: 12.34,
+      difficulty: 5.6,
+      srs_state: State.Review,
+      reps: 7,
+      lapses: 2,
+      last_review: "2025-12-20T09:00:00.000Z",
+      scheduled_days: 16,
+    };
+
+    expect(scheduleRowToCard(row, NOW).scheduled_days).toBe(16);
+  });
+
+  // The RPC path cannot supply it (study_due_cards' `returns table` ends at last_review),
+  // so the field is optional and its absence must still map to the New-card literal.
+  it("falls back to 0 when the row carries no scheduled_days at all", () => {
+    const row = {
+      public_id: "p",
+      front: "f",
+      back: "b",
+      due: "2026-01-05T09:00:00.000Z",
+      stability: 12.34,
+      difficulty: 5.6,
+      srs_state: State.Review,
+      reps: 7,
+      lapses: 2,
+      last_review: null,
+    };
+
+    expect(scheduleRowToCard(row, NOW).scheduled_days).toBe(0);
   });
 
   it("preserves persisted schedule fields for an in-cycle Review card", () => {

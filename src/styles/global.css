@@ -39,7 +39,7 @@
      out at 2.67-2.91:1. This is the `.dark` block's value (#ff6467, identical to
      Tailwind's `red-400`), which measures 4.35-6.26:1 and is already the colour
      `FormField.tsx` uses for its error ring. Kept in step with `.dark` on purpose.
-     See context/changes/focus-ring-a11y/verification.md. */
+     See context/archive/2026-07-25-focus-ring-a11y/verification.md. */
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
@@ -49,7 +49,7 @@
      this file. White, not the stock shadcn grey, because the app renders
      permanently dark (`bg-cosmic`) while these are the LIGHT-theme tokens — the
      `dark` variant never activates, so grey here measured 2.4:1 app-wide and
-     failed WCAG 1.4.11. See context/changes/focus-ring-a11y/verification.md. */
+     failed WCAG 1.4.11. See context/archive/2026-07-25-focus-ring-a11y/verification.md. */
   --ring: oklch(1 0 0);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
