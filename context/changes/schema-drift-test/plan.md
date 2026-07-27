@@ -768,13 +768,13 @@ re-verify before relying on them.
 
 #### Automated
 
-- [ ] 1.1 One endpoint variant returns 200 with the remote version list: recorded in `verification.md`
-- [ ] 1.2 `gh secret list` shows `SUPABASE_ACCESS_TOKEN` and `SUPABASE_PROJECT_ID`
+- [x] 1.1 One endpoint variant returns 200 with the remote version list: recorded in `verification.md`
+- [x] 1.2 `gh secret list` shows `SUPABASE_ACCESS_TOKEN` and `SUPABASE_PROJECT_ID`
 
 #### Manual
 
-- [ ] 1.3 The CI token is a newly minted, dedicated token — not the one behind the local `supabase login`
-- [ ] 1.4 The baseline verdict (in sync / drifted) is recorded with its date, and any drift is raised with the user before Phase 3 lands
+- [x] 1.3 The CI token is a newly minted, dedicated token — not the one behind the local `supabase login`
+- [x] 1.4 The baseline verdict (in sync / drifted) is recorded with its date, and any drift is raised with the user before Phase 3 lands
 
 ### Phase 2: The comparator, with fixtures for each drift direction
 
