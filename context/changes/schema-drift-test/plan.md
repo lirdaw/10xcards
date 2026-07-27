@@ -810,14 +810,14 @@ re-verify before relying on them.
 
 #### Automated
 
-- [x] 4.1 `npm run db:types && git diff --exit-code src/db/database.types.ts` is clean against a freshly reset stack
-- [ ] 4.2 CI is green on the branch after both edits
-- [x] 4.3 `npm run build` still succeeds without the removed `env:` block
+- [x] 4.1 `npm run db:types && git diff --exit-code src/db/database.types.ts` is clean against a freshly reset stack — 6505492
+- [x] 4.2 CI is green on the branch after both edits — 6505492
+- [x] 4.3 `npm run build` still succeeds without the removed `env:` block — 6505492
 
 #### Manual
 
-- [ ] 4.4 Deliberate-breakage check: a hand-edit to `database.types.ts` turns the new step red; revert restores green
-- [ ] 4.5 The CI log shows the build step no longer referencing the two non-existent secrets
+- [x] 4.4 Deliberate-breakage check: a hand-edit to `database.types.ts` turns the new step red; revert restores green — 6505492
+- [x] 4.5 The CI log shows the build step no longer referencing the two non-existent secrets — 6505492
 
 ### Phase 5: On-demand DDL diff for the classes the history oracle cannot see
 

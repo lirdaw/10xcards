@@ -419,6 +419,44 @@ path this phase actually changed — a build with *no* Supabase values present a
 exercised on the runner, and the types step likewise first runs on Linux against a stack started
 there from scratch.
 
+**PR [#15](https://github.com/lirdaw/10xcards/pull/15), run
+[30301025609](https://github.com/lirdaw/10xcards/actions/runs/30301025609)** — opened as a draft,
+because phases 5 and 6 still have to land on this branch. Conclusions read from the API, not from
+the web UI's colours:
+
+```
+gh run view 30301025609 --json jobs
+→ ci: success    drift: skipped    deploy: skipped
+```
+
+`ci` succeeded in 3m39s, and the two `push`-guarded jobs skipped exactly as the plan's
+skipped-job reasoning predicts on a pull request.
+
+**4.2 — the new step, on the runner.** `Check generated types against the schema` ran in ~2.2 s:
+`npm run db:types` regenerated the file and `git diff --exit-code` printed nothing. Three lines of
+the log are worth keeping:
+
+- `shell: /usr/bin/bash -e {0}` — `-e` is in force, so a failing `db:types` fails the step instead
+  of falling through to the diff against a file the redirect has already truncated. That
+  fail-closed property was reasoned about before the run; this is the line that confirms it.
+- `currently installed v2.98.2` — the runner generates with the same lockfile-pinned CLI as the
+  local check, so "clean locally" and "clean on Linux" are one generator agreeing with itself
+  rather than two that happen to coincide.
+- The step sits after `Start local Supabase stack` and before `Export local stack credentials`,
+  which is what makes `--local` resolvable at all.
+
+**4.5 — the build step references no secret.** The whole 1492-line log was scanned rather than the
+build step eyeballed. `SUPABASE_URL` / `SUPABASE_KEY` appear exactly **four** times, all four on
+the test path: twice in `Export local stack credentials` writing them into `$GITHUB_ENV`, twice in
+`Run npm test` receiving `http://127.0.0.1:54321` and an `sb_publishable_…` key. The 26 log lines
+belonging to `Run npm run build` contain no `env`, no `secret` and no masked `***` — the step
+carries no `env:` block at all now, so there is nothing for GitHub to mask and nothing that reads
+as configured while being empty.
+
+And the removal's one real risk is now measured rather than argued: `npm run build` succeeded on
+the runner with **no `.env` present**, which the local 4.3 run could not establish because it
+printed `Using secrets defined in .env`.
+
 ## Ship-time checklist
 
 These criteria cannot be satisfied before the merge. They are tracked here so they are
