@@ -333,6 +333,92 @@ running on every branch, which is why the plan makes it a criterion of its own.
 
 ---
 
+## Phase 4 — Adjacent CI corrections
+
+**Date**: 2026-07-27
+
+Two edits to `.github/workflows/ci.yml`: the phantom `env:` block removed from the build step,
+and a generated-types step (drift class 8) added to the `ci` job directly after the stack starts.
+
+### Automated results
+
+| Check | Result |
+| --- | --- |
+| `npm run db:types` then `git diff --exit-code src/db/database.types.ts` | exit **0**, empty diff |
+| `npm run build` without the removed `env:` block | exit **0** |
+| CI green on the branch after both edits | see "The PR run" below |
+
+### 4.1's "freshly reset stack" was satisfied without a reset — and the substitute is stronger
+
+The criterion asked for the check "against a freshly reset stack". A `supabase db reset` would
+have destroyed the dev database a reviewer is likely mid-way through using — test-plan.md §6.7
+makes exactly that point about breakage checks on this stack, and §6.6 records it holding ~1053
+decks. The reset is in the criterion to rule out one thing: that the local database carries
+schema objects the migrations do not create, which would make `gen types --local` generate from
+something other than the migration history. In this project that is a live concern, not a
+theoretical one — §6.6 records `create or replace function` neuters and a dropped CHECK
+constraint performed against this very database.
+
+So the question was answered directly instead:
+
+```
+npx supabase db diff --local --schema public
+→ stdout: 0 bytes
+→ stderr: "Applying migration …" ×10, then "No schema changes found"
+```
+
+`db diff --local` replays all ten migrations into a **separate shadow database** and diffs the
+dev database against it. Zero-byte stdout means the dev `public` schema is identical to a fresh
+replay, so the types generated from it are the types a freshly reset stack would produce and the
+reset would have changed nothing but the data. The exit code was **0** — as it is on every
+outcome, which is the always-exit-0 trap this plan's Current State Analysis records for
+`db diff`. The verdict was read from stdout being empty, never from `$?`.
+
+**Boundary**: `--schema public` was compared, while `database.types.ts` also carries a
+`graphql_public` block. That block comes from the `pg_graphql` extension rather than from any
+migration in this repository, and both databases run the same extension from the same pinned CLI
+(2.98.2) — so it is identical by construction, not by measurement. Recorded because it is the
+one part of the generated file this check did not compare.
+
+### Deliberate-breakage check 4.4 — the criterion as worded does NOT go red
+
+Criterion 4.4 reads: "hand-edit one line of `src/db/database.types.ts`, confirm the new step goes
+red, revert." Run literally, **it stays green**. That deserves a paragraph, because a contributor
+who follows the wording will conclude the gate does not work.
+
+The step is two commands. `npm run db:types` **overwrites** the working-tree file, so a hand-edit
+made before it is gone by the time the diff runs. And `git diff --exit-code <path>` compares the
+working tree against the **index**, not against `HEAD`.
+
+| Variant | Where the stale line sat | Step exit |
+| --- | --- | --- |
+| As worded — `sed` line 39, `created_at: string` → `number`, nothing staged | working tree only | **0 — green.** `db:types` restored the line before the diff ran |
+| Faithful — the same edit, then `git add` | the index, which is what a commit looks like to the step | **1 — red**, printing the `-created_at: number` / `+created_at: string` hunk |
+
+The faithful variant is what CI does: after `actions/checkout` the index equals `HEAD`, so the
+step's real claim is "**regenerated ≠ committed**". That is the correct claim — it is precisely
+the stale-types condition of drift class 8 — but it can only be provoked by bad content that is
+*committed*, never by a dirty working tree. Phase 6 should carry this sentence somewhere durable;
+the wording of 4.4 is a trap, not a defect in the step.
+
+Restore verified rather than assumed: `git reset -- src/db/database.types.ts`, after which
+`git status --porcelain` on the path is empty, a `diff` against a copy taken before the check is
+**byte-identical**, and the step re-run returns to exit **0**. A breakage check not shown to
+reverse has only proved that something changed.
+
+### The PR run — 4.2 and 4.5
+
+`on.push.branches` is `[main]`, so a push to this branch triggers nothing; the branch's CI run
+comes from opening the pull request, which is how every prior change in this repo got one
+(C10X-22, C10X-27, C10X-28 all show `pull_request` runs). `drift` carries
+`if: github.event_name == 'push' && github.ref == 'refs/heads/main'` and is therefore **skipped**
+on a pull request — so the run exercises the `ci` job, which is the only job this phase touched.
+
+The run is not a formality. The local build above printed `Using secrets defined in .env`, so the
+path this phase actually changed — a build with *no* Supabase values present at all — is first
+exercised on the runner, and the types step likewise first runs on Linux against a stack started
+there from scratch.
+
 ## Ship-time checklist
 
 These criteria cannot be satisfied before the merge. They are tracked here so they are

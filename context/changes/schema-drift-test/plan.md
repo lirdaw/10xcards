@@ -792,27 +792,27 @@ re-verify before relying on them.
 
 #### Automated
 
-- [x] 3.1 Lint passes on the new script: `npm run lint`
-- [x] 3.2 The script runs locally against the real project and reports the same verdict Phase 1 recorded
-- [x] 3.3 Full suite still passes: `npm test`
-- [x] 3.4 The workflow is valid YAML and the job graph is as intended: `gh workflow view CI`
+- [x] 3.1 Lint passes on the new script: `npm run lint` — 05ff5fd
+- [x] 3.2 The script runs locally against the real project and reports the same verdict Phase 1 recorded — 05ff5fd
+- [x] 3.3 Full suite still passes: `npm test` — 05ff5fd
+- [x] 3.4 The workflow is valid YAML and the job graph is as intended: `gh workflow view CI` — 05ff5fd
 
 #### Manual
 
-- [x] 3.5 A fabricated extra migration filename makes the script exit 1 locally and name that version
-- [x] 3.6 Missing-token and missing-ref paths each exit 1 with their own message
-- [x] 3.7 Deliberate-breakage check on the guard: with the `if` widened to this branch and a fabricated migration pushed, `drift` is red AND `deploy` is skipped in the Actions run
-- [x] 3.8 The widened `if` and the fabricated migration are reverted; `gh workflow view CI` shows the graph back to `push`-on-`main` only
+- [x] 3.5 A fabricated extra migration filename makes the script exit 1 locally and name that version — 05ff5fd
+- [x] 3.6 Missing-token and missing-ref paths each exit 1 with their own message — 05ff5fd
+- [x] 3.7 Deliberate-breakage check on the guard: with the `if` widened to this branch and a fabricated migration pushed, `drift` is red AND `deploy` is skipped in the Actions run — 05ff5fd
+- [x] 3.8 The widened `if` and the fabricated migration are reverted; `gh workflow view CI` shows the graph back to `push`-on-`main` only — 05ff5fd
 - [ ] 3.9 (ship-time) After merging, a real push to `main` shows `drift` green and `deploy` running as before
-- [x] 3.10 The run's log contains no token material
+- [x] 3.10 The run's log contains no token material — 05ff5fd
 
 ### Phase 4: Adjacent CI corrections
 
 #### Automated
 
-- [ ] 4.1 `npm run db:types && git diff --exit-code src/db/database.types.ts` is clean against a freshly reset stack
+- [x] 4.1 `npm run db:types && git diff --exit-code src/db/database.types.ts` is clean against a freshly reset stack
 - [ ] 4.2 CI is green on the branch after both edits
-- [ ] 4.3 `npm run build` still succeeds without the removed `env:` block
+- [x] 4.3 `npm run build` still succeeds without the removed `env:` block
 
 #### Manual
 
