@@ -768,25 +768,25 @@ re-verify before relying on them.
 
 #### Automated
 
-- [x] 1.1 One endpoint variant returns 200 with the remote version list: recorded in `verification.md`
-- [x] 1.2 `gh secret list` shows `SUPABASE_ACCESS_TOKEN` and `SUPABASE_PROJECT_ID`
+- [x] 1.1 One endpoint variant returns 200 with the remote version list: recorded in `verification.md` — 9ddabf1
+- [x] 1.2 `gh secret list` shows `SUPABASE_ACCESS_TOKEN` and `SUPABASE_PROJECT_ID` — 9ddabf1
 
 #### Manual
 
-- [x] 1.3 The CI token is a newly minted, dedicated token — not the one behind the local `supabase login`
-- [x] 1.4 The baseline verdict (in sync / drifted) is recorded with its date, and any drift is raised with the user before Phase 3 lands
+- [x] 1.3 The CI token is a newly minted, dedicated token — not the one behind the local `supabase login` — 9ddabf1
+- [x] 1.4 The baseline verdict (in sync / drifted) is recorded with its date, and any drift is raised with the user before Phase 3 lands — 9ddabf1
 
 ### Phase 2: The comparator, with fixtures for each drift direction
 
 #### Automated
 
-- [ ] 2.1 New tests pass: `npx vitest run tests/lib/schema-drift.test.ts`
-- [ ] 2.2 Full suite still passes: `npm test`
-- [ ] 2.3 Lint passes: `npm run lint`
+- [x] 2.1 New tests pass: `npx vitest run tests/lib/schema-drift.test.ts`
+- [x] 2.2 Full suite still passes: `npm test`
+- [x] 2.3 Lint passes: `npm run lint`
 
 #### Manual
 
-- [ ] 2.4 Deliberate-breakage check: inverting the `missingLocal` direction turns exactly the class-2 case red while the positive control stays green; revert restores green
+- [x] 2.4 Deliberate-breakage check: inverting the `missingLocal` direction turns exactly the class-2 case red while the positive control stays green; revert restores green
 
 ### Phase 3: The runner and the CI gate
 

@@ -125,6 +125,52 @@ wrong secret and a real drift both present as one red job.
 
 ---
 
+## Phase 2 — The comparator and its fixtures
+
+**Date**: 2026-07-27
+
+`scripts/schema-drift.ts` (pure: no filesystem, no network, no `console`) and
+`tests/lib/schema-drift.test.ts`, 11 cases.
+
+### Automated results
+
+| Check | Result |
+| --- | --- |
+| `npx vitest run tests/lib/schema-drift.test.ts` | **11 passed** |
+| `npm test` | **177 passed / 177, 15 files** (166 before this change, + 11) |
+| `npm run lint` | exit **0** |
+
+### Deliberate-breakage check — and its split does NOT match what the plan predicted
+
+The plan's criterion read: invert the `missingLocal` direction and "confirm **exactly the
+class-2 case** goes red while the positive control stays green".
+
+Neutered `const missingLocal = …` to a constant `[]` — i.e. the cloud-has-it-locally-absent
+direction, the `migration repair` desync this project actually suffered, reported as clean.
+Observed: **2 of 11 red**, both on `AssertionError: expected [] to deeply equal
+[ '20260601120000' ]`:
+
+| Case | Verdict |
+| --- | --- |
+| `names a cloud migration with no local file, and only that` | The class-2 case the plan named. **Evidence.** |
+| `reports both directions at once, not whichever it finds first` | Also asserts `missingLocal`, so it goes red by construction. **Evidence too** — it is what keeps the two directions from collapsing into one. |
+
+The prediction was simply arithmetic that did not account for the second case asserting the
+same field; nothing about the comparator differs from the plan. Recorded as observed rather
+than rounded to the predicted number, because a breakage split is a claim about a run —
+test-plan.md §6.6 has been burned by stale ones twice.
+
+What matters is what stayed green: the **positive control** (`reports clean when the two
+sides agree`) and all eight other cases. Without that, every failure assertion in the file
+would be satisfied by a comparator that rejects all input.
+
+Reverted; `tests/lib/schema-drift.test.ts` back to **11 passed**. Note that `git diff --
+scripts/schema-drift.ts` is *empty for the wrong reason* at this point — the file is still
+untracked, so a clean diff there proves nothing at all. The revert was confirmed by reading
+the line back and by the suite returning to green.
+
+---
+
 ## Ship-time checklist
 
 These criteria cannot be satisfied before the merge. They are tracked here so they are
