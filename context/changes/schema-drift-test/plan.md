@@ -780,31 +780,31 @@ re-verify before relying on them.
 
 #### Automated
 
-- [x] 2.1 New tests pass: `npx vitest run tests/lib/schema-drift.test.ts`
-- [x] 2.2 Full suite still passes: `npm test`
-- [x] 2.3 Lint passes: `npm run lint`
+- [x] 2.1 New tests pass: `npx vitest run tests/lib/schema-drift.test.ts` — b387017
+- [x] 2.2 Full suite still passes: `npm test` — b387017
+- [x] 2.3 Lint passes: `npm run lint` — b387017
 
 #### Manual
 
-- [x] 2.4 Deliberate-breakage check: inverting the `missingLocal` direction turns exactly the class-2 case red while the positive control stays green; revert restores green
+- [x] 2.4 Deliberate-breakage check: inverting the `missingLocal` direction turns exactly the class-2 case red while the positive control stays green; revert restores green — b387017
 
 ### Phase 3: The runner and the CI gate
 
 #### Automated
 
-- [ ] 3.1 Lint passes on the new script: `npm run lint`
-- [ ] 3.2 The script runs locally against the real project and reports the same verdict Phase 1 recorded
-- [ ] 3.3 Full suite still passes: `npm test`
-- [ ] 3.4 The workflow is valid YAML and the job graph is as intended: `gh workflow view CI`
+- [x] 3.1 Lint passes on the new script: `npm run lint`
+- [x] 3.2 The script runs locally against the real project and reports the same verdict Phase 1 recorded
+- [x] 3.3 Full suite still passes: `npm test`
+- [x] 3.4 The workflow is valid YAML and the job graph is as intended: `gh workflow view CI`
 
 #### Manual
 
-- [ ] 3.5 A fabricated extra migration filename makes the script exit 1 locally and name that version
-- [ ] 3.6 Missing-token and missing-ref paths each exit 1 with their own message
-- [ ] 3.7 Deliberate-breakage check on the guard: with the `if` widened to this branch and a fabricated migration pushed, `drift` is red AND `deploy` is skipped in the Actions run
-- [ ] 3.8 The widened `if` and the fabricated migration are reverted; `gh workflow view CI` shows the graph back to `push`-on-`main` only
+- [x] 3.5 A fabricated extra migration filename makes the script exit 1 locally and name that version
+- [x] 3.6 Missing-token and missing-ref paths each exit 1 with their own message
+- [x] 3.7 Deliberate-breakage check on the guard: with the `if` widened to this branch and a fabricated migration pushed, `drift` is red AND `deploy` is skipped in the Actions run
+- [x] 3.8 The widened `if` and the fabricated migration are reverted; `gh workflow view CI` shows the graph back to `push`-on-`main` only
 - [ ] 3.9 (ship-time) After merging, a real push to `main` shows `drift` green and `deploy` running as before
-- [ ] 3.10 The run's log contains no token material
+- [x] 3.10 The run's log contains no token material
 
 ### Phase 4: Adjacent CI corrections
 

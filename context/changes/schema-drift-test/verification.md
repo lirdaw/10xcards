@@ -171,6 +171,168 @@ the line back and by the suite returning to green.
 
 ---
 
+## Phase 3 — The runner and the CI gate
+
+**Date**: 2026-07-27
+
+`scripts/check-schema-drift.ts` (I/O + exit code) and the `drift` job in
+`.github/workflows/ci.yml`, plus `deploy`'s second dependency.
+
+### Automated results
+
+| Check | Result |
+| --- | --- |
+| `npm run lint` | exit **0** |
+| `npm test` | **177 passed / 177, 15 files** (unchanged — the runner has no test of its own; §6.9's boundary, see below) |
+| Script against the real project | `10 local entries against 10 applied cloud migrations` → `OK`, exit **0** |
+
+The live run reproduces Phase 1's verdict exactly — ten against ten, `IN SYNC` — which is the
+point of having measured the baseline first: the gate and the database are now separately
+established, so the first red run after this lands has one hypothesis, not two.
+
+**Which credential ran it, and what that does and does not prove.** The GitHub secret cannot
+be read back (the API lists names, never values), so the local run used the *other* PAT on
+the same account — the one the Supabase CLI keeps in the Windows Credential Manager, read via
+`CredRead` and injected straight into the environment, never printed. Phase 1 established
+that this is a different token from the CI one. So this run proves **the script**: the
+endpoint, the parse, the comparison, the exit code. It does **not** prove the secret stored in
+GitHub is the working token — that is still established by the first `drift` job, exactly as
+Phase 1 recorded.
+
+### Fail-closed paths, each exercised
+
+Every one of these exits **1** and prints `GATE UNAVAILABLE`, i.e. states in the report that
+it is not evidence about the schema — the distinction the plan requires be visible in the
+output and *not* in the exit code.
+
+| Path | How it was reached | Observed message |
+| --- | --- | --- |
+| No token | both variables unset | `SUPABASE_ACCESS_TOKEN is not set (the Supabase personal access token).` |
+| No ref | token set, ref unset | `SUPABASE_PROJECT_ID is not set (the cloud project ref).` |
+| Non-2xx | `SUPABASE_ACCESS_TOKEN=sbp_notarealtoken` against the real ref | `the Management API answered 401 Unauthorized` |
+
+The two credential messages are deliberately separate rather than one shared "credentials
+missing": a red build must name the secret to set, not send the reader to check both.
+
+The `401` case is worth more than it looks. It is a **live** round trip — the request was
+built, sent and rejected — so it is also the positive control for reachability behind the
+happy path above, and it is what confirms the runner branches on `res.ok` having actually
+issued a request.
+
+**`res.ok`, never `status === 200`.** Phase 1 measured the two fallback endpoints answering
+**201**; a runner written as an equality check on 200 would fail closed on a perfectly good
+response the day it fell back to either. Implemented literally as `!response.ok`.
+
+### Deliberate-breakage check — the drift verdict, locally
+
+Two fabricated files were dropped into `supabase/migrations/` (never pushed anywhere, never
+committed) and the script re-run against the real project:
+
+- `20260728090000_fabricated_drift_check.sql` — a well-formed name the cloud has never seen
+- `hotfix_by_hand.sql` — a `.sql` file carrying no version at all
+
+Observed: `12 local entries against 10 applied cloud migrations`, exit **1**, and the report
+split them into **two sections with different remedies** —
+
+```
+  Committed here, never applied in the cloud (1):
+    20260728090000
+  Fix: `supabase db push` (PROD tier …), then `gh run rerun --failed` …
+
+  Unreadable migration filenames (1):
+    hotfix_by_hand.sql
+  Not a missing migration and `db push` cannot fix it: rename each file to …
+```
+
+That split is the finding worth recording. Both are drift-kind (the comparison *ran*), so
+both correctly exit 1 — but folding the malformed filename in with the missing version would
+have sent the reader to `db push` for something `db push` cannot repair. The comparator's
+own doc comment predicts this; the runner is where it becomes visible to a human.
+
+Both files removed; `git status -- supabase/` clean, directory back to ten entries, and the
+script re-run to confirm the verdict returned to `OK` / exit 0. The re-run matters: a
+breakage check that is not shown to reverse has only proved that *something* changed.
+
+### The rehearsal — and why the plan's own criterion 3.7 had to be strengthened to mean anything
+
+The plan asked for one run: widen the `drift` job's `if` to this branch, push a fabricated
+migration, and record that `drift` is **red** and `deploy` is **skipped**.
+
+**That run would have been unfalsifiable, and it is worth saying why before the evidence.**
+`deploy` carries its own guard, `github.ref == 'refs/heads/main'`. On a feature branch it is
+skipped *whatever* `drift` does — so "deploy was skipped" would have been produced by the
+branch guard and read as produced by `needs`. That is precisely the shape §6.6 has recorded
+twice (the four-policy neuter that passed while the guard was disabled; the status-filtered
+count that was blind to the rows it claimed to check). A second obstacle sat in front of it:
+`on.push.branches` is `[main]`, so a push to this branch does not trigger the workflow at all.
+
+So the check was run as a **pair**, with a positive control, and `deploy`'s own guard widened
+alongside `drift`'s so that the two runs differ in exactly one thing — the gate's outcome.
+Temporary edits, all four reverted: `on.push.branches` widened; `drift.if` widened;
+`deploy.if` widened; and `deploy`'s `cloudflare/wrangler-action` step replaced by
+`echo "REHEARSAL-MARKER deploy job body reached"`. That last one is not a weakening of the
+test — the claim under examination is the **job graph**, not wrangler — and it is what let the
+control run prove reachability without shipping a feature branch to production.
+
+| Run | Fabricated migration | `ci` | `drift` | `deploy` |
+| --- | --- | --- | --- | --- |
+| **A — control** ([30296436636](https://github.com/lirdaw/10xcards/actions/runs/30296436636)) | no | success | **success** (9 s) | **success** — marker printed |
+| **B** ([30296868813](https://github.com/lirdaw/10xcards/actions/runs/30296868813)) | yes | success | **failure** (7 s) | **skipped** |
+
+Conclusions read from the API, not from the web UI's colours:
+`gh run view … --json jobs` gives `drift conclusion=failure`, `deploy conclusion=skipped` for
+run B, and `success` / `success` for run A. Same ref, same `if` on both jobs, same everything
+else. The only variable is the gate's outcome — so the skip in run B is attributable to
+`needs: [ci, drift]` and to nothing else. Run A alone is what buys that; without it the table
+is one column of unfalsifiable green.
+
+Run B's gate output, verbatim from the job log:
+
+```
+schema-drift: 11 local entries against 10 applied cloud migrations
+DRIFT — the repository's migration history and the cloud database disagree.
+    20260728090000
+  Fix: `supabase db push` (PROD tier — run it yourself, from this branch's
+##[error]Process completed with exit code 1.
+```
+
+**Run A closes an open question Phase 1 had to leave open.** Phase 1 recorded that the API can
+list secret *names* but never values, so "the token in GitHub is the one that returned 200"
+was unverifiable from a developer machine and would be established by the first `drift` job.
+It now has been: run A's `drift` reproduced `10 local entries against 10 applied cloud
+migrations` from inside CI, using the GitHub secret and nothing else.
+
+**No token material in either log.** Both `drift` job logs were downloaded in full and scanned:
+zero hits for `sbp_`, zero for `bearer`, and zero for the project ref in clear. GitHub masks
+registered secrets, but masking is not the guarantee being claimed here — the script never
+puts the credential in a message in the first place, which is what makes the count zero rather
+than `***`.
+
+**The revert, verified rather than assumed.** A pristine copy of the intended `ci.yml` was
+taken *before* the first temporary edit and the file restored from it afterwards — `md5sum`
+identical (`e369230e…`). The fabricated migration was deleted (`supabase/migrations/` back to
+ten entries) and a tree-wide `grep` for `REHEARSAL` returns nothing outside this document. The
+two rehearsal commits were then dropped (`git reset --mixed b387017` + force-push), so the
+branch that reaches the PR carries neither the widened guards nor the fabricated file; the
+runs above stay linkable as the evidence. Forgetting this revert would have shipped a gate
+running on every branch, which is why the plan makes it a criterion of its own.
+
+### What this does NOT prove, and it is a real boundary
+
+- **No test in the suite touches this file.** `npm test` is unchanged at 177 because the
+  runner has no unit test and deliberately gets none: every branch in it is I/O against a
+  live cloud credential, which is exactly what `tests/setup/preflight.ts` exists to abort.
+  The logic that *can* be tested was pushed next door into `scripts/schema-drift.ts` and is
+  covered there (11 cases). What is left here is carried by the runs recorded above and by
+  the CI job itself.
+- **The gate compares versions, never contents.** A migration amended in place after it was
+  pushed leaves both lists identical and is invisible here by construction. That is drift
+  class 4, and it belongs to Phase 5's DDL diff.
+- **The `429` retry has not been exercised.** The endpoint defines the status; nothing here
+  provoked it, and manufacturing one would mean hammering the real API. Carried by reading.
+
+---
+
 ## Ship-time checklist
 
 These criteria cannot be satisfied before the merge. They are tracked here so they are
