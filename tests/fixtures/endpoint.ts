@@ -44,6 +44,16 @@ export interface CallOptions {
    * derives for it (FormData its multipart boundary, and so on).
    */
   body?: BodyInit;
+  /**
+   * Header overrides, merged last so they win over the Content-Type derived above.
+   *
+   * Exists for one narrow job: constructing a body that CLAIMS to be a form and is not
+   * parseable as one, which is the only way to reach the "a form arrived broken" branch of
+   * the endpoints' formData() guard (a real client abort or transport reset cannot be staged
+   * here). Do NOT reach for this to hand-set a Cookie — session cookies are captured through
+   * `setAll`, never assembled by hand (lessons.md).
+   */
+  headers?: Record<string, string>;
   as: TestAccount;
 }
 
@@ -55,7 +65,7 @@ export interface CallOptions {
  */
 export async function callEndpoint(
   endpoint: EndpointModule,
-  { url, method = "POST", params = {}, body, as }: CallOptions,
+  { url, method = "POST", params = {}, body, headers: headerOverrides, as }: CallOptions,
 ): Promise<Response> {
   const container = await AstroContainer.create();
 
@@ -71,7 +81,7 @@ export async function callEndpoint(
 
   const request = new Request(new URL(url, ORIGIN), {
     method,
-    headers,
+    headers: { ...headers, ...headerOverrides },
     body,
   });
 

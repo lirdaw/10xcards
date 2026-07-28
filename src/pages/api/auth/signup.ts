@@ -1,11 +1,26 @@
 import type { APIRoute } from "astro";
 import { createClient } from "@/lib/supabase";
-import { authErrorMessage, AUTH_UNAVAILABLE_MESSAGE } from "@/lib/auth-errors";
+import {
+  authErrorMessage,
+  AUTH_GENERIC_MESSAGE,
+  AUTH_UNAVAILABLE_MESSAGE,
+  AUTH_VALIDATION_MESSAGE,
+} from "@/lib/auth-errors";
+// Same reason as signin.ts.
+import { formString, isFormContentType } from "@/lib/forms";
 
 export const POST: APIRoute = async (context) => {
-  const form = await context.request.formData();
-  const email = form.get("email") as string;
-  const password = form.get("password") as string;
+  // Same guard as signin.ts, same two closed-set messages and the same reason for telling the
+  // causes apart; malformed-body handling only.
+  let form: FormData;
+  try {
+    form = await context.request.formData();
+  } catch {
+    const message = isFormContentType(context.request) ? AUTH_GENERIC_MESSAGE : AUTH_VALIDATION_MESSAGE;
+    return context.redirect(`/auth/signup?error=${encodeURIComponent(message)}`);
+  }
+  const email = formString(form.get("email"));
+  const password = formString(form.get("password"));
 
   const supabase = createClient(context.request.headers, context.cookies);
   if (!supabase) {

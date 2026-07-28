@@ -102,8 +102,22 @@ const MESSAGE_BY_CODE: Record<string, string> = {
 const MESSAGE_BY_NAME: Record<string, string> = {
   // Transport, not credentials: raised on a network failure and on 502/503/504/520-524/530.
   AuthRetryableFetchError: AUTH_NETWORK_MESSAGE,
-  // Raised client-side when a field is empty — which is what an empty form field produces,
-  // since `form.get("email") as string` hands `""` straight to supabase-js.
+  // Raised CLIENT-side by supabase-js before any request goes out, when the credentials it
+  // was handed are unusable as such.
+  //
+  // This comment used to say it was "what an empty form field produces, since
+  // `form.get("email") as string` hands `""` straight to supabase-js". Both halves are now
+  // wrong: that cast was replaced by `formString` (C10X-30), and — measured against the local
+  // stack, 2026-07-28 — an empty address does NOT land here at all. It reaches GoTrue, which
+  // answers differently per route and never with this class:
+  //
+  //   POST /auth/v1/token?grant_type=password  {"error_code":"validation_failed",           400}
+  //   POST /auth/v1/signup                     {"error_code":"anonymous_provider_disabled", 422}
+  //
+  // (the second because GoTrue reads an empty address as an anonymous sign-in attempt). So
+  // the first maps through CODE_MESSAGES to AUTH_VALIDATION_MESSAGE and the second, being
+  // absent from that table, falls to AUTH_GENERIC_MESSAGE. Both are pinned in
+  // tests/auth/errors.test.ts. Do not re-derive an empty-field story from this entry.
   AuthInvalidCredentialsError: AUTH_MISSING_CREDENTIALS_MESSAGE,
   AuthSessionMissingError: AUTH_SESSION_MISSING_MESSAGE,
 };

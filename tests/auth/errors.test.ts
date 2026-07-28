@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as SignIn from "@/pages/api/auth/signin";
+import * as SignUp from "@/pages/api/auth/signup";
 import {
   authErrorMessage,
   AUTH_EMAIL_EXISTS_MESSAGE,
@@ -218,5 +219,165 @@ describe("POST /api/auth/signin", () => {
     expect(location).not.toContain(SENTINEL);
     expect(location).not.toContain("%7B");
     expect(error).not.toContain("{");
+  });
+});
+
+// TWO COSTS TO KNOW BEFORE ADDING A CASE BELOW (impl-review F10).
+//
+// 1. Every case that reaches GoTrue spends the run's shared auth budget. `supabase/config.toml`
+//    allows 30 sign-in/sign-up requests per 5 minutes per IP, and `tests/fixtures/accounts.ts`
+//    already spends 4 provisioning the run's accounts. The endpoint cases in this file add a
+//    few more. The failure mode is worse than slowness: once the limit bites, GoTrue answers
+//    `over_request_rate_limit`, which maps to AUTH_RATE_LIMIT_MESSAGE, so every equality
+//    assertion below fails and the run READS AS A VALIDATION REGRESSION rather than as a rate
+//    limit. If this file goes red on messages you did not touch, suspect the budget first.
+//    Cases that return before `createClient` (the non-form-body ones) cost nothing — prefer
+//    that shape where it can carry the claim.
+//
+// 2. Any assertion pinning a SPECIFIC upstream mapping is coupled to GoTrue's behaviour, not
+//    to this repo's code: which `error_code` an empty address produces is upstream's choice
+//    and differs per route (see the signup block). Those assertions are still falsifiable for
+//    the change they name, but they can go red on a Supabase bump with nothing local changed.
+//    Keep the measurement in the comment beside them so the next reader can re-probe instead
+//    of re-deriving.
+describe("POST /api/auth/signin — malformed body", () => {
+  // THE BOUNDARY THESE TWO CASES DO NOT CROSS. This is malformed-BODY handling: the route
+  // must answer a crafted request with its own copy instead of an uncontrolled 500 or an
+  // upstream string. It is NOT input validation — these routes still assert nothing about
+  // presence, format or length of the credentials before calling GoTrue, and that gap is
+  // C10X-36's (`auth-input-validation`), deliberately left open here. Do not read a green
+  // run of this describe as "auth input is validated".
+
+  it("answers a project-owned redirect when the body is not a form at all", async () => {
+    // A string body makes callEndpoint set `Content-Type: application/json`
+    // (fixtures/endpoint.ts), so `request.formData()` rejects — unguarded, a framework 500.
+    const response = await callEndpoint(SignIn, {
+      url: "/api/auth/signin",
+      body: JSON.stringify({ email: `${SENTINEL}@example.com`, password: `wrong-password-${suffix}` }),
+      as: accountA(),
+    });
+
+    expect(response.status).toBe(302);
+    const location = response.headers.get("Location") ?? "";
+    expect(location.startsWith("/auth/signin?")).toBe(true);
+    expect(new URL(location, "http://localhost:4321").searchParams.get("error")).toBe(AUTH_VALIDATION_MESSAGE);
+    // The refusal must not echo the crafted body back into the address bar either.
+    expect(location).not.toContain(SENTINEL);
+  });
+
+  // The OTHER cause of a formData() rejection, and it must not share the first one's copy
+  // (impl-review F7). A body announced as multipart that does not parse is a truncated or
+  // reset upload — nothing the user typed is wrong, so "Popraw dane w formularzu" would send
+  // them hunting for a mistake they did not make. `AUTH_GENERIC_MESSAGE` ("spróbuj ponownie")
+  // is the honest answer and is already in the closed set, so no new copy was introduced.
+  //
+  // Staged by claiming a boundary the body does not contain — a real client abort cannot be
+  // produced through the Container API, and this reaches the identical code path: measured,
+  // both causes throw a bare TypeError, which is exactly why the endpoint branches on the
+  // header instead (see tests/lib/forms.test.ts).
+  it("tells a truncated form apart from a body that was never a form", async () => {
+    const response = await callEndpoint(SignIn, {
+      url: "/api/auth/signin",
+      body: `--REAL\r\nContent-Disposition: form-data; name="email"\r\n\r\n${SENTINEL}@example.com`,
+      headers: { "Content-Type": "multipart/form-data; boundary=NOTTHEBOUNDARY" },
+      as: accountA(),
+    });
+
+    expect(response.status).toBe(302);
+    const location = response.headers.get("Location") ?? "";
+    expect(location.startsWith("/auth/signin?")).toBe(true);
+    const error = new URL(location, "http://localhost:4321").searchParams.get("error") ?? "";
+    expect(error).toBe(AUTH_GENERIC_MESSAGE);
+    // The pair that makes this discriminating rather than decorative: the same handler
+    // answers the OTHER message for a non-form body (the case above), so a guard collapsed
+    // back to one branch fails here rather than passing on a shared literal.
+    expect(error).not.toBe(AUTH_VALIDATION_MESSAGE);
+    expect(AUTH_MESSAGES).toContain(error);
+    expect(location).not.toContain(SENTINEL);
+  });
+
+  it("reads a File `email` part as empty rather than posting it upstream", async () => {
+    const form = new FormData();
+    form.set("email", new File([`${SENTINEL}@example.com`], "email.txt", { type: "text/plain" }));
+    form.set("password", `wrong-password-${suffix}`);
+
+    const response = await callEndpoint(SignIn, { url: "/api/auth/signin", body: form, as: accountA() });
+
+    expect(response.status).toBe(302);
+    const location = response.headers.get("Location") ?? "";
+    expect(location.startsWith("/auth/signin?")).toBe(true);
+    const error = new URL(location, "http://localhost:4321").searchParams.get("error") ?? "";
+    // Equality, and the `not.toBe` beside it is what makes this case discriminating rather
+    // than decorative. MEASURED both ways: with the File cast to `string` and posted
+    // verbatim, GoTrue answers something the mapper does not recognise and the user reads
+    // AUTH_GENERIC_MESSAGE — the catch-all, i.e. no reason at all. Read as empty, the same
+    // request maps to the specific "popraw dane" copy. Membership in the closed set is the
+    // weaker claim the file already asserts elsewhere; it would NOT have gone red here.
+    expect(error).toBe(AUTH_VALIDATION_MESSAGE);
+    expect(error).not.toBe(AUTH_GENERIC_MESSAGE);
+    expect(location).not.toContain(SENTINEL);
+  });
+});
+
+// Phase 2 changed FOUR production files and, until impl-review F4, `signup.ts` was reached by
+// no test at all — not one line of it. Its two new branches are verbatim copies of signin's,
+// which is an argument that they are correct today, not that they will stay correct: a copy
+// with no assertion is exactly what drifts. Same boundary as the block above — malformed-BODY
+// handling, never an input rule; presence/format/length on auth remain C10X-36's.
+describe("POST /api/auth/signup — malformed body", () => {
+  it("answers a project-owned redirect when the body is not a form at all", async () => {
+    const response = await callEndpoint(SignUp, {
+      url: "/api/auth/signup",
+      body: JSON.stringify({ email: `${SENTINEL}@example.com`, password: `wrong-password-${suffix}` }),
+      as: accountA(),
+    });
+
+    expect(response.status).toBe(302);
+    const location = response.headers.get("Location") ?? "";
+    // The signup target, not signin's — the two handlers carry their own base path and a
+    // copy-paste between them would land the user on the wrong form.
+    expect(location.startsWith("/auth/signup?")).toBe(true);
+    expect(new URL(location, "http://localhost:4321").searchParams.get("error")).toBe(AUTH_VALIDATION_MESSAGE);
+    expect(location).not.toContain(SENTINEL);
+    // This branch returns BEFORE createClient, so it costs no GoTrue round trip and no
+    // rate-limit budget — unlike the File case below.
+  });
+
+  // NOT a copy of signin's File case, and the difference is measured, not assumed. On signup
+  // an empty address is read by GoTrue as an ANONYMOUS sign-in attempt, so the two routes
+  // answer different upstream errors for the same input:
+  //
+  //   POST /auth/v1/signup                    {"error_code":"anonymous_provider_disabled", 422}
+  //   POST /auth/v1/token?grant_type=password {"error_code":"validation_failed",           400}
+  //
+  // (probed directly against the local stack, 2026-07-28). `anonymous_provider_disabled` is
+  // not in the mapper's table, so this lands on the catch-all — i.e. the user is told nothing
+  // useful. That is asserted here BY EQUALITY rather than smoothed over: it is the truth
+  // today, and pinning it means the day someone maps that code the test goes red and the
+  // improvement gets noticed instead of landing silently. Whether it SHOULD be mapped is a
+  // question about `auth-errors.ts`'s table, not about malformed-body handling, so it is not
+  // resolved here.
+  //
+  // What this case does prove is the property the phase exists for: an owned message from the
+  // closed set, never a framework 500 and never the upstream string.
+  it("answers owned copy, never the upstream string, when the email part is a File", async () => {
+    const form = new FormData();
+    form.set("email", new File([`${SENTINEL}@example.com`], "email.txt", { type: "text/plain" }));
+    form.set("password", `wrong-password-${suffix}`);
+
+    const response = await callEndpoint(SignUp, { url: "/api/auth/signup", body: form, as: accountA() });
+
+    expect(response.status).toBe(302);
+    const location = response.headers.get("Location") ?? "";
+    expect(location.startsWith("/auth/signup?")).toBe(true);
+    const error = new URL(location, "http://localhost:4321").searchParams.get("error") ?? "";
+    expect(error).toBe(AUTH_GENERIC_MESSAGE);
+    expect(AUTH_MESSAGES).toContain(error);
+    // The no-leak half, which is what makes the catch-all acceptable rather than merely
+    // unhelpful: GoTrue's own wording never reaches the address bar.
+    expect(error).not.toContain("Anonymous");
+    expect(location).not.toContain(SENTINEL);
+    // No account is created: the empty address never passes GoTrue, so the run leaves no
+    // user behind for the next one to collide with.
   });
 });

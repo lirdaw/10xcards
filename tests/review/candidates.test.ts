@@ -324,6 +324,69 @@ describe("POST /api/decks/[publicId]/cards/batch applies a transition over a set
     expect(await rowOf(a, candidate)).toEqual(before);
   });
 
+  // IDS_MAX (batch.ts) is the one input bound on this endpoint with no test, and the review
+  // island mirrors it as a COMMENTED COPY (`BATCH_MAX = 100` in CandidateReviewWorkspace)
+  // rather than an import — so the client is not a second enforcer of the same number, and
+  // the server half is the only one there is. Every id here is well-formed and distinct, so
+  // nothing but the count can be what the refusal observes: the dedupe in the endpoint runs
+  // AFTER the schema, so a body of 101 repeats of one id would be refused for the same
+  // reason and prove less. No 100-id control is added — the block's successful cases above
+  // already establish that a well-formed body is accepted (test-plan §6.6, C10X-30).
+  it("refuses a batch of more than 100 ids with 400, writing nothing", async () => {
+    const deckPublicId = await createDeck(a, `Batch cap deck ${suffix}`);
+    const candidate = await seedCard(a, deckPublicId, `Batch cap candidate ${suffix}`, STATE_GENERATED);
+    const before = await rowOf(a, candidate);
+
+    const tooMany = [candidate, ...Array.from({ length: 100 }, () => crypto.randomUUID())];
+    expect(new Set(tooMany).size).toBe(101);
+
+    const response = await callEndpoint(BatchCards, {
+      url: `/api/decks/${deckPublicId}/cards/batch`,
+      params: { publicId: deckPublicId },
+      body: JSON.stringify({ action: "setState", cardPublicIds: tooMany, state: "accepted" }),
+      as: a,
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("Content-Type")).toContain("application/json");
+    // The real id riding in that body is the oracle: a bound checked after the write would
+    // have moved it, and a 400 alone cannot tell the two apart.
+    expect(await rowOf(a, candidate)).toEqual(before);
+  });
+
+  // The boundary control the case above is worthless without (impl-review F3). Its comment
+  // used to decline this on the grounds that "the block's successful cases already establish
+  // that a well-formed body is accepted" — but those send ONE or TWO ids, so they pin the
+  // shape and not the number. Measured consequence of leaving it out: narrow IDS_MAX from
+  // 100 to 2 and the 101-id case still answers 400, every earlier case still passes, and
+  // nothing in the suite goes red — while the island's `BATCH_MAX = 100` chunking, a
+  // COMMENTED COPY rather than an import, starts sending bodies the server now refuses.
+  // A bound is only asserted when both sides of it are.
+  it("accepts a batch of exactly 100 ids", async () => {
+    const deckPublicId = await createDeck(a, `Batch cap edge deck ${suffix}`);
+    const candidate = await seedCard(a, deckPublicId, `Batch cap edge candidate ${suffix}`, STATE_GENERATED);
+
+    // One real id plus 99 well-formed strangers: exactly at the cap, and the strangers
+    // resolve to nothing, so `skipped` carries them and only the real card moves.
+    const strangers = Array.from({ length: 99 }, () => crypto.randomUUID());
+    const atCap = [candidate, ...strangers];
+    expect(new Set(atCap).size).toBe(100);
+
+    const response = await callEndpoint(BatchCards, {
+      url: `/api/decks/${deckPublicId}/cards/batch`,
+      params: { publicId: deckPublicId },
+      body: JSON.stringify({ action: "setState", cardPublicIds: atCap, state: "accepted" }),
+      as: a,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("application/json");
+    expect(await response.json()).toEqual({ ok: true, changed: [candidate], skipped: strangers });
+    // The row oracle on the accepting side too: a 200 that wrote nothing would otherwise
+    // satisfy this control while proving the cap admits 100 but not that the write happened.
+    expect((await rowOf(a, candidate)).state_id).toBe(STATE_ACCEPTED);
+  });
+
   it("leaves the edit endpoint unable to answer for the literal segment `batch`", async () => {
     const deckPublicId = await createDeck(a, `Precedence deck ${suffix}`);
 

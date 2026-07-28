@@ -1,6 +1,8 @@
 import type { APIRoute } from "astro";
 import { createClient } from "@/lib/supabase";
 import { updateFlashcard, deckIdByPublicId, FRONT_MAX, BACK_MAX } from "@/lib/flashcards";
+// See cards/index.ts: only genuine strings are read, so a `File` part cannot crash `.trim()`.
+import { formString } from "@/lib/forms";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -20,16 +22,36 @@ export const POST: APIRoute = async (context) => {
     return new Response(null, { status: 404 });
   }
 
-  const form = await context.request.formData();
-  const front = ((form.get("front") as string | null) ?? "").trim();
-  const back = ((form.get("back") as string | null) ?? "").trim();
+  // Same guard as the create endpoint — including that both rejection causes (never a form
+  // vs a form-typed body that arrived broken) share one owned message here, because
+  // "Nie udało się zapisać zmian" is truthful for both. See cards/index.ts.
+  //
+  // Note this catch runs BEFORE the `locals.user` check below, the reverse of the create
+  // endpoint's order, so a signed-out caller reaching this handler directly would get the
+  // deck error rather than /auth/signin. Unobservable in production — middleware guards
+  // /api/decks first — but it is an ordering nobody chose, so do not read it as deliberate.
+  //
+  // The asymmetry below, by contrast, IS deliberate and must not be "fixed": here
+  // `errorUrl` does not exist yet, because it is built from the `from`/`generation` fields
+  // this very body would have carried. So the catch falls back to the unscoped deck-view
+  // target. Moving formData() below errorUrl is NOT the fix — `from`/`generation` genuinely
+  // gate which base path the error round-trips to, and the S-05 round-trip tests pin that.
+  let form: FormData;
+  try {
+    form = await context.request.formData();
+  } catch {
+    const message = encodeURIComponent("Nie udało się zapisać zmian");
+    return context.redirect(`/decks/${publicId}?error=${message}&edit=${cardPublicId}`);
+  }
+  const front = formString(form.get("front")).trim();
+  const back = formString(form.get("back")).trim();
 
   // `from` is a SWITCH with exactly one accepted value, never a redirect target, and
   // `generation` rides along only as a uuid: both targets below are built server-side
   // from the already-validated route params, so no client-supplied string can reach the
   // `Location` header. Anything else falls back to the deck view.
-  const fromReview = form.get("from") === "review";
-  const generation = (form.get("generation") as string | null) ?? "";
+  const fromReview = formString(form.get("from")) === "review";
+  const generation = formString(form.get("generation"));
   const scope = fromReview && UUID_RE.test(generation) ? `generation=${generation}&` : "";
   const basePath = fromReview ? `/decks/${publicId}/review` : `/decks/${publicId}`;
   const errorUrl = (msg: string) => `${basePath}?${scope}error=${encodeURIComponent(msg)}&edit=${cardPublicId}`;

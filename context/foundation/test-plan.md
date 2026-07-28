@@ -6,7 +6,31 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-07-28 (C10X-29 `schema-drift-test` shipped). **§3 Phase 3 is
+> Last updated: 2026-07-28, second entry of the day (C10X-30 `server-side-validation-test`
+> shipped). **§3 Phase 2 is `complete` and Risk #6 is covered on the server side** — the
+> card-content half that C10X-28 named as the single thing between this phase and `complete`
+> now has its test, so the status is a dated claim rather than a standing IOU.
+>
+> What the slice added beyond the assertion, and the boundary it keeps. `FRONT_MAX`/`BACK_MAX`
+> gained a **second, independent enforcer** — a DB CHECK (`char_length between 1 and N`) that
+> closes the residual risk S-02 recorded on 2026-07-09, when the maximum lived only in app
+> code — and the breakage **pair** is what separates the two layers: one run alone cannot tell
+> "the endpoint caught it" from "the database caught it". Three "server trusts the client"
+> defects were fixed rather than deferred on four of the **six** endpoints that read
+> `formData()` — the deck-form pair was missed and still carries two of them (impl-review
+> F1, see §6.6): an unguarded
+> `formData()` that answered an uncontrolled framework `500`, a `File` part that crashed the
+> handler on `.trim()`, and the untested `IDS_MAX` bound on `/cards/batch`. The rule this file
+> did not have is now **§6.10**: the two card endpoints are native-form targets that refuse
+> with a **`302`**, not a `4xx`, so a refusal and a success carry the same status and the row
+> oracle is not optional. That wording — "4xx", plus a `PATCH` handler that does not exist —
+> was wrong in six places and is corrected here and, as a dated correction line, in the
+> archive. Auth input validation is deliberately **out**, owned by C10X-36; what landed on the
+> auth routes is malformed-body handling only. Suite: **207/207, 17 files** (193/193, 16 at
+> phase completion; the impl-review added 14 across 5 findings — see §8).
+> Evidence: `context/changes/server-side-validation-test/verification.md`.
+>
+> Previously: 2026-07-28 (C10X-29 `schema-drift-test` shipped). **§3 Phase 3 is
 > `complete`, and Risk #5 is covered per drift CLASS rather than wholesale** — the row
 > names which classes are gated, which are only detectable off the deploy path, and which
 > are not covered at all, because "Risk #5 closed" would be false in both directions.
@@ -130,7 +154,7 @@ research's job, see §1 principle #3).
 | 3   | The study session loses a card or writes the wrong next-review date, and cards that were never accepted enter review — the schedule stops being trustworthy.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | High   | Medium     | PRD §Guardrails (spaced-repetition scheduling correctness), PRD §NFR (schedule survives across sessions), PRD US-02 acceptance criteria, PRD FR-006; roadmap S-03 (north star, next in sequence)                                       |
 | 4   | Private source text or the LLM API key escapes into a log line or an error response body. **Covered 2026-07-26 (C10X-28), with a named boundary: the response-body half is pinned on both failure branches, the log half only for what `src/` itself writes. Read §6.6's C10X-28 entry before citing this as closed.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | High   | Medium     | PRD §Guardrails (privacy of pasted source text), PRD §NFR (privacy); `context/foundation/lessons.md` (prod secret is separate from `.env`; missing secret silently degraded to mock mode); abuse lens (secret/PII leakage)             |
 | 5   | The production schema drifts from the migration history — the deployed app writes against an un-migrated database. **Covered 2026-07-28 (C10X-29) per drift CLASS, not as one range — writing "classes 4-9 are uncovered" would be false for four of them. Gated in CI and deploy-blocking: a migration committed but never pushed; a history desync from `migration repair`; an out-of-order version skipped by `db push`. Gated in the `ci` job: a stale generated `src/db/database.types.ts`. Detectable only off the deploy path, by an on-demand DDL diff nobody is scheduled to run: a migration file amended after it was pushed; production changed by hand in Studio; `repair --status applied` on something never applied. Not covered at all: `config.toml` vs dashboard config, and seed/dictionary row drift. Read §6.6's C10X-29 entry before citing this as closed.** | High   | Medium     | interview Q2 (real incident during M2L5); `context/foundation/lessons.md` ×2 (cloud migration is a step distinct from app deploy; blind `migration repair` desynced prod history); hot-spot dir `supabase/migrations/` (6 commits/30d) |
-| 6   | The server trusts the client — a crafted request bypasses the source-text length limit and the card content rules that the UI enforces. **PARTLY covered 2026-07-26 (C10X-28): the source-text half is pinned at `/api/generate` and that limit now has one definition; the card-content half (the `FRONT_MAX`/`BACK_MAX` endpoints) is still untested.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Medium | Medium     | PRD FR-003 (maximum source-text length), PRD FR-007; abuse lens (untrusted input, server-side validation parity); hot-spot dir `src/lib/` (18 commits/30d)                                                                             |
+| 6   | The server trusts the client — a crafted request bypasses the source-text length limit and the card content rules that the UI enforces. **Covered on the server side, in two dated halves: source text 2026-07-26 (C10X-28), card content 2026-07-28 (C10X-30). Both LENGTH limits have exactly one definition (`SOURCE_MAX`; `FRONT_MAX`/`BACK_MAX`), and the card pair now carries a second enforcer independent of the endpoints — a DB CHECK. `/cards/batch`'s `IDS_MAX` is the exception and is asserted rather than single-sourced: the review island mirrors it as a commented copy, so the server is its only enforcer. The boundary: only the SERVER half is asserted. The three card islands mirror the constants by import but their enforcement is not tested (§7), and unlike `GeneratorForm` they carry no `maxLength`, so their over-length branch IS reachable through the browser and rests on a manual check. Read §6.6's C10X-30 entry before citing this as closed — on the card endpoints the refusal is a `302`, not a `4xx`.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Medium | Medium     | PRD FR-003 (maximum source-text length), PRD FR-007; abuse lens (untrusted input, server-side validation parity); hot-spot dir `src/lib/` (18 commits/30d)                                                                             |
 | 7   | Generation returns cards in the wrong language or cards that are unusable, so the acceptance rate falls below 75% and the product thesis fails.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | High   | Medium     | PRD §Success Criteria (≥75% of generated cards accepted; ≥75% of cards created via generation), PRD §NFR (cards follow the source-text language: PL/EN/ES); roadmap S-05                                                               |
 
 ### Risk Response Guidance
@@ -142,7 +166,7 @@ research's job, see §1 principle #3).
 | #3   | A card rated well-known is deferred further than a card rated hard; the schedule survives a restart; only `accepted` cards enter a session | "The session returned cards, therefore the schedule works"                           | FSRS schedule columns vs the existing card `state_id`, source of "now", persistence boundary                                 | unit on rating→next-review mapping + integration on persistence | Assertion copied from the implementation (oracle problem); happy path with no restart                                         |
 | #4   | Neither the error body nor the log line contains source text or the API key                                                                | "A 500 is harmless"                                                                  | The FR-018 error path, what is written to logs vs returned to the client                                                     | integration on the failure path                                 | Asserting the status code instead of the payload contents                                                                     |
 | #5   | A drift between migration history and the deployed schema stops the pipeline **before** the app deploys                                    | "Green locally means prod is migrated"                                               | The CI steps, how (and whether) `db push` is wired relative to deploy                                                        | CI gate (drift check)                                           | A unit test where a gate is required                                                                                          |
-| #6   | A request that bypasses the UI gets a 4xx, not a write                                                                                     | "Validated in the form means validated"                                              | Where the schema validation runs, client/server parity                                                                       | integration on the endpoint                                     | Driving the case through the UI only, never touching the server                                                               |
+| #6   | A request that bypasses the UI is refused in the caller's own convention — a `4xx` on the JSON endpoints, a `302` to an owned error URL on the native-form targets — and writes nothing either way | "Validated in the form means validated"; "the refusal has its own status" — on a redirect-style endpoint it does not (§6.10) | Where the schema validation runs, client/server parity, and which convention the endpoint answers in                        | integration on the endpoint                                     | Driving the case through the UI only, never touching the server                                                               |
 | #7   | Cards come back in the source language and are usable for PL/EN/ES material                                                                | "The model returned valid JSON, therefore the cards are good"                        | The prompt, the response contract, the model selection                                                                       | AI-native (LLM-as-judge over a reference set)                   | Snapshotting the model response — non-deterministic, breaks without signal                                                    |
 
 ## 3. Phased Rollout
@@ -157,7 +181,7 @@ show a `complete` phase never covered all of its risk — see Phase 4. Treat
 | #   | Phase name                      | Goal (one line)                                                                         | Risks covered                                                                                        | Test types                         | Status       | Change folder                                                                                                  |
 | --- | ------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------- |
 | 1   | Harness + per-account isolation | Stand up the runner and prove cross-account denial on read and write                    | #1                                                                                                   | runner bootstrap, integration, RLS | complete     | `context/archive/2026-07-15-verification-harness/`                                                             |
-| 2   | Endpoint contract               | Prove the server does not trust the client and does not leak; stop duplication on retry | #2 (**covered** — S-05 Phase 6), #4 (**covered** — C10X-28), #6 (**partly** — source-text half only) | integration                        | implementing | `context/archive/2026-07-18-ai-candidate-generation-test/` → `context/changes/ai-candidate-generation-test-2/` |
+| 2   | Endpoint contract               | Prove the server does not trust the client and does not leak; stop duplication on retry | #2 (**covered** — S-05 Phase 6), #4 (**covered** — C10X-28), #6 (**covered, server side** — C10X-30, 2026-07-28) | integration                        | complete     | `context/archive/2026-07-18-ai-candidate-generation-test/` → `context/archive/2026-07-26-ai-candidate-generation-test-2/` → `context/changes/server-side-validation-test/` |
 | 3   | Quality gates + schema drift    | Make green CI mean "tested and prod actually migrated"                                  | #5 (**covered** — the deploy-blocking classes and the stale generated types; C10X-29, 2026-07-28)    | gates                              | complete     | `context/changes/schema-drift-test/`                                                                           |
 | 4   | SRS schedule correctness        | Prove the schedule defers by rating, survives restart, and admits only accepted cards   | #3 (**covered** — both halves; closed by C10X-27, 2026-07-26)                                        | unit + integration                 | complete     | `context/archive/2026-07-24-srs-study-session/` → `context/archive/2026-07-26-srs-study-session-test/`         |
 | 5   | AI-native generation quality    | Prove cards match the source language and are usable, so the 75% thesis is measurable   | #7                                                                                                   | LLM-as-judge                       | not started  | —                                                                                                              |
@@ -177,16 +201,33 @@ Sequencing notes:
   not deleted, and Risk #2 is now **covered**. §6.6's Phase-2 entry records
   exactly what the inverted suite does and does not prove.
   **Phase 2's second slice (`ai-candidate-generation-test-2`, C10X-28, 2026-07-26)
-  covered Risk #4 and half of Risk #6**, and the phase **stays `implementing`** — read
-  that as a deliberate call, not as leftover state. What it now takes to flip: nothing
-  on #2 or #4, and on #6 only the **card-content** half — a crafted request against
-  `POST/PATCH /api/decks/[publicId]/cards*` that breaches `FRONT_MAX`/`BACK_MAX` and is
-  shown to write nothing. That half was excluded on purpose (those endpoints already
-  share one constant with their islands, so they are the low-drift side of #6), which is
-  why the outstanding work is one named test rather than a slice. C10X-30
-  (`server-side-validation-test`) is the ticket that owns it; whoever lands it flips this
-  row to `complete` and dates the claim. Claiming `complete` from C10X-28 would be exactly
-  the dated-claim failure the `reopened` vocabulary above exists to record.
+  covered Risk #4 and half of Risk #6**, and left the phase at `implementing` on purpose:
+  the outstanding work was one named test — a crafted request against the card-content
+  endpoints breaching `FRONT_MAX`/`BACK_MAX` and shown to write nothing — not a slice.
+  **Phase 2's third slice (`server-side-validation-test`, C10X-30, 2026-07-28) landed it,
+  and the row is now `complete`, dated.** Three things about how it landed are worth
+  carrying forward, because none was visible when the work was scoped as "one test".
+  First, the named test could not be written as described: the create/edit endpoints are
+  **native-form targets that refuse with a `302`**, so "assert a 4xx" was wrong wording
+  (as was "PATCH", which neither endpoint exports), and a refusal is indistinguishable
+  from a success without a row oracle plus an **equality** assertion on the decoded
+  `error` param. That rule now has its own subsection, **§6.10**. Second, C10X-28's
+  reason for excluding this half — "those endpoints already share one constant with their
+  islands, so they are the low-drift side of #6" — was true and still left the constants
+  with **no enforcer beneath the app**, so the slice added a DB CHECK and proved the two
+  layers independent with a breakage **pair** rather than a single run. Third, three
+  "server trusts the client" defects (unguarded `formData()`, a `File` part crashing the
+  handler, the untested `IDS_MAX` bound) were fixed here instead of being deferred a second
+  time — on **four of the six** endpoints that read `formData()`. The plan's own enumeration
+  said "all four form endpoints" and that was simply wrong: `decks/index.ts` and
+  `decks/[publicId].ts` (deck create and rename) carry the first two defects verbatim and
+  were never touched. Found by this change's impl-review (F1), deferred by decision, and
+  named in the "does NOT prove" list below rather than left to be inferred from a count.
+  Auth input validation was
+  considered and routed out to **C10X-36**; what landed on `signin.ts`/`signup.ts` is
+  malformed-body handling, not an input rule. §6.6's C10X-30 entry states what the slice
+  does **not** prove — chiefly the island half, which is where §7's note now matters more
+  than it did for `GeneratorForm`.
 - Phase 3 shipped as **C10X-29 `schema-drift-test`** (2026-07-28), and the one decision
   worth carrying forward is what kind of oracle the gate is. It compares migration
   **versions** — the repository's filenames against the cloud's
@@ -408,7 +449,7 @@ had to warn readers off inferring the contract from §6.2's ownership rule.)
 
 Two contracts, and they are separate claims — assert both:
 
-- **Validation parity — a 4xx AND no write.** Copy
+- **Validation parity — a refusal AND no write.** Copy
   `tests/generation/generate.test.ts`'s input-contract block. A status assertion alone
   is not enough: a 400 returned _after_ a write had landed reads as a pass. Every
   rejection case re-counts the rows it could have created and asserts zero, and the
@@ -417,6 +458,15 @@ Two contracts, and they are separate claims — assert both:
   **status-filtered** count is an argument rather than an assertion, and a PostgREST
   filter scoped by a long value answers **414** before the query runs — scope by a short
   per-case marker with `.like()`.
+  > **This bullet used to say "a 4xx AND no write"; corrected 2026-07-28 by C10X-30.**
+  > A `4xx` is the convention of the three **JSON** endpoints (`/api/generate`,
+  > `/api/study`, `/cards/batch`), not of the project as a whole. The six protected
+  > `/api/*` routes that are native `<form method="POST">` targets refuse by
+  > **redirecting** to an owned `?error=` URL — the same `302` a success returns — so on
+  > those the row oracle is not a supplement to the status assertion, it is the only
+  > thing separating a refusal from a write. That case has its own subsection: read
+  > **§6.10** before writing one. The "AND no write" half was always the load-bearing
+  > part and is unchanged.
 - **No leak in the error body.** The invariant is that every `error` string an endpoint
   returns comes from a closed set of module-level literals, never from an upstream
   message, an exception, a Zod issue, or user input. It has a consumer:
@@ -1246,6 +1296,12 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
   - **The card-content half of Risk #6** — the `FRONT_MAX`/`BACK_MAX` endpoints, excluded on
     purpose (they already share one constant with their islands). It is the single thing between
     §3 Phase 2 and `complete`.
+    > **Closed 2026-07-28 by C10X-30** (`server-side-validation-test`), which flipped §3 Phase 2
+    > to `complete`. Two of this bullet's own words did not survive the work: the exclusion's
+    > reason ("they already share one constant with their islands") was true and still left the
+    > constants with no enforcer beneath the app — a DB CHECK is now that second layer — and the
+    > refusal these endpoints answer with is a **`302`**, not the `4xx` the entry above assumes
+    > throughout. See §6.10 and this section's C10X-30 entry.
   - **The 502/422 error copy.** `error_message`'s wording on the 502 path is asserted non-empty,
     not pinned; the only copy assertion in the file is 422's literal, and it is there because
     substituting it for the upstream string **is** the no-leak property on that branch.
@@ -1367,6 +1423,107 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
   `context/archive/<date>-schema-drift-test/verification.md`). The nine drift classes are
   enumerated once, with their mechanisms and which oracle sees each, in that change's
   `research.md`.
+
+- **Phase 2, third slice (`server-side-validation-test`, C10X-30, 2026-07-28)** — Risk #6's
+  **card-content** half is covered on the server, which closes §3 Phase 2. The entry states
+  its boundary in the same breath: **the server half is asserted, the island half is not**,
+  and on these endpoints the refusal is a `302`, not the `4xx` five documents said it was.
+
+  Two things about the shape of the work, because neither was visible when C10X-28 scoped
+  this as "one named test". The validation logic in `src/` **was already correct** — four
+  lines on two endpoints, refusing before any write — so the slice's job was to make it
+  observable and to give it something underneath: `FRONT_MAX`/`BACK_MAX` had **no enforcer
+  below the app**, the residual risk S-02 recorded on 2026-07-09. And the same four form
+  endpoints carried three genuine "server trusts the client" defects that a test of the
+  length rule alone would have walked straight past.
+
+  | Claim                                                                                             | What proves it                                                                                                                                                                                                                                                                                    |
+  | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | An over-`FRONT_MAX`/`BACK_MAX` **create** is refused and writes nothing                           | `tests/validation/cards.test.ts`, two cases: a state- and status-agnostic count scoped by `deck_id` asserted **first**, then `302`, then the decoded `error` **equal** to the project literal. The count-first order is what makes the breakage pair separable — see below                        |
+  | …and the same on **edit**, where a count would prove nothing                                      | the edit case's oracle is the **row**, `toEqual(before)` column for column (an over-max edit is an UPDATE, which leaves any count untouched however badly it goes), for both `front` and `back`, each with its own literal                                                                        |
+  | …and the refusals are not an endpoint refusing everything                                         | **three** boundary controls: create at exactly 200/1000, edit at exactly 200/1000, and a re-read asserting the stored strings are the submitted ones — length **and** equality, because a silent truncation to the bound satisfies a length check alone                                          |
+  | The lower bound is one indistinguishable refusal                                                  | missing, empty and whitespace-only `front` — three sub-cases, same message, no write. They measure 0 after the trim, so telling them apart from outside is not a property the endpoint has                                                                                                       |
+  | The trim direction is the **mirror** of `/api/generate`, not a copy of it                         | a 200-character front padded with trailing whitespace is **accepted** and stored at exactly 200. These endpoints `.trim()` before measuring; `/api/generate` caps the raw string. C10X-28's "trims back under it → still refused" does not transfer                                              |
+  | A refusal does not echo the submitted content back                                                | the **raw** `Location` (before decoding — percent-encoding would hide a marker from a decoded read) contains neither the case marker nor the run suffix, and the decoded `error` is one of the two project literals                                                                              |
+  | A body that is not a form at all is an owned redirect, not a framework `500`                      | one case per endpoint. On create the `Location` carries `open=create-card` and `Nie udało się utworzyć fiszki`; on edit it carries `edit=<cardPublicId>` and `Nie udało się zapisać zmian` — the **unscoped** fallback, which is the ordering constraint below made assertable                    |
+  | A `File` part does not crash the handler                                                          | a multipart `front` of type `File` reads as empty and falls into the length guard the endpoint already owns — the existing Polish message, no new copy                                                                                                                                           |
+  | The database refuses the same content **independently of the endpoint**                           | direct RLS-scoped inserts (around the endpoint, never around the lock): 201-character `front` and 1001-character `back` each `23514`, asserted by **code** as `deck_session_size_check` is in `study.test.ts`, with an in-range insert as the positive control                                   |
+  | `/cards/batch`'s `IDS_MAX` is bounded on the server — the **only** place it is bounded          | `candidates.test.ts`: 101 **distinct, well-formed** UUIDs → `400`, JSON content type, and the one real card in that body `toEqual(before)`. Distinct on purpose — the endpoint's dedupe runs after the schema, so 101 repeats of one id would be refused for a different reason and prove less. Unlike the length limits this bound is **not** single-sourced: `CandidateReviewWorkspace.tsx:27` mirrors it as a commented copy (`BATCH_MAX = 100`, chunk size) rather than an import, so the two can drift silently and the server assertion is the whole guard |
+  | The two auth routes answer their own copy on a malformed body                                     | `errors.test.ts`, two cases: a non-form body and a `File` `email` part → `302` to `/auth/signin` with `error` **equal** to `AUTH_VALIDATION_MESSAGE`, and the crafted address not echoed. The `File` case also asserts `not.toBe(AUTH_GENERIC_MESSAGE)` — measured: posted verbatim, GoTrue's reply maps to the catch-all, i.e. no reason at all |
+
+  **The breakage PAIR, and why one run could not have done it.** Run 1 decoupled the
+  endpoint's comparison (`> FRONT_MAX` → a literal `> 100000`, never raising the shared
+  constant, which the endpoint, three islands, `openrouter.ts` **and the test** all import).
+  **2 of 12 red**, the predicted {case 1, case 8}, both on the message equality. Run 2 kept
+  that edit and additionally dropped `flashcard_front_check` against the live local DB:
+  **3 of 12 red**, {case 1, case 8, case 11}. Case 1 is red in both runs **and for different
+  reasons** — run 1 on the message with its count **passing** (that pass is the evidence the
+  CHECK absorbed the write), run 2 on that same count. The difference in failure string is
+  the proof, not the reds; with the message asserted first, run 2 would have printed run 1's
+  string verbatim and the pair would have separated nothing.
+
+  Four things this slice paid for, so the next contributor does not:
+  - **A `302` refusal and a `302` success are the same status**, so a status assertion is
+    worthless alone and `toContain("error=")` is worse than useless: under run 1 the
+    endpoint still answered `302` with an `error=` param — a different one, from its generic
+    failure branch. Only an **equality** assertion went red. This is now §6.10.
+  - **The helper your need points at is the wrong one.** "Count this deck's cards" lands on
+    `countFlashcards` (`flashcards.ts:167-173`), which filters `state_id = STATE_ACCEPTED`;
+    `listFlashcards` (`:76-83`) carries the same filter. A card written in any other state is
+    invisible to both, so "count unchanged" reads green over a real write. Same class as
+    C10X-28's status-filtered count, one layer down.
+  - **Restoring a dropped CHECK is not symmetric with restoring a function.** The suite
+    persisted three rows the constraint forbids while it was absent — all carrying the run's
+    own suffix, all in the run's own decks — so `add constraint` fails with
+    `violated by some row` until they are deleted. Inspect, repair, re-add, then `diff` the
+    `pg_get_constraintdef` before/after. And know what that diff does **not** establish: it
+    is a text match, identical for a constraint that came back `NOT VALID`. Probed
+    behaviourally as well, in a rolled-back transaction, with an in-range insert as the
+    positive control.
+  - **The `-i` echo is not the strongest evidence that a `psql` drop applied.** psql echoing
+    `ALTER TABLE` and the `pg_constraint` re-read come from the same session that issued the
+    command. The independent corroboration is **case 11's red in run 2**, reachable only if
+    the constraint was genuinely absent when the suite ran in a different process over
+    PostgREST. A silently no-opped heredoc — §6.6's recorded failure mode — would have left
+    it green.
+
+  **What this does NOT prove — read this before citing Risk #6 as closed.**
+  - **The two deck-form endpoints, which were missed entirely** (impl-review F1, 2026-07-28).
+    `decks/index.ts:22-23` and `decks/[publicId].ts:31-32` still read `formData()` unguarded
+    and still carry `((form.get("name") as string | null) ?? "").trim()`, so a crafted
+    non-form body answers an uncontrolled framework `500` and a `File` `name` part crashes
+    the handler — the exact two defects this slice fixed one directory over. There are
+    **six** `formData()` readers in `src/pages/api/`, not four; the plan's Current State
+    enumerated four and nothing in "What We're NOT Doing" excluded the other two, so this is
+    an incomplete sweep rather than a scoped exclusion. They have a 1–100 name rule and a DB
+    CHECK (`init_core_schema.sql:45`) already, so §6.10's breakage-pair design transfers to
+    them unchanged. Deferred by decision at impl-review triage and raised as **C10X-37**.
+  - **The island half.** The three card islands import the same constants, so the two ends
+    cannot disagree about the **value**; that each end still enforces it is a separate claim
+    and only the server half is asserted. And these islands differ from `GeneratorForm` in a
+    way that matters: they carry **no `maxLength`**, so their over-length branch is genuinely
+    reachable through the browser rather than being a second belt behind an input stop (§7).
+    It rests on the manual checks in the change's `verification.md`.
+  - **The cloud's data.** The pre-`db push` row check ran read-only against production and
+    found `bad_front`/`bad_back` both 0 over 38 rows — a point-in-time observation recorded
+    in `verification.md`, not a gate. The migration itself is pushed by `/ship`, and the
+    `drift` gate (C10X-29) is what enforces that a committed migration reached the cloud.
+  - **The generation write path's own bounds.** `insertCandidates` stays unvalidated at the
+    insert site; its content bound is still `openrouter.ts`'s Zod schema. The new CHECK is a
+    free backstop there with one consequence recorded rather than guarded against: a
+    single over-length card would now fail the **whole batch**, not just itself.
+  - **Auth input rules.** Nothing here asserts presence, format or length of credentials —
+    those routes still call GoTrue with whatever they were given. That is **C10X-36**
+    (`auth-input-validation`), deliberately left open; the test file says so in a comment so
+    a green run of that `describe` cannot be read as "auth input is validated".
+  - **`PATCH`.** Neither card endpoint exports a `PATCH` handler. The five documents that
+    said "POST/PATCH" were wrong; they are corrected here and, as a dated correction line,
+    in C10X-28's archived `change.md`.
+
+  Full evidence — the cloud probe, every breakage edit, its observed failure string, its
+  red/green split with the denominator, the constraint-definition diffs and the verified
+  restores: `context/changes/server-side-validation-test/verification.md` (after archiving:
+  `context/archive/<date>-server-side-validation-test/verification.md`).
 
 ### 6.7 Adding a test for the SRS / study path
 
@@ -1644,6 +1801,85 @@ records that run, plus the three that pin the individual assertions (a body inte
 `err.message`, a body interpolating the source text, and `Authorization` moved into the
 request body).
 
+### 6.10 Adding a test for a redirect-style (native form) endpoint
+
+(Added by C10X-30 / §3 Phase 2's card-content slice. It sits after §6.9 so every existing
+§6.x anchor keeps pointing where it did.)
+
+§6.3 tells you to assert a refusal **and** no write. On the six protected `/api/*` routes
+that are native `<form method="POST">` targets — deck rename/delete, card create/edit/delete
+— "the refusal" has no status of its own, and that changes what an assertion has to look
+like. This subsection is the difference; everything §6.3 and §6.4 say still applies on top
+of it.
+
+- **Location**: `tests/validation/cards.test.ts` for a **content rule**;
+  `tests/isolation/*.test.ts` stays the **ownership** file (§6.2's one-file-per-resource
+  rule is about the resource, and these two concerns are deliberately not mixed).
+- **Reference**: `tests/validation/cards.test.ts` — copy this one.
+- **Run**: `npm test`, or one file with `npx vitest run tests/validation/cards.test.ts`.
+  Local stack up (`npm run db:start`).
+- **Check §6.6 first**, as §6.2 requires: the C10X-30 entry tabulates what each claim
+  already rests on.
+
+Six facts that are invisible from the test file and will cost you an afternoon:
+
+- **A refusal and a success are the SAME status.** Both are a `302`; only the `Location`
+  differs. So `expect(response.status).toBe(302)` proves nothing at all here, and the row
+  oracle is not a supplement — it is the assertion. Every refusal case must re-read the
+  rows it could have written.
+- **Assert the decoded `error` param by EQUALITY, never `toContain("error=")`.** A guard
+  that stops working does not remove the redirect; the request falls through to the
+  handler's *other* error branch, which redirects with a **different** owned message and
+  the same `error=` key. C10X-30's breakage run 1 is exactly that: with the endpoint's
+  length comparison decoupled, the response was still a `302` still carrying `error=` and
+  `open=create-card`, and only the equality assertion went red. Read the param with
+  `new URL(location, ORIGIN).searchParams.get("error")` (`errors.test.ts:210-220`).
+- **Order the assertions with the row oracle FIRST, and say why in a comment.** Vitest
+  aborts an `it()` at the first failed `expect`. When two enforcement layers exist (here:
+  the endpoint's comparison and the DB CHECK), the breakage pair only separates them if the
+  two runs fail on *different* assertions — count-first yields "red on the message" for the
+  endpoint layer and "red on the count" for the database layer. Message-first collapses
+  both runs into one indistinguishable failure string. An ordering with no comment reads as
+  arbitrary and gets tidied away.
+- **`callEndpoint` does not follow redirects** (`endpoint.ts:50-55`), so `status` and the
+  raw `Location` string are directly assertable — which is also what makes a **no-echo**
+  case cheap: assert the raw header contains neither the submitted marker nor the run
+  suffix, before decoding.
+- **Never `countFlashcards` or `listFlashcards` as the count oracle.** Both filter
+  `state_id = STATE_ACCEPTED` (`flashcards.ts:167-173`, `:76-83`), so a card written in any
+  other state is invisible to them and "count unchanged" reads green over a real write. The
+  oracle must be a raw, state- and status-agnostic count scoped by `deck_id` only. This is
+  the same class as C10X-28's status-filtered-count trap, and the helper your need points
+  straight at is the wrong one.
+- **Deck resolution runs before content validation, deliberately** (`cards/index.ts`, from
+  S-02 impl-review F5). An over-length body aimed at a foreign deck answers `404`, not the
+  validation redirect — so every case must use a **real, owned** deck or it measures the
+  ownership guard instead of the rule it names.
+
+One asymmetry worth stating because it inverts a case you may be copying: the card
+endpoints `.trim()` **before** measuring, while `/api/generate` caps the raw string. So
+C10X-28's "over the cap, but trims back under it → still refused" does **not** transfer —
+the card-side mirror is *accepted*, and `tests/validation/cards.test.ts` carries it as its
+own case. And do not build boundary strings from non-ASCII: `char_length` counts code
+points while JS `.length` counts UTF-16 units, so an astral character measures 2 on the
+endpoint and 1 in the CHECK.
+
+**The deliberate-breakage check for this path is a PAIR, not a single run**, whenever the
+rule has a second enforcer beneath the endpoint. Run 1 decouples the endpoint's comparison
+(replace `> FRONT_MAX` with a literal — **never** raise the shared constant, which the
+endpoint, three islands, `openrouter.ts` *and the test* all import, so raising it moves
+every side together and the suite stays green while proving nothing). Run 2 keeps run 1's
+edit and additionally drops the CHECK against the live local DB
+(`docker exec -i … psql` — the `-i` is load-bearing, §6.7). One run alone cannot tell "the
+endpoint caught it" from "the database caught it"; the pair can, because the *failure
+strings* differ. Restoring a dropped CHECK is **not** symmetric with restoring a function:
+the suite persists rows the constraint forbids while it is absent, so delete those rows
+(scoped to the run's own deck) *before* re-adding, then confirm with a
+`pg_get_constraintdef` before/after `diff`. And know what that diff does not establish — a
+text match would also read identical for a constraint that came back `NOT VALID`, so probe
+the restored bound behaviourally too, inside a rolled-back transaction and with an in-range
+insert as the positive control. §6.6's C10X-30 entry records both runs with their splits.
+
 ## 7. What We Deliberately Don't Test
 
 Exclusions agreed during the rollout (Phase 2 interview, Q5). Future
@@ -1767,6 +2003,17 @@ contributors should respect these unless the underlying assumption changes.
   > knowing before writing a case against it: `maxLength` truncates first, so the island's
   > own `text.length > SOURCE_MAX` branch and `CharCount`'s red state are **unreachable
   > through the UI** — a second belt, not the visible guard.
+  >
+  > **A third instance, and it is the OPPOSITE situation — do not read the two as the same
+  > (C10X-30, 2026-07-28).** The three card islands (`CreateFlashcardModal`, `FlashcardItem`,
+  > `CandidateItem`) import `FRONT_MAX`/`BACK_MAX` the same way, but they carry **no
+  > `maxLength` attribute** — verified by enumeration: `maxLength` appears in `src/components/`
+  > only in `GeneratorForm`. So nothing truncates the input first, their over-length branch
+  > **is** the visible guard, and it is genuinely reachable through the browser. Where the
+  > `GeneratorForm` note above says an untested branch is unreachable anyway, here an untested
+  > branch is the one a user actually meets. The server half is asserted
+  > (`tests/validation/cards.test.ts`) and backed by a DB CHECK; the client half rests on the
+  > manual browser checks in `context/changes/server-side-validation-test/verification.md`.
 
 ## 8. Freshness Ledger
 
@@ -1818,6 +2065,10 @@ contributors should respect these unless the underlying assumption changes.
   scope but unowned. Risk #6: the card-content endpoints are untested, which is the single
   item between §3 Phase 2 and `complete`. Both are described where they bite, in §6.6's
   C10X-28 entry and §7.
+  > **Risk #6's half is closed as of 2026-07-28 (C10X-30); Risk #4's boundary stands
+  > unchanged.** The line above is kept as written because it was the accurate statement on
+  > 2026-07-26 and because §3 Phase 2's `implementing` status hung on it. What replaced it is
+  > the entry below.
 - **Cloud schema checked, and it matches.** `npx supabase migration list` run from the
   worktree on 2026-07-26 shows Local == Remote on **all ten** migrations, including
   `20260724220524` — the one carrying the `session_size` CHECK and the RPC tie-break these
@@ -1876,6 +2127,58 @@ contributors should respect these unless the underlying assumption changes.
   measurement: the diff body is in the artifact and **not** in the world-readable log. Every
   `## Progress` box in the change is now ticked. Full record, including the reverted scratch
   branch, in the change's `verification.md`.
+
+- §3 Phase 2 / Risk #6's **card-content** half last **proven by execution**: 2026-07-28
+  (C10X-30, change folder `server-side-validation-test`). Suite state measured at the start of
+  the breakage phase and again after both restores: **193 passed / 193, 16 files**
+  (178 before this change; +12 in the new `tests/validation/cards.test.ts`, +1 in
+  `candidates.test.ts`, +2 in `errors.test.ts`). Local stack up, `OPENROUTER_API_KEY` unset,
+  `npm run lint` exit 0, `npm run build` exit 0, and `git diff -- src/ supabase/` empty after
+  every breakage restore — verified by `md5sum` against a pristine copy for the source edit and
+  by a `pg_get_constraintdef` before/after `diff` for the constraint. Both splits in §6.6's
+  C10X-30 entry come from runs against these files, read against a denominator of **12**.
+- **The impl-review then took the suite to 207/207, 17 files, and two of its additions were
+  proven falsifiable by their own breakage runs.** `/10x-impl-review` (2026-07-28) reproduced
+  every automated criterion above and raised 10 findings, all triaged. Five changed the suite:
+  a **boundary control at exactly `IDS_MAX`** (`candidates.test.ts`) — narrowing `IDS_MAX` to
+  `2` turns **1 of 22** red on it while the pre-existing 101-id case stays green, which is
+  exactly the blindness it removes; **constraint NAMES** alongside `23514` in
+  `cards.test.ts`'s independence case, matching `study.test.ts:717`, because the code alone
+  cannot say WHICH guard fired and layer attribution is that case's purpose; a `File`-part
+  case on the **edit** endpoint and the first two cases ever to touch **`signup.ts`**; and
+  `tests/lib/forms.test.ts` (9 cases) for `src/lib/forms.ts`, where the four inlined copies of
+  the string-only form read were extracted so they could be tested at all.
+  Two measurements are worth carrying. **GoTrue answers an empty address differently per
+  route** — `signup` → `anonymous_provider_disabled` (it reads it as an anonymous sign-in
+  attempt), `token?grant_type=password` → `validation_failed` — so signup lands on the
+  catch-all; that is now pinned by equality rather than smoothed over, and it corrects a false
+  comment in `auth-errors.ts`. And **both causes of a `formData()` rejection throw the same
+  `TypeError`**, so the auth routes tell "never a form" from "a form that arrived broken" by
+  the **Content-Type header**, not by the exception; collapsing that discriminator turns
+  **3 of 47** red. Full record: the change's `reviews/impl-review.md` and `verification.md`.
+- **One prediction was less precise than the run, and is recorded as observed.** The plan said
+  run 2's case 8 "stays red from run 1"; it does, but on a **different assertion** — run 1
+  failed it on the closed-set message, run 2 on the count, because case 8 also sends an
+  over-max `front` and its count oracle likewise sits first. Two of run 2's three reds moved
+  from the message to the count, not one. Same discipline as C10X-29's `missingLocal` neuter:
+  the conclusion is unchanged, the prediction was simply rounder than reality.
+- **Six documents said "4xx" (and "POST/PATCH") about endpoints that answer `302` and export no
+  `PATCH`.** Corrected 2026-07-28 in this file (§2's guidance row, §6.3, the §3 sequencing
+  note), in the change's own `change.md`, and as a **dated correction line** — not a rewrite —
+  in `context/archive/2026-07-26-ai-candidate-generation-test-2/change.md`. The Jira description
+  and its two comments are corrected outside this repo at `/jira-finish-work`. The wording was
+  not cosmetic: a contributor following it would have written a status assertion on a status
+  that a refusal and a success share.
+- **Risk #6's remaining boundary is the ISLAND half, and it is not the same situation as
+  `GeneratorForm`'s.** The three card islands carry no `maxLength`, so their over-length branch
+  is reachable through the browser rather than sealed behind an input stop — an untested branch
+  a user actually meets. Named in §7 and in §6.6's C10X-30 entry, carried by manual browser
+  checks. Re-evaluate the moment any §3 phase wires e2e.
+- **A migration is committed and NOT yet pushed to the cloud** as of this entry
+  (`20260728104500_flashcard_content_bounds.sql`). The pre-push row check ran read-only against
+  production — `bad_front` 0, `bad_back` 0 over 38 rows, maxima 64/157 — so it applies without
+  repair, but until `/ship` runs `db push` this is exactly drift class 1 and the C10X-29 gate
+  will say so on the first push to `main`. That is the gate working, not a failure.
 
 Refresh (`/10x-test-plan --refresh`) when:
 
