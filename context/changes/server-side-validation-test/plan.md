@@ -684,31 +684,31 @@ query plan changes.
 
 #### Automated
 
-- [x] 2.1 `npm test` green, including `tests/auth/errors.test.ts` and the edit round-trip cases
-- [x] 2.2 `npm run lint` exits 0
-- [x] 2.3 `npm run build` exits 0
-- [x] 2.4 `npx vitest run tests/lib/no-logging.test.ts` green
+- [x] 2.1 `npm test` green, including `tests/auth/errors.test.ts` and the edit round-trip cases — 14031d2
+- [x] 2.2 `npm run lint` exits 0 — 14031d2
+- [x] 2.3 `npm run build` exits 0 — 14031d2
+- [x] 2.4 `npx vitest run tests/lib/no-logging.test.ts` green — 14031d2
 
 #### Manual
 
-- [x] 2.5 Card create and inline edit still work in the browser, errors still round-trip
-- [x] 2.6 Sign-in and sign-up unchanged, including a wrong-password error
+- [x] 2.5 Card create and inline edit still work in the browser, errors still round-trip — 14031d2
+- [x] 2.6 Sign-in and sign-up unchanged, including a wrong-password error — 14031d2
 
 ### Phase 3: The card-content validation test
 
 #### Automated
 
-- [ ] 3.1 `npx vitest run tests/validation/cards.test.ts` green, all cases
-- [ ] 3.2 `npx vitest run tests/review/candidates.test.ts` green including the new case
-- [ ] 3.3 `npm test` green; exact new total recorded from the run
-- [ ] 3.4 `npm run lint` exits 0
-- [ ] 3.5 `npx vitest run tests/auth/errors.test.ts` green including the two new malformed-body cases
+- [x] 3.1 `npx vitest run tests/validation/cards.test.ts` green, all cases
+- [x] 3.2 `npx vitest run tests/review/candidates.test.ts` green including the new case
+- [x] 3.3 `npm test` green; exact new total recorded from the run
+- [x] 3.4 `npm run lint` exits 0
+- [x] 3.5 `npx vitest run tests/auth/errors.test.ts` green including the two new malformed-body cases
 
 #### Manual
 
-- [ ] 3.6 The new file reads as one concern — every case is a content rule
-- [ ] 3.7 No assertion in the file relies on a status alone
-- [ ] 3.8 The auth cases read as malformed-body handling, with the C10X-36 boundary stated in a comment
+- [x] 3.6 The new file reads as one concern — every case is a content rule
+- [x] 3.7 No assertion in the file relies on a status alone
+- [x] 3.8 The auth cases read as malformed-body handling, with the C10X-36 boundary stated in a comment
 
 ### Phase 4: Deliberate-breakage pair and verification record
 
