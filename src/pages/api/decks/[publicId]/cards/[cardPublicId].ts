@@ -1,13 +1,10 @@
 import type { APIRoute } from "astro";
 import { createClient } from "@/lib/supabase";
 import { updateFlashcard, deckIdByPublicId, FRONT_MAX, BACK_MAX } from "@/lib/flashcards";
+// See cards/index.ts: only genuine strings are read, so a `File` part cannot crash `.trim()`.
+import { formString } from "@/lib/forms";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-// See cards/index.ts: a `File` part survives an `as string | null` cast and makes `.trim()`
-// throw. Only genuine strings are read; anything else reads as empty and falls into the
-// guard that already owns that case.
-const formString = (value: FormDataEntryValue | null): string => (typeof value === "string" ? value : "");
 
 // Edit a manual flashcard's front/back in the signed-in user's deck. Native form
 // POST → redirect, mirroring the create endpoint. Errors round-trip back with
@@ -25,7 +22,16 @@ export const POST: APIRoute = async (context) => {
     return new Response(null, { status: 404 });
   }
 
-  // Same guard as the create endpoint, with one asymmetry that must not be "fixed": here
+  // Same guard as the create endpoint — including that both rejection causes (never a form
+  // vs a form-typed body that arrived broken) share one owned message here, because
+  // "Nie udało się zapisać zmian" is truthful for both. See cards/index.ts.
+  //
+  // Note this catch runs BEFORE the `locals.user` check below, the reverse of the create
+  // endpoint's order, so a signed-out caller reaching this handler directly would get the
+  // deck error rather than /auth/signin. Unobservable in production — middleware guards
+  // /api/decks first — but it is an ordering nobody chose, so do not read it as deliberate.
+  //
+  // The asymmetry below, by contrast, IS deliberate and must not be "fixed": here
   // `errorUrl` does not exist yet, because it is built from the `from`/`generation` fields
   // this very body would have carried. So the catch falls back to the unscoped deck-view
   // target. Moving formData() below errorUrl is NOT the fix — `from`/`generation` genuinely

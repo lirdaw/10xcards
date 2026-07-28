@@ -1,14 +1,11 @@
 import type { APIRoute } from "astro";
 import { createClient } from "@/lib/supabase";
 import { createFlashcard, deckIdByPublicId, FRONT_MAX, BACK_MAX } from "@/lib/flashcards";
+// Only genuine strings are read: a `File` part survives an `as string` cast and makes
+// `.trim()` throw. See the helper's own comment for why it is not inlined here.
+import { formString } from "@/lib/forms";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-// A form part can be a File, which survives an `as string | null` cast and makes `.trim()`
-// throw a TypeError — i.e. an uncontrolled 500 on a crafted multipart body. Read only
-// genuine strings; anything else reads as empty and falls into the length guard this
-// endpoint already owns, so no new message enters its closed set of owned copy.
-const formString = (value: FormDataEntryValue | null): string => (typeof value === "string" ? value : "");
 
 // Create a manual flashcard in the signed-in user's deck. Native form POST →
 // redirect, mirroring `api/decks/index.ts`. Errors round-trip back to the deck
@@ -33,12 +30,20 @@ export const POST: APIRoute = async (context) => {
     return context.redirect("/auth/signin");
   }
 
-  // A body that is not a form at all — a crafted `application/json` POST — makes
-  // formData() reject. Unguarded that is an uncontrolled framework 500 with no
-  // project-owned body; both JSON endpoints (cards/batch.ts, api/generate.ts) already
-  // answer their own fixed response here, and this applies the same convention to the
-  // form side. The literal is the one the two failure branches below already carry, so
-  // the closed set of owned messages does not grow.
+  // formData() rejects for TWO causes, not one: a body that was never a form (a crafted
+  // `application/json` POST) and a form-typed body that arrived broken (client abort
+  // mid-upload, truncation, transport reset). Unguarded, either is an uncontrolled framework
+  // 500 with no project-owned body; both JSON endpoints (cards/batch.ts, api/generate.ts)
+  // already answer their own fixed response here, and this applies the same convention to
+  // the form side.
+  //
+  // Both causes deliberately share ONE message here, unlike signin/signup which split them:
+  // this endpoint's owned copy is "Nie udało się utworzyć fiszki", which reads as "the
+  // operation failed" and is already truthful for both — so a branch would add code with no
+  // observable difference. The auth routes split because their catch answered "Popraw dane w
+  // formularzu", which is a claim ABOUT THE USER'S INPUT and is wrong for a dropped upload.
+  // The literal is the one the two failure branches below already carry, so the closed set of
+  // owned messages does not grow.
   let form: FormData;
   try {
     form = await context.request.formData();

@@ -400,6 +400,30 @@ describe("POST /api/decks/[publicId]/cards/[cardPublicId] enforces the same rule
     expect(location).toContain(`edit=${cardPublicId}`);
     expect(errorParam(location)).toBe("Nie udało się zapisać zmian");
   });
+
+  // The create side's File case has a twin here on purpose (impl-review F4): Phase 2 applied
+  // the same string-only read to BOTH endpoints, and an untested branch is a branch that can
+  // drift from the copy that is tested. Note this endpoint routes four fields through it —
+  // `front`, `back`, `from`, `generation` — so a File reaching `from` must also fail the
+  // `=== "review"` switch rather than satisfying it, which is why the redirect is asserted
+  // to carry the UNSCOPED deck-view target and not the review one.
+  it("reads a File part as empty rather than crashing on it", async () => {
+    const before = await rowOf(cardPublicId);
+
+    const body = new FormData();
+    body.set("front", new File([`edit-file-part-${suffix}`], "front.txt", { type: "text/plain" }));
+    body.set("back", `Edit file part back ${suffix}`);
+    body.set("from", new File(["review"], "from.txt", { type: "text/plain" }));
+
+    const response = await postEdit(deckPublicId, cardPublicId, body);
+
+    expect(await rowOf(cardPublicId)).toEqual(before);
+    expect(response.status).toBe(302);
+    const location = response.headers.get("Location") ?? "";
+    expect(location.startsWith(`/decks/${deckPublicId}?`)).toBe(true);
+    expect(location).not.toContain("/review");
+    expect(errorParam(location)).toBe(FRONT_MESSAGE);
+  });
 });
 
 describe("the database enforces the content bounds independently of the endpoints", () => {
@@ -426,12 +450,19 @@ describe("the database enforces the content bounds independently of the endpoint
   // flashcard_front_check, so the `back` half stays green throughout and keeps the second
   // constraint observed while the first is gone — the two are never both unobserved.
   it("rejects an over-limit front and an over-limit back with 23514", async () => {
+    // The NAME as well as the code, following study.test.ts's deck_session_size_check case
+    // exactly: `23514` alone says "some CHECK on this table refused it", which cannot tell
+    // the two constraints apart — so a front bound accidentally widened to cover `back`, or
+    // a future third CHECK firing first, would leave both halves below green. The name is
+    // what pins WHICH guard refused, and layer attribution is this file's whole purpose.
     const overFront = await insertDirect(sized(`db-front-${suffix}-`, FRONT_MAX + 1), `DB front back ${suffix}`);
     expect(overFront.error?.code).toBe("23514");
+    expect(overFront.error?.message).toContain("flashcard_front_check");
     expect(overFront.data).toBeNull();
 
     const overBack = await insertDirect(`DB back front ${suffix}`, sized(`db-back-${suffix}-`, BACK_MAX + 1));
     expect(overBack.error?.code).toBe("23514");
+    expect(overBack.error?.message).toContain("flashcard_back_check");
     expect(overBack.data).toBeNull();
 
     // The positive control: without it a constraint that rejected EVERY insert — or an RLS

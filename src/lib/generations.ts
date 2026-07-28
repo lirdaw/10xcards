@@ -122,6 +122,18 @@ export function failGenerationSession(supabase: Client, id: number, message: str
 
 // Bulk-inserts validated candidates into a deck, stamping state/source/generation link.
 // Only called on success with a non-empty list (the endpoint guards saved_count > 0).
+//
+// "Validated" is load-bearing and no longer only about shape. Since
+// 20260728104500_flashcard_content_bounds.sql the database enforces
+// `char_length(front|back) between 1 and 200|1000`, and this is ONE multi-row insert — so a
+// single over-length card would fail the WHOLE batch (23514 -> failGenerationSession -> the
+// user loses every candidate), not just itself. Nothing re-validates content here.
+//
+// What keeps that unreachable is `validate()` in src/lib/openrouter.ts, which drops
+// over-length cards INDIVIDUALLY against the same FRONT_MAX/BACK_MAX before they arrive. That
+// makes its per-card filtering load-bearing for a failure mode it was not written for: relax
+// it and a partial success silently becomes a failed generation. If you ever need per-card
+// tolerance here, insert per row (or pre-filter) rather than loosening the schema upstream.
 export function insertCandidates(
   supabase: Client,
   deckId: number,

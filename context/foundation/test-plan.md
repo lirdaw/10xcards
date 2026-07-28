@@ -16,7 +16,9 @@
 > closes the residual risk S-02 recorded on 2026-07-09, when the maximum lived only in app
 > code — and the breakage **pair** is what separates the two layers: one run alone cannot tell
 > "the endpoint caught it" from "the database caught it". Three "server trusts the client"
-> defects on the same four form endpoints were fixed rather than deferred: an unguarded
+> defects were fixed rather than deferred on four of the **six** endpoints that read
+> `formData()` — the deck-form pair was missed and still carries two of them (impl-review
+> F1, see §6.6): an unguarded
 > `formData()` that answered an uncontrolled framework `500`, a `File` part that crashed the
 > handler on `.trim()`, and the untested `IDS_MAX` bound on `/cards/batch`. The rule this file
 > did not have is now **§6.10**: the two card endpoints are native-form targets that refuse
@@ -24,7 +26,8 @@
 > oracle is not optional. That wording — "4xx", plus a `PATCH` handler that does not exist —
 > was wrong in six places and is corrected here and, as a dated correction line, in the
 > archive. Auth input validation is deliberately **out**, owned by C10X-36; what landed on the
-> auth routes is malformed-body handling only. Suite: **193/193, 16 files**.
+> auth routes is malformed-body handling only. Suite: **207/207, 17 files** (193/193, 16 at
+> phase completion; the impl-review added 14 across 5 findings — see §8).
 > Evidence: `context/changes/server-side-validation-test/verification.md`.
 >
 > Previously: 2026-07-28 (C10X-29 `schema-drift-test` shipped). **§3 Phase 3 is
@@ -213,9 +216,14 @@ Sequencing notes:
   islands, so they are the low-drift side of #6" — was true and still left the constants
   with **no enforcer beneath the app**, so the slice added a DB CHECK and proved the two
   layers independent with a breakage **pair** rather than a single run. Third, three
-  "server trusts the client" defects on the same four form endpoints (unguarded
-  `formData()`, a `File` part crashing the handler, the untested `IDS_MAX` bound) were
-  fixed here instead of being deferred a second time. Auth input validation was
+  "server trusts the client" defects (unguarded `formData()`, a `File` part crashing the
+  handler, the untested `IDS_MAX` bound) were fixed here instead of being deferred a second
+  time — on **four of the six** endpoints that read `formData()`. The plan's own enumeration
+  said "all four form endpoints" and that was simply wrong: `decks/index.ts` and
+  `decks/[publicId].ts` (deck create and rename) carry the first two defects verbatim and
+  were never touched. Found by this change's impl-review (F1), deferred by decision, and
+  named in the "does NOT prove" list below rather than left to be inferred from a count.
+  Auth input validation was
   considered and routed out to **C10X-36**; what landed on `signin.ts`/`signup.ts` is
   malformed-body handling, not an input rule. §6.6's C10X-30 entry states what the slice
   does **not** prove — chiefly the island half, which is where §7's note now matters more
@@ -1480,6 +1488,16 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
     it green.
 
   **What this does NOT prove — read this before citing Risk #6 as closed.**
+  - **The two deck-form endpoints, which were missed entirely** (impl-review F1, 2026-07-28).
+    `decks/index.ts:22-23` and `decks/[publicId].ts:31-32` still read `formData()` unguarded
+    and still carry `((form.get("name") as string | null) ?? "").trim()`, so a crafted
+    non-form body answers an uncontrolled framework `500` and a `File` `name` part crashes
+    the handler — the exact two defects this slice fixed one directory over. There are
+    **six** `formData()` readers in `src/pages/api/`, not four; the plan's Current State
+    enumerated four and nothing in "What We're NOT Doing" excluded the other two, so this is
+    an incomplete sweep rather than a scoped exclusion. They have a 1–100 name rule and a DB
+    CHECK (`init_core_schema.sql:45`) already, so §6.10's breakage-pair design transfers to
+    them unchanged. Deferred to a follow-up ticket by decision at impl-review triage.
   - **The island half.** The three card islands import the same constants, so the two ends
     cannot disagree about the **value**; that each end still enforces it is a separate claim
     and only the server half is asserted. And these islands differ from `GeneratorForm` in a
@@ -2119,6 +2137,25 @@ contributors should respect these unless the underlying assumption changes.
   every breakage restore — verified by `md5sum` against a pristine copy for the source edit and
   by a `pg_get_constraintdef` before/after `diff` for the constraint. Both splits in §6.6's
   C10X-30 entry come from runs against these files, read against a denominator of **12**.
+- **The impl-review then took the suite to 207/207, 17 files, and two of its additions were
+  proven falsifiable by their own breakage runs.** `/10x-impl-review` (2026-07-28) reproduced
+  every automated criterion above and raised 10 findings, all triaged. Five changed the suite:
+  a **boundary control at exactly `IDS_MAX`** (`candidates.test.ts`) — narrowing `IDS_MAX` to
+  `2` turns **1 of 22** red on it while the pre-existing 101-id case stays green, which is
+  exactly the blindness it removes; **constraint NAMES** alongside `23514` in
+  `cards.test.ts`'s independence case, matching `study.test.ts:717`, because the code alone
+  cannot say WHICH guard fired and layer attribution is that case's purpose; a `File`-part
+  case on the **edit** endpoint and the first two cases ever to touch **`signup.ts`**; and
+  `tests/lib/forms.test.ts` (9 cases) for `src/lib/forms.ts`, where the four inlined copies of
+  the string-only form read were extracted so they could be tested at all.
+  Two measurements are worth carrying. **GoTrue answers an empty address differently per
+  route** — `signup` → `anonymous_provider_disabled` (it reads it as an anonymous sign-in
+  attempt), `token?grant_type=password` → `validation_failed` — so signup lands on the
+  catch-all; that is now pinned by equality rather than smoothed over, and it corrects a false
+  comment in `auth-errors.ts`. And **both causes of a `formData()` rejection throw the same
+  `TypeError`**, so the auth routes tell "never a form" from "a form that arrived broken" by
+  the **Content-Type header**, not by the exception; collapsing that discriminator turns
+  **3 of 47** red. Full record: the change's `reviews/impl-review.md` and `verification.md`.
 - **One prediction was less precise than the run, and is recorded as observed.** The plan said
   run 2's case 8 "stays red from run 1"; it does, but on a **different assertion** — run 1
   failed it on the closed-set message, run 2 on the count, because case 8 also sends an

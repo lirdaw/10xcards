@@ -1,7 +1,7 @@
 ---
 change_id: server-side-validation-test
 title: Server-side validation parity for card content rules (Risk #6)
-status: implemented
+status: impl_reviewed
 created: 2026-07-28
 updated: 2026-07-28
 archived_at: null
@@ -57,6 +57,12 @@ rzeczy poza literalnym ticketem:
    `500` bez wlasnej tresci), czesc typu `File` wykladajaca handler na `.trim()`, oraz
    nieprzetestowany limit `IDS_MAX` na `/cards/batch`. Naprawione tutaj zamiast odlozone po
    raz drugi.
+   > **[POPRAWKA 2026-07-28, impl-review F1]** „Czterech" bylo **niepelnym wyliczeniem**, nie
+   > decyzja zakresowa: `formData()` czyta **szesc** endpointow w `src/pages/api/`. Nietkniete
+   > zostaly `decks/index.ts:22-23` i `decks/[publicId].ts:31-32` (tworzenie i zmiana nazwy
+   > talii), ktore do dzis maja oba pierwsze defekty doslownie. Odlozone do osobnego ticketu
+   > decyzja przy triage'u impl-review; zapisane w `test-plan.md` §6.6 na liscie „does NOT
+   > prove", zeby nie trzeba bylo wnioskowac tego z liczby.
 3. **Walidacja wejscia tras auth NIE wchodzi** — otwarta decyzja z ticketu rozstrzygnieta na
    „nie": nasze trasy auth nie maja dzis ani jednej linii walidacji, wiec test tam nie dalby
    sie zaswiecic na czerwono zadna edycja w `src/` (pinowalby `supabase/config.toml`). Poszlo
@@ -66,5 +72,6 @@ rzeczy poza literalnym ticketem:
 
 Efekt dla planu testow: `test-plan.md` §3 Faza 2 → **`complete`** (2026-07-28), Ryzyko #6
 pokryte **po stronie serwera**; polowa wyspowa (klient) pozostaje niepokryta i jest nazwana
-w §7. Suite: **193/193, 16 plikow**. Dowody:
+w §7. Suite: **207/207, 17 plikow** (193/193, 16 na zamknieciu faz; impl-review dolozyl 14
+asercji w 5 findingach — patrz `reviews/impl-review.md`). Dowody:
 `context/changes/server-side-validation-test/verification.md`.

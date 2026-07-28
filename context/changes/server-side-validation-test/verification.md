@@ -370,3 +370,108 @@ Nothing under `src/` changed for either fix. `npm test` re-run afterwards: **193
 16 files**, and the `4xx` sweep re-counted at **12** (the figure above was first written as 11
 — the classification table was right and the headline was not, which is the same rot-in-hours
 class item 4 of C10X-28's archived `change.md` warns about).
+
+## Impl-review — corrections to this record (2026-07-28)
+
+`/10x-impl-review` re-ran every automated criterion against `b2e009e` and reproduced all of
+them: **193/193, 16 files**; `tests/validation/cards.test.ts` 12/12; lint 0; build 0;
+`db:types` no diff; `git diff -- src/ supabase/` empty; both constraints bounded under their
+original names and neither `NOT VALID`; the `4xx` sweep carrying only JSON-endpoint uses and
+corrections. Three doc claims were checked independently rather than trusted and all hold: no
+`PATCH` handler on any deck endpoint, `maxLength` present in `src/components/` only in
+`GeneratorForm.tsx`, and `BATCH_MAX = 100` genuinely a commented copy rather than an import.
+
+**One factual claim in this file and in the plan is wrong, and it is a count.** Phase 2 is
+described throughout as hardening "the four form endpoints". Enumerated against the tree,
+`src/pages/api/` holds **six** `formData()` readers:
+
+```
+src/pages/api/auth/signin.ts:17                          guarded (this change)
+src/pages/api/auth/signup.ts:12                          guarded (this change)
+src/pages/api/decks/[publicId]/cards/index.ts:44         guarded (this change)
+src/pages/api/decks/[publicId]/cards/[cardPublicId].ts:35 guarded (this change)
+src/pages/api/decks/index.ts:22                          UNGUARDED
+src/pages/api/decks/[publicId].ts:31                     UNGUARDED
+```
+
+The last two — deck create and deck rename — still carry both of the defects this change
+fixed elsewhere: the unguarded `formData()` (a crafted non-form body → uncontrolled framework
+`500`) and `((form.get("name") as string | null) ?? "").trim()` (a `File` `name` part →
+`TypeError` → `500`). Neither has a test. The plan's Current State Analysis asserted the
+defect was present "in all four form endpoints", and nothing in "What We're NOT Doing"
+excluded the deck pair, so this was an **incomplete enumeration rather than a scoped
+exclusion** — the same class as the `IDS_MAX`/§2 disagreement §5.6 above records catching by
+reading instead of by asserting intent.
+
+Deferred to a follow-up ticket by decision at triage rather than patched in at review time:
+the deck endpoints already carry a 1–100 name rule and a DB CHECK
+(`init_core_schema.sql:45`), so §6.10's breakage-pair design transfers to them unchanged and
+they deserve the same row-oracle treatment rather than an untested tail-end edit — which is
+precisely what plan-review F4 refused for the auth half of this change.
+
+### Triage outcome — suite 193/193 → **207/207, 17 files**
+
+Ten findings, all decided. Five changed the suite; the rest were comments and one follow-up.
+Environment unchanged; `npm run lint` exit 0, `npm run build` exit 0, `tests/lib/no-logging.test.ts`
+green, `git diff -- src/` empty of every temporary probe (each restore confirmed by `md5sum`).
+
+| Finding | Outcome |
+| --- | --- |
+| F1 deck endpoints missed | Docs corrected in three places; code deferred to `follow-ups/review-fixes.md` |
+| F2 constraint name unasserted | Names added beside `23514`, matching `study.test.ts:717` |
+| F3 `IDS_MAX` value unasserted | Boundary control at exactly 100 added |
+| F4 six of eight branches asserted | Edit `File` case + the first two cases ever to touch `signup.ts` |
+| F5 `formString` ×4 | Extracted to `src/lib/forms.ts` + `tests/lib/forms.test.ts` |
+| F6 false comment in `auth-errors.ts` | Rewritten against a fresh probe |
+| F7 bare `catch` conflates two causes | Split on the **header**, not the exception — see below |
+| F8 auth-ordering asymmetry | Named in the comment block |
+| F9 whole-batch failure undocumented in code | Comment at the insert site |
+| F10 rate-limit + upstream coupling | Warning written for the next contributor |
+
+**Two breakage runs on the review's own additions**, because an assertion added during a review
+is not exempt from the rule the review enforced:
+
+- `IDS_MAX` narrowed `100` → `2`: **1 of 22 red**, the new control on `expected 400 to be 200`,
+  while the pre-existing 101-id case stayed **green** — which is precisely the blindness the
+  control removes. `batch.ts` restored, `md5sum 23d279f5…` both sides.
+- `isFormContentType` collapsed to `return false`: **3 of 47 red**, the endpoint case failing on
+  exactly the right pair (`Expected "Nie udało się dokończyć operacji…"` /
+  `Received "Popraw dane w formularzu…"`), so it observes the discriminator rather than an
+  incidental redirect. `src/lib/forms.ts` restored, `md5sum 9041eb45…` both sides.
+
+**Two measurements that changed a decision rather than confirming one.**
+
+F7 was accepted as "branch on the error type" and that turned out not to be implementable —
+probed against this runtime, both causes throw the *same* class:
+
+```
+Content-Type: application/json          -> TypeError: Content-Type was not one of "multipart/form-data"…
+Content-Type: multipart/…, broken body  -> TypeError: Failed to parse body as FormData.
+```
+
+So the discriminator is the **Content-Type header**, which is where the runtime itself splits and
+is fetch-spec stable rather than dependent on message wording. Applied only to `signin`/`signup`,
+whose catch previously answered "Popraw dane w formularzu" — a claim about the user's input — for
+what may be a dropped upload; a form-typed failure now answers `AUTH_GENERIC_MESSAGE`, already a
+closed-set member, so **no new copy entered the set**. On the two card endpoints the same branch
+collapses to a no-op (their owned copy already reads "the operation failed", truthful for both),
+so those got the comment fix instead of unobservable code.
+
+F4 uncovered that **GoTrue answers an empty address differently on the two auth routes**:
+
+```
+POST /auth/v1/signup                     {"code":422,"error_code":"anonymous_provider_disabled"}
+POST /auth/v1/token?grant_type=password  {"code":400,"error_code":"validation_failed"}
+```
+
+signup's code is absent from the mapper's table, so it lands on the catch-all — asserted by
+equality rather than smoothed over, so the day someone maps it the test goes red and the
+improvement is noticed. This also disproved the `auth-errors.ts` comment F6 flagged, on a third
+count beyond the two the finding named.
+
+Corrected in three places, none of them a silent rewrite: `test-plan.md`'s header and its
+§6.6 C10X-30 entry (which gains the deck pair as the first item of its "does NOT prove"
+list), `change.md`'s `### Wynik` item 2 (a dated `[POPRAWKA]` marker beside the original
+sentence), and this section. `plan.md`, `plan-brief.md` and `research.md` keep the original
+wording on purpose — they record what was believed when the work was scoped, which is the
+same discipline that makes `complete` a dated claim.
