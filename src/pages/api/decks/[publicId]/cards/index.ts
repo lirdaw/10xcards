@@ -4,6 +4,12 @@ import { createFlashcard, deckIdByPublicId, FRONT_MAX, BACK_MAX } from "@/lib/fl
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// A form part can be a File, which survives an `as string | null` cast and makes `.trim()`
+// throw a TypeError — i.e. an uncontrolled 500 on a crafted multipart body. Read only
+// genuine strings; anything else reads as empty and falls into the length guard this
+// endpoint already owns, so no new message enters its closed set of owned copy.
+const formString = (value: FormDataEntryValue | null): string => (typeof value === "string" ? value : "");
+
 // Create a manual flashcard in the signed-in user's deck. Native form POST →
 // redirect, mirroring `api/decks/index.ts`. Errors round-trip back to the deck
 // page with `?error=<pl>&open=create-card` so the create modal re-opens with the
@@ -27,9 +33,20 @@ export const POST: APIRoute = async (context) => {
     return context.redirect("/auth/signin");
   }
 
-  const form = await context.request.formData();
-  const front = ((form.get("front") as string | null) ?? "").trim();
-  const back = ((form.get("back") as string | null) ?? "").trim();
+  // A body that is not a form at all — a crafted `application/json` POST — makes
+  // formData() reject. Unguarded that is an uncontrolled framework 500 with no
+  // project-owned body; both JSON endpoints (cards/batch.ts, api/generate.ts) already
+  // answer their own fixed response here, and this applies the same convention to the
+  // form side. The literal is the one the two failure branches below already carry, so
+  // the closed set of owned messages does not grow.
+  let form: FormData;
+  try {
+    form = await context.request.formData();
+  } catch {
+    return context.redirect(errorUrl("Nie udało się utworzyć fiszki"));
+  }
+  const front = formString(form.get("front")).trim();
+  const back = formString(form.get("back")).trim();
 
   // Resolve public_id → internal deck.id before validating field lengths, so a
   // nonexistent/foreign deck always resolves to a clean 404 rather than bouncing

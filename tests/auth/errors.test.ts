@@ -220,3 +220,51 @@ describe("POST /api/auth/signin", () => {
     expect(error).not.toContain("{");
   });
 });
+
+describe("POST /api/auth/signin — malformed body", () => {
+  // THE BOUNDARY THESE TWO CASES DO NOT CROSS. This is malformed-BODY handling: the route
+  // must answer a crafted request with its own copy instead of an uncontrolled 500 or an
+  // upstream string. It is NOT input validation — these routes still assert nothing about
+  // presence, format or length of the credentials before calling GoTrue, and that gap is
+  // C10X-36's (`auth-input-validation`), deliberately left open here. Do not read a green
+  // run of this describe as "auth input is validated".
+
+  it("answers a project-owned redirect when the body is not a form at all", async () => {
+    // A string body makes callEndpoint set `Content-Type: application/json`
+    // (fixtures/endpoint.ts), so `request.formData()` rejects — unguarded, a framework 500.
+    const response = await callEndpoint(SignIn, {
+      url: "/api/auth/signin",
+      body: JSON.stringify({ email: `${SENTINEL}@example.com`, password: `wrong-password-${suffix}` }),
+      as: accountA(),
+    });
+
+    expect(response.status).toBe(302);
+    const location = response.headers.get("Location") ?? "";
+    expect(location.startsWith("/auth/signin?")).toBe(true);
+    expect(new URL(location, "http://localhost:4321").searchParams.get("error")).toBe(AUTH_VALIDATION_MESSAGE);
+    // The refusal must not echo the crafted body back into the address bar either.
+    expect(location).not.toContain(SENTINEL);
+  });
+
+  it("reads a File `email` part as empty rather than posting it upstream", async () => {
+    const form = new FormData();
+    form.set("email", new File([`${SENTINEL}@example.com`], "email.txt", { type: "text/plain" }));
+    form.set("password", `wrong-password-${suffix}`);
+
+    const response = await callEndpoint(SignIn, { url: "/api/auth/signin", body: form, as: accountA() });
+
+    expect(response.status).toBe(302);
+    const location = response.headers.get("Location") ?? "";
+    expect(location.startsWith("/auth/signin?")).toBe(true);
+    const error = new URL(location, "http://localhost:4321").searchParams.get("error") ?? "";
+    // Equality, and the `not.toBe` beside it is what makes this case discriminating rather
+    // than decorative. MEASURED both ways: with the File cast to `string` and posted
+    // verbatim, GoTrue answers something the mapper does not recognise and the user reads
+    // AUTH_GENERIC_MESSAGE — the catch-all, i.e. no reason at all. Read as empty, the same
+    // request maps to the specific "popraw dane" copy. Membership in the closed set is the
+    // weaker claim the file already asserts elsewhere; it would NOT have gone red here.
+    expect(error).toBe(AUTH_VALIDATION_MESSAGE);
+    expect(error).not.toBe(AUTH_GENERIC_MESSAGE);
+    expect(location).not.toContain(SENTINEL);
+  });
+});

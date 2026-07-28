@@ -670,29 +670,29 @@ query plan changes.
 
 #### Automated
 
-- [x] 1.1 `npx supabase db reset` applies all migrations cleanly
-- [x] 1.2 `npm run db:types` produces no diff
-- [x] 1.3 `npm test` still green at the pre-change baseline count
-- [x] 1.4 `npm run lint` exits 0
+- [x] 1.1 `npx supabase db reset` applies all migrations cleanly — a23c107
+- [x] 1.2 `npm run db:types` produces no diff — a23c107
+- [x] 1.3 `npm test` still green at the pre-change baseline count — a23c107
+- [x] 1.4 `npm run lint` exits 0 — a23c107
 
 #### Manual
 
-- [x] 1.5 Cloud checked for violating rows before any `db push` (both counts 0)
-- [x] 1.6 `pg_get_constraintdef` shows the bounded definitions under the original names
+- [x] 1.5 Cloud checked for violating rows before any `db push` (both counts 0) — a23c107
+- [x] 1.6 `pg_get_constraintdef` shows the bounded definitions under the original names — a23c107
 
 ### Phase 2: Controlled handling of malformed form input
 
 #### Automated
 
-- [ ] 2.1 `npm test` green, including `tests/auth/errors.test.ts` and the edit round-trip cases
-- [ ] 2.2 `npm run lint` exits 0
-- [ ] 2.3 `npm run build` exits 0
-- [ ] 2.4 `npx vitest run tests/lib/no-logging.test.ts` green
+- [x] 2.1 `npm test` green, including `tests/auth/errors.test.ts` and the edit round-trip cases
+- [x] 2.2 `npm run lint` exits 0
+- [x] 2.3 `npm run build` exits 0
+- [x] 2.4 `npx vitest run tests/lib/no-logging.test.ts` green
 
 #### Manual
 
-- [ ] 2.5 Card create and inline edit still work in the browser, errors still round-trip
-- [ ] 2.6 Sign-in and sign-up unchanged, including a wrong-password error
+- [x] 2.5 Card create and inline edit still work in the browser, errors still round-trip
+- [x] 2.6 Sign-in and sign-up unchanged, including a wrong-password error
 
 ### Phase 3: The card-content validation test
 

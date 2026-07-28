@@ -4,6 +4,11 @@ import { updateFlashcard, deckIdByPublicId, FRONT_MAX, BACK_MAX } from "@/lib/fl
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// See cards/index.ts: a `File` part survives an `as string | null` cast and makes `.trim()`
+// throw. Only genuine strings are read; anything else reads as empty and falls into the
+// guard that already owns that case.
+const formString = (value: FormDataEntryValue | null): string => (typeof value === "string" ? value : "");
+
 // Edit a manual flashcard's front/back in the signed-in user's deck. Native form
 // POST → redirect, mirroring the create endpoint. Errors round-trip back with
 // `?error=<pl>&edit=<cardPublicId>` so the matching card re-enters inline-edit
@@ -20,16 +25,27 @@ export const POST: APIRoute = async (context) => {
     return new Response(null, { status: 404 });
   }
 
-  const form = await context.request.formData();
-  const front = ((form.get("front") as string | null) ?? "").trim();
-  const back = ((form.get("back") as string | null) ?? "").trim();
+  // Same guard as the create endpoint, with one asymmetry that must not be "fixed": here
+  // `errorUrl` does not exist yet, because it is built from the `from`/`generation` fields
+  // this very body would have carried. So the catch falls back to the unscoped deck-view
+  // target. Moving formData() below errorUrl is NOT the fix — `from`/`generation` genuinely
+  // gate which base path the error round-trips to, and the S-05 round-trip tests pin that.
+  let form: FormData;
+  try {
+    form = await context.request.formData();
+  } catch {
+    const message = encodeURIComponent("Nie udało się zapisać zmian");
+    return context.redirect(`/decks/${publicId}?error=${message}&edit=${cardPublicId}`);
+  }
+  const front = formString(form.get("front")).trim();
+  const back = formString(form.get("back")).trim();
 
   // `from` is a SWITCH with exactly one accepted value, never a redirect target, and
   // `generation` rides along only as a uuid: both targets below are built server-side
   // from the already-validated route params, so no client-supplied string can reach the
   // `Location` header. Anything else falls back to the deck view.
-  const fromReview = form.get("from") === "review";
-  const generation = (form.get("generation") as string | null) ?? "";
+  const fromReview = formString(form.get("from")) === "review";
+  const generation = formString(form.get("generation"));
   const scope = fromReview && UUID_RE.test(generation) ? `generation=${generation}&` : "";
   const basePath = fromReview ? `/decks/${publicId}/review` : `/decks/${publicId}`;
   const errorUrl = (msg: string) => `${basePath}?${scope}error=${encodeURIComponent(msg)}&edit=${cardPublicId}`;
