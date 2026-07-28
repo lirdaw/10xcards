@@ -803,7 +803,7 @@ re-verify before relying on them.
 - [x] 3.6 Missing-token and missing-ref paths each exit 1 with their own message — 05ff5fd
 - [x] 3.7 Deliberate-breakage check on the guard: with the `if` widened to this branch and a fabricated migration pushed, `drift` is red AND `deploy` is skipped in the Actions run — 05ff5fd
 - [x] 3.8 The widened `if` and the fabricated migration are reverted; `gh workflow view CI` shows the graph back to `push`-on-`main` only — 05ff5fd
-- [ ] 3.9 (ship-time) After merging, a real push to `main` shows `drift` green and `deploy` running as before
+- [x] 3.9 (ship-time) After merging, a real push to `main` shows `drift` green and `deploy` running as before — run 30379662871 on merge commit f7a83c0: `ci` success → `drift` success (5 s) → `deploy` success; gate printed `10 local entries against 10 applied cloud migrations` / `OK`; zero credential hits in the log — 0700a8e
 - [x] 3.10 The run's log contains no token material — 05ff5fd
 
 ### Phase 4: Adjacent CI corrections
@@ -823,14 +823,14 @@ re-verify before relying on them.
 
 #### Automated
 
-- [ ] 5.1 A `workflow_dispatch` run completes; a SECOND dispatch, after the first run's output has been triaged and recorded, matches that baseline
-- [ ] 5.2 The workflow is valid YAML, appears in `gh workflow list`, and declares `workflow_dispatch` as its ONLY trigger — no `schedule:`
+- [x] 5.1 A `workflow_dispatch` run completes; a SECOND dispatch, after the first run's output has been triaged and recorded, matches that baseline — runs 30380427876 then 30380687338, both success, both printing `No difference between the deployed schema and a replay of the migrations.`, upload step skipped on each — 0700a8e
+- [x] 5.2 The workflow is valid YAML, appears in `gh workflow list`, and declares `workflow_dispatch` as its ONLY trigger — no `schedule:` — absent from the list BEFORE the merge and registered as id 322349050 after it; the file as merged onto `main` re-parsed: triggers `["workflow_dispatch"]`, no `schedule`, job-level `env` null — 0700a8e
 
 #### Manual
 
-- [ ] 5.3 The first run's full output is triaged into genuine vs migra noise and recorded in `verification.md`
-- [ ] 5.4 Deliberate-breakage check: a scratch migration adding a column makes the job report a difference; revert
-- [ ] 5.5 (ship-time) `deploy` is confirmed not to depend on this workflow
+- [x] 5.3 The first run's full output is triaged into genuine vs migra noise and recorded in `verification.md` — the baseline is EMPTY: zero genuine drift AND zero migra noise, contrary to what the plan expected, so there is nothing to separate and no filter to write — 0700a8e
+- [ ] 5.4 Deliberate-breakage check: a scratch migration adding a column makes the job report a difference; revert — **NOT satisfied as written; left open deliberately.** The criterion asks for a dispatch from a branch carrying the scratch migration, which was not done. The substitute ran the same probe against the LOCAL oracle: the added column made `db diff --local` emit `alter table "public"."deck" drop column "ship_probe_tmp";` and the workflow's own `[ -s diff.sql ]` logic exit 1, with a control run either side (exit 0 before, exit 0 after removal, tree clean). That proves the mechanism and the gating; it leaves `--linked`, the prod round trip and the artifact upload unexercised — see `verification.md`
+- [x] 5.5 (ship-time) `deploy` is confirmed not to depend on this workflow — `deploy`'s `needs` is `[ci, drift]` on `main`, `.github/` contains zero `workflow_run`/`workflow_call`, and `deploy` completed successfully while `schema-diff` had never run at all — 0700a8e
 
 ### Phase 6: Documentation and the gate's stated boundary
 

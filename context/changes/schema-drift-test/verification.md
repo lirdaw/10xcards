@@ -878,17 +878,114 @@ cached anywhere on the development machine (see Phase 5 above for where it was l
 it comes from the note taken at project creation, or from a dashboard reset, which is safe
 here for the reason recorded there.
 
-- [ ] **3.9** After merging, a real push to `main` shows `drift` green and `deploy` running as
+- [x] **3.9** After merging, a real push to `main` shows `drift` green and `deploy` running as
       before, with `deploy` listing both dependencies on the Actions page
-- [ ] **5.1** A `workflow_dispatch` run completes; then a **second** dispatch, run after the
+- [x] **5.1** A `workflow_dispatch` run completes; then a **second** dispatch, run after the
       first one's output has been triaged and recorded, matches that baseline
-- [ ] **5.2 (third clause only)** `schema-diff` appears in `gh workflow list`. The YAML-validity
+- [x] **5.2 (third clause only)** `schema-diff` appears in `gh workflow list`. The YAML-validity
       and only-`workflow_dispatch` clauses are already established above
-- [ ] **5.3** The first run's full output is triaged into genuine drift vs migra noise
+- [x] **5.3** The first run's full output is triaged into genuine drift vs migra noise
       (extensions, grants) and recorded here as the baseline
 - [ ] **5.4** Deliberate-breakage check: dispatch once from a branch carrying a scratch
-      migration that adds a column, confirm the job reports a difference; revert
-- [ ] **5.5 (observation only)** `deploy` is confirmed **not** to depend on the DDL-diff
+      migration that adds a column, confirm the job reports a difference; revert —
+      **still open; a weaker local substitute was run instead, see below**
+- [x] **5.5 (observation only)** `deploy` is confirmed **not** to depend on the DDL-diff
       workflow on the Actions page. The structural half is already established above — no
       `workflow_run` coupling exists and `deploy`'s `needs` is `[ci, drift]` — so this is a
       confirmation, not an open question
+
+---
+
+## Ship — the merge, and the criteria that could only run after it
+
+**Date**: 2026-07-28. Merge commit **`f7a83c0`** (PR #15, `--merge`, phase commits preserved).
+`SUPABASE_DB_PASSWORD` was set by the dev at 14:48Z, before the merge.
+
+The whole of Phase 5 was blocked on the merge for the reason Phase 5 measured rather than
+assumed — `workflow_dispatch` is offered only for a workflow file already on the default
+branch. This section records what that unblocked.
+
+### 3.9 — the gate on the real path, first time
+
+Run [30379662871](https://github.com/lirdaw/10xcards/actions/runs/30379662871), `push` to
+`main`: `ci` **success** (3m18s) → `drift` **success** (**5s**) → `deploy` **success**.
+Conclusions read from `gh run view --json jobs`. The gate's own output, verbatim:
+
+```
+schema-drift: 10 local entries against 10 applied cloud migrations
+schema-drift: OK — every migration in this repository is applied in the cloud.
+```
+
+The comparison itself took ~1s; the plan budgeted ~10s for the job and it came in at 5. The
+GitHub secret is now proven twice over — once by the pre-merge rehearsal, once here.
+
+**No credential material in the log**, measured rather than trusted: the 180-line `drift` job
+log has **zero** hits for `sbp_`, zero for `bearer`, and zero for the project ref in clear.
+GitHub renders both as `***`, but the count is zero because the script never puts them in a
+message.
+
+### 5.2 — registration, and the before/after that makes it evidence
+
+Checked **before** the merge: `gh workflow list --all` returned one row (`CI`), and the API
+agreed. Checked **after**: `Schema diff  .github/workflows/schema-diff.yml  active`, id
+**322349050**. The pre-merge check is what turns this from a fact into evidence — it is the
+same before/after discipline the rest of this file uses.
+
+The file **as merged onto `main`** was re-parsed rather than trusted from the branch:
+triggers `["workflow_dispatch"]`, `schedule` absent, job-level `env` **null**, and the three
+secrets scoped to the three steps that run after `npm ci`. So the first dispatch ran the
+version carrying the impl-review's F2 fix — there was never a window in which the production
+password could reach `npm ci`.
+
+### 5.1 + 5.3 — two dispatches, and a baseline with nothing in it
+
+| Run                                                                                               | Result                                                                                         |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [30380427876](https://github.com/lirdaw/10xcards/actions/runs/30380427876) — first ever           | **success**; `Upload the diff for triage` **skipped** (`if: failure()`), i.e. `diff.sql` empty |
+| [30380687338](https://github.com/lirdaw/10xcards/actions/runs/30380687338) — second, after triage | **success**; upload skipped; output identical to the first                                     |
+
+Both printed, from the CLI and then from the job:
+
+```
+Finished supabase db diff on branch main.
+
+No schema changes found
+No difference between the deployed schema and a replay of the migrations.
+```
+
+**5.3's triage is the short kind: the baseline is EMPTY.** Zero genuine drift and — contrary
+to what the plan expected — **zero migra noise**. The plan warned that "migra reports false
+positives on extensions and grants and an uncalibrated first run will look like drift"; on
+this project it does not, so there is nothing to separate and no filter to write. Recorded as
+observed, because the next contributor will otherwise go looking for a noise filter that was
+never needed. If a future run is non-empty, **every** line is a candidate for real drift.
+
+The run also demonstrates the trap `lessons.md` was written from, live: `No schema changes
+found` arrives on **stderr** while the CLI exits 0 regardless, and the job's verdict comes
+from `[ -s diff.sql ]`. CLI on the runner: **v2.98.2**, the lockfile-pinned version (it
+advertises v2.110.0 as available; the pin is what makes these results reproducible).
+
+### 5.4 — NOT satisfied as written, and the substitute is weaker on purpose
+
+The criterion asks for a dispatch from a branch carrying a scratch migration. **That was not
+done** — by an explicit decision to avoid pushing a scratch branch. The substitute ran the
+same probe against the **local** oracle:
+
+| Step                                                                                         | Observed                                                                    |
+| -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Control, before the probe                                                                    | `db diff --local --schema public` → stdout **0 bytes**, exit **0**          |
+| With `20260728170000_ship_probe_tmp.sql` (`alter table deck add column ship_probe_tmp text`) | `diff.sql` **non-empty**, and the workflow's own verdict logic exited **1** |
+| The diff body                                                                                | `alter table "public"."deck" drop column "ship_probe_tmp";`                 |
+| After removing the probe file                                                                | verdict back to "no difference", exit **0**, `git status` clean             |
+
+Note the direction, because it reads backwards at first: migra emits the SQL that would make
+the **replay** match the **target**, so a column present in the replay and absent from the
+target surfaces as a `drop`. Against the cloud it would be the same shape. The gate keys on
+non-emptiness, not on the statement.
+
+**What this proves**: migra detects the difference, and the workflow's `[ -s diff.sql ]`
+gating turns it into a red step — with a positive control on both sides of the probe, so the
+red is attributable to the migration and the green to its removal. **What it does not
+prove**: the `--linked` path, the production round trip, the password, and the artifact
+upload on failure are all still unexercised. The upload step has now been _skipped_ twice and
+never _run_. Anyone who needs 5.4 closed properly still owes the branch dispatch.
