@@ -164,7 +164,46 @@ Set `SUPABASE_URL` and `SUPABASE_KEY` as secrets in your Cloudflare dashboard or
 
 ## CI
 
-GitHub Actions runs lint + build on every push and PR to `master`. Configure `SUPABASE_URL` and `SUPABASE_KEY` as repository secrets in GitHub for the build step.
+GitHub Actions runs on every push and PR to `main`, in three jobs:
+
+1. **`ci`** — lint, build, then a local Supabase stack for the test suite. It also
+   regenerates `src/db/database.types.ts` and fails on a non-empty `git diff`, so committed
+   types cannot go stale against the migrations that generate them.
+2. **`drift`** — `needs: ci`, and it runs only on a push to `main`. It compares the
+   repository's migration versions against the cloud project's applied migrations (read
+   through the Supabase Management API) and fails when either side carries something the
+   other does not.
+3. **`deploy`** — `needs: [ci, drift]`. The Worker ships only when both are green.
+
+A separate workflow, **`schema-diff`**, runs a DDL comparison (`supabase db diff`) against
+the cloud project. It is `workflow_dispatch` only — no schedule — and nothing depends on it,
+so a red DDL diff never blocks a release.
+
+### Repository secrets
+
+| Secret                                          | Used by                | Required?                                                                                      |
+| ----------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | `deploy`               | yes                                                                                            |
+| `SUPABASE_ACCESS_TOKEN`                         | `drift`, `schema-diff` | yes — a **dedicated** Supabase personal access token, not a developer's own                    |
+| `SUPABASE_PROJECT_ID`                           | `drift`, `schema-diff` | yes — the cloud project ref                                                                    |
+| `SUPABASE_DB_PASSWORD`                          | `schema-diff` only     | yes for that workflow — without it the CLI mints a temporary **read-write** role on production |
+
+`SUPABASE_URL` / `SUPABASE_KEY` are **not** repository secrets and must not be added: the
+build does not read them, and the test suite gets them from the local stack it starts.
+
+### When `drift` goes red
+
+A deploy now depends on the Supabase Management API being reachable, and the gate fails
+closed — so read the job log, which labels the failure:
+
+- **`DRIFT`** — the comparison ran and disagreed. Run `supabase db push`, then
+  `gh run rerun --failed` to re-run `drift` and the dependent `deploy`.
+- **`GATE UNAVAILABLE`** — the comparison never ran (missing secret, API error). This says
+  nothing about the schema. A job whose `needs` failed cannot be started on its own, so a
+  prolonged outage is escaped only by a commit removing `drift` from `deploy`'s `needs`.
+
+The full procedure, including which steps are production-mutating, lives in the ship
+runbook (`.claude/skills/ship/SKILL.md`).
 
 ## License
 

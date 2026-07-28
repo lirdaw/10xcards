@@ -21,6 +21,7 @@
 - `npm run lint` / `npm run lint:fix` — ESLint, type-checked (@eslint.config.js).
 - `npm run format` — Prettier (@.prettierrc.json).
 - `npm run build` — production build; `npx wrangler deploy` — ship to Cloudflare.
+- `npx supabase db push` — apply migrations to the **cloud** before merging; CI's `drift` job compares versions against the cloud and blocks `deploy` otherwise (@.github/workflows/ci.yml).
 - `npm test` — Vitest integration suite against the local Supabase stack; start it first with `npm run db:start`. A preflight aborts the run if `SUPABASE_URL` is not local or `OPENROUTER_API_KEY` is set (the suite asserts card counts that only mock generation guarantees). How to add a test: @context/foundation/test-plan.md §6.
 
 ## Conventions

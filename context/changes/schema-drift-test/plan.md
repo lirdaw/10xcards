@@ -836,12 +836,12 @@ re-verify before relying on them.
 
 #### Automated
 
-- [ ] 6.1 Every file:line reference added to `test-plan.md` resolves
-- [ ] 6.2 `npm run lint` and `npm run format` are clean
-- [ ] 6.3 `npm test` still passes
+- [x] 6.1 Every file:line reference added to `test-plan.md` resolves
+- [x] 6.2 `npm run lint` and `npm run format` are clean
+- [x] 6.3 `npm test` still passes
 
 #### Manual
 
-- [ ] 6.4 §3 Phase 3's row and §2's Risk #5 row agree about what is and is not covered
-- [ ] 6.5 §6.6's "what this does NOT prove" list names drift classes 4-9 and does not claim the suite tests the Management API
-- [ ] 6.6 The `lessons.md` entry is readable standing alone, without this change folder
+- [x] 6.4 §3 Phase 3's row and §2's Risk #5 row agree about what is and is not covered
+- [x] 6.5 §6.6's "what this does NOT prove" list names drift classes 4-9 and does not claim the suite tests the Management API
+- [x] 6.6 The `lessons.md` entry is readable standing alone, without this change folder
