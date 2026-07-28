@@ -1,7 +1,7 @@
 ---
 change_id: server-side-validation-test
 title: Server-side validation parity for card content rules (Risk #6)
-status: preparing
+status: plan_reviewed
 created: 2026-07-28
 updated: 2026-07-28
 archived_at: null
