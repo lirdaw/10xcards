@@ -728,12 +728,12 @@ query plan changes.
 
 #### Automated
 
-- [x] 5.1 `npm test` green
-- [x] 5.2 `npm run lint` and `npm run build` exit 0
-- [x] 5.3 `grep -rn "4xx" context/foundation/` returns only JSON-endpoint uses (this change's folder excluded by design)
+- [x] 5.1 `npm test` green — 5c66862
+- [x] 5.2 `npm run lint` and `npm run build` exit 0 — 5c66862
+- [x] 5.3 `grep -rn "4xx" context/foundation/` returns only JSON-endpoint uses (this change's folder excluded by design) — 5c66862
 
 #### Manual
 
-- [x] 5.4 §2 Risk #6 row and §6.6's new entry agree with each other
-- [x] 5.5 The archived file reads as a corrected historical record, not a rewritten one
+- [x] 5.4 §2 Risk #6 row and §6.6's new entry agree with each other — 5c66862
+- [x] 5.5 The archived file reads as a corrected historical record, not a rewritten one — 5c66862
 - [ ] 5.6 Jira description and both comments corrected at `/jira-finish-work`
