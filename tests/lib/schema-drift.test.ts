@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 // `@/*` maps to `src/*` only, and the subject here is CI tooling under `scripts/` — see
 // test-plan.md §6.1 on why its test still sits in tests/lib/ beside the suite's other
 // pure-function files rather than in a tests/scripts/ folder holding one file.
-import { compareMigrations, versionOf } from "../../scripts/schema-drift";
+import { compareMigrations, versionOf } from "../../scripts/schema-drift.ts";
 
 // The CI gate's entire decision. It runs before `deploy` and blocks it, so the cost of this
 // function being wrong is asymmetric in both directions: a false green ships a Worker
@@ -64,6 +64,7 @@ describe("compareMigrations", () => {
       missingRemote: [],
       missingLocal: [],
       unparseable: [],
+      duplicate: [],
     });
   });
 
@@ -117,7 +118,13 @@ describe("compareMigrations", () => {
       remote: ["20260712162359", "20260712162349"],
     });
 
-    expect(verdict).toEqual({ clean: true, missingRemote: [], missingLocal: [], unparseable: [] });
+    expect(verdict).toEqual({
+      clean: true,
+      missingRemote: [],
+      missingLocal: [],
+      unparseable: [],
+      duplicate: [],
+    });
   });
 
   // A fresh project, or — far more likely in CI — the right token pointed at the wrong ref.
@@ -155,6 +162,33 @@ describe("compareMigrations", () => {
       remote: REAL_REMOTE,
     });
 
-    expect(verdict).toEqual({ clean: true, missingRemote: [], missingLocal: [], unparseable: [] });
+    expect(verdict).toEqual({
+      clean: true,
+      missingRemote: [],
+      missingLocal: [],
+      unparseable: [],
+      duplicate: [],
+    });
+  });
+
+  // The one input where the set-based comparison — correct, and load-bearing for the
+  // out-of-order pair above — loses information it needs. `schema_migrations.version` is the
+  // key on the cloud side, so two files claiming one timestamp means at most ONE of them can
+  // ever be recorded as applied; the other is committed and never applied, which is exactly
+  // the drift class this gate exists to catch. Before this case the verdict read `clean`.
+  it("reports a version claimed by two local files, which the cloud could only track once", () => {
+    const verdict = compareMigrations({
+      local: [...REAL_LOCAL, "20260705180246_a_second_file_same_second.sql"],
+      remote: REAL_REMOTE,
+    });
+
+    expect(verdict.duplicate).toEqual(["20260705180246"]);
+    expect(verdict.clean).toBe(false);
+    // Neither side of the set difference can see it — the collision is entirely within the
+    // local list, so reporting it as a missing migration would send the reader to `db push`
+    // for something only a rename fixes.
+    expect(verdict.missingRemote).toEqual([]);
+    expect(verdict.missingLocal).toEqual([]);
+    expect(verdict.unparseable).toEqual([]);
   });
 });

@@ -1,7 +1,7 @@
 ---
 change_id: schema-drift-test
 title: CI gate for database schema drift vs migration history
-status: implemented
+status: impl_reviewed
 created: 2026-07-27
 updated: 2026-07-28
 archived_at: null

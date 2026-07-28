@@ -729,6 +729,123 @@ constant that would have failed in the opposite direction from the one the reade
 
 ---
 
+## Impl-review — fixes applied after Phase 6
+
+**Date**: 2026-07-28. Report: `reviews/impl-review.md`.
+
+The per-phase sections above are **left exactly as they were**: each records what was true when
+that phase closed, and `177 passed / 177` was true then. Rewriting them to today's number would
+destroy the dated record this file exists to keep. The current figure is **178 / 178, 15 files**,
+and this section is where that came from.
+
+The review confirmed every plan contract as met and every automated criterion as green — and
+then found one thing that no criterion had asked about.
+
+### The finding that mattered: the gate returned a false green
+
+Probing the comparator with an input the fixtures never covered:
+
+```
+local: ["20260705180246_a.sql","20260705180246_b.sql"], remote: ["20260705180246"]
+→ {"clean":true,"missingRemote":[],"missingLocal":[],"unparseable":[]}
+```
+
+`schema_migrations.version` is the cloud's key, so two files claiming one timestamp means **at
+most one of them can ever be recorded as applied** — the other is committed and never applied.
+That is drift class 1, reported as OK by the gate built to catch precisely it.
+
+The cause is worth carrying past this change: the `Set` that makes the comparison correctly
+**order-blind** — load-bearing, because this repository carries a real out-of-order pair — is
+the very same thing that makes it **collision-blind**. One line is both the design property and
+the defect. Reachable by a copy-paste, or by two `supabase migration new` calls inside one
+second; this repo already holds a pair 10 seconds apart.
+
+**Fix**: a `duplicate: string[]` on `DriftVerdict`, recorded _before_ the `Set.add` that would
+swallow it, folded into `clean`, with its own section in `reportDrift` whose remedy is a rename
+— because `db push` cannot repair a filename collision. Plus a twelfth fixture.
+
+**Verified in both directions**, which is the point:
+
+| Check                                                 | Result                                                                                                                      |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| The collision case                                    | `clean:false`, `duplicate:["20260705180246"]`, both set differences empty — so it is not misreported as a missing migration |
+| The out-of-order pair (the case the `Set` exists for) | still `clean:true` — the fix is additive, not a redesign                                                                    |
+| `npx vitest run tests/lib/schema-drift.test.ts`       | 11 → **12 passed**                                                                                                          |
+
+### Three hardening fixes in the same pass
+
+| Finding                        | Change                                                                       | Why it was not cosmetic                                                                                                                                                                                                                                                                           |
+| ------------------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **F6** remote side unvalidated | versions `.trim()`ed and held to `/^\d{14}$/`, else `GATE UNAVAILABLE`       | Measured: `"20260705180246 "` printed the _same_ migration in `missingRemote` **and** `missingLocal` as two visually identical entries — sending the reader to `db push` and the `repair` runbook simultaneously. `""` printed a blank bullet. Fail-closed in direction, worst-possible in report |
+| **F6** `.sql` case-sensitive   | extension matched case-insensitively while `MIGRATION_FILENAME` stays strict | `_x.SQL` was measured `clean:true` — neither compared nor reported. It now lands in `unparseable` with the rename remedy. The asymmetry is deliberate: the CLI's glob is lowercase so such a file would never be pushed either                                                                    |
+| **F6** `readdirSync` untyped   | `withFileTypes: true` + `isFile()`                                           | A directory named `<14 digits>_x.sql` would have counted as a migration                                                                                                                                                                                                                           |
+| **F5** no request timeout      | `AbortSignal.timeout(15_000)`                                                | The only bound was undici's 300 s default — the failure _direction_ was always right (abort → `GATE UNAVAILABLE`, exit 1), but the number belonged to a dependency, in a job whose premise is ~10 s                                                                                               |
+
+### The DDL workflow: the production password no longer shares an environment with `npm ci`
+
+`SUPABASE_DB_PASSWORD` sat in **job-level** `env:`, so it was readable by every install
+lifecycle script in the dependency tree when `npm ci` ran — and by `actions/checkout` and
+`actions/setup-node`. The repository is **PUBLIC** (`gh repo view` → `"visibility":"PUBLIC"`).
+Exposure to date is nil, because the secret has never been set and the workflow has never run,
+which is exactly why this was cheap to fix now and had to be fixed **before** the ship-time
+`gh secret set`.
+
+All three secrets moved to **step-level** `env:` on the three steps that need them, all of
+which run after `npm ci`. Verified by parsing the YAML rather than by eye:
+
+```
+triggers: ["workflow_dispatch"]        ← criterion 5.2 intact
+job-level env: null
+ step actions/checkout@v7                | env: -
+ step actions/setup-node@v6              | env: -
+ step npm ci                             | env: -      ← the point
+ step Require the database password      | env: TOKEN,PROJECT_ID,DB_PASSWORD
+ step Link the cloud project             | env: TOKEN,PROJECT_ID,DB_PASSWORD
+ step Diff the deployed schema …         | env: TOKEN,PROJECT_ID,DB_PASSWORD
+ step Upload the diff for triage         | env: -
+```
+
+Note the contrast that is _not_ a defect: `ci.yml`'s `drift` job keeps its job-level `env:`,
+because it deliberately runs no `npm ci` and only first-party steps. Same reasoning, different
+answer.
+
+**And the diff body no longer goes to a public log.** `cat diff.sql` published the
+production-vs-migrations DDL delta — by definition the DDL that is _not_ in the public
+`supabase/migrations/`, i.e. the part nobody reviewed — into a world-readable Actions log. The
+step now prints the verdict and a line count and uploads the body as an artifact
+(`actions/upload-artifact@v7`, `if: failure()`, 7-day retention). Two things stated rather than
+glossed: artifacts on a public repo are downloadable too, so this **narrows** the exposure
+rather than removing it (the honest fix would be a private repository); and the upload cannot
+rescue the job, because the diff step has already exited 1 by the time it runs.
+
+`@v7` was checked against the API, not assumed — `upload-artifact`'s latest is `v7.0.1`, so the
+reflexive `@v4` would have been three majors stale.
+
+### Documentation, and two smaller items
+
+`AGENTS.md` gained a Hard-Rules line recording the `scripts/` carve-out. The change introduced
+two standing exceptions — `process.env` instead of `astro:env/server`, and the only
+deep-relative import in `tests/` — each explained at its own call site but neither sanctioned
+where an agent reads the rules. `lessons.md`'s new entry was moved to the **end** of the file,
+which calls itself an append-only register. The test's import gained the `.ts` extension so it
+reads the same way as the runner's.
+
+One review claim was checked and **not** carried: the suggestion that the test file's
+`test-plan.md §6.1` pointer was stale is wrong — the mirroring clarification is in §6.1.
+Another, that `supabase link` may bootstrap `supabase_migrations` on the remote, could not be
+confirmed against the pinned CLI (the npm package is a binary downloader), so the workflow
+header was **softened** rather than made to assert an unverified behaviour.
+
+### State after the review
+
+`npm run lint` exit **0**, `npx prettier --check` clean on every edited file, `npm test`
+**178 passed / 178, 15 files**, and both fail-closed paths re-measured with real exit codes
+(`no-token EXIT=1`, `no-ref EXIT=1`, each with its own message). `F4` was **accepted, not
+fixed**: Phase 5's ship-time checklist below already carries the mechanism, and the reviewer's
+concern was follow-through rather than a defect.
+
+---
+
 ## Ship-time checklist
 
 These criteria cannot be satisfied before the merge. They are tracked here so they are

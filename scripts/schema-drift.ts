@@ -48,6 +48,18 @@ export interface DriftVerdict {
   missingLocal: string[];
   /** Local `.sql` entries whose name carries no usable version. Never silently dropped. */
   unparseable: string[];
+  /**
+   * Versions claimed by more than one local file.
+   *
+   * `schema_migrations.version` is the key on the cloud side, so a duplicated timestamp means
+   * at most ONE of the colliding files can ever be recorded as applied — the other is
+   * committed and never applied, which is drift class 1, the very thing this gate exists to
+   * catch. Set-based comparison is right for the out-of-order pair and is what makes this
+   * case invisible: without this list the collision collapses into one member and the verdict
+   * reads `clean`. Reachable by an ordinary copy-paste, or by two `supabase migration new`
+   * invocations inside the same second.
+   */
+  duplicate: string[];
 }
 
 export interface MigrationLists {
@@ -67,9 +79,10 @@ export interface MigrationLists {
  * same order. A comparator that assumed a monotonically increasing history would call this
  * project drifted today, on its very first run, with nothing wrong.
  *
- * `clean` covers all three lists, not just the two set differences. A migrations directory
+ * `clean` covers all four lists, not just the two set differences. A migrations directory
  * holding a file this gate cannot account for is not something to pass over quietly — the
- * gate exists to fail closed, and "I could not read one of the filenames" must reach a
+ * gate exists to fail closed, and "I could not read one of the filenames" (or "two files
+ * claim the same version, so the cloud can only ever track one of them") must reach a
  * human rather than being averaged away into a green run.
  *
  * Versions only, never file contents: a migration amended in place after it was pushed
@@ -79,18 +92,27 @@ export interface MigrationLists {
 export function compareMigrations({ local, remote }: MigrationLists): DriftVerdict {
   const localVersions = new Set<string>();
   const unparseable: string[] = [];
+  const duplicate = new Set<string>();
 
   for (const filename of local) {
     // A directory holds more than migrations — `.gitkeep`, editor droppings, a stray README.
     // Those are not migrations and must not be reported as malformed ones; only a file that
     // claims to be SQL and then carries no version is a finding.
-    if (!filename.endsWith(".sql")) continue;
+    //
+    // The extension test is case-INSENSITIVE while `MIGRATION_FILENAME` stays strict, and the
+    // asymmetry is the point: on a Linux runner `..._x.SQL` is a real file a human would call
+    // a migration, but the CLI's own glob is lowercase so it would never be pushed. Matching
+    // here and failing the regex lands it in `unparseable` with the rename remedy, instead of
+    // being skipped into a green run.
+    if (!filename.toLowerCase().endsWith(".sql")) continue;
 
     const version = versionOf(filename);
     if (version === null) {
       unparseable.push(filename);
       continue;
     }
+    // Recorded BEFORE the `add`, because the Set is exactly what would otherwise swallow it.
+    if (localVersions.has(version)) duplicate.add(version);
     localVersions.add(version);
   }
 
@@ -100,9 +122,10 @@ export function compareMigrations({ local, remote }: MigrationLists): DriftVerdi
   const missingLocal = [...remoteVersions].filter((version) => !localVersions.has(version)).sort();
 
   return {
-    clean: missingRemote.length === 0 && missingLocal.length === 0 && unparseable.length === 0,
+    clean: missingRemote.length === 0 && missingLocal.length === 0 && unparseable.length === 0 && duplicate.size === 0,
     missingRemote,
     missingLocal,
     unparseable: [...unparseable].sort(),
+    duplicate: [...duplicate].sort(),
   };
 }

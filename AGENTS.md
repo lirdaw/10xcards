@@ -7,6 +7,7 @@
 - Import via `@/*` (maps to `src/*`, see @tsconfig.json); do not use deep relative paths like `../../lib`.
 - Read env only through `astro:env/server` (`SUPABASE_URL`, `SUPABASE_KEY`) — never `import.meta.env` or `process.env`. Both are optional server secrets; `createClient` in @src/lib/supabase.ts returns `null` when unset, so every caller must null-check before use (see @src/pages/api/auth/signin.ts).
 - Run `npx astro sync` after changing routes or content before `lint`/`build` — CI runs it and lint fails on stale generated types.
+- The two rules above are about `src/`. **`scripts/` is the one exception**: it is CI tooling run by bare `node --experimental-strip-types` (@.github/workflows/ci.yml), with no Vite — so `@/*` does not resolve and `astro:env/server` does not exist there. Those files read `process.env`, import siblings relatively (`./schema-drift.ts`, extension required), and may use `console.*` (@tests/lib/no-logging.test.ts scans `src/` only). Do not extend this to `src/`, and do not import across the boundary — that would be the deep relative path the first rule forbids.
 
 ## Project Structure
 

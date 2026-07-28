@@ -48,6 +48,28 @@ const MIGRATIONS_DIR = new URL("../supabase/migrations/", import.meta.url);
 const RATE_LIMIT_RETRY_MS = 5_000;
 
 /**
+ * Stated by this repository rather than inherited from a runtime default.
+ *
+ * Without a signal the only bound is undici's `headersTimeout`/`bodyTimeout` (300 s each), so
+ * a hung API would sit on the merge→deploy path for ~5 minutes — or ~10 with the retry — in a
+ * job whose whole design premise is that it costs about ten seconds. The failure direction was
+ * never wrong (an abort lands in `request`'s catch and becomes GATE UNAVAILABLE, exit 1); what
+ * was wrong is that the number belonged to a dependency.
+ */
+const REQUEST_TIMEOUT_MS = 15_000;
+
+/**
+ * The cloud's own version strings, held to the same shape the local side is held to.
+ *
+ * The local half is deliberately strict (`MIGRATION_FILENAME` in ./schema-drift.ts) while this
+ * half used to accept any string at all — an asymmetry with a nasty report: a version carrying
+ * a trailing space or a BOM appears in `missingRemote` AND `missingLocal` as two visually
+ * identical 14-digit strings, sending the reader to `db push` and to the `migration repair`
+ * runbook at once, and an empty string prints as a blank bullet.
+ */
+const REMOTE_VERSION = /^\d{14}$/;
+
+/**
  * The comparison never ran. Distinct from a drift verdict on purpose: both block the
  * deploy, but only one of them is a statement about the database.
  */
@@ -59,7 +81,11 @@ function sleep(ms: number): Promise<void> {
 
 function readLocalFilenames(): string[] {
   try {
-    return readdirSync(MIGRATIONS_DIR);
+    // `withFileTypes`, so a DIRECTORY named `<14 digits>_x.sql` cannot be counted as a
+    // migration and a subdirectory cannot inflate the entry count printed below.
+    return readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name);
   } catch (err) {
     // An unreadable migrations directory is not "no migrations to check" — that reading
     // would turn a broken checkout into a green gate.
@@ -72,6 +98,7 @@ async function request(ref: string, token: string): Promise<Response> {
   try {
     return await fetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (err) {
     throw new GateUnavailable(`the Management API could not be reached (${String(err)})`);
@@ -94,7 +121,17 @@ function versionsFrom(body: unknown): string[] {
     if (typeof row !== "object" || row === null || !("version" in row) || typeof row.version !== "string") {
       throw new GateUnavailable(`migration entry ${index + 1} of ${body.length} carries no string \`version\``);
     }
-    return row.version;
+
+    // Trimmed and shape-checked, so whitespace or a BOM cannot turn one migration into a
+    // matched pair of near-identical entries on opposite sides of the report.
+    const version = row.version.trim();
+    if (!REMOTE_VERSION.test(version)) {
+      throw new GateUnavailable(
+        `migration entry ${index + 1} of ${body.length} reported ${JSON.stringify(version.slice(0, 40))}, ` +
+          `which is not a 14-digit timestamp`,
+      );
+    }
+    return version;
   });
 }
 
@@ -154,6 +191,15 @@ function reportDrift(verdict: DriftVerdict): void {
     console.error("  This is the `migration repair` desync direction — the schema may well be");
     console.error("  correct while the history is wrong. Do NOT blindly run what the CLI suggests;");
     console.error("  see lessons.md, “Operacje migracji Supabase”.");
+  }
+
+  if (verdict.duplicate.length > 0) {
+    console.error("");
+    console.error(`  Claimed by more than one local file (${verdict.duplicate.length}):`);
+    console.error(bullets(verdict.duplicate));
+    console.error("  The cloud keys applied migrations on the version alone, so it can only ever");
+    console.error("  track ONE of the colliding files — the other would be committed and never");
+    console.error("  applied. `db push` cannot fix this: rename one file to a free timestamp.");
   }
 
   if (verdict.unparseable.length > 0) {
