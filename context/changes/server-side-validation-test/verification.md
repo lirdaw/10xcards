@@ -276,3 +276,97 @@ The independent corroboration is **case 11's red in run 2**: `expected undefined
 reachable *only* if the constraint was genuinely absent when the suite ran in a different process
 over PostgREST. A silently no-opped heredoc — the §6.6 failure mode this criterion exists for —
 would have left the constraint in place and case 11 green. It was not green.
+
+## Phase 5 — Documentation sync
+
+Run 2026-07-28 against the tree at `72e275e`. Docs-only; no file under `src/` or `supabase/`
+was touched, which is why the three automated criteria are re-runs of the same commands rather
+than new evidence.
+
+### 5.1 / 5.2 Suite, lint, build
+
+`npm test` → **193 passed / 193, 16 files**, 2.72 s — the Phase 3 total, unchanged by a
+documentation phase, and the figure written into `test-plan.md` §8. `npm run lint` → exit
+**0**; `npm run build` → exit **0**.
+
+### 5.3 The "4xx" sweep, and what each surviving hit is
+
+`grep -rn "4xx" context/foundation/` → **12 hits, none of them a claim that the card
+create/edit endpoints answer a 4xx.** Classified individually rather than counted:
+
+| Where                              | Kind                                                                                        |
+| ---------------------------------- | ------------------------------------------------------------------------------------------- |
+| `test-plan.md:1232`                | The **only** surviving load-bearing use: C10X-28's claims table row for `/api/generate`, a JSON endpoint. Correct as written |
+| `test-plan.md:166`                 | The rewritten Risk Response row — attributes `4xx` to the JSON endpoints and `302` to the native-form targets |
+| `test-plan.md:23,24,154,208,453,454,1295,1422,2128` | Nine corrections that must contain the word in order to correct it (header, Risk #6 row, §3 sequencing note, §6.3's dated block, C10X-28's bullet, §6.6's C10X-30 entry, §8) |
+| `lessons.md:203`                   | The new entry's Context line — "odmawiają … zamiast statusem 4xx", i.e. the rule's own subject |
+
+The change's own folder is deliberately outside the command, per criterion 5.3: `plan.md`,
+`research.md` and `plan-brief.md` discuss the wrong wording and must keep quoting it.
+
+### 5.4 Where the correction landed — six places, one of them an archive
+
+1. `test-plan.md` §2 Risk Response Guidance row #6 — rewritten to the two-convention form.
+2. `test-plan.md` §3 Phase 2 sequencing note — rewritten from "what it takes to flip" into
+   what landed, naming the wrong wording as the first thing the slice found.
+3. `test-plan.md` §6.3 — the "a 4xx AND no write" bullet keeps its sentence and gains a dated
+   correction block pointing at the new §6.10.
+4. `test-plan.md` §6.6, C10X-28's "card-content half" bullet — dated closure line; the bullet
+   itself is left as written.
+5. `change.md` — inline `[POPRAWKA 2026-07-28: …]` markers inside the ticket-sourced paragraph,
+   so the ticket's own wording survives beside the correction, plus a `### Wynik` section.
+6. `context/archive/2026-07-26-ai-candidate-generation-test-2/change.md:52` — a dated
+   correction line appended under the paragraph, **not** a rewrite of it. Same discipline that
+   makes `complete` a dated claim: the archive records what was known then.
+
+The seventh place — the Jira description and its two comments — is outside this repo and is
+corrected at `/jira-finish-work`, which is why criterion 5.6 is a manual row.
+
+### 5.5 What was added rather than corrected
+
+- **`test-plan.md` §6.10**, "Adding a test for a redirect-style (native form) endpoint" — the
+  rule this file did not have. Six facts, plus the breakage-**pair** requirement and the
+  constraint-restore asymmetry.
+- **`test-plan.md` §6.6, the C10X-30 entry** — the claims table, the pair with its splits read
+  against a denominator of 12, four traps, and an explicit "what this does NOT prove" list.
+- **`test-plan.md` §7** — a third islands note, stated as the **opposite** of the C10X-28 one
+  directly above it: the card islands carry no `maxLength` (verified by enumeration —
+  `maxLength` appears in `src/components/` only in `GeneratorForm`), so their over-length
+  branch is reachable through the browser rather than sealed behind an input stop.
+- **`lessons.md`** — one entry, grounded in breakage run 1: a redirect-style refusal needs a
+  row oracle and an equality assertion, with the oracle asserted first.
+
+One deviation from the plan, recorded rather than silently applied: Phase 5 §2 asked for
+`status: complete` in `change.md`. The vocabulary this repo's tooling actually uses is
+`implementing` → `implemented` → `archived` (all 15 archived changes read `archived`; nothing
+has ever carried `complete`), and `/10x-archive` reads that field. Set to **`implemented`**.
+
+### 5.6 The manual pass found two defects in this phase's own output
+
+Criteria 5.4 and 5.5 are the kind of check that is easy to perform by asserting the intent of
+the edit rather than by reading what landed. Read instead, both came back red.
+
+**5.5 — the correction block had merged into the paragraph it was correcting.** It was
+inserted directly under item 2's original sentence, immediately above the pre-existing
+`> **Annotate it with a comment…**` block. Both are blockquotes at the same indentation, so
+markdown renders them as **one** quote and the original instruction read as a continuation of
+the 2026-07-28 correction — the file no longer read as a record with a correction appended,
+which is precisely what criterion 5.5 exists to catch. Moved to the **end** of item 2, after
+the `✅ THE COMMENT IS POSTED` block, where it is also chronologically right. Item 3
+("Phase 2 stays `implementing`… do not flip it for any other reason") got its own resolution
+line in the same style, since this change is what flipped it and the honest close is to
+record that it was flipped for exactly the named reason.
+
+**5.4 — §2 and §6.6 disagreed about `IDS_MAX`.** The Risk #6 row said "Each limit has exactly
+one definition", which is true of `SOURCE_MAX` and of `FRONT_MAX`/`BACK_MAX` and **false** of
+`/cards/batch`'s `IDS_MAX`: `CandidateReviewWorkspace.tsx:27` mirrors it as a commented copy
+(`BATCH_MAX = 100`), not an import — verified by reading both files, not inferred from the
+test's comment. §6.6's new entry was silent on it, so the two documents would have been read
+together (5.4's own instruction) and given opposite impressions. Both fixed: §2 now scopes the
+claim to the two **length** limits and names `IDS_MAX` as the exception; §6.6's `IDS_MAX` row
+states that the server assertion is the whole guard because the client copy can drift.
+
+Nothing under `src/` changed for either fix. `npm test` re-run afterwards: **193 passed / 193,
+16 files**, and the `4xx` sweep re-counted at **12** (the figure above was first written as 11
+— the classification table was right and the headline was not, which is the same rot-in-hours
+class item 4 of C10X-28's archived `change.md` warns about).

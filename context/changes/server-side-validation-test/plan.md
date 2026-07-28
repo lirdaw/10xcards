@@ -714,26 +714,26 @@ query plan changes.
 
 #### Automated
 
-- [x] 4.1 Run 1 red on {case 1, case 8}, both on message equality, boundary control green
-- [x] 4.2 Run 2 red on {case 1 (count — different failure string), case 8, case 11}
-- [x] 4.3 After both restores: `npm test` green, `git diff -- src/ supabase/` empty
-- [x] 4.4 `pg_get_constraintdef` before/after diff empty for both constraints
+- [x] 4.1 Run 1 red on {case 1, case 8}, both on message equality, boundary control green — 72e275e
+- [x] 4.2 Run 2 red on {case 1 (count — different failure string), case 8, case 11} — 72e275e
+- [x] 4.3 After both restores: `npm test` green, `git diff -- src/ supabase/` empty — 72e275e
+- [x] 4.4 `pg_get_constraintdef` before/after diff empty for both constraints — 72e275e
 
 #### Manual
 
-- [x] 4.5 `verification.md` splits carry their denominators
-- [x] 4.6 The temporary `psql` edit confirmed applied, not silently no-opped
+- [x] 4.5 `verification.md` splits carry their denominators — 72e275e
+- [x] 4.6 The temporary `psql` edit confirmed applied, not silently no-opped — 72e275e
 
 ### Phase 5: Documentation sync
 
 #### Automated
 
-- [ ] 5.1 `npm test` green
-- [ ] 5.2 `npm run lint` and `npm run build` exit 0
-- [ ] 5.3 `grep -rn "4xx" context/foundation/` returns only JSON-endpoint uses (this change's folder excluded by design)
+- [x] 5.1 `npm test` green
+- [x] 5.2 `npm run lint` and `npm run build` exit 0
+- [x] 5.3 `grep -rn "4xx" context/foundation/` returns only JSON-endpoint uses (this change's folder excluded by design)
 
 #### Manual
 
-- [ ] 5.4 §2 Risk #6 row and §6.6's new entry agree with each other
-- [ ] 5.5 The archived file reads as a corrected historical record, not a rewritten one
+- [x] 5.4 §2 Risk #6 row and §6.6's new entry agree with each other
+- [x] 5.5 The archived file reads as a corrected historical record, not a rewritten one
 - [ ] 5.6 Jira description and both comments corrected at `/jira-finish-work`

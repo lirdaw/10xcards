@@ -72,9 +72,23 @@ archived_at: 2026-07-26T20:47:00Z
    > about the auth routes' server-side validation that belongs to this ticket. **Do not post
    > a second comment.** Status untouched (`Triaż`) — and it must stay open until the
    > card-content test lands.
+   >
+   > **✅ RESOLVED — 2026-07-28, C10X-30 shipped its card-content half.** Nothing above is
+   > rewritten; the archive records what was known then, and two details in it turned out to be
+   > wrong in a way that would have sent the next contributor after something that does not
+   > exist. **`POST/PATCH`**: neither card endpoint exports a `PATCH` handler — both are `POST`
+   > only. **"asserting a 4xx"**: those two endpoints are native-form targets and refuse with a
+   > **`302`** to an owned `?error=` URL — the same status a success returns — so the
+   > "**and** no write" half of that sentence is not a supplement to a status assertion, it is
+   > the only assertion there is. The rule now lives in `test-plan.md` §6.10; what actually
+   > landed is in §6.6's C10X-30 entry.
 3. **`test-plan.md` §3 Phase 2 stays `implementing`, and item 2 is the only thing between it
    and `complete`.** The row already names that test. Whoever lands it flips the status and
    dates the claim — do not flip it for any other reason.
+   > **✅ RESOLVED — 2026-07-28.** Flipped to `complete` by C10X-30
+   > (`server-side-validation-test`), for exactly the reason named above and no other: the
+   > card-content test landed (`tests/validation/cards.test.ts`, 12 cases), and the claim is
+   > dated in §3, §2's Risk #6 row and §6.6.
 4. **A defect class this change proved is live, twice: recorded line ranges and counts rot
    within hours.** The S-05 Stryker range had been mutating the wrong part of a file since a
    commit made two hours after the run; twelve `context/changes/…` evidence links were dead;
