@@ -1,8 +1,13 @@
 # Verification — CI Gate for Database Schema Drift
 
 > Evidence log for `context/changes/schema-drift-test/plan.md`. Each phase appends its own
-> section. Ship-time criteria (3.9, 5.5) are collected at the bottom, because the merge
-> happens once, at `/ship`, after all six phases.
+> section. Ship-time criteria are collected at the bottom, because the merge happens once, at
+> `/ship`, after all six phases. That set grew after the plan was written: it started as
+> 3.9 and 5.5, and Phase 5 added **5.1, 5.3, 5.4 and one clause of 5.2** — `workflow_dispatch`
+> is only offered for a workflow file that already sits on the default branch, so most of
+> that phase cannot be verified from a feature branch at all. Read the checklist at the
+> bottom, not this sentence, for the current list — and read the loop-back note beside it,
+> which says who ticks what once the merge has happened.
 
 ## Phase 1 — Endpoint spike and baseline observation
 
@@ -600,6 +605,26 @@ profile, another machine), which is the one thing this check cannot see.
 
 These criteria cannot be satisfied before the merge. They are tracked here so they are
 neither blocking a phase gate nor quietly forgotten.
+
+**Closing the loop — do not skip this, it is the step that gets forgotten.** Ticking a box
+below is only half of it. `plan.md`'s `## Progress` still carries **5.1, 5.2, 5.3, 5.4** and
+**3.9, 5.5** as `- [ ]`, deliberately: at the time each phase committed, those criteria were
+genuinely unverified, and marking them done in advance is the dated-claim failure this
+project keeps correcting. So whoever performs the checklist below must, in the same sitting:
+
+1. tick the box here **and record what was observed** — a run id, the triaged diff, the
+   Actions-page screenshot's content — because a bare `[x]` is an assertion with no evidence;
+2. flip the matching row in `plan.md`'s `## Progress` to `- [x]`, appending the SHA of the
+   commit that carries this update (the same ritual every phase used);
+3. only then hand the change to `/10x-archive`.
+
+If this is skipped, `/10x-archive` surfaces the rows as warnings and the change archives with
+Phase 5 reading as unverified — which would be an accurate record of a job left half done,
+not a bookkeeping glitch to wave through.
+
+**One of these is not really pending.** 5.5's substance is already settled structurally (see
+Phase 5 above); what remains is an eyeball confirmation on the Actions page. It is kept on the
+list rather than pre-ticked because the criterion as written asks for the observation.
 
 **Prerequisite for everything under Phase 5**: `gh secret set SUPABASE_DB_PASSWORD` (the
 production database password). Without it the DDL-diff workflow fails closed at its guard
