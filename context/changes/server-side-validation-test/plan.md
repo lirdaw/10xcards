@@ -698,31 +698,31 @@ query plan changes.
 
 #### Automated
 
-- [x] 3.1 `npx vitest run tests/validation/cards.test.ts` green, all cases
-- [x] 3.2 `npx vitest run tests/review/candidates.test.ts` green including the new case
-- [x] 3.3 `npm test` green; exact new total recorded from the run
-- [x] 3.4 `npm run lint` exits 0
-- [x] 3.5 `npx vitest run tests/auth/errors.test.ts` green including the two new malformed-body cases
+- [x] 3.1 `npx vitest run tests/validation/cards.test.ts` green, all cases — 030053c
+- [x] 3.2 `npx vitest run tests/review/candidates.test.ts` green including the new case — 030053c
+- [x] 3.3 `npm test` green; exact new total recorded from the run — 030053c
+- [x] 3.4 `npm run lint` exits 0 — 030053c
+- [x] 3.5 `npx vitest run tests/auth/errors.test.ts` green including the two new malformed-body cases — 030053c
 
 #### Manual
 
-- [x] 3.6 The new file reads as one concern — every case is a content rule
-- [x] 3.7 No assertion in the file relies on a status alone
-- [x] 3.8 The auth cases read as malformed-body handling, with the C10X-36 boundary stated in a comment
+- [x] 3.6 The new file reads as one concern — every case is a content rule — 030053c
+- [x] 3.7 No assertion in the file relies on a status alone — 030053c
+- [x] 3.8 The auth cases read as malformed-body handling, with the C10X-36 boundary stated in a comment — 030053c
 
 ### Phase 4: Deliberate-breakage pair and verification record
 
 #### Automated
 
-- [ ] 4.1 Run 1 red on {case 1, case 8}, both on message equality, boundary control green
-- [ ] 4.2 Run 2 red on {case 1 (count — different failure string), case 8, case 11}
-- [ ] 4.3 After both restores: `npm test` green, `git diff -- src/ supabase/` empty
-- [ ] 4.4 `pg_get_constraintdef` before/after diff empty for both constraints
+- [x] 4.1 Run 1 red on {case 1, case 8}, both on message equality, boundary control green
+- [x] 4.2 Run 2 red on {case 1 (count — different failure string), case 8, case 11}
+- [x] 4.3 After both restores: `npm test` green, `git diff -- src/ supabase/` empty
+- [x] 4.4 `pg_get_constraintdef` before/after diff empty for both constraints
 
 #### Manual
 
-- [ ] 4.5 `verification.md` splits carry their denominators
-- [ ] 4.6 The temporary `psql` edit confirmed applied, not silently no-opped
+- [x] 4.5 `verification.md` splits carry their denominators
+- [x] 4.6 The temporary `psql` edit confirmed applied, not silently no-opped
 
 ### Phase 5: Documentation sync
 
