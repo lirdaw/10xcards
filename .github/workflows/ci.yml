@@ -21,16 +21,30 @@ jobs:
       - run: npm ci
       - run: npx astro sync
       - run: npm run lint
+      # No `env:` here, deliberately. `secrets.SUPABASE_URL` / `secrets.SUPABASE_KEY` do not
+      # exist in this repository, so the block that used to sit here injected two empty strings
+      # and read as configured; the build tolerates their absence only because
+      # `astro.config.mjs` marks every field `optional: true`. The suite's credentials are a
+      # different thing entirely and are exported from the local stack further down.
       - run: npm run build
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
 
       # The isolation suite drives the real endpoints against a real Postgres — the whole
       # point is that RLS is the only lock, so a mocked database would test nothing. The
       # Supabase CLI is already a devDependency, so `npm ci` above installed it.
       - name: Start local Supabase stack
         run: npx supabase start
+
+      # Drift class 8: `database.types.ts` is GENERATED from the schema, so a migration that
+      # lands without a regeneration leaves the app type-checking against a database that no
+      # longer matches. Regenerate and diff — a non-empty diff means the committed file is
+      # stale. This belongs here rather than in its own job precisely because the stack it
+      # needs is already paid for by the suite below; a second `supabase start` would add
+      # ~1m46s to every run. `.gitattributes` is `* text=auto eol=lf`, so a Linux runner
+      # cannot produce a diff from line endings alone: red means a real divergence.
+      - name: Check generated types against the schema
+        run: |
+          npm run db:types
+          git diff --exit-code src/db/database.types.ts
 
       # The suite runs against the LOCAL stack, never the repository secrets: it signs up
       # throwaway accounts and asserts one cannot reach the other's rows. Point it at the
@@ -45,8 +59,41 @@ jobs:
 
       - run: npm test
 
-  deploy:
+  # Does the cloud database carry every migration this commit does? A history oracle, not a
+  # schema diff — the drift this project actually lived through was a `migration repair`
+  # desync that left the schema byte-identical (lessons.md, "Operacje migracji Supabase"),
+  # which a DDL diff cannot see. It gets its own job so a failure reads as "prod is not
+  # migrated" rather than "tests failed", and so cloud credentials never share a job with the
+  # suite that the comments above insist must stay on the local stack.
+  #
+  # Same `if` as `deploy`, which is what makes pull-request behaviour correct for free: on a
+  # PR this job is skipped, and a job whose `needs` dependency was skipped is skipped too.
+  # `/ship` runs `db push` AFTER `gh pr create`, so at PR time prod is legitimately behind and
+  # a blocking PR gate would be red by design.
+  drift:
     needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      # No `npm ci` and no npm cache, deliberately: the script has zero runtime dependencies
+      # (node:fs + global fetch), which is what keeps this job at seconds rather than minutes
+      # on the path between merge and deploy. Keep it that way.
+      - name: Check migration history against the cloud
+        run: node --experimental-strip-types scripts/check-schema-drift.ts
+
+  deploy:
+    # Both, and with no `always()` / `!cancelled()` escape hatch — one would let the deploy
+    # run after a failed gate, which is the single thing this gate exists to prevent.
+    needs: [ci, drift]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:

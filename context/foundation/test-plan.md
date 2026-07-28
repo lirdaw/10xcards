@@ -6,7 +6,30 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-07-26, third entry of the day (C10X-28 shipped, with C10X-34 and
+> Last updated: 2026-07-28 (C10X-29 `schema-drift-test` shipped). **§3 Phase 3 is
+> `complete`, and Risk #5 is covered per drift CLASS rather than wholesale** — the row
+> names which classes are gated, which are only detectable off the deploy path, and which
+> are not covered at all, because "Risk #5 closed" would be false in both directions.
+>
+> What the slice built, and the boundary it states in the same breath. A `drift` job now
+> sits between `ci` and `deploy` and compares the repository's migration **versions**
+> against `supabase_migrations.schema_migrations`, read through the Supabase Management
+> API; `deploy` gains `needs: [ci, drift]`, so an unpushed migration stops the Worker
+> deploy. It is a **history oracle by deliberate choice**: the incident behind this risk
+> was a `migration repair` desync over a byte-identical schema, which a DDL diff cannot
+> see. The two oracles are complementary, so an on-demand `db diff` workflow covers the
+> contents-side classes — **on `workflow_dispatch` only, with no schedule and no
+> notification channel**, and §5 records it as human-triggered rather than as a gate.
+> Drift class 8 (stale `src/db/database.types.ts`) is closed by one step in the existing
+> `ci` job. Two traps are recorded rather than smoothed over: `supabase migration list`
+> and `db diff` **both always exit 0**, so a gate written from the docs would have enforced
+> nothing (now a `lessons.md` entry), and Phase 4's own breakage criterion does not go red
+> as worded, because `db:types` overwrites the working tree before the diff runs. **No test
+> in the suite touches the cloud** — the wiring is carried by recorded runs, not by an
+> assertion. Suite at completion: **177/177, 15 files**.
+> Evidence: `context/changes/schema-drift-test/verification.md`.
+>
+> Previously: 2026-07-26, third entry of the day (C10X-28 shipped, with C10X-34 and
 > C10X-30's source-text half riding along). **Risk #4 is covered; Risk #6 is half covered;
 > §3 Phase 2 deliberately stays `implementing`** — the row now names the one test that
 > flips it (a crafted request against the card-content endpoints) so "implementing" reads
@@ -17,7 +40,7 @@
 > branches, behind the project's first module double (`astro:env/server` only — never
 > `@/lib/openrouter`, which would make the `Authorization` half unassertable); the key is
 > pinned to the header by production code. The two surfaces where private data genuinely
-> *did* escape — the auth routes' verbatim relay of an upstream message into a URL, and
+> _did_ escape — the auth routes' verbatim relay of an upstream message into a URL, and
 > `generation_session`'s four private audit columns, which had no cross-account test at
 > all — are closed. The log half is a first-party guard over the whole of `src/` and
 > nothing more: **no test here reads a log sink**, and dependency-emitted lines are in
@@ -95,15 +118,15 @@ terms, not test names. The Source column cites the _evidence that surfaced
 this risk_ — never a specific file as "where the failure lives" (that is
 research's job, see §1 principle #3).
 
-| #   | Risk (failure scenario)                                                                                                                                                                                                                                   | Impact | Likelihood | Source (evidence — not anchor)                                                                                                                                                                                                         |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | A new or changed API endpoint lets one account read or modify another account's deck or flashcards — the ownership check does not hold, RLS is bypassed, or a `publicId` from the URL is treated as authorization. Private content leaks across accounts. | High   | High       | interview Q1, interview Q3; PRD §Guardrails (per-account data isolation), PRD §Access Control; hot-spot dir `src/lib/` (18 commits/30d); hot-spot dir `src/pages/api/decks/[publicId]/cards/` (4 commits/30d)                          |
-| 2   | A retry after a generation timeout writes a second set of candidates — the user gets duplicated cards and a duplicated generation session.                                                                                                                | Medium | High       | `context/foundation/lessons.md` (recorded tradeoff: write is not idempotent under client+server timeout with a retry button); PRD FR-018; hot-spot dir `src/lib/` (18 commits/30d)                                                     |
-| 3   | The study session loses a card or writes the wrong next-review date, and cards that were never accepted enter review — the schedule stops being trustworthy.                                                                                              | High   | Medium     | PRD §Guardrails (spaced-repetition scheduling correctness), PRD §NFR (schedule survives across sessions), PRD US-02 acceptance criteria, PRD FR-006; roadmap S-03 (north star, next in sequence)                                       |
-| 4   | Private source text or the LLM API key escapes into a log line or an error response body. **Covered 2026-07-26 (C10X-28), with a named boundary: the response-body half is pinned on both failure branches, the log half only for what `src/` itself writes. Read §6.6's C10X-28 entry before citing this as closed.**                                                                                                                                                                 | High   | Medium     | PRD §Guardrails (privacy of pasted source text), PRD §NFR (privacy); `context/foundation/lessons.md` (prod secret is separate from `.env`; missing secret silently degraded to mock mode); abuse lens (secret/PII leakage)             |
-| 5   | The production schema drifts from the migration history — the deployed app writes against an un-migrated database.                                                                                                                                        | High   | Medium     | interview Q2 (real incident during M2L5); `context/foundation/lessons.md` ×2 (cloud migration is a step distinct from app deploy; blind `migration repair` desynced prod history); hot-spot dir `supabase/migrations/` (6 commits/30d) |
-| 6   | The server trusts the client — a crafted request bypasses the source-text length limit and the card content rules that the UI enforces. **PARTLY covered 2026-07-26 (C10X-28): the source-text half is pinned at `/api/generate` and that limit now has one definition; the card-content half (the `FRONT_MAX`/`BACK_MAX` endpoints) is still untested.**                                                                                                                   | Medium | Medium     | PRD FR-003 (maximum source-text length), PRD FR-007; abuse lens (untrusted input, server-side validation parity); hot-spot dir `src/lib/` (18 commits/30d)                                                                             |
-| 7   | Generation returns cards in the wrong language or cards that are unusable, so the acceptance rate falls below 75% and the product thesis fails.                                                                                                           | High   | Medium     | PRD §Success Criteria (≥75% of generated cards accepted; ≥75% of cards created via generation), PRD §NFR (cards follow the source-text language: PL/EN/ES); roadmap S-05                                                               |
+| #   | Risk (failure scenario)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Impact | Likelihood | Source (evidence — not anchor)                                                                                                                                                                                                         |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | A new or changed API endpoint lets one account read or modify another account's deck or flashcards — the ownership check does not hold, RLS is bypassed, or a `publicId` from the URL is treated as authorization. Private content leaks across accounts.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | High   | High       | interview Q1, interview Q3; PRD §Guardrails (per-account data isolation), PRD §Access Control; hot-spot dir `src/lib/` (18 commits/30d); hot-spot dir `src/pages/api/decks/[publicId]/cards/` (4 commits/30d)                          |
+| 2   | A retry after a generation timeout writes a second set of candidates — the user gets duplicated cards and a duplicated generation session.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Medium | High       | `context/foundation/lessons.md` (recorded tradeoff: write is not idempotent under client+server timeout with a retry button); PRD FR-018; hot-spot dir `src/lib/` (18 commits/30d)                                                     |
+| 3   | The study session loses a card or writes the wrong next-review date, and cards that were never accepted enter review — the schedule stops being trustworthy.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | High   | Medium     | PRD §Guardrails (spaced-repetition scheduling correctness), PRD §NFR (schedule survives across sessions), PRD US-02 acceptance criteria, PRD FR-006; roadmap S-03 (north star, next in sequence)                                       |
+| 4   | Private source text or the LLM API key escapes into a log line or an error response body. **Covered 2026-07-26 (C10X-28), with a named boundary: the response-body half is pinned on both failure branches, the log half only for what `src/` itself writes. Read §6.6's C10X-28 entry before citing this as closed.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | High   | Medium     | PRD §Guardrails (privacy of pasted source text), PRD §NFR (privacy); `context/foundation/lessons.md` (prod secret is separate from `.env`; missing secret silently degraded to mock mode); abuse lens (secret/PII leakage)             |
+| 5   | The production schema drifts from the migration history — the deployed app writes against an un-migrated database. **Covered 2026-07-28 (C10X-29) per drift CLASS, not as one range — writing "classes 4-9 are uncovered" would be false for four of them. Gated in CI and deploy-blocking: a migration committed but never pushed; a history desync from `migration repair`; an out-of-order version skipped by `db push`. Gated in the `ci` job: a stale generated `src/db/database.types.ts`. Detectable only off the deploy path, by an on-demand DDL diff nobody is scheduled to run: a migration file amended after it was pushed; production changed by hand in Studio; `repair --status applied` on something never applied. Not covered at all: `config.toml` vs dashboard config, and seed/dictionary row drift. Read §6.6's C10X-29 entry before citing this as closed.** | High   | Medium     | interview Q2 (real incident during M2L5); `context/foundation/lessons.md` ×2 (cloud migration is a step distinct from app deploy; blind `migration repair` desynced prod history); hot-spot dir `supabase/migrations/` (6 commits/30d) |
+| 6   | The server trusts the client — a crafted request bypasses the source-text length limit and the card content rules that the UI enforces. **PARTLY covered 2026-07-26 (C10X-28): the source-text half is pinned at `/api/generate` and that limit now has one definition; the card-content half (the `FRONT_MAX`/`BACK_MAX` endpoints) is still untested.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Medium | Medium     | PRD FR-003 (maximum source-text length), PRD FR-007; abuse lens (untrusted input, server-side validation parity); hot-spot dir `src/lib/` (18 commits/30d)                                                                             |
+| 7   | Generation returns cards in the wrong language or cards that are unusable, so the acceptance rate falls below 75% and the product thesis fails.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | High   | Medium     | PRD §Success Criteria (≥75% of generated cards accepted; ≥75% of cards created via generation), PRD §NFR (cards follow the source-text language: PL/EN/ES); roadmap S-05                                                               |
 
 ### Risk Response Guidance
 
@@ -126,13 +149,13 @@ appear on disk. A fourth value, **`reopened`**, exists because a later audit can
 show a `complete` phase never covered all of its risk — see Phase 4. Treat
 `complete` as a dated claim, not a permanent state.
 
-| #   | Phase name                      | Goal (one line)                                                                         | Risks covered                                                        | Test types                         | Status       | Change folder                                                                    |
-| --- | ------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------- | ------------ | -------------------------------------------------------------------------------- |
-| 1   | Harness + per-account isolation | Stand up the runner and prove cross-account denial on read and write                    | #1                                                                   | runner bootstrap, integration, RLS | complete     | `context/archive/2026-07-15-verification-harness/`                                          |
-| 2   | Endpoint contract               | Prove the server does not trust the client and does not leak; stop duplication on retry | #2 (**covered** — S-05 Phase 6), #4 (**covered** — C10X-28), #6 (**partly** — source-text half only) | integration | implementing | `context/archive/2026-07-18-ai-candidate-generation-test/` → `context/changes/ai-candidate-generation-test-2/` |
-| 3   | Quality gates + schema drift    | Make green CI mean "tested and prod actually migrated"                                  | #5                                                                   | gates                              | not started  | —                                                                                |
-| 4   | SRS schedule correctness        | Prove the schedule defers by rating, survives restart, and admits only accepted cards   | #3 (**covered** — both halves; closed by C10X-27, 2026-07-26)        | unit + integration                 | complete     | `context/archive/2026-07-24-srs-study-session/` → `context/archive/2026-07-26-srs-study-session-test/` |
-| 5   | AI-native generation quality    | Prove cards match the source language and are usable, so the 75% thesis is measurable   | #7                                                                   | LLM-as-judge                       | not started  | —                                                                                |
+| #   | Phase name                      | Goal (one line)                                                                         | Risks covered                                                                                        | Test types                         | Status       | Change folder                                                                                                  |
+| --- | ------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------- |
+| 1   | Harness + per-account isolation | Stand up the runner and prove cross-account denial on read and write                    | #1                                                                                                   | runner bootstrap, integration, RLS | complete     | `context/archive/2026-07-15-verification-harness/`                                                             |
+| 2   | Endpoint contract               | Prove the server does not trust the client and does not leak; stop duplication on retry | #2 (**covered** — S-05 Phase 6), #4 (**covered** — C10X-28), #6 (**partly** — source-text half only) | integration                        | implementing | `context/archive/2026-07-18-ai-candidate-generation-test/` → `context/changes/ai-candidate-generation-test-2/` |
+| 3   | Quality gates + schema drift    | Make green CI mean "tested and prod actually migrated"                                  | #5 (**covered** — the deploy-blocking classes and the stale generated types; C10X-29, 2026-07-28)    | gates                              | complete     | `context/changes/schema-drift-test/`                                                                           |
+| 4   | SRS schedule correctness        | Prove the schedule defers by rating, survives restart, and admits only accepted cards   | #3 (**covered** — both halves; closed by C10X-27, 2026-07-26)                                        | unit + integration                 | complete     | `context/archive/2026-07-24-srs-study-session/` → `context/archive/2026-07-26-srs-study-session-test/`         |
+| 5   | AI-native generation quality    | Prove cards match the source language and are usable, so the 75% thesis is measurable   | #7                                                                                                   | LLM-as-judge                       | not started  | —                                                                                                              |
 
 Sequencing notes:
 
@@ -159,6 +182,19 @@ Sequencing notes:
   (`server-side-validation-test`) is the ticket that owns it; whoever lands it flips this
   row to `complete` and dates the claim. Claiming `complete` from C10X-28 would be exactly
   the dated-claim failure the `reopened` vocabulary above exists to record.
+- Phase 3 shipped as **C10X-29 `schema-drift-test`** (2026-07-28), and the one decision
+  worth carrying forward is what kind of oracle the gate is. It compares migration
+  **versions** — the repository's filenames against the cloud's
+  `supabase_migrations.schema_migrations` — and never compares **contents**. That is a
+  deliberate choice, not a shortcut: the incident this risk was written from
+  (`lessons.md`, "Operacje migracji Supabase") was a `migration repair` desync that left
+  the deployed schema byte-identical and the history wrong, which a DDL diff cannot see at
+  all. So the cheap, deploy-blocking gate is the one that covers the classes this project
+  has actually lived through, and the expensive DDL diff — which covers the classes the
+  history oracle is blind to — sits off the deploy path on `workflow_dispatch`. The two
+  oracles are complementary, not ranked. §2's Risk #5 row states the split per class, and
+  §6.6's C10X-29 entry states what the gate does **not** prove; the two are written to be
+  read together and must not be allowed to drift apart.
 - Phase 4 shipped inside roadmap **S-03 `srs-study-session`** (its Phase 5),
   which is where the schedule itself was built — roadmap F-03 had already
   deferred this test to S-03, so the phase reused that change folder rather
@@ -199,15 +235,15 @@ Sequencing notes:
 The classic test base for this project. AI-native tools (if any) carry a
 `checked:` date so future readers can see which lines need re-verification.
 
-| Layer                | Tool                                                    | Version                                                                     | Notes                                                                                                                                                                                                                                                                                           |
-| -------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| unit + integration   | Vitest                                                  | 4.1.10                                                                      | Configured through `getViteConfig()` from `astro/config` (`vitest.config.ts`), which is what resolves the `@/*` alias and `astro:env/server`. The adapter's `@cloudflare/vite-plugin` is stripped there — it fights Astro over the `ssr` environment and tests target Node; checked: 2026-07-15 |
-| endpoint rendering   | Astro Container API                                     | ships with Astro 6                                                          | `renderToResponse` with `routeType: "endpoint"` renders an API route against a real `Request`; checked: 2026-07-15                                                                                                                                                                              |
-| API mocking          | one confined module double — **see §6.9**               | Vitest's own `vi.mock` / `vi.hoisted`; no mocking library                    | Only the external HTTP edge (the LLM provider) is ever doubled; the database is real via local Supabase. Exactly one file does it (`tests/generation/failure-path.test.ts`), doubling **`astro:env/server`** plus a pass-through `globalThis.fetch` to reach the 502/422 branches the harness otherwise seals. Read §6.9 before copying it; checked: 2026-07-26 |
-| database under test  | Supabase CLI local stack                                | 2.98.2 (devDependency; `^2.23.4` in `package.json` is only the range floor) | Driven by `npm run db:start` / `db:stop` / `db:reset`; RLS is only meaningful against a real Postgres. CI starts the same stack and reads its URL + publishable key from `supabase status -o env`; checked: 2026-07-15                                                                          |
-| e2e                  | none yet — deliberately deferred                        | —                                                                           | No rollout phase claims e2e; promote only if a risk survives cheaper layers                                                                                                                                                                                                                     |
-| accessibility        | `eslint-plugin-jsx-a11y`                                | 6.10.2                                                                      | Lint-level only; PRD names baseline a11y but no risk in §2 requires an axe run yet                                                                                                                                                                                                              |
-| (optional) AI-native | LLM-as-judge over a reference set — checked: 2026-07-15 | n/a                                                                         | **When NOT to use**: any assertion a deterministic check can make (JSON shape, card count, field presence, language tag). The judge is for usability and language fidelity only, and only once Phase 5's dependency lands                                                                       |
+| Layer                | Tool                                                    | Version                                                                     | Notes                                                                                                                                                                                                                                                                                                                                                           |
+| -------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| unit + integration   | Vitest                                                  | 4.1.10                                                                      | Configured through `getViteConfig()` from `astro/config` (`vitest.config.ts`), which is what resolves the `@/*` alias and `astro:env/server`. The adapter's `@cloudflare/vite-plugin` is stripped there — it fights Astro over the `ssr` environment and tests target Node; checked: 2026-07-15                                                                 |
+| endpoint rendering   | Astro Container API                                     | ships with Astro 6                                                          | `renderToResponse` with `routeType: "endpoint"` renders an API route against a real `Request`; checked: 2026-07-15                                                                                                                                                                                                                                              |
+| API mocking          | one confined module double — **see §6.9**               | Vitest's own `vi.mock` / `vi.hoisted`; no mocking library                   | Only the external HTTP edge (the LLM provider) is ever doubled; the database is real via local Supabase. Exactly one file does it (`tests/generation/failure-path.test.ts`), doubling **`astro:env/server`** plus a pass-through `globalThis.fetch` to reach the 502/422 branches the harness otherwise seals. Read §6.9 before copying it; checked: 2026-07-26 |
+| database under test  | Supabase CLI local stack                                | 2.98.2 (devDependency; `^2.23.4` in `package.json` is only the range floor) | Driven by `npm run db:start` / `db:stop` / `db:reset`; RLS is only meaningful against a real Postgres. CI starts the same stack and reads its URL + publishable key from `supabase status -o env`; checked: 2026-07-15                                                                                                                                          |
+| e2e                  | none yet — deliberately deferred                        | —                                                                           | No rollout phase claims e2e; promote only if a risk survives cheaper layers                                                                                                                                                                                                                                                                                     |
+| accessibility        | `eslint-plugin-jsx-a11y`                                | 6.10.2                                                                      | Lint-level only; PRD names baseline a11y but no risk in §2 requires an axe run yet                                                                                                                                                                                                                                                                              |
+| (optional) AI-native | LLM-as-judge over a reference set — checked: 2026-07-15 | n/a                                                                         | **When NOT to use**: any assertion a deterministic check can make (JSON shape, card count, field presence, language tag). The judge is for usability and language fidelity only, and only once Phase 5's dependency lands                                                                                                                                       |
 
 **Stack grounding tools (current session):**
 
@@ -222,19 +258,37 @@ The full set of gates that must pass before a change reaches production.
 "Required after §3 Phase `<N>`" means the gate is enforced once that rollout
 phase lands; before that, the gate is `planned`.
 
-| Gate                               | Where                                           | Required?                              | Catches                                                               |
-| ---------------------------------- | ----------------------------------------------- | -------------------------------------- | --------------------------------------------------------------------- |
-| lint + typecheck                   | local (husky `pre-commit` via lint-staged) + CI | required — wired today                 | syntactic / type drift                                                |
-| build                              | CI                                              | required — wired today                 | broken production build                                               |
-| unit + integration                 | local + CI                                      | required — wired by §3 Phase 1         | logic regressions, cross-account access, endpoint contract breaks     |
-| migration/schema drift check       | CI, before deploy                               | required after §3 Phase 3              | deployed app running against an un-migrated prod schema               |
-| post-edit hook                     | local (agent loop)                              | recommended local, not a CI substitute | regressions at edit time                                              |
-| prod smoke on a real flow          | between merge and "done"                        | optional                               | environment-specific failures (missing prod secret, silent mock mode) |
-| LLM-as-judge on generation quality | CI, nightly or on generation-path changes       | optional after §3 Phase 5              | wrong-language or unusable cards                                      |
+| Gate                               | Where                                           | Required?                                | Catches                                                                   |
+| ---------------------------------- | ----------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------- |
+| lint + typecheck                   | local (husky `pre-commit` via lint-staged) + CI | required — wired today                   | syntactic / type drift                                                    |
+| build                              | CI                                              | required — wired today                   | broken production build                                                   |
+| unit + integration                 | local + CI                                      | required — wired by §3 Phase 1           | logic regressions, cross-account access, endpoint contract breaks         |
+| migration/schema drift check       | CI, `drift` job between `ci` and `deploy`       | required — wired by §3 Phase 3 (C10X-29) | deployed app running against an un-migrated prod schema; a history desync |
+| generated-types check              | CI, inside the `ci` job after the local stack   | required — wired by §3 Phase 3 (C10X-29) | `src/db/database.types.ts` stale against the migrations that generate it  |
+| DDL diff against the cloud         | GitHub Actions, `workflow_dispatch` only        | optional, human-triggered — no schedule  | a migration amended after it was pushed; production edited by hand        |
+| post-edit hook                     | local (agent loop)                              | recommended local, not a CI substitute   | regressions at edit time                                                  |
+| prod smoke on a real flow          | between merge and "done"                        | optional                                 | environment-specific failures (missing prod secret, silent mock mode)     |
+| LLM-as-judge on generation quality | CI, nightly or on generation-path changes       | optional after §3 Phase 5                | wrong-language or unusable cards                                          |
 
 e2e on critical flows is deliberately absent: no §3 phase wires it, so
 listing it as a gate would be aspirational. Add it only if a risk survives
 the integration layer.
+
+The DDL-diff row says **human-triggered** rather than "nightly", and the wording is
+load-bearing: `.github/workflows/schema-diff.yml` carries no `schedule:` block, because a
+red run in a tab nobody is committed to reading is not coverage — this project has no
+notification channel and none is being built. Read that row as a capability that exists
+and is exercised when someone asks, never as a signal being watched. Adding a cron is one
+line; do it the day an alerting channel and an owner exist, not before.
+
+Two of these gates depend on a cloud credential, which changes what a red run means. The
+`drift` job needs `SUPABASE_ACCESS_TOKEN` + `SUPABASE_PROJECT_ID` and the DDL diff
+additionally needs `SUPABASE_DB_PASSWORD`; every failure path in the drift runner —
+missing secret, non-2xx, unparseable body, empty result set — **exits 1 by design**, so a
+Management API outage blocks the deploy. That is the fail-closed contract working, and the
+runner labels it `GATE UNAVAILABLE` (as opposed to `DRIFT`) precisely so the reader knows
+it is not evidence about the schema. The recovery for each is in `README.md`'s CI section
+and, in full, in the ship runbook.
 
 ## 6. Cookbook Patterns
 
@@ -254,6 +308,13 @@ the relevant rollout phase ships; before that, the sub-section reads
 - **Note**: the whole suite requires a running local stack, because
   preflight (§6.4) aborts the run without one — even for a test that never
   touches the database. Start it with `npm run db:start`.
+- **The mirroring rule has one clarification, added by §3 Phase 3.** `tests/` mirrors the
+  path of what it tests, and the subject is usually app code under `src/`. Where it is CI
+  tooling under `scripts/` instead, its test still sits in `tests/lib/` beside the suite's
+  other pure-function files — `tests/lib/schema-drift.test.ts` covers
+  `scripts/schema-drift.ts`, and that is deliberate, not a convention break. A
+  `tests/scripts/` folder holding one file would buy nothing; the pure-function pattern
+  (`http.test.ts`, `study-session.test.ts`) is what the file actually follows.
 
 **The oracle-property pattern (added by Phase 4).** For logic whose expected
 value is produced by a library — the rating→next-review mapping is the case
@@ -344,7 +405,7 @@ Two contracts, and they are separate claims — assert both:
 
 - **Validation parity — a 4xx AND no write.** Copy
   `tests/generation/generate.test.ts`'s input-contract block. A status assertion alone
-  is not enough: a 400 returned *after* a write had landed reads as a pass. Every
+  is not enough: a 400 returned _after_ a write had landed reads as a pass. Every
   rejection case re-counts the rows it could have created and asserts zero, and the
   block carries a **boundary-value success** so the refusals cannot be an endpoint
   refusing everything. Two traps live here, both recorded in §6.6's C10X-28 entry: a
@@ -431,7 +492,7 @@ No test could see that from the outside.
 > non-negotiable and neither of which was written here:
 >
 > - **The host must be local.** It hard-fails unless the `SUPABASE_URL` hostname is
->   `127.0.0.1` or `localhost`. "Key is anon" is *not* sufficient — a production
+>   `127.0.0.1` or `localhost`. "Key is anon" is _not_ sufficient — a production
 >   project's anon key is anon and its stack is reachable, so without this check the
 >   documented "swap cloud creds in" workflow would have `npm test` signing up real
 >   accounts and writing rows in **production**.
@@ -457,7 +518,7 @@ No test could see that from the outside.
   already exist, and §6.6 is where its absence is visible.
 - **Read §6.3 before adding an input-validation case** (bad `count`, over-length
   source text). It owns the status-code and error-body contract, and as of
-  C10X-28 it is written rather than TBD — the cases themselves live in *this*
+  C10X-28 it is written rather than TBD — the cases themselves live in _this_
   file's input-contract block. Do not infer that contract from §6.2's "404,
   never 403" rule: that rule is about ownership, not bad input.
 - **Pattern**: identical to §6.4 — drive the real endpoint with a real
@@ -721,20 +782,20 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   as of C10X-27. Re-verified by execution: suite **109/109, 11 files**, `tests/study`
   30/30. Precisely what that means:
 
-  | Claim from Risk #3                                             | What proves it                                                                                                                                                                     |
-  | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | Deferral follows the rating                                    | `schedule.test.ts` ordering property (no DB) + `study.test.ts` Easy-vs-Hard `due` persisted through the endpoint                                                                   |
-  | The written schedule is the right one, at the FIRST review     | `study.test.ts` exact-due oracle: `due`/`stability`/`difficulty`/`srs_state`/`reps`/`lapses`/`scheduled_days` vs a direct `scheduler.next`                                         |
-  | …and at every review after it                                  | `study.test.ts` "stays faithful across consecutive reviews": three chained ratings vs an oracle Card advanced only in memory (added by impl-review F2)                             |
-  | The written schedule survives a re-read                        | re-read on a brand-new client, column-for-column, asserted still rated (not silently reset to New). This is read-after-write, **not** a restart — same process, milliseconds apart |
+  | Claim from Risk #3                                             | What proves it                                                                                                                                                                                                                                                             |
+  | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Deferral follows the rating                                    | `schedule.test.ts` ordering property (no DB) + `study.test.ts` Easy-vs-Hard `due` persisted through the endpoint                                                                                                                                                           |
+  | The written schedule is the right one, at the FIRST review     | `study.test.ts` exact-due oracle: `due`/`stability`/`difficulty`/`srs_state`/`reps`/`lapses`/`scheduled_days` vs a direct `scheduler.next`                                                                                                                                 |
+  | …and at every review after it                                  | `study.test.ts` "stays faithful across consecutive reviews": three chained ratings vs an oracle Card advanced only in memory (added by impl-review F2)                                                                                                                     |
+  | The written schedule survives a re-read                        | re-read on a brand-new client, column-for-column, asserted still rated (not silently reset to New). This is read-after-write, **not** a restart — same process, milliseconds apart                                                                                         |
   | …and the card comes BACK when it falls due ("no card is lost") | `study.test.ts` "returns the card at its persisted due and withholds it a minute after the rating" — rated at a fixed `now`, then `listDueCards` at `now + 1 min` (absent) and at the persisted `due` (present, `reps` advanced). **Added by C10X-27**                     |
-  | A retry does not advance the schedule                          | two identical POSTs → `reps` 0→1 (not 2), second answers `200 { alreadyApplied: true }`, row byte-identical                                                                        |
-  | Only accepted cards enter                                      | a `generated` and a `rejected` sibling never come back from `listDueCards`; rating one is a 404 that writes no schedule row                                                        |
-  | No cross-account write (extends Risk #1)                       | B rating A's card → 404 and A's row unchanged column-for-column, with A's own successful rate as the positive control                                                              |
-  | The batch is bounded by the deck's OWN cap                     | `study.test.ts` cap case: `session_size` set through the endpoint, read back via `getStudyDeck`, and passed to `listDueCards` — never a literal — with 5 due cards against a cap of 3. **Added by C10X-27**                                                              |
+  | A retry does not advance the schedule                          | two identical POSTs → `reps` 0→1 (not 2), second answers `200 { alreadyApplied: true }`, row byte-identical                                                                                                                                                                |
+  | Only accepted cards enter                                      | a `generated` and a `rejected` sibling never come back from `listDueCards`; rating one is a 404 that writes no schedule row                                                                                                                                                |
+  | No cross-account write (extends Risk #1)                       | B rating A's card → 404 and A's row unchanged column-for-column, with A's own successful rate as the positive control                                                                                                                                                      |
+  | The batch is bounded by the deck's OWN cap                     | `study.test.ts` cap case: `session_size` set through the endpoint, read back via `getStudyDeck`, and passed to `listDueCards` — never a literal — with 5 due cards against a cap of 3. **Added by C10X-27**                                                                |
   | …and that cap is itself bounded                                | endpoint Zod (`0`, `-1`, `101`, `2.5` → 400, value unchanged on re-read) **and** the DB CHECK `deck_session_size_check` (`23514`, by name), with an in-range positive control. The island's own `SIZE_MIN`/`SIZE_MAX` mirror is NOT covered — see §7. **Added by C10X-27** |
-  | Every grade writes what ts-fsrs computes, not just `Good`      | four fresh cards, one per grade, each column-for-column against an oracle from `createEmptyCard` advanced only in memory; plus the lapse case (`Again` from `Review`: `lapses` 0→1, `due`/`stability` strictly below `Good`'s at the same `now`). **Added by C10X-27**    |
-  | The batch's composition is deterministic                       | **PARTIAL — read the caveat.** `toEqual` on the batch members pins their ORDER, but not the presence of the `f.id asc` tie-break: removing the clause leaves the suite green (see the breakage runs below)                                                               |
+  | Every grade writes what ts-fsrs computes, not just `Good`      | four fresh cards, one per grade, each column-for-column against an oracle from `createEmptyCard` advanced only in memory; plus the lapse case (`Again` from `Review`: `lapses` 0→1, `due`/`stability` strictly below `Good`'s at the same `now`). **Added by C10X-27**     |
+  | The batch's composition is deterministic                       | **PARTIAL — read the caveat.** `toEqual` on the batch members pins their ORDER, but not the presence of the `f.id asc` tie-break: removing the clause leaves the suite green (see the breakage runs below)                                                                 |
 
   **What the single-transition oracle does NOT prove, and why there are now two
   rows for it** (added by impl-review F2, 2026-07-24). The exact-due oracle
@@ -775,7 +836,7 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   running local DB with a copy missing its `and f.state_id = 2` predicate
   (`create or replace`, no `db:reset`, so dev data survived). **Re-run 2026-07-26
   (C10X-27): exactly 1 of 22 red** — `expected [ …(3) ] to not include
-  '<generated card>'` in "never returns a generated or rejected card from a session
+'<generated card>'` in "never returns a generated or rejected card from a session
   build" — which is what proves that assertion observes the real gate rather than an
   incidental empty batch. (The split is unchanged since 2026-07-24; only the
   denominator moved, 14 → 22.) Restore: `pg_get_functiondef` dumped before and after,
@@ -793,14 +854,14 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   (`expected 1 to be undefined`). **Re-run 2026-07-26 (C10X-27) it produces 3 of 22
   red, and only ONE of the three is evidence:**
 
-  | Red case | Verdict |
-  | --- | --- |
-  | `returns 404 when B rates a card in A's deck` (`expected 200 to be 404`) | **Evidence.** B genuinely rated A's card. |
-  | `stops counting a card once its schedule is rated into the future` (`expected undefined to be 1`) | Knock-on. |
-  | `never exposes another account's deck` — the **positive control** (`expected undefined to be 1`) | Knock-on. |
+  | Red case                                                                                          | Verdict                                   |
+  | ------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+  | `returns 404 when B rates a card in A's deck` (`expected 200 to be 404`)                          | **Evidence.** B genuinely rated A's card. |
+  | `stops counting a card once its schedule is rated into the future` (`expected undefined to be 1`) | Knock-on.                                 |
+  | `never exposes another account's deck` — the **positive control** (`expected undefined to be 1`)  | Knock-on.                                 |
 
   And the assertion that should have gone red **did not**: `never exposes another
-  account's deck` asserts `foreign.data?.[deckPublicId]` is `undefined`, and it
+account's deck` asserts `foreign.data?.[deckPublicId]` is `undefined`, and it
   **passed while the guard was completely disabled**. A false pass.
 
   The cause was traced, not guessed. `study_due_counts` carries no user predicate and
@@ -830,14 +891,14 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   slice added. Full detail, including the observed failure strings, is in
   `context/archive/2026-07-26-srs-study-session-test/verification.md`:
 
-  | Neuter | Result |
-  | --- | --- |
-  | `limit p_limit` dropped from `study_due_cards` | **1 of 22 red** — the cap case, `to have a length of 3 but got 5` |
-  | `f.id asc` tie-break **removed** | **0 of 22 red — the suite stays fully GREEN** |
-  | `f.id asc` tie-break **reversed** to `f.id desc` | **1 of 22 red** — same case, on `toEqual` |
-  | `coalesce(s.due, p_now) <= p_now` dropped | **1 of 22 red** — the due re-entry case, on its **negative** half (`to not include`) |
+  | Neuter                                             | Result                                                                                                                                                      |
+  | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `limit p_limit` dropped from `study_due_cards`     | **1 of 22 red** — the cap case, `to have a length of 3 but got 5`                                                                                           |
+  | `f.id asc` tie-break **removed**                   | **0 of 22 red — the suite stays fully GREEN**                                                                                                               |
+  | `f.id asc` tie-break **reversed** to `f.id desc`   | **1 of 22 red** — same case, on `toEqual`                                                                                                                   |
+  | `coalesce(s.due, p_now) <= p_now` dropped          | **1 of 22 red** — the due re-entry case, on its **negative** half (`to not include`)                                                                        |
   | endpoint Zod `min(1).max(SIZE_MAX)` → `z.number()` | **1 of 22 red** — bounds case, `expected 500 to be 400` (the 500 shows the DB CHECK caught what Zod let through, i.e. the layers are genuinely independent) |
-  | `deck_session_size_check` dropped | **1 of 22 red** — same case, `expected undefined to be '23514'` |
+  | `deck_session_size_check` dropped                  | **1 of 22 red** — same case, `expected undefined to be '23514'`                                                                                             |
 
   **The tie-break rows are the important pair, and the honest reading is
   uncomfortable**: the composition assertion observes the batch's ORDER, not the
@@ -855,7 +916,7 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   > absent (one row, the run's own `harness-a-*` fixture deck; repaired to the column
   > default `20`, then the constraint re-added cleanly and the definition `diff` came
   > back identical). `create or replace function` leaves no residue; dropping a CHECK
-  > lets the suite write data the constraint forbids, so the restore can fail *after*
+  > lets the suite write data the constraint forbids, so the restore can fail _after_
   > the evidence is collected. Inspect the violating rows before repairing, and never
   > assume the `add constraint` succeeded — the `diff` is what caught it.
 
@@ -975,7 +1036,7 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
     → It now round-trips on the `rateCard` path (`DueCardRow` gained it as an optional
     nullable field; `scheduleRowToCard` prefers the persisted value). **It is NOT the
     `learning_steps` class**, and recording it as such would be a second false statement.
-    `learning_steps` was a genuine scheduler *input* — a cursor the scheduler read, so
+    `learning_steps` was a genuine scheduler _input_ — a cursor the scheduler read, so
     losing it changed the transition. `scheduled_days` is **output-only** in ts-fsrs
     5.4.1 under **either** config: `LongTermScheduler` zeroes it (`index.cjs:1183`),
     `BasicScheduler` overwrites it (`:1023`, `:1041`, `:1048`), and the single read is
@@ -1043,26 +1104,25 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   > than trusting either figure. The frozen copy in
   > `context/archive/2026-07-25-candidate-review/mutation-register.md:3` keeps the original
   > range on purpose — it records what was actually run that day. Do not read that as "the
-  gate is well asserted". Reproducing the two gate mutants by hand shows both die on a
-  **malformed query**, not on a behavioural assertion: `.in("state_id", …)` → `""`
-  fails with `PGRST100`, and the `?? []` fallback → `["Stryker was here"]` fails with
-  `22P02` (integer parse). Only **4 of 12** are behavioural — the ones that collapse the
-  allow-list to `[]` while leaving the query valid — and all four break _legal_
-  transitions. **No mutant in this run makes an illegal transition succeed**, because
-  the operator that would has to substitute a string that Postgres rejects. So the
-  direction that actually harms a user (a gate too permissive — a rejected card
-  drifting back into the deck) is carried by deliberate-breakage check 1 below, not by
-  Stryker. Per-mutant record: `context/archive/2026-07-25-candidate-review/mutation-register.md`.
+  > gate is well asserted". Reproducing the two gate mutants by hand shows both die on a
+  > **malformed query**, not on a behavioural assertion: `.in("state_id", …)` → `""`
+  > fails with `PGRST100`, and the `?? []` fallback → `["Stryker was here"]` fails with
+  > `22P02` (integer parse). Only **4 of 12** are behavioural — the ones that collapse the
+  > allow-list to `[]` while leaving the query valid — and all four break _legal_
+  > transitions. **No mutant in this run makes an illegal transition succeed**, because
+  > the operator that would has to substitute a string that Postgres rejects. So the
+  > direction that actually harms a user (a gate too permissive — a rejected card
+  > drifting back into the deck) is carried by deliberate-breakage check 1 below, not by
+  > Stryker. Per-mutant record: `context/archive/2026-07-25-candidate-review/mutation-register.md`.
 
   **Three deliberate-breakage checks, all run, with observed results.**
 
   > **Denominators below are dated, not current (noted 2026-07-26 by C10X-28).**
   > `candidates.test.ts` held **16** cases when these ran and holds **20** now — C10X-28
   > added the four generation-session audit-column cases, which touch a different table
-  > and no `ALLOWED_FROM` path, so the *numerators* should be unchanged. Neither check has
+  > and no `ALLOWED_FROM` path, so the _numerators_ should be unchanged. Neither check has
   > been re-run since. Same rule as everywhere in this file: a split is a claim about a
   > run, so re-run it before citing it.
-
   1. _The transition guard._ Delete `.in("state_id", ALLOWED_FROM[target])` from
      `setFlashcardState`. Exactly **3 of 16** red in `candidates.test.ts` — the
      off-graph case (`expected [ {…} ] to deeply equal []`), the mixed batch
@@ -1113,24 +1173,24 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   property, and closed the two surfaces where private data genuinely did escape — neither of
   which the risk row names.
 
-  | Claim | What proves it |
-  | --- | --- |
+  | Claim                                                                                                                                                                             | What proves it                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+  | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
   | On a failed generation the response body carries **neither** the pasted source text **nor** the upstream error string **nor** the key — while the audit row carries the first two | `tests/generation/failure-path.test.ts`, three cases (502 upstream HTTP, 502 transport, 422). One request each: the **raw** body (not just `error`) is asserted free of both sentinels and of the key, while the row is asserted to hold the source text in `source_text` **and** inside `request_payload`, the upstream string inside `response_payload`, and a non-empty `error_message` — the payload assertions run over the serialised column, so they pin presence, not a JSON path |
-  | …and those branches are genuinely reached, not simulated | the only module doubled is `astro:env/server` (`OPENROUTER_API_KEY` → a sentinel) plus a pass-through `globalThis.fetch`. `@/lib/openrouter` is **never** doubled, so `OpenRouterError`'s identity, the request build and the audit payloads are production's own. Breakage: remove the seam → **4 of 4 red on `expected 200 to be 502/422`** — without it the request falls through to mock mode and *succeeds* |
-  | 422's contrast is its own, not 502's with two extra rows | on that branch `error_message` is the fixed literal `"Model nie zwrócił poprawnych kart"` — asserted by **equality**, because substituting that literal for the upstream string *is* the no-leak property here — while the upstream sentinel is asserted inside `response_payload`; both together with `generated_count > 0` and `saved_count = 0`, the pair that separates 422 from 502 |
-  | `OPENROUTER_API_KEY` travels in `Authorization` and lands in no audit column | the same file's key pin: the sentinel **is** in the captured header (the positive control — built by `openrouter.ts`, not by the test), **is not** in the captured request body, and appears in **no** field of the persisted row |
-  | This repo writes no log line at all | `tests/lib/no-logging.test.ts` — a textual scan of the **whole** `src/` tree (`.astro` frontmatter included), with two positive controls: the walker finds >50 files including four named ones, and the regex fires on four spellings of a console call |
-  | Account B cannot read A's four private audit columns | `tests/review/candidates.test.ts` → "returns none of the four private columns to B, while A reads every one of them": B's select resolves to `null` (absence, §6.4's below-HTTP form of "404, never 403") while A resolves all four with per-run-unique values |
-  | …nor overwrite or delete the row | "refuses B's overwrite of the audit columns and leaves A's row byte-identical" (empty `RETURNING`, A re-reads column-for-column) and "refuses B's delete of A's session", with "still lets A rewrite A's own audit columns" as the positive control |
-  | A crafted request outside the UI gets a 4xx **and writes nothing** | `tests/generation/generate.test.ts`, **six** refusal cases covering nine inputs — `sourceText` over the cap (raw, and again when it trims back under it), `count` below/above/non-integer, `language` off the whitelist, malformed `deckPublicId` and malformed `idempotencyKey`, `newDeckName` over 100 — each asserting the status **and** a **status-agnostic** session count, plus a deck count on the one path that could have created a deck |
-  | …with a boundary control, so the refusals are not an endpoint refusing everything | "accepts a sourceText at exactly the limit and stores it whole" |
-  | The source-text limit has exactly one definition | `src/lib/generation-limits.ts`, imported by `api/generate.ts` **and** `GeneratorForm.tsx` (with `COUNT_MIN`, `COUNT_MAX` and `LANGUAGES`). Breakage: decouple the endpoint's own `.max()` from the shared constant → **exactly 2 of 20 red**, both over-limit cases, both on `expected 200 to be 400`, boundary control green |
-  | No upstream auth string can reach a URL | `tests/auth/errors.test.ts` (33 cases): a mapper keyed on `AuthError.code` with a documented `code → name → status → default` chain, "never lets an input substring reach the output", "has no empty constant in the closed set", and one endpoint case asserting the `?error=` param **equals** a project constant and contains neither the submitted address nor `{` |
-  | An anonymous visitor is not told whether generation is live | **not a test — manual, and named as such.** The gate is per **entry** (`requiresSession` on `ConfigStatus`), applied in `Layout.astro`; the three browser-level checks are recorded in the change's `verification.md` |
+  | …and those branches are genuinely reached, not simulated                                                                                                                          | the only module doubled is `astro:env/server` (`OPENROUTER_API_KEY` → a sentinel) plus a pass-through `globalThis.fetch`. `@/lib/openrouter` is **never** doubled, so `OpenRouterError`'s identity, the request build and the audit payloads are production's own. Breakage: remove the seam → **4 of 4 red on `expected 200 to be 502/422`** — without it the request falls through to mock mode and _succeeds_                                                                          |
+  | 422's contrast is its own, not 502's with two extra rows                                                                                                                          | on that branch `error_message` is the fixed literal `"Model nie zwrócił poprawnych kart"` — asserted by **equality**, because substituting that literal for the upstream string _is_ the no-leak property here — while the upstream sentinel is asserted inside `response_payload`; both together with `generated_count > 0` and `saved_count = 0`, the pair that separates 422 from 502                                                                                                  |
+  | `OPENROUTER_API_KEY` travels in `Authorization` and lands in no audit column                                                                                                      | the same file's key pin: the sentinel **is** in the captured header (the positive control — built by `openrouter.ts`, not by the test), **is not** in the captured request body, and appears in **no** field of the persisted row                                                                                                                                                                                                                                                         |
+  | This repo writes no log line at all                                                                                                                                               | `tests/lib/no-logging.test.ts` — a textual scan of the **whole** `src/` tree (`.astro` frontmatter included), with two positive controls: the walker finds >50 files including four named ones, and the regex fires on four spellings of a console call                                                                                                                                                                                                                                   |
+  | Account B cannot read A's four private audit columns                                                                                                                              | `tests/review/candidates.test.ts` → "returns none of the four private columns to B, while A reads every one of them": B's select resolves to `null` (absence, §6.4's below-HTTP form of "404, never 403") while A resolves all four with per-run-unique values                                                                                                                                                                                                                            |
+  | …nor overwrite or delete the row                                                                                                                                                  | "refuses B's overwrite of the audit columns and leaves A's row byte-identical" (empty `RETURNING`, A re-reads column-for-column) and "refuses B's delete of A's session", with "still lets A rewrite A's own audit columns" as the positive control                                                                                                                                                                                                                                       |
+  | A crafted request outside the UI gets a 4xx **and writes nothing**                                                                                                                | `tests/generation/generate.test.ts`, **six** refusal cases covering nine inputs — `sourceText` over the cap (raw, and again when it trims back under it), `count` below/above/non-integer, `language` off the whitelist, malformed `deckPublicId` and malformed `idempotencyKey`, `newDeckName` over 100 — each asserting the status **and** a **status-agnostic** session count, plus a deck count on the one path that could have created a deck                                        |
+  | …with a boundary control, so the refusals are not an endpoint refusing everything                                                                                                 | "accepts a sourceText at exactly the limit and stores it whole"                                                                                                                                                                                                                                                                                                                                                                                                                           |
+  | The source-text limit has exactly one definition                                                                                                                                  | `src/lib/generation-limits.ts`, imported by `api/generate.ts` **and** `GeneratorForm.tsx` (with `COUNT_MIN`, `COUNT_MAX` and `LANGUAGES`). Breakage: decouple the endpoint's own `.max()` from the shared constant → **exactly 2 of 20 red**, both over-limit cases, both on `expected 200 to be 400`, boundary control green                                                                                                                                                             |
+  | No upstream auth string can reach a URL                                                                                                                                           | `tests/auth/errors.test.ts` (33 cases): a mapper keyed on `AuthError.code` with a documented `code → name → status → default` chain, "never lets an input substring reach the output", "has no empty constant in the closed set", and one endpoint case asserting the `?error=` param **equals** a project constant and contains neither the submitted address nor `{`                                                                                                                    |
+  | An anonymous visitor is not told whether generation is live                                                                                                                       | **not a test — manual, and named as such.** The gate is per **entry** (`requiresSession` on `ConfigStatus`), applied in `Layout.astro`; the three browser-level checks are recorded in the change's `verification.md`                                                                                                                                                                                                                                                                     |
 
   **Four traps this slice paid for, so the next contributor does not.**
   - **Never scope a PostgREST filter by a long body.** `.eq("source_text", <a 10 000-char
-    string>)` answers **`414 URI too long`** — PostgREST carries filters in the query string and
+string>)` answers **`414 URI too long`** — PostgREST carries filters in the query string and
     Kong caps the request line at ~8 KB. Measured against this stack: `n=8000` through,
     `n=10000` and `n=10001` → 414. That is exactly the over-limit case and its boundary control,
     so the oracle would have gone red for a reason unrelated to the behaviour. Scope by a short
@@ -1154,7 +1214,7 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
     tested.** The plan's own check for Phase 5 — "make the 502 body interpolate `err.message`" —
     **passes** against the HTTP-failure case, because there `err.message` is
     `"OpenRouter HTTP <status>"`, a string carrying nothing private. A fourth test case (a
-    **transport** failure, where the upstream string *is* `err.message`) was added rather than
+    **transport** failure, where the upstream string _is_ `err.message`) was added rather than
     the check weakened; it then goes **1 of 4 red**, and a variant interpolating the source text
     goes **2 of 4**. Check what your check would observe before you trust its green.
 
@@ -1191,6 +1251,107 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   `context/archive/<date>-ai-candidate-generation-test-2/verification.md`). Before adding a
   module double of your own, read **§6.9** — it exists because of this slice and says where the
   seam may and may not go.
+
+- **Phase 3 (`schema-drift-test`, C10X-29, 2026-07-28)** — Risk #5 is **covered for the drift
+  classes named in §2's row, and this entry is about the GATE**, so its "does not prove" list
+  below is a range (everything the history oracle cannot see) rather than a per-class coverage
+  claim. The two are written to agree: §2 says which classes the project is protected against,
+  this entry says what the gate itself observes. If they ever read as contradicting each other,
+  §2's row is the coverage claim and this one is the mechanism.
+
+  The gate is a **history oracle**: it compares the repository's migration **versions** against
+  the cloud's `supabase_migrations.schema_migrations`, and never compares contents. Deliberate —
+  the incident behind this risk was a `migration repair` desync over a byte-identical schema.
+
+  | Claim                                                                             | What proves it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+  | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | The comparator distinguishes the two drift directions rather than collapsing them | `tests/lib/schema-drift.test.ts`, **12 cases**: a local version absent remotely → `missingRemote` only; a cloud version with no local file → `missingLocal` only; both at once → **both**, not whichever it found first                                                                                                                                                                                                                                                                                                                             |
+  | …and is not a function that simply rejects everything                             | the **positive control** — identical sets → clean. Load-bearing: without it every failure assertion in the file is satisfied by a comparator that fails on all input                                                                                                                                                                                                                                                                                                                                                                                |
+  | The comparison is set-based, so this repository is not "drifted" today            | the real out-of-order pair (`20260712162349` applied _after_ the later `20260712162359`) asserted clean. An order-based comparator would call `main` drifted as it stands                                                                                                                                                                                                                                                                                                                                                                           |
+  | An empty remote set is drift, not a pass                                          | fresh-or-wrong-project case → every local version in `missingRemote`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+  | A malformed filename is surfaced, never silently dropped                          | the extractor returns a miss rather than throwing; a non-`.sql` entry is ignored, a `.sql` file with no leading timestamp is reported (extension matched case-**insensitively**, so `_x.SQL` lands here rather than being skipped). The runner prints it as its **own section with a different remedy** — `db push` cannot repair a filename                                                                                                                                                                                                        |
+  | Two local files claiming one version are drift, not a clean run                   | **Added by this change's impl-review (F1), which found the opposite.** `schema_migrations.version` is the cloud's key, so a collision means at most ONE file can ever be recorded as applied — the other is committed and never applied, i.e. drift class 1. The `Set` that makes the comparison correctly order-blind was swallowing it, and the verdict read `clean`: measured, `{local:[a.sql,b.sql same stamp], remote:[stamp]} → clean:true`. Now a `duplicate` list folded into `clean`, with its own report section whose remedy is a rename |
+  | The cloud's own version strings are held to the local side's shape                | **Added by impl-review (F6).** Remote versions are trimmed and must match `/^\d{14}$/`, else `GATE UNAVAILABLE`. Previously any string was accepted, so a trailing space or BOM printed the _same_ migration in `missingRemote` **and** `missingLocal` as two visually identical entries — sending the reader to `db push` and the `repair` runbook at once — and `""` printed a blank bullet                                                                                                                                                       |
+  | The gate blocks the **deploy**, which is the claim the change exists to make      | a **paired** rehearsal on the feature branch, not a single run — see the breakage table below. Asserting the script's exit code would not have carried this: `needs: [ci, drift]` does                                                                                                                                                                                                                                                                                                                                                              |
+  | Every non-success path fails closed, and says which kind of failure it is         | three paths exercised live — no token, no ref, and a real `401` round trip — each exiting **1** and printing `GATE UNAVAILABLE` (as opposed to `DRIFT`), so a red build separates "the schema is drifted" from "the gate could not find out" in the report while both still block                                                                                                                                                                                                                                                                   |
+  | The secret stored in GitHub is the working credential                             | the control run's `drift` job reproduced `10 local entries against 10 applied cloud migrations` from inside CI, using the secret and nothing else. Phase 1 could not establish this from a developer machine — the API lists secret _names_, never values                                                                                                                                                                                                                                                                                           |
+  | No credential reaches the log                                                     | both `drift` job logs downloaded in full: zero hits for `sbp_`, zero for `bearer`, zero for the project ref in clear. Masking is not the claim — the script never puts the token in a message                                                                                                                                                                                                                                                                                                                                                       |
+  | A stale `src/db/database.types.ts` fails CI                                       | the `Check generated types against the schema` step, and the **staged** variant of its breakage check (see below)                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+
+  **Deliberate-breakage checks, all run, with the splits as observed.**
+
+  | Neuter                                                                                | Result                                                                                                                                                                                                                                                                                                                                               |
+  | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `missingLocal` forced to `[]` — the `repair`-desync direction reported as clean       | **2 of 11 red**, both on `expected [] to deeply equal [ '20260601120000' ]`. The plan predicted **1**; the second red is the both-directions-at-once case, which asserts the same field by construction and is what stops the two directions collapsing into one. Positive control green. Recorded as observed rather than rounded to the prediction |
+  | The rehearsal **pair** — same ref, same guards, one variable: a fabricated migration  | control run: `ci` success, `drift` **success**, `deploy` **success** (its wrangler step swapped for an `echo` marker). Gate run: `drift` **failure**, `deploy` **skipped**. Conclusions read from `gh run view --json jobs`, not from the UI's colours                                                                                               |
+  | Criterion 4.4 **as worded** — hand-edit a line of `database.types.ts`, nothing staged | **green — the criterion as written does not go red.** `npm run db:types` overwrites the working tree before `git diff` runs, and `git diff --exit-code <path>` compares against the **index**, not `HEAD`                                                                                                                                            |
+  | The same edit, then `git add`                                                         | **red**, printing the hunk. This is what CI actually does: after `actions/checkout` the index equals `HEAD`, so the step's real claim is "**regenerated ≠ committed**" — provokable only by bad content that is _committed_, never by a dirty working tree                                                                                           |
+  | The DDL workflow's password guard, probed three ways                                  | all three secrets set → exit **0**; `SUPABASE_DB_PASSWORD` empty → exit **1** with its own message; `SUPABASE_PROJECT_ID` empty → exit **1** with its own. The all-set control is the point: a guard that fails on everything and one that fails on the right thing are indistinguishable without it                                                 |
+
+  **Why the rehearsal had to be a pair, and it generalises.** The plan asked for one run —
+  widen the `drift` job's `if`, push a fabricated migration, record `drift` red and `deploy`
+  skipped. That run would have been **unfalsifiable**: `deploy` carries its own
+  `github.ref == 'refs/heads/main'` guard, so on a feature branch it is skipped _whatever_
+  `drift` does, and the skip produced by the branch guard would have read as a skip produced
+  by `needs`. This is the same shape §6.6 has now recorded three times (the four-policy
+  neuter that passed while the guard was disabled; the status-filtered count blind to the rows
+  it claimed to check). The fix was a positive control: `deploy`'s guard widened alongside
+  `drift`'s so the two runs differ in exactly one thing. All four temporary edits were
+  reverted and the revert **verified** — `md5sum` against a pristine copy taken before the
+  first edit, the fabricated file deleted, a tree-wide `grep` for the marker clean, and the two
+  rehearsal commits dropped so the branch reaching the PR carries neither.
+
+  **What this does NOT prove — read this before citing Risk #5 as closed.**
+  - **No test in this suite touches the cloud, and none ever will.** `npm test` covers the
+    comparator (12 cases) and nothing else; `scripts/check-schema-drift.ts` has **no unit test
+    and deliberately gets none**, because every branch in it is I/O against a live account
+    credential — exactly what `tests/setup/preflight.ts` exists to abort (§6.4). The wiring is
+    carried by the recorded live runs and by the CI job itself, never by an assertion. Do not
+    read "Phase 3 complete" as "the suite tests the Management API".
+  - **The gate compares versions, never contents.** Three drift classes are invisible to it by
+    construction, and naming them is the point: a **migration file amended in place after it
+    was pushed** (which `/ship` makes reachable, since `db push` runs from the feature branch
+    before the merge — mechanism live, no observed instance here), **production changed by hand
+    in Studio** (the channel exists: `supabase/snippets/` is gitignored), and
+    **`repair --status applied` on something never applied**, where the history table lies by
+    construction so no history oracle can help. All three need the on-demand DDL diff, which
+    nobody is scheduled to run.
+  - **Two classes have no check anywhere**: `supabase/config.toml` versus the cloud dashboard
+    (`max_rows`, `jwt_expiry`, `site_url` — local-only values whose cloud equivalents live in
+    the dashboard and need `supabase config push`), and **seed/dictionary row drift** (migra
+    diffs schema, not rows). Out of the agreed scope, not overlooked.
+  - **Stale generated types are invisible to THIS gate too.** The `drift` job never reads
+    `src/db/database.types.ts`; that class is closed by a separate step in the `ci` job, which
+    is a different job with a different trigger — so "the drift gate is green" says nothing
+    about the types. And what that step asserts is "**regenerated ≠ committed**": see the 4.4
+    rows above, where a dirty working tree provably cannot provoke it. Correct behaviour, not
+    a hole, but it means the two checks are independent and neither backs up the other.
+  - **The whole `db diff --linked` path is unexercised.** `workflow_dispatch` is only offered
+    for a workflow file that already sits on the **default branch**, so the DDL workflow could
+    not be dispatched from the feature branch at all — measured, not inferred: the file pushed
+    to a throwaway ref did not register in `gh workflow list` and a dispatch answered
+    `HTTP 404: workflow schema-diff.yml not found on the default branch`. What is proven is the
+    file's _shape_ (one trigger, no `schedule:`, syntax, the guard's branching); link, Docker,
+    the shadow replay and the password are not. There is **no honest workaround** — adding a
+    `push:` trigger to manufacture a run would change the trigger set whose exclusivity is the
+    thing being asserted. Its calibration baseline does not exist yet either, so the first
+    dispatch's output is untriaged by definition.
+  - **The `429` retry has never fired.** The endpoint defines the status; provoking one would
+    mean hammering the real API. Carried by reading.
+  - **The endpoint the gate depends on is documented as partner-only.**
+    `GET /v1/projects/{ref}/database/migrations` is marked available to selected partner OAuth
+    apps and answers **200** to a plain PAT anyway. That is a documented restriction that
+    happens not to be enforced — a weaker guarantee than a documented contract. If it is ever
+    enforced the gate fails closed (correctly) and the fallback is
+    `POST /v1/projects/{ref}/database/query`, measured at the same time and answering **201**,
+    which is why the runner branches on `res.ok` and never on `status === 200`.
+
+  Full evidence — every probe, breakage edit, observed failure string, red/green split with its
+  denominator, and each verified revert:
+  `context/changes/schema-drift-test/verification.md` (after archiving:
+  `context/archive/<date>-schema-drift-test/verification.md`). The nine drift classes are
+  enumerated once, with their mechanisms and which oracle sees each, in that change's
+  `research.md`.
 
 ### 6.7 Adding a test for the SRS / study path
 
@@ -1333,7 +1494,7 @@ anything. §6.6 records the observed results of both.
 **And note which objects are safe to neuter.** `create or replace function` leaves no
 residue, so a function neuter always restores. **A dropped CHECK constraint does not**:
 the suite goes on to persist data the constraint forbids, so `add constraint` fails
-*after* the evidence is collected (`violated by some row`). C10X-27 hit exactly that on
+_after_ the evidence is collected (`violated by some row`). C10X-27 hit exactly that on
 `deck_session_size_check`. Inspect the offending rows, repair them, then re-add — and let
 the `diff` confirm it, never your memory.
 
@@ -1528,7 +1689,7 @@ contributors should respect these unless the underlying assumption changes.
   safe: they carry session/transport material — on `fetch.js:110` a fetch `TypeError`
   (message + stack), not the request `init` — never pasted source text. Pinning
   `node_modules` internals would break on every patch bump with no user-visible cause.
-  What *is* guarded is first-party code: `tests/lib/no-logging.test.ts` fails on any
+  What _is_ guarded is first-party code: `tests/lib/no-logging.test.ts` fails on any
   `console.*` anywhere under `src/`, which is a real gate because `no-console` is
   configured `"warn"` and `npm run lint` exits **0** on a warning (measured, C10X-28).
   Re-evaluate if a dependency is ever found logging request bodies. (Source: C10X-28 /
@@ -1569,7 +1730,7 @@ contributors should respect these unless the underlying assumption changes.
   > and made a 404 behind a proxy's HTML error page indistinguishable from "not an HTTP
   > failure" — leaving the user stuck on a card the skip affordance existed to release. And
   > `alreadyApplied` no longer advances: the compare-and-set keys on the `reps` **version**,
-  > not the grade, so a second tab rating the same card with a *different* grade landed
+  > not the grade, so a second tab rating the same card with a _different_ grade landed
   > there and that grade was discarded in silence. The island now holds the card, says so
   > neutrally, and adopts the `progress.reps` the endpoint always returned and nobody read,
   > so re-rating applies. Evidence, including the row-level before/after showing an `Again`
@@ -1585,7 +1746,7 @@ contributors should respect these unless the underlying assumption changes.
   > 2026-07-26).** `GeneratorForm`'s `maxLength`, `min`/`max`, `<select>` options and char
   > counter now import their values from `src/lib/generation-limits.ts`, the same module the
   > endpoint imports — so the two ends can no longer disagree about the **value**. That each
-  > end still *enforces* it is a different claim: the server half is asserted
+  > end still _enforces_ it is a different claim: the server half is asserted
   > (`tests/generation/generate.test.ts`), the client half is one manual browser run
   > recorded in the change's `verification.md`, exactly as with `SessionSizeControl`. Worth
   > knowing before writing a case against it: `maxLength` truncates first, so the island's
@@ -1612,7 +1773,7 @@ contributors should respect these unless the underlying assumption changes.
   12 uncovered), no assertion added — register in
   `context/archive/2026-07-26-srs-study-session-test/mutation-register.md`.
 - **Two coverage gaps are open and named**, deliberately not folded into the `complete`
-  status: the RPC's `f.id asc` tie-break has no assertion that observes its *presence*
+  status: the RPC's `f.id asc` tie-break has no assertion that observes its _presence_
   (only the batch's order), and §6.6's four-policy neuter no longer reproduces on a dev
   DB past PostgREST's `max_rows`. Both are described where they bite, in §6.6 and §6.7.
 - §3 Phase 2 / Risks #4 and #6 coverage claims last **proven by execution**: 2026-07-26
@@ -1646,8 +1807,54 @@ contributors should respect these unless the underlying assumption changes.
   worktree on 2026-07-26 shows Local == Remote on **all ten** migrations, including
   `20260724220524` — the one carrying the `session_size` CHECK and the RPC tie-break these
   tests lean on. The S-03 impl-review's open "applied locally only, cloud push never
-  confirmed" is closed. Note this is a point-in-time observation, not a gate: Risk #5 still
-  has no CI drift check, which is §3 Phase 3's job.
+  confirmed" is closed. Note this was a point-in-time observation, not a gate — **which
+  C10X-29 changed on 2026-07-28**: there is now a CI drift check, so the same fact is
+  re-established on every push to `main` instead of by hand.
+- §3 Phase 3 / Risk #5 coverage claims last **proven by execution**: 2026-07-28 (C10X-29,
+  change folder `schema-drift-test`). Suite state **after the change's impl-review**:
+  **178 passed / 178, 15 files** (166 before, + 12 comparator cases); it was 177/177 at
+  phase completion, and the twelfth case came from the review — see the entry below. Local
+  stack up, `OPENROUTER_API_KEY` unset, `npm run lint` exit 0, `npm run build` exit 0. The baseline
+  was measured **before** the gate was wired — ten local migrations against ten applied
+  cloud migrations, **IN SYNC as of 2026-07-27**, confirmed against a second independent
+  remote oracle — precisely so the first red run after the gate landed would have one
+  hypothesis rather than two. Every breakage split in §6.6's C10X-29 entry comes from a run
+  against these files, and each temporary edit was reverted with the revert **verified**
+  (`md5sum` against a pristine copy; the rehearsal commits dropped from the branch).
+- **The impl-review found a false green in the gate itself, and it is worth reading as a
+  pattern rather than a one-off.** `/10x-impl-review` (2026-07-28) verified every plan
+  contract as met and every automated criterion as green — and then found, by probing the
+  comparator with inputs no criterion named, that **two migration files sharing one version
+  returned `clean: true`**. That is drift class 1 (committed, never applied) reported as OK
+  by the gate built to catch exactly it. The cause is instructive: the `Set` that makes the
+  comparison correctly **order-blind** — load-bearing, because this repo carries a genuine
+  out-of-order pair — is the same thing that makes it **collision-blind**. A design property
+  and a defect from one line. Closed by a `duplicate` list folded into `clean` with its own
+  remedy (rename, not `db push`), plus a twelfth fixture; the out-of-order case was
+  re-checked and still reads clean, so the fix is additive. Two further review fixes hardened
+  the same file: remote versions are now trimmed and shape-checked, and the `.sql` test is
+  case-insensitive so `_x.SQL` is surfaced rather than skipped. Full record in the change's
+  `verification.md` and `reviews/impl-review.md`.
+- **One prediction in the plan was wrong and is recorded as observed, not rounded.** The
+  `missingLocal` neuter was predicted to turn exactly one case red; it turns **two**,
+  because the both-directions-at-once case asserts the same field. And **criterion 4.4 does
+  not go red as worded** — `db:types` overwrites the working tree before the diff runs, so
+  the check only works on _staged_ content. Both are in §6.6; the second is a trap a
+  contributor following the wording would read as "the gate does not work".
+- **Risk #5's boundary is per class, and it is stated in two places on purpose.** §2's row
+  is the coverage claim (which classes the project is protected against); §6.6's C10X-29
+  entry is the mechanism (what the gate observes). Three classes are invisible to the gate
+  by construction — a migration amended after being pushed, production hand-edited in
+  Studio, `repair --status applied` on something never applied — and reachable only through
+  the on-demand DDL diff, **whose own path is unexercised** because `workflow_dispatch` is
+  offered only for a file already on the default branch. Two classes (config drift, seed-row
+  drift) have no check at all. **No test in the suite touches the cloud.**
+- **Ship-time items are open and tracked, not silently done.** `schema-drift-test`'s
+  `verification.md` carries a ship-time checklist (a real push to `main` showing `drift`
+  green; the DDL workflow's first and second dispatch, its triage baseline and its breakage
+  check; `deploy`'s independence from it on the Actions page), plus one prerequisite human
+  action: `gh secret set SUPABASE_DB_PASSWORD`. Until those are ticked, the DDL-diff half of
+  §5 is a capability that has never been run end-to-end.
 
 Refresh (`/10x-test-plan --refresh`) when:
 

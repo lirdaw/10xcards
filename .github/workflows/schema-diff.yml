@@ -1,0 +1,137 @@
+# The DDL oracle, and the deliberate counterpart to the `drift` job in ci.yml.
+#
+# That gate compares migration *versions* — it answers "would a `db push` have anything to
+# do?" and is blind to anything the version strings agree about. Two drift classes live in
+# that blind spot: a migration file amended in place after it was already pushed (reachable
+# by construction here, because `/ship` runs `db push` from the feature branch before the
+# merge), and production changed by hand in Studio. Both need a real DDL comparison, which
+# needs Docker, a shadow replay of every migration, and the production database password.
+#
+# Which is why this is a separate workflow rather than a job in CI: the deploy-blocking gate
+# stays password-free, and this one — the only thing in the repository that carries the
+# production DB password — never sits on the path between merge and deploy. A red run here
+# must never stop a release; it is a diagnostic, not a gate.
+name: Schema diff
+
+# `workflow_dispatch` is the ONLY trigger, and its loneliness is load-bearing rather than an
+# omission. A nightly `schedule:` would pay a Docker run plus a `supabase link` against
+# production every night, and re-triage migra's extension/grant noise on every one of them,
+# for a signal with no consumer: this project has no notification channel, so the sole output
+# would be a red run in a tab nobody is committed to reading — an alarm nobody hears is not
+# coverage. Adding `schedule:` is one line; do it the day a notification channel and an owner
+# exist, and not before. Until then the credential is exercised only while a human is already
+# looking at the result.
+on:
+  workflow_dispatch:
+
+jobs:
+  schema-diff:
+    runs-on: ubuntu-latest
+    # The three secrets are declared PER STEP below, never at job level, and this is the one
+    # workflow in the repository where that distinction earns its keep: it carries the
+    # production database password, and `npm ci` two steps down runs install lifecycle scripts
+    # for the entire dependency tree. A job-level `env:` would put the production password in
+    # `process.env` for every one of them — plus for `actions/checkout` and
+    # `actions/setup-node` — on a PUBLIC repository. The three steps that genuinely need the
+    # credentials all run AFTER `npm ci`, so scoping costs nothing.
+    #
+    # Note the contrast with the `drift` job in ci.yml, which does use a job-level `env:`: that
+    # job deliberately runs no `npm ci` at all and only first-party steps, so its blast radius
+    # is the script itself. Same reasoning, different answer.
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      # This job DOES need `npm ci`, unlike `drift` next door: the comparison is the Supabase
+      # CLI itself (a devDependency, so the lockfile pins the version that gets run) rather
+      # than a dependency-free script.
+      - run: npm ci
+
+      # The password is required, not optional, and this step is what makes "required" true.
+      # With `SUPABASE_DB_PASSWORD` unset the CLI does not fail — it asks the Management API
+      # to mint a temporary database role with `ReadOnly: false`, i.e. it CREATES A READ-WRITE
+      # ROLE ON PRODUCTION to run a read-only comparison. That is worse than storing the
+      # password, and it would happen silently. Fail closed before anything touches the
+      # project instead.
+      - name: Require the database password
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          test -n "$SUPABASE_ACCESS_TOKEN" || { echo "SUPABASE_ACCESS_TOKEN is not set."; exit 1; }
+          test -n "$SUPABASE_PROJECT_ID"   || { echo "SUPABASE_PROJECT_ID is not set."; exit 1; }
+          test -n "$SUPABASE_DB_PASSWORD"  || {
+            echo "SUPABASE_DB_PASSWORD is not set. Refusing to continue: without it the CLI"
+            echo "mints a temporary READ-WRITE role on the production database."
+            exit 1
+          }
+
+      # "Read-only" above describes the COMPARISON, not necessarily every step here. `db diff
+      # --linked` genuinely only reads production (the shadow replay happens in local Docker;
+      # migra introspects the remote), but `link` is reported to bootstrap the
+      # `supabase_migrations` schema/table on the remote when it is absent — i.e. it can
+      # induce a write. The effect on this project is nil: that table demonstrably exists, the
+      # `drift` job reads ten rows from it on every push to main. Flagged rather than asserted
+      # because it could NOT be confirmed against the pinned CLI (the npm package is a binary
+      # downloader) — verify with `supabase link --debug` against a scratch project before
+      # relying on either reading.
+      - name: Link the cloud project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: npx supabase link --project-ref "$SUPABASE_PROJECT_ID"
+
+      # **The verdict is read from stdout being non-empty, never from the exit code.**
+      # `supabase db diff` returns nil on every outcome and prints `No schema changes found`
+      # to *stderr* — a job written as `run: npx supabase db diff …` and left to `-e` would be
+      # green forever while reporting nothing. This is the same always-exit-0 trap that
+      # disqualified `migration list` as the history oracle one command over; see
+      # context/changes/schema-drift-test/research.md.
+      #
+      # The redirect itself stays fail-closed: the shell is `bash -e`, so a CLI that dies
+      # (Docker unavailable, link refused, password wrong) fails the step rather than leaving
+      # an empty `diff.sql` that would read as "no differences".
+      # The diff BODY is deliberately not printed. This repository is public, so an Actions log
+      # is world-readable, and `db diff` output is by definition the DDL that exists in
+      # production and NOT in the public supabase/migrations/ — i.e. hand-made Studio changes,
+      # RLS policy predicates, function bodies. That is a strictly higher-value disclosure than
+      # the migrations already in the repo, because it is precisely the part nobody reviewed.
+      # The log keeps the verdict and enough shape to triage; the body goes to an artifact.
+      #
+      # Artifacts on a public repo are downloadable too, so this narrows the exposure rather
+      # than removing it. If that is ever unacceptable, the honest fix is a private repository,
+      # not a cleverer redaction.
+      - name: Diff the deployed schema against the migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          npx supabase db diff --linked --schema public > diff.sql
+          if [ -s diff.sql ]; then
+            echo "The deployed schema differs from a replay of supabase/migrations/."
+            echo "$(wc -l < diff.sql) lines of DDL; the body is in the 'schema-diff' artifact."
+            echo "Triage it against the calibrated baseline in"
+            echo "context/changes/schema-drift-test/verification.md — migra reports known"
+            echo "false positives on extensions and grants, so not every line is drift."
+            exit 1
+          fi
+          echo "No difference between the deployed schema and a replay of the migrations."
+
+      # `failure()` rather than `always()`: a non-empty diff is the ONLY outcome whose body
+      # anyone needs, and it is exactly the outcome that just exited 1. On a green run
+      # `diff.sql` is a zero-byte file and uploading it would be noise. This step cannot
+      # rescue the job — the diff step has already failed by the time it runs.
+      - name: Upload the diff for triage
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: schema-diff
+          path: diff.sql
+          retention-days: 7

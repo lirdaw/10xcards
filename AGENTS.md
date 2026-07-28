@@ -7,6 +7,7 @@
 - Import via `@/*` (maps to `src/*`, see @tsconfig.json); do not use deep relative paths like `../../lib`.
 - Read env only through `astro:env/server` (`SUPABASE_URL`, `SUPABASE_KEY`) — never `import.meta.env` or `process.env`. Both are optional server secrets; `createClient` in @src/lib/supabase.ts returns `null` when unset, so every caller must null-check before use (see @src/pages/api/auth/signin.ts).
 - Run `npx astro sync` after changing routes or content before `lint`/`build` — CI runs it and lint fails on stale generated types.
+- The two rules above are about `src/`. **`scripts/` is the one exception**: it is CI tooling run by bare `node --experimental-strip-types` (@.github/workflows/ci.yml), with no Vite — so `@/*` does not resolve and `astro:env/server` does not exist there. Those files read `process.env`, import siblings relatively (`./schema-drift.ts`, extension required), and may use `console.*` (@tests/lib/no-logging.test.ts scans `src/` only). Do not extend this to `src/`, and do not import across the boundary — that would be the deep relative path the first rule forbids.
 
 ## Project Structure
 
@@ -21,6 +22,7 @@
 - `npm run lint` / `npm run lint:fix` — ESLint, type-checked (@eslint.config.js).
 - `npm run format` — Prettier (@.prettierrc.json).
 - `npm run build` — production build; `npx wrangler deploy` — ship to Cloudflare.
+- `npx supabase db push` — apply migrations to the **cloud** before merging; CI's `drift` job compares versions against the cloud and blocks `deploy` otherwise (@.github/workflows/ci.yml).
 - `npm test` — Vitest integration suite against the local Supabase stack; start it first with `npm run db:start`. A preflight aborts the run if `SUPABASE_URL` is not local or `OPENROUTER_API_KEY` is set (the suite asserts card counts that only mock generation guarantees). How to add a test: @context/foundation/test-plan.md §6.
 
 ## Conventions
