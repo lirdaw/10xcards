@@ -886,9 +886,8 @@ here for the reason recorded there.
       and only-`workflow_dispatch` clauses are already established above
 - [x] **5.3** The first run's full output is triaged into genuine drift vs migra noise
       (extensions, grants) and recorded here as the baseline
-- [ ] **5.4** Deliberate-breakage check: dispatch once from a branch carrying a scratch
-      migration that adds a column, confirm the job reports a difference; revert —
-      **still open; a weaker local substitute was run instead, see below**
+- [x] **5.4** Deliberate-breakage check: dispatch once from a branch carrying a scratch
+      migration that adds a column, confirm the job reports a difference; revert
 - [x] **5.5 (observation only)** `deploy` is confirmed **not** to depend on the DDL-diff
       workflow on the Actions page. The structural half is already established above — no
       `workflow_run` coupling exists and `deploy`'s `needs` is `[ci, drift]` — so this is a
@@ -989,3 +988,57 @@ red is attributable to the migration and the green to its removal. **What it doe
 prove**: the `--linked` path, the production round trip, the password, and the artifact
 upload on failure are all still unexercised. The upload step has now been _skipped_ twice and
 never _run_. Anyone who needs 5.4 closed properly still owes the branch dispatch.
+
+### 5.4 — closed properly, the same day
+
+The branch dispatch the paragraph above says was owed **was then performed**, so 5.4 is
+satisfied as written rather than by substitute. Branch `tmp-schema-diff-probe` off `main`,
+carrying one file — `20260728190000_ship_probe_tmp.sql`, `alter table deck add column
+ship_probe_tmp text;` — and nothing else. No `db push` at any point: the difference exists
+because the shadow replay has the column and production does not.
+
+Run [30381750723](https://github.com/lirdaw/10xcards/actions/runs/30381750723),
+`headBranch: tmp-schema-diff-probe`:
+
+| Step                                              | Conclusion                                                     |
+| ------------------------------------------------- | -------------------------------------------------------------- |
+| `Require the database password`                   | success                                                        |
+| `Link the cloud project`                          | success                                                        |
+| `Diff the deployed schema against the migrations` | **failure**                                                    |
+| `Upload the diff for triage`                      | **success** — first execution ever; skipped on both green runs |
+| Job                                               | **failure**                                                    |
+
+Log:
+
+```
+The deployed schema differs from a replay of supabase/migrations/.
+4 lines of DDL; the body is in the 'schema-diff' artifact.
+Triage it against the calibrated baseline in …
+```
+
+Artifact `schema-diff`, downloaded and read:
+
+```sql
+alter table "public"."deck" drop column "ship_probe_tmp";
+```
+
+**Three things this closes that the local substitute could not.**
+
+- The **`--linked` path end to end** — link, the production round trip, the password, migra
+  against the real deployed schema. Everything the two green runs exercised, now with a red
+  outcome to compare against.
+- **The upload path**, which had been skipped twice and never run. `if: failure()` fires, the
+  artifact exists, and its content is the diff.
+- **The impl-review's F3 fix, empirically.** The diff body is in the artifact and **not in the
+  log** — the log carries only the line count. Until this run that was a design claim; it is
+  now a measurement. On a public repository that is the difference between a stated intention
+  and a verified one.
+
+**Paired, so the red means something.** Same workflow file, same secrets, same production
+project; the two `main` dispatches are the green control and this is the red case, and the one
+variable between them is the scratch migration. A red run on its own would not have been
+evidence — that is the trap this file records three times over.
+
+**Reverted, and the revert verified**: remote branch deleted (`git ls-remote --heads origin`
+back to `main` plus the merged feature branch), local branch deleted,
+`supabase/migrations/` back to **10** files, `git status` clean.
