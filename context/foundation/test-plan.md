@@ -26,7 +26,12 @@
 > nothing (now a `lessons.md` entry), and Phase 4's own breakage criterion does not go red
 > as worded, because `db:types` overwrites the working tree before the diff runs. **No test
 > in the suite touches the cloud** — the wiring is carried by recorded runs, not by an
-> assertion. Suite at completion: **177/177, 15 files**.
+> assertion. Suite: **178/178, 15 files** (177 when the phases closed; the impl-review added
+> the twelfth comparator case, having found that two migration files sharing one version read
+> as `clean` — a false green in the gate's own core claim).
+> **Ship-time verification is complete, not deferred**: the gate ran green on a real push to
+> `main`, and the DDL workflow — dispatchable only once it reached the default branch — was
+> exercised three times, two green and one deliberately red.
 > Evidence: `context/changes/schema-drift-test/verification.md`.
 >
 > Previously: 2026-07-26, third entry of the day (C10X-28 shipped, with C10X-34 and
@@ -1326,16 +1331,26 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
     about the types. And what that step asserts is "**regenerated ≠ committed**": see the 4.4
     rows above, where a dirty working tree provably cannot provoke it. Correct behaviour, not
     a hole, but it means the two checks are independent and neither backs up the other.
-  - **The whole `db diff --linked` path is unexercised.** `workflow_dispatch` is only offered
-    for a workflow file that already sits on the **default branch**, so the DDL workflow could
-    not be dispatched from the feature branch at all — measured, not inferred: the file pushed
-    to a throwaway ref did not register in `gh workflow list` and a dispatch answered
-    `HTTP 404: workflow schema-diff.yml not found on the default branch`. What is proven is the
-    file's _shape_ (one trigger, no `schedule:`, syntax, the guard's branching); link, Docker,
-    the shadow replay and the password are not. There is **no honest workaround** — adding a
-    `push:` trigger to manufacture a run would change the trigger set whose exclusivity is the
-    thing being asserted. Its calibration baseline does not exist yet either, so the first
-    dispatch's output is untriaged by definition.
+  - **The `db diff --linked` path WAS unexercised until the merge, and is now covered.**
+    Until `schema-diff.yml` reached the default branch it could not be dispatched at all —
+    measured, not inferred: the file pushed to a throwaway ref did not register in
+    `gh workflow list` and a dispatch answered
+    `HTTP 404: workflow schema-diff.yml not found on the default branch`. That is a permanent
+    property of `workflow_dispatch` and the reason most of Phase 5 is ship-time work; there is
+    **no honest workaround**, because adding a `push:` trigger to manufacture a run would
+    change the trigger set whose exclusivity criterion 5.2 asserts. **Closed at ship time
+    (2026-07-28)**: three real dispatches — two green from `main` (30380427876, 30380687338,
+    matching, which is the calibration baseline) and one red from a scratch branch carrying a
+    column-adding migration (30381750723). So link, Docker, the shadow replay against
+    production and the database password are all now exercised, in both directions, with the
+    green pair as the control. Detail in the change's `verification.md`.
+  - **The calibration baseline is EMPTY, which is not what the plan expected.** It warned that
+    migra reports false positives on extensions and grants and that an uncalibrated first run
+    would look like drift. On this project it does not: both green runs printed
+    `No difference between the deployed schema and a replay of the migrations.` with a
+    zero-byte diff. There is no noise filter because none was needed — so if a future run is
+    non-empty, treat **every** line as a candidate for real drift rather than hunting for the
+    known-noise list that this entry would otherwise have carried.
   - **The `429` retry has never fired.** The endpoint defines the status; provoking one would
     mean hammering the real API. Carried by reading.
   - **The endpoint the gate depends on is documented as partner-only.**
@@ -1846,15 +1861,21 @@ contributors should respect these unless the underlying assumption changes.
   entry is the mechanism (what the gate observes). Three classes are invisible to the gate
   by construction — a migration amended after being pushed, production hand-edited in
   Studio, `repair --status applied` on something never applied — and reachable only through
-  the on-demand DDL diff, **whose own path is unexercised** because `workflow_dispatch` is
-  offered only for a file already on the default branch. Two classes (config drift, seed-row
-  drift) have no check at all. **No test in the suite touches the cloud.**
-- **Ship-time items are open and tracked, not silently done.** `schema-drift-test`'s
-  `verification.md` carries a ship-time checklist (a real push to `main` showing `drift`
-  green; the DDL workflow's first and second dispatch, its triage baseline and its breakage
-  check; `deploy`'s independence from it on the Actions page), plus one prerequisite human
-  action: `gh secret set SUPABASE_DB_PASSWORD`. Until those are ticked, the DDL-diff half of
-  §5 is a capability that has never been run end-to-end.
+  the on-demand DDL diff, **which now works end to end but which nobody is scheduled to
+  run** — the gap is the schedule and the owner, not the capability. Two classes (config
+  drift, seed-row drift) have no check at all. **No test in the suite touches the cloud.**
+- **Ship-time items are CLOSED, and closed by observation rather than by assertion**
+  (2026-07-28, merge `f7a83c0`). The gate ran on the real path for the first time — run
+  30379662871, `ci` → `drift` (5 s) → `deploy`, all green, the gate printing
+  `10 local entries against 10 applied cloud migrations` / `OK`, with zero credential hits in
+  the log. The DDL workflow registered only **after** the merge (checked before and after, so
+  the registration is evidence rather than a fact), and was then dispatched three times: two
+  green from `main` that agree with each other, and one red from a scratch branch, which is
+  the negative control the three green runs would otherwise have lacked. That red run also
+  fired the artifact-upload path for the first time and confirmed the impl-review's F3 fix by
+  measurement: the diff body is in the artifact and **not** in the world-readable log. Every
+  `## Progress` box in the change is now ticked. Full record, including the reverted scratch
+  branch, in the change's `verification.md`.
 
 Refresh (`/10x-test-plan --refresh`) when:
 
