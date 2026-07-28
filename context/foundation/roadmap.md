@@ -3,7 +3,7 @@ project: 10xcards
 version: 1
 status: draft
 created: 2026-07-04
-updated: 2026-07-26
+updated: 2026-07-28
 prd_version: 1
 main_goal: quality
 top_blocker: capacity
@@ -56,7 +56,7 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 | H-02 | srs-study-session-test         | ufać, że każda oceniona karta faktycznie trafia do harmonogramu — także gdy sesja wygasła w tle                                           | MVP (S-01…S-06)  | Guardrails: poprawność harmonogramu SRS, US-02                    | done        |
 | H-03 | auth-error-copy                | dowiedzieć się po polsku, czemu logowanie nie wyszło, bez odpowiedzi serwera auth w pasku adresu                                          | MVP (S-01…S-06)  | FR-001, FR-002, NFR: UI po polsku, Guardrails                     | not started |
 | H-04 | ai-candidate-generation-test-2 | mieć pewność, że wklejony tekst i klucz API nie wyciekają do odpowiedzi błędu ani do logu, a serwer odrzuca żądanie omijające limity z UI | MVP (S-01…S-06)  | Guardrails: prywatność tekstu źródłowego, NFR: prywatność, FR-003 | done        |
-| H-05 | schema-drift-test              | ufać, że wdrożona aplikacja nigdy nie działa przeciw bazie bez swojej migracji — CI zatrzymuje deploy, zanim Worker wyjdzie               | MVP (S-01…S-06)  | NFR: dane i harmonogram przeżywają między sesjami, Guardrails     | not started |
+| H-05 | schema-drift-test              | ufać, że wdrożona aplikacja nigdy nie działa przeciw bazie bez swojej migracji — CI zatrzymuje deploy, zanim Worker wyjdzie               | MVP (S-01…S-06)  | NFR: dane i harmonogram przeżywają między sesjami, Guardrails     | done        |
 
 Prefiks **`H-` (hardening)** oznacza pracę PO zamknięciu zakresu MVP: `F-01…F-03` i
 `S-01…S-06` są `done` i ta granica zostaje nienaruszona. Elementy `H-` nie są vertical
@@ -278,7 +278,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Ryzyko #5 domknięte **per klasa dryfu, nie hurtem** — klasy 1–3 blokują deploy, klasa 8 gated w jobie `ci`, klasy 4–6 wykrywalne wyłącznie poza ścieżką deployu, klasy 7 i 9 niepokryte w ogóle. Impl-review znalazł w samej bramce fałszywy zielony (dwa pliki migracji o tym samym timestampie czytały się jako `clean`) — naprawione i pokryte testem. Bramka DDL działa end-to-end, ale **nikt nie ma jej w harmonogramie**: brakuje kanału powiadomień i właściciela, nie zdolności.
-- **Status:** not started — wiersz założony tuż przed archiwizacją, żeby `/10x-archive` miał co domknąć; przestawi go na `done` w tej samej sesji.
+- **Status:** done
 
 ## Backlog Handoff
 
@@ -329,6 +329,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **H-01: (hardening) użytkownik nawigujący klawiaturą widzi wyraźny, kontrastujący focus ring na input/button/select/textarea w obu motywach — ring pokazuje się tylko na `:focus-visible`, nie po kliknięciu myszą.** — Archived 2026-07-25 → `context/archive/2026-07-25-focus-ring-a11y/`. Lesson: —.
 - **H-02: (hardening) użytkownik, którego sesja wygasła lub została unieważniona w tle, NIE przechodzi całej sesji nauki w przekonaniu, że się uczy — zamiast cichego awansu karty widzi błąd, a harmonogram nie gubi ocen. Do tego harmonogram zyskuje pokrycie tych obietnic, których dotąd nikt nie sprawdzał: rozmiar sesji brany z talii, powrót karty gdy nadejdzie `due`, i ocena „Again".** — Archived 2026-07-26 → `context/archive/2026-07-26-srs-study-session-test/`. Lesson: —.
 - **H-04: (hardening) użytkownik, któremu generacja padła, dostaje komunikat bez swojego wklejonego tekstu, bez odpowiedzi dostawcy LLM i bez klucza API — a serwer odrzuca żądanie omijające limity wymuszane przez UI, zamiast je zapisać.** — Archived 2026-07-26 → `context/archive/2026-07-26-ai-candidate-generation-test-2/`. Lesson: —. **Wpis uzupełniony wstecz 2026-07-28** — w chwili archiwizacji ten element nie miał wiersza w roadmapie, więc `/10x-archive` nie miał czego domknąć.
+- **H-05: (hardening) użytkownik nigdy nie trafia na aplikację działającą przeciw bazie, której brakuje migracji z wdrożonego kodu — CI zatrzymuje deploy, zanim Worker wyjdzie, zamiast pozwolić mu wystartować i wywalić się na pierwszym zapisie.** — Archived 2026-07-28 → `context/archive/2026-07-27-schema-drift-test/`. Lesson: —.
 
 ## Parked ideas (post-MVP → Jira "Pomysł")
 
