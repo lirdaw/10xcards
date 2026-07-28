@@ -105,7 +105,9 @@ Three factual claims the docs make were checked independently rather than truste
   - Confidence: MED — the edit is mechanical, but the test work is not trivial.
   - Blind spot: Deck-name round-trip behaviour is pinned by S-02 tests not re-read here.
 - **Decision**: FIXED via Fix A — doc corrections applied in three places; the code fix for the two
-  deck endpoints is queued as a follow-up, not done here.
+  deck endpoints is raised as **C10X-37** (`Zadanie`, MVP, component `decks`, parent C10X-10) and is
+  not done here. Scope, definition of done and the breakage-pair design are in that ticket and in
+  `follow-ups/review-fixes.md`.
 
 ### F2 — The database-layer assertion pins the SQLSTATE but not which constraint fired
 

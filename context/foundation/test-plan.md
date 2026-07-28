@@ -1497,7 +1497,7 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
     enumerated four and nothing in "What We're NOT Doing" excluded the other two, so this is
     an incomplete sweep rather than a scoped exclusion. They have a 1–100 name rule and a DB
     CHECK (`init_core_schema.sql:45`) already, so §6.10's breakage-pair design transfers to
-    them unchanged. Deferred to a follow-up ticket by decision at impl-review triage.
+    them unchanged. Deferred by decision at impl-review triage and raised as **C10X-37**.
   - **The island half.** The three card islands import the same constants, so the two ends
     cannot disagree about the **value**; that each end still enforces it is a separate claim
     and only the server half is asserted. And these islands differ from `GeneratorForm` in a

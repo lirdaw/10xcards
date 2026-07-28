@@ -3,9 +3,11 @@
 Source: `context/changes/server-side-validation-test/reviews/impl-review.md`.
 Each item names the finding it came from and what was decided at triage.
 
-## F1 — Harden the two deck-form endpoints (needs its own ticket)
+## F1 — Harden the two deck-form endpoints → **C10X-37**
 
-**Status**: deferred by decision at triage. Docs corrected here; the code fix is NOT done.
+**Status**: deferred by decision at triage and raised as **C10X-37** (`Zadanie`, MVP, component
+`decks`, parent C10X-10 `Foundations & Infra`) — https://lirdaw.atlassian.net/browse/C10X-37
+Docs corrected in C10X-30; the code fix lives in that ticket and is NOT done here.
 
 `src/pages/api/` holds **six** `formData()` readers, not four. C10X-30 guarded four; these two
 were missed and still carry both defects verbatim:

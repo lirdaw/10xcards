@@ -417,7 +417,7 @@ green, `git diff -- src/` empty of every temporary probe (each restore confirmed
 
 | Finding | Outcome |
 | --- | --- |
-| F1 deck endpoints missed | Docs corrected in three places; code deferred to `follow-ups/review-fixes.md` |
+| F1 deck endpoints missed | Docs corrected in three places; code raised as **C10X-37** (`follow-ups/review-fixes.md`) |
 | F2 constraint name unasserted | Names added beside `23514`, matching `study.test.ts:717` |
 | F3 `IDS_MAX` value unasserted | Boundary control at exactly 100 added |
 | F4 six of eight branches asserted | Edit `File` case + the first two cases ever to touch `signup.ts` |

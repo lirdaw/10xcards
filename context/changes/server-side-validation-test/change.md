@@ -60,9 +60,9 @@ rzeczy poza literalnym ticketem:
    > **[POPRAWKA 2026-07-28, impl-review F1]** „Czterech" bylo **niepelnym wyliczeniem**, nie
    > decyzja zakresowa: `formData()` czyta **szesc** endpointow w `src/pages/api/`. Nietkniete
    > zostaly `decks/index.ts:22-23` i `decks/[publicId].ts:31-32` (tworzenie i zmiana nazwy
-   > talii), ktore do dzis maja oba pierwsze defekty doslownie. Odlozone do osobnego ticketu
-   > decyzja przy triage'u impl-review; zapisane w `test-plan.md` §6.6 na liscie „does NOT
-   > prove", zeby nie trzeba bylo wnioskowac tego z liczby.
+   > talii), ktore do dzis maja oba pierwsze defekty doslownie. Odlozone decyzja przy triage'u
+   > impl-review i zalozone jako **C10X-37**; zapisane w `test-plan.md` §6.6 na liscie „does
+   > NOT prove", zeby nie trzeba bylo wnioskowac tego z liczby.
 3. **Walidacja wejscia tras auth NIE wchodzi** — otwarta decyzja z ticketu rozstrzygnieta na
    „nie": nasze trasy auth nie maja dzis ani jednej linii walidacji, wiec test tam nie dalby
    sie zaswiecic na czerwono zadna edycja w `src/` (pinowalby `supabase/config.toml`). Poszlo
