@@ -457,12 +457,168 @@ And the removal's one real risk is now measured rather than argued: `npm run bui
 the runner with **no `.env` present**, which the local 4.3 run could not establish because it
 printed `Using secrets defined in .env`.
 
+---
+
+## Phase 5 — On-demand DDL diff
+
+**Date**: 2026-07-28
+
+`.github/workflows/schema-diff.yml` (new): `workflow_dispatch` only, `npm ci`,
+`supabase link`, `supabase db diff --linked --schema public`, verdict read from stdout.
+
+### Most of this phase's verification is ship-time, and that is a structural fact, not a shortcut
+
+The plan expected 5.1, 5.3 and 5.4 to be satisfied on this branch by dispatching the workflow
+twice. They cannot be. **GitHub only offers `workflow_dispatch` for a workflow file that
+exists on the DEFAULT branch** — "This event will only trigger a workflow run if the workflow
+file exists on the default branch"
+([events that trigger workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)).
+The default branch here is `main`; this work is on `C10X-29-schema-drift-test`.
+
+This is why phases 3 and 4 could be rehearsed on the branch and this one cannot: `push` and
+`pull_request` fire on any ref, `workflow_dispatch` does not. It is the same class as 5.5,
+which the plan already routed to the ship-time checklist — the plan simply did not anticipate
+that it swallows most of the phase.
+
+**Measured rather than inferred from the doc sentence.** The file was pushed to a throwaway
+ref (`tmp-workflow-registration-probe`) precisely to test whether a non-default branch is
+enough:
+
+| Probe | Observed |
+| --- | --- |
+| `gh workflow list --all` | `CI  active  307162826` — one row. The new workflow is **not registered at all** |
+| `gh api repos/:owner/:repo/actions/workflows` | one entry, `.github/workflows/ci.yml`. Same answer from the API, not just the CLI's view |
+| `gh workflow run schema-diff.yml --ref tmp-workflow-registration-probe` | `HTTP 404: workflow schema-diff.yml not found on the default branch` |
+
+So the third clause of criterion 5.2 ("appears in `gh workflow list`") is post-merge as well;
+the other two clauses are satisfied below. The probe was reverted: the remote ref was deleted
+(`git ls-remote --heads origin` back to `main` + `C10X-29-schema-drift-test`), the local
+commit reset, and the file left untracked exactly as before.
+
+**There is no honest workaround, which is worth stating so nobody invents one later.** Adding
+a `push:` trigger to manufacture a run would change the trigger set whose *exclusivity is the
+thing criterion 5.2 asserts* — the check would then be verifying a file that no longer matches
+the one shipping. Temporarily changing the repository's default branch to get a dispatch is
+worse. Waiting for the merge is the correct answer.
+
+### Automated results — what a static check can and did establish
+
+| Check | Result |
+| --- | --- |
+| YAML parses (`yaml` package, the one already in `node_modules`) | OK |
+| Trigger set | `["workflow_dispatch"]` — length **1** |
+| `schedule:` present | **false** — criterion 5.2's substantive half, asserted programmatically rather than eyeballed |
+| `bash -n` on all four `run` blocks | syntax OK on each |
+| Password guard, all three variables set | exit **0** |
+| Password guard, `SUPABASE_DB_PASSWORD` empty | exit **1**, `Refusing to continue: without it the CLI mints a temporary READ-WRITE role…` |
+| Password guard, `SUPABASE_PROJECT_ID` empty | exit **1**, its own message |
+
+The guard's three-way probe matters more than it looks: a guard that fails on everything and a
+guard that fails on the right thing are indistinguishable without the all-set control — the
+same positive-control rule test-plan.md §6.6 applies to RLS denials.
+
+### One step the plan's contract did not list, added deliberately
+
+The plan says the password is "**required** rather than optional", and gives the reason: with
+`SUPABASE_DB_PASSWORD` unset the CLI does not fail — it asks the Management API to mint a
+temporary database role with `ReadOnly: false`, i.e. **creates a read-write role on production**
+in order to run a read-only comparison. Nothing in "checkout, Node, `npm ci`, link, diff" makes
+that requirement true; a missing secret would expand to the empty string and the run would
+proceed. So `Require the database password` asserts all three secrets before anything touches
+the project, and turns the omission into a red run naming the missing secret.
+
+Two further fail-closed properties, both relying on the runner's default `bash -e`:
+
+- `npx supabase db diff … > diff.sql` — if the CLI dies (Docker unavailable, link refused,
+  wrong password) the step fails instead of leaving an empty `diff.sql` that the next line
+  would read as "no differences". The redirect is the dangerous part here, and `-e` is what
+  makes it safe.
+- The verdict is `[ -s diff.sql ]`, **never `$?`**. `db diff` returns nil on every outcome and
+  prints `No schema changes found` to *stderr* — the same always-exit-0 trap that disqualified
+  `migration list` as the history oracle, one command over.
+
+### 5.5 is a claim about the job graph, so it does not have to wait for the merge
+
+The plan files 5.5 ("`deploy` is confirmed **not** to depend on this workflow") as ship-time.
+Its *substance* is structural and was settled here by enumeration rather than by watching a
+run:
+
+| Question | Answer |
+| --- | --- |
+| Is there any `workflow_run` / `workflow_call` coupling in `.github/`? | **None** — `grep -rn` over the whole directory returns nothing, so no workflow can gate another |
+| What does `deploy` depend on? | `needs: [ci, drift]` — both jobs live in `ci.yml` |
+| What does `schema-diff.yml` contain? | one trigger (`workflow_dispatch`), one job (`schema-diff`), referenced by nothing |
+
+A red DDL diff has no mechanism by which to block a release. That is stronger than the
+observation the criterion asks for — it is a property of the graph, not a sample of its
+behaviour — so what remains at ship time is only confirming it on the Actions page, which is
+where a human will look anyway.
+
+### `SUPABASE_DB_PASSWORD` does not exist yet, and it is not on this machine either
+
+`gh secret list` still shows four entries (`CLOUDFLARE_*`, `SUPABASE_ACCESS_TOKEN`,
+`SUPABASE_PROJECT_ID`). Setting it is a human action carrying the production database
+password, and it is a prerequisite for the first dispatch — recorded on the ship-time
+checklist below rather than left to be discovered by a red run.
+
+Where that password is **not**, checked rather than assumed, because the obvious guess is that
+the CLI cached it during an earlier `db push`:
+
+| Location | Contents |
+| --- | --- |
+| Windows Credential Manager | exactly one Supabase entry, `Supabase CLI:supabase` — the PAT Phase 1 identified, not a database password |
+| `supabase/.temp/pooler-url` | `postgresql://postgres.<ref>@…pooler.supabase.com:5432/postgres` — userinfo with **no** password segment |
+| `supabase/.temp/linked-project.json` | `ref`, `name`, `organization_id`, `organization_slug` |
+| `.env` | `SUPABASE_URL/KEY` and `PROD_SUPABASE_URL/KEY` — the anon key, which is a different credential |
+
+So it comes from whoever holds the note taken at project creation (Supabase displays it once
+and never again), or from a **Reset database password** in the dashboard. That reset is safe
+for this project, and the reason is verifiable rather than reassuring: `astro.config.mjs`
+declares four env fields (`SUPABASE_URL`, `SUPABASE_KEY`, `OPENROUTER_*`), and neither `src/`
+nor `wrangler.jsonc` contains a Postgres connection string, pooler host or password — the
+Worker reaches the database through PostgREST on the anon key. The database password is used
+only by CLI tooling (`db push`, `db diff`), so rotating it cannot disturb the deployed app.
+It would invalidate a connection string saved *outside* this repository (a psql/pgAdmin
+profile, another machine), which is the one thing this check cannot see.
+
+### What this phase does NOT prove
+
+- **Nothing here ran migra.** There is no calibration baseline yet; producing and triaging one
+  is 5.3, at ship time. Until then, the first dispatch's output has nothing to be compared
+  against and every line of it is untriaged by definition.
+- **The whole `db diff --linked` path is unexercised** — link, Docker, shadow replay of ten
+  migrations, the password. The checks above prove the file's *shape* (triggers, syntax, the
+  guard's branching), not that the comparison works. This is a thinner claim than phases 2-4
+  made, and the gap is entirely the dispatch restriction above.
+- **Phase 4's `db diff --local` run says nothing about this.** That compared the dev database
+  against a shadow replay and returned empty stdout; the target here is the cloud project.
+  Same command name, different oracle.
+
+---
+
 ## Ship-time checklist
 
 These criteria cannot be satisfied before the merge. They are tracked here so they are
 neither blocking a phase gate nor quietly forgotten.
 
+**Prerequisite for everything under Phase 5**: `gh secret set SUPABASE_DB_PASSWORD` (the
+production database password). Without it the DDL-diff workflow fails closed at its guard
+step — by design, but it means no dispatch can succeed until it is set. The password is not
+cached anywhere on the development machine (see Phase 5 above for where it was looked for);
+it comes from the note taken at project creation, or from a dashboard reset, which is safe
+here for the reason recorded there.
+
 - [ ] **3.9** After merging, a real push to `main` shows `drift` green and `deploy` running as
       before, with `deploy` listing both dependencies on the Actions page
-- [ ] **5.5** `deploy` is confirmed **not** to depend on the DDL-diff workflow — a red DDL
-      diff must never block a release
+- [ ] **5.1** A `workflow_dispatch` run completes; then a **second** dispatch, run after the
+      first one's output has been triaged and recorded, matches that baseline
+- [ ] **5.2 (third clause only)** `schema-diff` appears in `gh workflow list`. The YAML-validity
+      and only-`workflow_dispatch` clauses are already established above
+- [ ] **5.3** The first run's full output is triaged into genuine drift vs migra noise
+      (extensions, grants) and recorded here as the baseline
+- [ ] **5.4** Deliberate-breakage check: dispatch once from a branch carrying a scratch
+      migration that adds a column, confirm the job reports a difference; revert
+- [ ] **5.5 (observation only)** `deploy` is confirmed **not** to depend on the DDL-diff
+      workflow on the Actions page. The structural half is already established above — no
+      `workflow_run` coupling exists and `deploy`'s `needs` is `[ci, drift]` — so this is a
+      confirmation, not an open question
