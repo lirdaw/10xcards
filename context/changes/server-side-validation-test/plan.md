@@ -670,15 +670,15 @@ query plan changes.
 
 #### Automated
 
-- [ ] 1.1 `npx supabase db reset` applies all migrations cleanly
-- [ ] 1.2 `npm run db:types` produces no diff
-- [ ] 1.3 `npm test` still green at the pre-change baseline count
-- [ ] 1.4 `npm run lint` exits 0
+- [x] 1.1 `npx supabase db reset` applies all migrations cleanly
+- [x] 1.2 `npm run db:types` produces no diff
+- [x] 1.3 `npm test` still green at the pre-change baseline count
+- [x] 1.4 `npm run lint` exits 0
 
 #### Manual
 
-- [ ] 1.5 Cloud checked for violating rows before any `db push` (both counts 0)
-- [ ] 1.6 `pg_get_constraintdef` shows the bounded definitions under the original names
+- [x] 1.5 Cloud checked for violating rows before any `db push` (both counts 0)
+- [x] 1.6 `pg_get_constraintdef` shows the bounded definitions under the original names
 
 ### Phase 2: Controlled handling of malformed form input
 

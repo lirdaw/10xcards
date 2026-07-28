@@ -55,9 +55,17 @@ export const STATE_ACCEPTED = 2;
 export const STATE_REJECTED = 3;
 export const SOURCE_MANUAL = 1;
 
-// Max front/back length is a BUSINESS RULE, not a DB CHECK — the database enforces
-// only non-emptiness (char_length > 0). These can change without a migration.
-// Enforced in two places only: the client form and the endpoint (after trim).
+// Max front/back length is enforced in THREE places, and this module is the single home
+// for the value only on the JS side: the client form (three islands import these), the
+// endpoint (after trim), and — since 20260728104500_flashcard_content_bounds.sql — a DB
+// CHECK (`char_length between 1 and 200 / 1000`) under the original constraint names.
+// So these constants can NO LONGER change without a migration; the numbers are duplicated
+// in that file and a change to either side needs the other.
+//
+// The CHECK is a backstop, never the visible guard: it counts code points while `.length`
+// here counts UTF-16 units, so char_length <= .length always and the CHECK cannot reject a
+// string the endpoint accepted. A `23514` therefore means the endpoint's own comparison
+// stopped working, not that a user hit a limit.
 export const FRONT_MAX = 200;
 export const BACK_MAX = 1000;
 
@@ -197,8 +205,9 @@ export function updateFlashcard(supabase: Client, deckId: number, cardPublicId: 
 // being a candidate, so a request for it matches an empty allow-list and therefore no rows.
 //
 // The rule lives here and nowhere else: no CHECK, no trigger. The database constrains
-// which state ids exist, not which moves between them are legal — consistent with
-// FRONT_MAX/BACK_MAX being business rules rather than DB constraints.
+// which state ids exist, not which moves between them are legal. Note this is now the
+// OPPOSITE of FRONT_MAX/BACK_MAX, which gained a DB backstop in
+// 20260728104500_flashcard_content_bounds.sql — the transition graph deliberately did not.
 export const ALLOWED_FROM: Record<number, number[]> = {
   [STATE_ACCEPTED]: [STATE_GENERATED, STATE_REJECTED],
   [STATE_REJECTED]: [STATE_GENERATED, STATE_ACCEPTED],
