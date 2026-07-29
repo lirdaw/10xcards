@@ -580,15 +580,15 @@ ordinary suite's two new tests are additive.
 
 #### Automated
 
-- [ ] 1.1 `npm test` green with eval files present, key unset, suite count unchanged, zero eval files collected
-- [ ] 1.2 Eval run with key unset fails on eval preflight with the documented message
-- [ ] 1.3 Eval run with real key: smoke case green
-- [ ] 1.4 `git diff` empty for `vitest.config.ts` and `tests/setup/preflight.ts`
-- [ ] 1.5 `npm run lint` exit 0; `npm run build` exit 0
+- [x] 1.1 `npm test` green with eval files present, key unset, suite count unchanged, zero eval files collected
+- [x] 1.2 Eval run with key unset fails on eval preflight with the documented message
+- [x] 1.3 Eval run with real key: smoke case green
+- [x] 1.4 `git diff` empty for `vitest.config.ts` and `tests/setup/preflight.ts`
+- [x] 1.5 `npm run lint` exit 0; `npm run build` exit 0
 
 #### Manual
 
-- [ ] 1.6 Both invocation shapes verified from the config header (PowerShell shape tried)
+- [x] 1.6 Both invocation shapes verified from the config header (PowerShell shape tried)
 
 ### Phase 2: Reference set, judge client, pure scoring
 
