@@ -621,16 +621,16 @@ ordinary suite's two new tests are additive.
 
 #### Automated
 
-- [x] 4.1 `npm test` green with the new audit-columns case
-- [x] 4.2 `npm run lint` exit 0
+- [x] 4.1 `npm test` green with the new audit-columns case — 35abb6a
+- [x] 4.2 `npm run lint` exit 0 — 35abb6a
 
 ### Phase 5: Doc-sync
 
 #### Automated
 
-- [ ] 5.1 `npm test` green (no-regression control)
-- [ ] 5.2 `npm run lint` exit 0
+- [x] 5.1 `npm test` green (no-regression control)
+- [x] 5.2 `npm run lint` exit 0
 
 #### Manual
 
-- [ ] 5.3 §2/§3/§5/§6.6/§8 read consistently; roadmap H-06 row present before archive
+- [x] 5.3 §2/§3/§5/§6.6/§8 read consistently; roadmap H-06 row present before archive
