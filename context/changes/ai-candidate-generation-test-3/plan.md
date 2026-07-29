@@ -580,27 +580,27 @@ ordinary suite's two new tests are additive.
 
 #### Automated
 
-- [x] 1.1 `npm test` green with eval files present, key unset, suite count unchanged, zero eval files collected
-- [x] 1.2 Eval run with key unset fails on eval preflight with the documented message
-- [x] 1.3 Eval run with real key: smoke case green
-- [x] 1.4 `git diff` empty for `vitest.config.ts` and `tests/setup/preflight.ts`
-- [x] 1.5 `npm run lint` exit 0; `npm run build` exit 0
+- [x] 1.1 `npm test` green with eval files present, key unset, suite count unchanged, zero eval files collected — 8f5c3e8
+- [x] 1.2 Eval run with key unset fails on eval preflight with the documented message — 8f5c3e8
+- [x] 1.3 Eval run with real key: smoke case green — 8f5c3e8
+- [x] 1.4 `git diff` empty for `vitest.config.ts` and `tests/setup/preflight.ts` — 8f5c3e8
+- [x] 1.5 `npm run lint` exit 0; `npm run build` exit 0 — 8f5c3e8
 
 #### Manual
 
-- [x] 1.6 Both invocation shapes verified from the config header (PowerShell shape tried)
+- [x] 1.6 Both invocation shapes verified from the config header (PowerShell shape tried) — 8f5c3e8
 
 ### Phase 2: Reference set, judge client, pure scoring
 
 #### Automated
 
-- [ ] 2.1 `npm test` green incl. new scoring unit tests
-- [ ] 2.2 `npm run lint` exit 0; `npm run build` exit 0
+- [x] 2.1 `npm test` green incl. new scoring unit tests
+- [x] 2.2 `npm run lint` exit 0; `npm run build` exit 0
 
 #### Manual
 
-- [ ] 2.3 Five reference texts reviewed (language-unambiguous, card-worthy)
-- [ ] 2.4 Judge rubric reviewed against the plan's usability definition
+- [x] 2.3 Five reference texts reviewed (language-unambiguous, card-worthy)
+- [x] 2.4 Judge rubric reviewed against the plan's usability definition
 
 ### Phase 3: Matrix + first real run + calibration
 
