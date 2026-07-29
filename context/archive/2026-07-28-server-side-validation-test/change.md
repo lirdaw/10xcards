@@ -1,10 +1,10 @@
 ---
 change_id: server-side-validation-test
 title: Server-side validation parity for card content rules (Risk #6)
-status: impl_reviewed
+status: archived
 created: 2026-07-28
-updated: 2026-07-28
-archived_at: null
+updated: 2026-07-29
+archived_at: 2026-07-29T14:12:31Z
 ---
 
 ## Notes
