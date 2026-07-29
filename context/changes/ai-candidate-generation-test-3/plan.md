@@ -594,28 +594,28 @@ ordinary suite's two new tests are additive.
 
 #### Automated
 
-- [x] 2.1 `npm test` green incl. new scoring unit tests
-- [x] 2.2 `npm run lint` exit 0; `npm run build` exit 0
+- [x] 2.1 `npm test` green incl. new scoring unit tests — 0f54c3b
+- [x] 2.2 `npm run lint` exit 0; `npm run build` exit 0 — 0f54c3b
 
 #### Manual
 
-- [x] 2.3 Five reference texts reviewed (language-unambiguous, card-worthy)
-- [x] 2.4 Judge rubric reviewed against the plan's usability definition
+- [x] 2.3 Five reference texts reviewed (language-unambiguous, card-worthy) — 0f54c3b
+- [x] 2.4 Judge rubric reviewed against the plan's usability definition — 0f54c3b
 
 ### Phase 3: Matrix + first real run + calibration
 
 #### Automated
 
-- [ ] 3.1 `npm run eval` completes all 10 cases and exits with the verdict's code
-- [ ] 3.2 `npm test` still green, still collects zero eval files
-- [ ] 3.3 `npm run lint` exit 0
+- [x] 3.1 `npm run eval` completes all 10 cases and exits with the verdict's code
+- [x] 3.2 `npm test` still green, still collects zero eval files
+- [x] 3.3 `npm run lint` exit 0
 
 #### Manual
 
-- [ ] 3.4 Judge verdicts spot-checked (≥1 case per prompt path), recorded in verification.md
-- [ ] 3.5 Breakage check: wrong `expectedLanguage` → exactly that case red; reverted
-- [ ] 3.6 Breakage check: impossible skip-rate floor → run-level assertion fires; reverted
-- [ ] 3.7 First run recorded in verification.md (table, cost, wall-clock, calibration decision, judge request shape)
+- [x] 3.4 Judge verdicts spot-checked (≥1 case per prompt path), recorded in verification.md
+- [x] 3.5 Breakage check: wrong `expectedLanguage` → exactly that case red; reverted
+- [x] 3.6 Breakage check: impossible skip-rate floor → run-level assertion fires; reverted
+- [x] 3.7 First run recorded in verification.md (table, cost, wall-clock, calibration decision, judge request shape)
 
 ### Phase 4: Success-path audit columns (mock)
 
