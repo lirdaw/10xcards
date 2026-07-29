@@ -742,3 +742,81 @@ describe("/api/generate creates the deck inline on the newDeckName path", () => 
     expect(await succeededSessions(TAKEN_DECK_TEXT)).toHaveLength(0);
   });
 });
+
+// --- Success-path audit columns -------------------------------------------------------
+//
+// Both FAILURE branches of /api/generate have had their audit rows asserted since C10X-28
+// (tests/generation/failure-path.test.ts) — the SUCCESS insert never has. Its five audit
+// columns (source_text, model, language, request_payload, response_payload) were named as
+// an open gap by that change's hand-off
+// (context/archive/2026-07-26-ai-candidate-generation-test-2/verification.md) and are
+// closed here (C10X-31).
+//
+// Same assertion discipline as the failure-path file: serialized-column CONTAINMENT, never
+// JSON paths — jsonb re-orders keys, and the payloads' internal layout belongs to the
+// provider client, not to this contract. What is pinned is presence: the mock marker and
+// the submitted language in the request payload, the returned card fronts in the response
+// payload.
+
+const AUDIT_TEXT = `${mark("audit-success")} Tekst do audytu udanej generacji`;
+// A forced language, not "auto": the containment assertion on request_payload has to find
+// the SUBMITTED value, and "hiszpański" cannot appear there by accident the way "auto"
+// (also a Zod default-ish literal in other payloads) plausibly could.
+const AUDIT_LANGUAGE = "hiszpański";
+
+describe("/api/generate persists the success-path audit columns", () => {
+  it("records the five audit columns and the counters on a succeeded session", async () => {
+    const ownDeck = await createDeck(`Audit deck ${suffix}`);
+
+    const response = await generate({
+      deckPublicId: ownDeck,
+      sourceText: AUDIT_TEXT,
+      language: AUDIT_LANGUAGE,
+      count: COUNT,
+    });
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as Success;
+    // Guard before the containment loop below: an empty candidates array would make the
+    // per-front assertions vacuously green.
+    expect(payload.candidates).toHaveLength(COUNT);
+
+    const { data, error } = await clientFor(a.cookieHeader)
+      .from("generation_session")
+      .select(
+        "status, source_text, model, language, requested_count, generated_count, saved_count, request_payload, response_payload",
+      )
+      .like("source_text", scope(AUDIT_TEXT));
+    expect(error).toBeNull();
+    expect(data).toHaveLength(1);
+    const row = data?.[0];
+    if (!row) throw new Error("Setup failed: the audit session was never written.");
+
+    expect(row.status).toBe("succeeded");
+    // The endpoint trims before persisting; AUDIT_TEXT carries no edge whitespace, so
+    // EQUALITY also pins that nothing else happened to it (no truncation, no marker
+    // stripping). The text travels in the response here, never in a query string, so the
+    // 414 that forced prefix scoping does not apply to this read-back.
+    expect(row.source_text).toBe(AUDIT_TEXT);
+    // The " (mock)" suffix is the part that says which PATH ran; the prefix is
+    // OPENROUTER_MODEL/default — configuration, not behaviour — so only the suffix is
+    // asserted.
+    expect(row.model).toMatch(/ \(mock\)$/);
+    expect(row.language).toBe(AUDIT_LANGUAGE);
+    expect(row.requested_count).toBe(COUNT);
+    // In mock mode nothing is dropped, so generated == saved == count — the same "pinned
+    // as CURRENT behaviour" caveat as the counts assertion in the dedup case above.
+    expect(row.generated_count).toBe(COUNT);
+    expect(row.saved_count).toBe(COUNT);
+
+    const requestPayload = JSON.stringify(row.request_payload);
+    expect(requestPayload).toContain('"mock":true');
+    expect(requestPayload).toContain(AUDIT_LANGUAGE);
+
+    // The fronts come from the RESPONSE the caller saw, not from a copy of the mock
+    // literals — so this also pins that the audit trail and the answer agree.
+    const responsePayload = JSON.stringify(row.response_payload);
+    for (const candidate of payload.candidates as { front: string }[]) {
+      expect(responsePayload).toContain(candidate.front);
+    }
+  });
+});

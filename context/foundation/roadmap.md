@@ -3,7 +3,7 @@ project: 10xcards
 version: 1
 status: draft
 created: 2026-07-04
-updated: 2026-07-28
+updated: 2026-07-29
 prd_version: 1
 main_goal: quality
 top_blocker: capacity
@@ -57,6 +57,7 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 | H-03 | auth-error-copy                | dowiedzieć się po polsku, czemu logowanie nie wyszło, bez odpowiedzi serwera auth w pasku adresu                                          | MVP (S-01…S-06)  | FR-001, FR-002, NFR: UI po polsku, Guardrails                     | not started |
 | H-04 | ai-candidate-generation-test-2 | mieć pewność, że wklejony tekst i klucz API nie wyciekają do odpowiedzi błędu ani do logu, a serwer odrzuca żądanie omijające limity z UI | MVP (S-01…S-06)  | Guardrails: prywatność tekstu źródłowego, NFR: prywatność, FR-003 | done        |
 | H-05 | schema-drift-test              | ufać, że wdrożona aplikacja nigdy nie działa przeciw bazie bez swojej migracji — CI zatrzymuje deploy, zanim Worker wyjdzie               | MVP (S-01…S-06)  | NFR: dane i harmonogram przeżywają między sesjami, Guardrails     | done        |
+| H-06 | ai-candidate-generation-test-3 | mieć zmierzony dowód (lokalny eval LLM-as-judge na realnym modelu), że generacja oddaje fiszki w języku źródła i nadające się do nauki    | MVP (S-01…S-06)  | §Success Criteria (75% akceptacji — proxy), NFR: język kart       | in progress |
 
 Prefiks **`H-` (hardening)** oznacza pracę PO zamknięciu zakresu MVP: `F-01…F-03` i
 `S-01…S-06` są `done` i ta granica zostaje nienaruszona. Elementy `H-` nie są vertical
@@ -279,6 +280,19 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **Unknowns:** —
 - **Risk:** Ryzyko #5 domknięte **per klasa dryfu, nie hurtem** — klasy 1–3 blokują deploy, klasa 8 gated w jobie `ci`, klasy 4–6 wykrywalne wyłącznie poza ścieżką deployu, klasy 7 i 9 niepokryte w ogóle. Impl-review znalazł w samej bramce fałszywy zielony (dwa pliki migracji o tym samym timestampie czytały się jako `clean`) — naprawione i pokryte testem. Bramka DDL działa end-to-end, ale **nikt nie ma jej w harmonogramie**: brakuje kanału powiadomień i właściciela, nie zdolności.
 - **Status:** done
+
+### H-06: Ewaluacja jakości generacji AI — LLM-as-judge (post-MVP)
+
+- **Outcome:** (hardening) zespół ma zmierzony, powtarzalny dowód, że wygenerowane fiszki wychodzą w języku tekstu źródłowego i nadają się do nauki: lokalny eval LLM-as-judge (`npm run eval`, osobna ścieżka uruchomienia — nigdy część `npm test`) przepuszcza 10-przypadkową macierz językową przez produkcyjne `generateCandidates()` na realnym modelu i ocenia każdą kartę sędzią z INNEJ rodziny modeli (`google/gemini-2.5-flash` vs `openai/gpt-4o-mini`).
+  **Dostarczone (2026-07-29):** pierwszy skalibrowany przebieg był uczciwie czerwony i znalazł REALNY defekt: ścieżka wymuszonego języka odpowiada po polsku dla `niemiecki`/`francuski` (polski egzonim w angielskim zdaniu promptu; 0/5 w czterech z czterech przebiegów), podczas gdy `auto` jest bezbłędne (25/25) — to eval robiący swoją robotę, nie jego awaria. Pierwsze pomiary dwóch uśpionych metryk: count compliance 100%, skip-rate 0%. Suite deterministyczny urósł o testy progów scoringu (`tests/lib/eval-scoring.test.ts`) i o przypadek kolumn audytowych udanej generacji (dług nazwany przez C10X-28) — 220/220, 18 plików. Ryzyko #7 w `test-plan.md` domknięte na tyle, na ile proxy może; §3 Faza 5 `complete`.
+- **Change ID:** ai-candidate-generation-test-3
+- **PRD refs:** §Success Criteria (≥75% akceptacji — eval jest proxy, NIE mierzy tej metryki), §NFR (fiszki w języku materiału użytkownika: PL/EN/ES…)
+- **Prerequisites:** — (praca po zamknięciu MVP, poza grafem zależności)
+- **Parallel with:** —
+- **Blockers:** —
+- **Unknowns:** —
+- **Risk:** Sędzia mierzy wierność językową i użyteczność, nigdy wskaźnika 75% akceptacji — ten produkują wyłącznie realni użytkownicy na ekranie przeglądu. Dwa jawnie nazwane follow-upy do zaticketowania (`/jira-backlog-sync`): (1) naprawa promptu wymuszonego języka — kandydat: nazwać język docelowy po angielsku lub natywnie (`German`/`Deutsch`), z tym evalem jako testem odbioru; (2) odroczona noga `workflow_dispatch` (idiom `schema-diff.yml`, sekrety per-step, OSOBNY klucz OpenRouter z niskim limitem kredytów jako ogranicznik szkód) — eval zostaje świadomie lokalny i uruchamiany ręcznie, bez harmonogramu, bo alarm, którego nikt nie słyszy, to nie pokrycie (ta sama reguła co diff DDL w §5 test-planu). Uwaga operacyjna: `npm run eval` kończy się dziś kodem **1** — to bramka świecąca na czerwono na realnym defekcie, nie awaria evala.
+- **Status:** in progress
 
 ## Backlog Handoff
 

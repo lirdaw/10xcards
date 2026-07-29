@@ -6,7 +6,33 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-07-28, second entry of the day (C10X-30 `server-side-validation-test`
+> Last updated: 2026-07-29 (C10X-31 `ai-candidate-generation-test-3` shipped). **§3 Phase 5
+> is `complete` and Risk #7 is covered as far as a proxy can cover it** — the project's
+> first LLM-as-judge eval exists, ran against the real provider, and its very first
+> calibrated run found a REAL generation defect, which is the eval doing its job rather
+> than failing at it.
+>
+> What the slice built, and the boundary it states in the same breath. A separate run
+> path — `npm run eval` (= `vitest run -c vitest.eval.config.ts`, key in the SHELL env
+> only) — drives the production `generateCandidates()` through a 10-case language matrix
+> (5× `auto`, 5× forced) and grades every card with `google/gemini-2.5-flash`, a
+> different model family from the generator's `openai/gpt-4o-mini`, so the generator
+> never grades itself. `npm test` collects ZERO eval files — exclusion is structural, by
+> `include` replacement, with `vitest.config.ts` and `tests/setup/preflight.ts`
+> byte-identical — and the eval's own preflight is the INVERSE of the main one: it fails
+> when the key is ABSENT, because mock mode returns fixed Polish strings and a PL
+> fidelity case would pass vacuously. The first recorded run: `auto` flawless (25/25
+> cards in the source language), but the FORCED path answers in Polish for
+> `niemiecki`/`francuski` (0/5, four of four runs) — the Polish exonym inside an English
+> prompt sentence reads as more Polish context. Fixing the prompt is out of scope by
+> plan; raised as a follow-up. First-ever measurements of the two dormant metrics: count
+> compliance 100%, skip-rate 0%. The judge does NOT measure the 75% acceptance rate —
+> only real users produce that — and the CI/workflow leg is deliberately deferred
+> (local-only, human-triggered; §5). The ordinary suite gained the success-path
+> audit-columns case C10X-28's hand-off named. Suite: **220/220, 18 files**.
+> Evidence: `context/changes/ai-candidate-generation-test-3/verification.md`.
+>
+> Previously: 2026-07-28, second entry of the day (C10X-30 `server-side-validation-test`
 > shipped). **§3 Phase 2 is `complete` and Risk #6 is covered on the server side** — the
 > card-content half that C10X-28 named as the single thing between this phase and `complete`
 > now has its test, so the status is a dated claim rather than a standing IOU.
@@ -155,7 +181,7 @@ research's job, see §1 principle #3).
 | 4   | Private source text or the LLM API key escapes into a log line or an error response body. **Covered 2026-07-26 (C10X-28), with a named boundary: the response-body half is pinned on both failure branches, the log half only for what `src/` itself writes. Read §6.6's C10X-28 entry before citing this as closed.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | High   | Medium     | PRD §Guardrails (privacy of pasted source text), PRD §NFR (privacy); `context/foundation/lessons.md` (prod secret is separate from `.env`; missing secret silently degraded to mock mode); abuse lens (secret/PII leakage)             |
 | 5   | The production schema drifts from the migration history — the deployed app writes against an un-migrated database. **Covered 2026-07-28 (C10X-29) per drift CLASS, not as one range — writing "classes 4-9 are uncovered" would be false for four of them. Gated in CI and deploy-blocking: a migration committed but never pushed; a history desync from `migration repair`; an out-of-order version skipped by `db push`. Gated in the `ci` job: a stale generated `src/db/database.types.ts`. Detectable only off the deploy path, by an on-demand DDL diff nobody is scheduled to run: a migration file amended after it was pushed; production changed by hand in Studio; `repair --status applied` on something never applied. Not covered at all: `config.toml` vs dashboard config, and seed/dictionary row drift. Read §6.6's C10X-29 entry before citing this as closed.** | High   | Medium     | interview Q2 (real incident during M2L5); `context/foundation/lessons.md` ×2 (cloud migration is a step distinct from app deploy; blind `migration repair` desynced prod history); hot-spot dir `supabase/migrations/` (6 commits/30d) |
 | 6   | The server trusts the client — a crafted request bypasses the source-text length limit and the card content rules that the UI enforces. **Covered on the server side, in two dated halves: source text 2026-07-26 (C10X-28), card content 2026-07-28 (C10X-30). Both LENGTH limits have exactly one definition (`SOURCE_MAX`; `FRONT_MAX`/`BACK_MAX`), and the card pair now carries a second enforcer independent of the endpoints — a DB CHECK. `/cards/batch`'s `IDS_MAX` is the exception and is asserted rather than single-sourced: the review island mirrors it as a commented copy, so the server is its only enforcer. The boundary: only the SERVER half is asserted. The three card islands mirror the constants by import but their enforcement is not tested (§7), and unlike `GeneratorForm` they carry no `maxLength`, so their over-length branch IS reachable through the browser and rests on a manual check. Read §6.6's C10X-30 entry before citing this as closed — on the card endpoints the refusal is a `302`, not a `4xx`.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Medium | Medium     | PRD FR-003 (maximum source-text length), PRD FR-007; abuse lens (untrusted input, server-side validation parity); hot-spot dir `src/lib/` (18 commits/30d)                                                                             |
-| 7   | Generation returns cards in the wrong language or cards that are unusable, so the acceptance rate falls below 75% and the product thesis fails.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | High   | Medium     | PRD §Success Criteria (≥75% of generated cards accepted; ≥75% of cards created via generation), PRD §NFR (cards follow the source-text language: PL/EN/ES); roadmap S-05                                                               |
+| 7   | Generation returns cards in the wrong language or cards that are unusable, so the acceptance rate falls below 75% and the product thesis fails. **Covered 2026-07-29 (C10X-31), as far as a proxy can cover it: a local, human-triggered LLM-as-judge eval (`npm run eval` — never part of `npm test`) proves language fidelity and usability across all six selector values against the real provider, and its first calibrated run found a real defect — the forced-language prompt path answers in Polish for `niemiecki`/`francuski` while `auto` is flawless; recorded and raised as a follow-up, not fixed here. The judge does NOT measure the 75% acceptance rate — only real users produce that. Read §6.6's C10X-31 entry before citing this as closed.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | High   | Medium     | PRD §Success Criteria (≥75% of generated cards accepted; ≥75% of cards created via generation), PRD §NFR (cards follow the source-text language: PL/EN/ES); roadmap S-05                                                               |
 
 ### Risk Response Guidance
 
@@ -184,7 +210,7 @@ show a `complete` phase never covered all of its risk — see Phase 4. Treat
 | 2   | Endpoint contract               | Prove the server does not trust the client and does not leak; stop duplication on retry | #2 (**covered** — S-05 Phase 6), #4 (**covered** — C10X-28), #6 (**covered, server side** — C10X-30, 2026-07-28) | integration                        | complete     | `context/archive/2026-07-18-ai-candidate-generation-test/` → `context/archive/2026-07-26-ai-candidate-generation-test-2/` → `context/changes/server-side-validation-test/` |
 | 3   | Quality gates + schema drift    | Make green CI mean "tested and prod actually migrated"                                  | #5 (**covered** — the deploy-blocking classes and the stale generated types; C10X-29, 2026-07-28)    | gates                              | complete     | `context/changes/schema-drift-test/`                                                                           |
 | 4   | SRS schedule correctness        | Prove the schedule defers by rating, survives restart, and admits only accepted cards   | #3 (**covered** — both halves; closed by C10X-27, 2026-07-26)                                        | unit + integration                 | complete     | `context/archive/2026-07-24-srs-study-session/` → `context/archive/2026-07-26-srs-study-session-test/`         |
-| 5   | AI-native generation quality    | Prove cards match the source language and are usable, so the 75% thesis is measurable   | #7                                                                                                   | LLM-as-judge                       | not started  | —                                                                                                              |
+| 5   | AI-native generation quality    | Prove cards match the source language and are usable, so the 75% thesis is measurable   | #7 (**covered as far as a proxy can be** — C10X-31, 2026-07-29; the judge does not measure the 75% acceptance rate) | LLM-as-judge                       | complete     | `context/changes/ai-candidate-generation-test-3/`                                                              |
 
 Sequencing notes:
 
@@ -275,6 +301,15 @@ Sequencing notes:
   neuter no longer reproduces. Both are described in the Phase 4 entry of §6.6.
 - Phase 5 depends on roadmap **S-05 `candidate-review`** shipping — the
   acceptance signal the judge calibrates against is produced there.
+  **Shipped as C10X-31 `ai-candidate-generation-test-3` (2026-07-29), roadmap H-06** — as a
+  SEPARATE run path (`npm run eval`), not a new `npm test` layer, because the mock clamp in
+  preflight is load-bearing and stays byte-identical; exclusion is by collection (a second
+  Vitest config with its own `include`), not by a guard. The first calibrated run was
+  honestly red with a real finding — the forced-language prompt path answers in Polish for
+  `niemiecki`/`francuski` while `auto` is flawless — recorded, out of scope by plan ("No
+  changes to the generation path"), raised as a follow-up. §6.6's C10X-31 entry carries the
+  claims table and the does-NOT-prove list; §5's LLM-as-judge row is rewritten to the
+  local-only, human-triggered reality.
 
 ## 4. Stack
 
@@ -289,7 +324,7 @@ The classic test base for this project. AI-native tools (if any) carry a
 | database under test  | Supabase CLI local stack                                | 2.98.2 (devDependency; `^2.23.4` in `package.json` is only the range floor) | Driven by `npm run db:start` / `db:stop` / `db:reset`; RLS is only meaningful against a real Postgres. CI starts the same stack and reads its URL + publishable key from `supabase status -o env`; checked: 2026-07-15                                                                                                                                          |
 | e2e                  | none yet — deliberately deferred                        | —                                                                           | No rollout phase claims e2e; promote only if a risk survives cheaper layers                                                                                                                                                                                                                                                                                     |
 | accessibility        | `eslint-plugin-jsx-a11y`                                | 6.10.2                                                                      | Lint-level only; PRD names baseline a11y but no risk in §2 requires an axe run yet                                                                                                                                                                                                                                                                              |
-| (optional) AI-native | LLM-as-judge over a reference set — checked: 2026-07-15 | n/a                                                                         | **When NOT to use**: any assertion a deterministic check can make (JSON shape, card count, field presence, language tag). The judge is for usability and language fidelity only, and only once Phase 5's dependency lands                                                                                                                                       |
+| AI-native            | LLM-as-judge over a reference set — shipped by §3 Phase 5 (C10X-31); judge `google/gemini-2.5-flash` via OpenRouter, `temperature: 0`, structured outputs, `EVAL_JUDGE_MODEL` override; checked: 2026-07-29 | judge pinned in `evals/lib/judge.ts` as a revisable constant                 | Invocation: `npm run eval` with `OPENROUTER_API_KEY` in the SHELL env — a `.env` key feeds only the generator's seam and the inverse preflight rejects it. NOT part of `npm test` (collection-level exclusion via `vitest.eval.config.ts`). **When NOT to use**: any assertion a deterministic check can make (JSON shape, card count, field presence, language tag) — those live in the ordinary suite (`tests/lib/eval-scoring.test.ts`). The judge is for usability and language fidelity only                                                                                                                                       |
 
 **Stack grounding tools (current session):**
 
@@ -314,7 +349,7 @@ phase lands; before that, the gate is `planned`.
 | DDL diff against the cloud         | GitHub Actions, `workflow_dispatch` only        | optional, human-triggered — no schedule  | a migration amended after it was pushed; production edited by hand        |
 | post-edit hook                     | local (agent loop)                              | recommended local, not a CI substitute   | regressions at edit time                                                  |
 | prod smoke on a real flow          | between merge and "done"                        | optional                                 | environment-specific failures (missing prod secret, silent mock mode)     |
-| LLM-as-judge on generation quality | CI, nightly or on generation-path changes       | optional after §3 Phase 5                | wrong-language or unusable cards                                          |
+| LLM-as-judge on generation quality | local only (`npm run eval`, key in the shell env) — no CI, no schedule | optional, human-triggered — wired by §3 Phase 5 (C10X-31) | wrong-language or unusable cards                                          |
 
 e2e on critical flows is deliberately absent: no §3 phase wires it, so
 listing it as a gate would be aspirational. Add it only if a risk survives
@@ -326,6 +361,15 @@ red run in a tab nobody is committed to reading is not coverage — this project
 notification channel and none is being built. Read that row as a capability that exists
 and is exercised when someone asks, never as a signal being watched. Adding a cron is one
 line; do it the day an alerting channel and an owner exist, not before.
+
+The LLM-as-judge row follows the same rule as of C10X-31, and for the same reason: the
+eval exists and runs when a human runs it. The `workflow_dispatch` leg (schema-diff.yml
+idiom, per-step secrets, a SEPARATE OpenRouter key with a low credit limit as the
+blast-radius cap) was deliberately deferred to a named follow-up — a scheduled run with no
+notification channel would be an alarm nobody hears, not coverage. One operational fact a
+runner must know: the eval's red is not hygiene — as of 2026-07-29 `npm run eval` exits
+**1** on a REAL generation defect (§6.6's C10X-31 entry), so the contract is "run it, read
+the table", not "keep it green".
 
 Two of these gates depend on a cloud credential, which changes what a red run means. The
 `drift` job needs `SUPABASE_ACCESS_TOKEN` + `SUPABASE_PROJECT_ID` and the DDL diff
@@ -1525,6 +1569,79 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
   restores: `context/changes/server-side-validation-test/verification.md` (after archiving:
   `context/archive/<date>-server-side-validation-test/verification.md`).
 
+- **Phase 5 (`ai-candidate-generation-test-3`, C10X-31, 2026-07-29)** — Risk #7 is **covered
+  as far as a proxy can cover it, and the boundary belongs in the same sentence: the judge
+  measures language fidelity and usability, never the 75% acceptance rate — only real users
+  produce that metric.** This is the project's first AI-native layer and it is NOT part of
+  `npm test`: `npm run eval` (= `vitest run -c vitest.eval.config.ts`, `OPENROUTER_API_KEY`
+  in the shell environment) runs a 10-case language matrix through the production
+  `generateCandidates()` against the real provider and exits with the verdict's code.
+  Exclusion from the ordinary suite is structural — the second config's `include` collects
+  only `evals/**/*.eval.ts`, so `npm test` sees zero eval files while `vitest.config.ts`
+  and `tests/setup/preflight.ts` stay byte-identical — and the eval's own preflight is the
+  INVERSE of the main one: it fails when the key is ABSENT on either seam
+  (`astro:env/server`, the generator's; `process.env`, the judge's), because with no key
+  `generateCandidates()` silently returns fixed Polish mock strings and a PL fidelity case
+  would pass vacuously.
+
+  The matrix: cases 1–5 run `language: "auto"` over authored reference texts in
+  PL/EN/ES/DE/FR (`evals/fixtures/reference-texts.ts` — distinct topics, so a
+  cross-language contamination in a verdict is attributable); cases 6–10 force each
+  whitelist language over the fixed PL text. Case 6 (`polski`×PL) is the identity positive
+  control. Judge: `google/gemini-2.5-flash` via OpenRouter, `temperature: 0`, one card per
+  call, `EVAL_JUDGE_MODEL` override — a different model family from the generator's
+  `openai/gpt-4o-mini`, so the generator never grades itself. Structured outputs
+  (`response_format: json_schema`) SHIPPED as the judge request shape — the documented
+  fallback was never needed. Thresholds, kept unchanged by the calibration decision:
+  language fidelity 100% per case (hard), usability ≥80% aggregate; floors: ≥1 card per
+  case, aggregate skip-rate <50%. Count compliance and skip-rate are REPORTED, never
+  gated — a first measurement cannot be a blindly-tuned gate.
+
+  | Claim                                                                | What proves it                                                                                                                                                                                                                                                                                                                                                              |
+  | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `auto` produces cards in the source language, all five languages     | cases 1–5: 25/25 cards `language_ok` in every complete run of the calibration day (four runs)                                                                                                                                                                                                                                                                               |
+  | The forced path is PARTIALLY broken — the first real finding         | `forced/niemiecki` and `forced/francuski`: **0/5 cards in the target language, every card Polish, four of four runs**; `forced/hiszpański` intermittent (4/5 in four runs — one mixed card — 5/5 once). Mechanism visible in the cards: the prompt says `Write the flashcards in this language: niemiecki.` — a Polish exonym in an English sentence (`src/lib/openrouter.ts:98-111`) |
+  | "Generation broken" is separable from "the eval refuses everything"  | case 6 (`polski`×PL, the identity positive control) and `forced/angielski` stayed green in every run while de/fr stayed red                                                                                                                                                                                                                                                  |
+  | The judge observes the EXPECTATION, not an incidental pass           | breakage check, judge leg: `auto/en`'s `expectedLanguage` → `niemiecki` turned **exactly that case** additionally red (`5/5 cards not in niemiecki (detected: English)`); every other case identical to baseline; reverted, diff clean                                                                                                                                     |
+  | The run-level floor is what fires, not a per-case assertion          | breakage check, floor leg: `SKIP_RATE_CEILING` → `0` → the `afterAll` run-level assertion failed with the floor's own message; reverted, `npm test` 219/219 re-proved the restored semantics deterministically                                                                                                                                                              |
+  | The judge grades correctly on both prompt paths                      | spot-checks against a human read (recorded): the mixed card (ES front, PL back) → `language_ok=false, usable=false`; a grounding violation (an answer not in the source text) → `usable=false` — the rubric bites for real                                                                                                                                                   |
+  | Threshold/floor semantics are deterministic facts, not judge opinion | `tests/lib/eval-scoring.test.ts` in the ordinary suite (12 cases): the 80% usability boundary, one-bad-card language fail, empty-list floor, 50% skip-rate edge, and the all-good positive control                                                                                                                                                                           |
+  | The success-path audit columns persist (the C10X-28 hand-off gap)    | `tests/generation/generate.test.ts` "records the five audit columns…": mock-mode POST, then `status`, `source_text` by EQUALITY, `model` ending `" (mock)"`, `language`, the three counters, and serialized-column CONTAINMENT on `request_payload`/`response_payload` (the C10X-28 precedent: pin presence, not shape)                                                     |
+  | Count compliance and skip-rate exist as numbers for the first time   | measured across the calibration day: count compliance 50/50 (100%), skip-rate 0% — the generator's Zod layer dropped nothing. First data for the trigger condition of the S-04 plan-review F5 lever (the 1-shot corrective re-call)                                                                                                                                          |
+
+  Operational facts a future runner needs: one full run ≈ **$0.012** (10 generations + ~50
+  judge calls; the whole six-run calibration day stayed under ~$0.10), wall-clock 117–312 s
+  observed. The calibration rule: **a red case is re-run once by hand before being
+  believed — two reds = real.** Two judge-client adaptations were measured before being
+  written: `reasoning: { enabled: false }` (gemini-2.5-flash's thinking tokens drew from
+  `max_tokens` and truncated verdicts mid-key; raising the budget did not help), and a
+  truncated verdict body (HTTP 200, `finish_reason: "error"`, ~10% of calls, in bursts) is
+  a TRANSIENT class retried twice with growing backoff — every other parse/HTTP error still
+  throws loudly, because an unreachable judge must never read as a verdict.
+
+  **What this does NOT prove — read this before citing Risk #7 as closed.**
+  - **The 75% acceptance rate.** The judge is a proxy for quality; the product metric is
+    produced by real users on the review screen, and nothing here measures it.
+  - **The finding is FOUND, not fixed.** The forced-language defect ships in production
+    today; fixing the prompt (candidate: name the target language in English or natively —
+    `German`/`Deutsch`) is its own follow-up, with this eval as the acceptance check.
+  - **No CI leg.** The `workflow_dispatch` leg (schema-diff.yml idiom, per-step secrets, a
+    separate OpenRouter key with a low credit limit) was deliberately deferred at
+    planning — local-only, human-triggered, no schedule, same rule as the DDL diff (§5).
+    To be ticketed via `/jira-backlog-sync`; named in roadmap H-06's row.
+  - **One run per case, no statistical power.** A single green is one sample at
+    temperature 0.4; the re-run-once calibration rule is the mitigation, not a fix.
+  - **Judge verdicts are themselves an LLM's opinion**, calibrated once by hand (the
+    spot-checks above). `EVAL_JUDGE_MODEL` exists precisely so a suspect verdict can be
+    cross-examined with a different judge.
+  - **`npm test` still never touches the real provider** — unchanged, by design. The eval
+    is the only thing that does, and only when a human runs it.
+
+  Full evidence — the run table verbatim, both judge adaptations with their measurements,
+  both breakage checks with observed failure strings, and the calibration decision:
+  `context/changes/ai-candidate-generation-test-3/verification.md` (after archiving:
+  `context/archive/<date>-ai-candidate-generation-test-3/verification.md`).
+
 ### 6.7 Adding a test for the SRS / study path
 
 (Added by §3 Phase 4. It sits after §6.6 so the existing §6.6 references in
@@ -2179,6 +2296,26 @@ contributors should respect these unless the underlying assumption changes.
   production — `bad_front` 0, `bad_back` 0 over 38 rows, maxima 64/157 — so it applies without
   repair, but until `/ship` runs `db push` this is exactly drift class 1 and the C10X-29 gate
   will say so on the first push to `main`. That is the gate working, not a failure.
+
+- §3 Phase 5 / Risk #7 coverage last **proven by execution**: 2026-07-29 (C10X-31, change
+  folder `ai-candidate-generation-test-3`). Ordinary suite: **220/220, 18 files** (207 at
+  C10X-30; +12 in `tests/lib/eval-scoring.test.ts`, +1 success-path audit-columns case in
+  `generate.test.ts`), local stack up, `OPENROUTER_API_KEY` unset, `npm run lint` exit 0,
+  `npm run build` exit 0, zero eval files collected by `npm test`, `git diff` empty for
+  `vitest.config.ts` and `tests/setup/preflight.ts`. The eval itself: first calibrated run
+  2026-07-29 — exit **1**, honestly red with a real finding (forced `niemiecki`/`francuski`
+  → Polish cards, four of four runs; `auto` 25/25 green), thresholds kept unchanged by the
+  recorded calibration decision, ~$0.012 and 158 s for the recorded run, structured outputs
+  shipped as the judge request shape. Both deliberate-breakage checks ran and were reverted,
+  reverts verified (diff clean, marker grep clean, suite green). **This coverage date does
+  not refresh itself**: the eval is human-triggered, so "covered" here means "the capability
+  exists and was exercised on this date", never "a signal is being watched".
+- **Risk #7's boundary is stated in three places on purpose**: §2's row (the coverage
+  claim), §6.6's C10X-31 entry (the mechanism and the does-NOT-prove list), and §5's
+  LLM-as-judge row (local-only, human-triggered, no schedule). The deferred
+  `workflow_dispatch` leg — with a separate, low-credit-limit OpenRouter key — is a named
+  follow-up to be ticketed via `/jira-backlog-sync`, and the forced-language prompt defect
+  the first run found is another; neither is folded into the headline.
 
 Refresh (`/10x-test-plan --refresh`) when:
 
