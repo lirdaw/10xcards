@@ -628,9 +628,9 @@ ordinary suite's two new tests are additive.
 
 #### Automated
 
-- [x] 5.1 `npm test` green (no-regression control)
-- [x] 5.2 `npm run lint` exit 0
+- [x] 5.1 `npm test` green (no-regression control) — 6bbd225
+- [x] 5.2 `npm run lint` exit 0 — 6bbd225
 
 #### Manual
 
-- [x] 5.3 §2/§3/§5/§6.6/§8 read consistently; roadmap H-06 row present before archive
+- [x] 5.3 §2/§3/§5/§6.6/§8 read consistently; roadmap H-06 row present before archive — 6bbd225
