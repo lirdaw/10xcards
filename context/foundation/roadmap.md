@@ -57,7 +57,7 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 | H-03 | auth-error-copy                | dowiedzieć się po polsku, czemu logowanie nie wyszło, bez odpowiedzi serwera auth w pasku adresu                                          | MVP (S-01…S-06)  | FR-001, FR-002, NFR: UI po polsku, Guardrails                     | not started |
 | H-04 | ai-candidate-generation-test-2 | mieć pewność, że wklejony tekst i klucz API nie wyciekają do odpowiedzi błędu ani do logu, a serwer odrzuca żądanie omijające limity z UI | MVP (S-01…S-06)  | Guardrails: prywatność tekstu źródłowego, NFR: prywatność, FR-003 | done        |
 | H-05 | schema-drift-test              | ufać, że wdrożona aplikacja nigdy nie działa przeciw bazie bez swojej migracji — CI zatrzymuje deploy, zanim Worker wyjdzie               | MVP (S-01…S-06)  | NFR: dane i harmonogram przeżywają między sesjami, Guardrails     | done        |
-| H-06 | ai-candidate-generation-test-3 | mieć zmierzony dowód (lokalny eval LLM-as-judge na realnym modelu), że generacja oddaje fiszki w języku źródła i nadające się do nauki    | MVP (S-01…S-06)  | §Success Criteria (75% akceptacji — proxy), NFR: język kart       | in progress |
+| H-06 | ai-candidate-generation-test-3 | mieć zmierzony dowód (lokalny eval LLM-as-judge na realnym modelu), że generacja oddaje fiszki w języku źródła i nadające się do nauki    | MVP (S-01…S-06)  | §Success Criteria (75% akceptacji — proxy), NFR: język kart       | done        |
 
 Prefiks **`H-` (hardening)** oznacza pracę PO zamknięciu zakresu MVP: `F-01…F-03` i
 `S-01…S-06` są `done` i ta granica zostaje nienaruszona. Elementy `H-` nie są vertical
@@ -292,7 +292,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Sędzia mierzy wierność językową i użyteczność, nigdy wskaźnika 75% akceptacji — ten produkują wyłącznie realni użytkownicy na ekranie przeglądu. Dwa jawnie nazwane follow-upy do zaticketowania (`/jira-backlog-sync`): (1) naprawa promptu wymuszonego języka — kandydat: nazwać język docelowy po angielsku lub natywnie (`German`/`Deutsch`), z tym evalem jako testem odbioru; (2) odroczona noga `workflow_dispatch` (idiom `schema-diff.yml`, sekrety per-step, OSOBNY klucz OpenRouter z niskim limitem kredytów jako ogranicznik szkód) — eval zostaje świadomie lokalny i uruchamiany ręcznie, bez harmonogramu, bo alarm, którego nikt nie słyszy, to nie pokrycie (ta sama reguła co diff DDL w §5 test-planu). Uwaga operacyjna: `npm run eval` kończy się dziś kodem **1** — to bramka świecąca na czerwono na realnym defekcie, nie awaria evala.
-- **Status:** in progress
+- **Status:** done
 
 ## Backlog Handoff
 
@@ -344,6 +344,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **H-02: (hardening) użytkownik, którego sesja wygasła lub została unieważniona w tle, NIE przechodzi całej sesji nauki w przekonaniu, że się uczy — zamiast cichego awansu karty widzi błąd, a harmonogram nie gubi ocen. Do tego harmonogram zyskuje pokrycie tych obietnic, których dotąd nikt nie sprawdzał: rozmiar sesji brany z talii, powrót karty gdy nadejdzie `due`, i ocena „Again".** — Archived 2026-07-26 → `context/archive/2026-07-26-srs-study-session-test/`. Lesson: —.
 - **H-04: (hardening) użytkownik, któremu generacja padła, dostaje komunikat bez swojego wklejonego tekstu, bez odpowiedzi dostawcy LLM i bez klucza API — a serwer odrzuca żądanie omijające limity wymuszane przez UI, zamiast je zapisać.** — Archived 2026-07-26 → `context/archive/2026-07-26-ai-candidate-generation-test-2/`. Lesson: —. **Wpis uzupełniony wstecz 2026-07-28** — w chwili archiwizacji ten element nie miał wiersza w roadmapie, więc `/10x-archive` nie miał czego domknąć.
 - **H-05: (hardening) użytkownik nigdy nie trafia na aplikację działającą przeciw bazie, której brakuje migracji z wdrożonego kodu — CI zatrzymuje deploy, zanim Worker wyjdzie, zamiast pozwolić mu wystartować i wywalić się na pierwszym zapisie.** — Archived 2026-07-28 → `context/archive/2026-07-27-schema-drift-test/`. Lesson: —.
+- **H-06: (hardening) zespół ma zmierzony, powtarzalny dowód, że wygenerowane fiszki wychodzą w języku tekstu źródłowego i nadają się do nauki: lokalny eval LLM-as-judge (`npm run eval`, osobna ścieżka uruchomienia — nigdy część `npm test`) przepuszcza 10-przypadkową macierz językową przez produkcyjne `generateCandidates()` na realnym modelu i ocenia każdą kartę sędzią z INNEJ rodziny modeli (`google/gemini-2.5-flash` vs `openai/gpt-4o-mini`).** — Archived 2026-07-29 → `context/archive/2026-07-29-ai-candidate-generation-test-3/`. Lesson: —.
 
 ## Parked ideas (post-MVP → Jira "Pomysł")
 

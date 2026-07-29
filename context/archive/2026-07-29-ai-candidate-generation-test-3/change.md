@@ -1,10 +1,10 @@
 ---
 change_id: ai-candidate-generation-test-3
 title: AI-native tests for generation quality — language fidelity and usability
-status: impl_reviewed
+status: archived
 created: 2026-07-29
 updated: 2026-07-29
-archived_at: null
+archived_at: 2026-07-29T19:16:08Z
 ---
 
 ## Notes
