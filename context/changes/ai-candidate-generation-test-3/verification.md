@@ -139,6 +139,14 @@ this phase; +12 over the 207 recorded at C10X-30 came from Phase 2's
 `no-console` in `evals/`, which is legal there by design). `git diff` empty for
 `vitest.config.ts` and `tests/setup/preflight.ts`.
 
+One decision recorded post-hoc (impl-review F4, 2026-07-29): the plan asked for config
+cross-referencing comments "in both files", but the back-reference in `vitest.config.ts`
+was deliberately dropped — it would have contradicted this change's own stronger contract
+(criterion 1.4: `vitest.config.ts` byte-identical). The reference is one-way
+(`vitest.eval.config.ts` → `vitest.config.ts`); protection against wrapper drift is
+behavioural (the eval config breaks loudly). The back-reference comment should ride along
+with the next legitimate edit to `vitest.config.ts`.
+
 One transient observation recorded for honesty: during Phase 3 two ordinary-suite flakes
 appeared once in back-to-back full runs (`generate.test.ts` failed-key case answering the
 generic deck-create error; `flashcards.test.ts` cross-deck pairing answering 302), both

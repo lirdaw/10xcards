@@ -68,7 +68,7 @@ describe("evaluateRun", () => {
     ];
     const result = evaluateRun(cases);
     expect(result.pass).toBe(false);
-    expect(result.failures).toEqual(["run: usability 70% below the 80% threshold"]);
+    expect(result.failures).toEqual(["run: usability 7/10 = 70.0% below the 80% threshold"]);
   });
 
   // Language is a HARD per-case gate: one bad card fails its whole case, and only that
@@ -117,7 +117,7 @@ describe("evaluateRun", () => {
     expect(aggregateSkipRate([atBoundary])).toBe(0.5);
     const red = evaluateRun([atBoundary]);
     expect(red.pass).toBe(false);
-    expect(red.failures).toEqual(["run: aggregate skip-rate 50% at/above the 50% floor"]);
+    expect(red.failures).toEqual(["run: aggregate skip-rate 5/10 = 50.0% at/above the 50% floor"]);
 
     const below: CaseResult = { ...goodCase("auto/fr"), generatedCount: 9 };
     expect(evaluateRun([below])).toEqual({ pass: true, failures: [] });

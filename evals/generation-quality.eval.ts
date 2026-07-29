@@ -30,6 +30,11 @@ import {
 
 const REQUESTED_COUNT = 5;
 
+// Per-call cap on the generator fetch (the lib seam production drives at 40 s). Kept
+// below the 120 s testTimeout so a stalled socket fails as a labelled generator error,
+// not as the runner's generic "Test timed out" with no seam attribution.
+const GENERATOR_TIMEOUT_MS = 60_000;
+
 /** App-selector name per reference-text code — the judge is told the language in the
  *  same wording the production prompt uses (Polish exonyms, see openrouter.ts). */
 const SELECTOR_NAME: Record<ReferenceLanguageCode, Exclude<Language, "auto">> = {
@@ -74,9 +79,12 @@ const FORCED_CASES: MatrixCase[] = FORCED_LANGUAGES.map((lang) => ({
 const MATRIX: MatrixCase[] = [...AUTO_CASES, ...FORCED_CASES];
 
 // Shared accumulators: every case pushes its CaseResult BEFORE asserting, so the afterAll
-// table includes red cases too (report-then-assert). Card texts + verdicts go to a
-// separate log printed in afterAll — Vitest 4 swallows console output of PASSING tests,
-// and the spot-check/calibration record needs the raw pairs from green cases too.
+// table includes ASSERTION-red cases too (report-then-assert). A case that THROWS before
+// its push (generator or judge infrastructure) cannot appear here — the afterAll prints a
+// MISSING line for it instead, so a short table never reads as a complete run. Card texts
+// + verdicts go to a separate log printed in afterAll — Vitest 4 swallows console output
+// of PASSING tests, and the spot-check/calibration record needs the raw pairs from green
+// cases too.
 const results: CaseResult[] = [];
 const cardLog: string[] = [];
 
@@ -87,6 +95,7 @@ describe("generation quality matrix (real provider + LLM judge)", () => {
         sourceText: matrixCase.sourceText,
         language: matrixCase.language,
         count: REQUESTED_COUNT,
+        signal: AbortSignal.timeout(GENERATOR_TIMEOUT_MS),
       });
 
       // Judge sequentially, one card per call — the verdict order mirrors the card order.
@@ -140,6 +149,14 @@ describe("generation quality matrix (real provider + LLM judge)", () => {
     console.log(`\ngenerator: ${resolveModel()} | judge: ${resolveJudgeModel()}`);
     console.log(SUMMARY_HEADER);
     for (const row of summaryRows(results)) console.log(row);
+
+    // A case that threw before its results.push has no row — mark the hole, so a 9-row
+    // table cannot be read as a complete 10-case run (its it() is red with the throw,
+    // but the table is the diagnostic and must not under-report silently).
+    const reported = new Set(results.map((r) => r.name));
+    for (const missing of MATRIX.filter((c) => !reported.has(c.name))) {
+      console.log(`${missing.name} — MISSING (threw before judging completed; see its test failure)`);
+    }
 
     const verdict = evaluateRun(results);
     if (verdict.failures.length > 0) {

@@ -81,6 +81,14 @@ function pct(x: number): string {
   return `${Math.round(x * 100)}%`;
 }
 
+// Failure messages carry the raw fraction plus one decimal, because Math.round alone can
+// print a self-contradictory red — e.g. 39/49 usable (79.59%) rounds to "usability 80%
+// below the 80% threshold". The fraction is the authoritative value; the rounded pct()
+// stays for the thresholds themselves, which are exact constants.
+function fractionPct(numerator: number, denominator: number, rate: number): string {
+  return `${numerator}/${denominator} = ${(rate * 100).toFixed(1)}%`;
+}
+
 /**
  * The whole red/green decision of an eval run. Red comes ONLY from: a per-case floor
  * (< CASE_MIN_CARDS returned), per-case language < 100%, run usability below
@@ -104,12 +112,20 @@ export function evaluateRun(cases: CaseResult[]): RunVerdict {
 
   const usability = runUsabilityRate(cases);
   if (usability < USABILITY_THRESHOLD) {
-    failures.push(`run: usability ${pct(usability)} below the ${pct(USABILITY_THRESHOLD)} threshold`);
+    const verdicts = cases.flatMap((c) => c.verdicts);
+    const usable = verdicts.filter((v) => v.usable).length;
+    failures.push(
+      `run: usability ${fractionPct(usable, verdicts.length, usability)} below the ${pct(USABILITY_THRESHOLD)} threshold`,
+    );
   }
 
   const skips = aggregateSkipRate(cases);
   if (skips >= SKIP_RATE_CEILING) {
-    failures.push(`run: aggregate skip-rate ${pct(skips)} at/above the ${pct(SKIP_RATE_CEILING)} floor`);
+    const generated = cases.reduce((sum, c) => sum + c.generatedCount, 0);
+    const returned = cases.reduce((sum, c) => sum + c.returnedCount, 0);
+    failures.push(
+      `run: aggregate skip-rate ${fractionPct(generated - returned, generated, skips)} at/above the ${pct(SKIP_RATE_CEILING)} floor`,
+    );
   }
 
   return { pass: failures.length === 0, failures };

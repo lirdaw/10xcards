@@ -22,6 +22,10 @@ import type { CardVerdict } from "./scoring";
 
 const JUDGE_MODEL_DEFAULT = "google/gemini-2.5-flash";
 const RETRY_BACKOFF_MS = 3_000;
+// Per-request cap so a stalled socket fails as a labelled judge error (and gets the
+// transient retry) instead of eating the case's whole 120 s testTimeout as a generic
+// "Test timed out". A verdict is a short classification; 30 s is generous.
+const JUDGE_TIMEOUT_MS = 30_000;
 
 /** The judge model this run will use — also printed in the eval's summary header. */
 export function resolveJudgeModel(): string {
@@ -104,7 +108,10 @@ async function postWithOneRetry(init: RequestInit): Promise<Response> {
   for (let attempt = 1; ; attempt++) {
     let response: Response;
     try {
-      response = await fetch(OPENROUTER_URL, init);
+      // Fresh signal per attempt — one signal spanning the loop would keep counting
+      // through the backoff sleep and starve the retry of its budget. A timeout abort
+      // lands in this catch as a transport error, i.e. inside the transient class.
+      response = await fetch(OPENROUTER_URL, { ...init, signal: AbortSignal.timeout(JUDGE_TIMEOUT_MS) });
     } catch (err) {
       if (attempt === 1) {
         await sleep(RETRY_BACKOFF_MS);
@@ -189,6 +196,10 @@ async function requestVerdict(input: JudgeInput): Promise<CardVerdict> {
 
   if (!response.ok) {
     const text = await response.text().catch(() => "");
+    // The excerpt can echo upstream request metadata (never the key — it travels only in
+    // the Authorization header). Fine while the eval is local-only and the output is read
+    // by whoever ran it; if the deferred workflow_dispatch leg ever lands, route this
+    // message to an artifact, not the world-readable job log (C10X-29 F3 precedent).
     throw new Error(`Judge HTTP ${response.status} from ${model}: ${text.slice(0, 300)}`);
   }
 
