@@ -736,4 +736,15 @@ query plan changes.
 
 - [x] 5.4 §2 Risk #6 row and §6.6's new entry agree with each other — 5c66862
 - [x] 5.5 The archived file reads as a corrected historical record, not a rewritten one — 5c66862
-- [ ] 5.6 Jira description and both comments corrected at `/jira-finish-work`
+- [x] 5.6 Jira description and both comments corrected at `/jira-finish-work` — C10X-30 comment 10454
+
+  > **Closed by a DIFFERENT mechanism than this line describes; recorded rather than ticked
+  > silently (2026-07-29).** The description and the two 2026-07-26 comments were **not**
+  > rewritten. `/jira-finish-work` forbids editing Description outright, and this ticket had
+  > already set its own precedent in comment 1 — *"Opis ticketu zostaje nietknięty; to jest
+  > przyrost wiedzy, nie zmiana zakresu"* — which is the same append-only discipline that gave
+  > C10X-28's archived `change.md` a dated correction line instead of an edit. So the correction
+  > landed as **one dated comment** carrying both fixes (`4xx` → `302`, `POST/PATCH` → `POST`),
+  > which is where a reader meets it anyway. The original wording survives beside it on purpose.
+  > If someone still wants the description's own sentence changed, that is a manual UI edit and
+  > deliberately outside this loop.
