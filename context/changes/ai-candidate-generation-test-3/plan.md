@@ -606,23 +606,23 @@ ordinary suite's two new tests are additive.
 
 #### Automated
 
-- [x] 3.1 `npm run eval` completes all 10 cases and exits with the verdict's code
-- [x] 3.2 `npm test` still green, still collects zero eval files
-- [x] 3.3 `npm run lint` exit 0
+- [x] 3.1 `npm run eval` completes all 10 cases and exits with the verdict's code — 00199e4
+- [x] 3.2 `npm test` still green, still collects zero eval files — 00199e4
+- [x] 3.3 `npm run lint` exit 0 — 00199e4
 
 #### Manual
 
-- [x] 3.4 Judge verdicts spot-checked (≥1 case per prompt path), recorded in verification.md
-- [x] 3.5 Breakage check: wrong `expectedLanguage` → exactly that case red; reverted
-- [x] 3.6 Breakage check: impossible skip-rate floor → run-level assertion fires; reverted
-- [x] 3.7 First run recorded in verification.md (table, cost, wall-clock, calibration decision, judge request shape)
+- [x] 3.4 Judge verdicts spot-checked (≥1 case per prompt path), recorded in verification.md — 00199e4
+- [x] 3.5 Breakage check: wrong `expectedLanguage` → exactly that case red; reverted — 00199e4
+- [x] 3.6 Breakage check: impossible skip-rate floor → run-level assertion fires; reverted — 00199e4
+- [x] 3.7 First run recorded in verification.md (table, cost, wall-clock, calibration decision, judge request shape) — 00199e4
 
 ### Phase 4: Success-path audit columns (mock)
 
 #### Automated
 
-- [ ] 4.1 `npm test` green with the new audit-columns case
-- [ ] 4.2 `npm run lint` exit 0
+- [x] 4.1 `npm test` green with the new audit-columns case
+- [x] 4.2 `npm run lint` exit 0
 
 ### Phase 5: Doc-sync
 
