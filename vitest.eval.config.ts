@@ -51,6 +51,10 @@ const astroViteConfig = getViteConfig({
     // the two runners cannot drift into different ordering regimes. Note this eval's red
     // baseline (forced `niemiecki`/`francuski` → Polish cards, C10X-31) is a REAL generation
     // defect and has nothing to do with ordering: `npm run eval` exits 1 on it either way.
+    // `setupFiles` is deliberately NOT mirrored from vitest.config.ts, so "parallel" stops
+    // here: that entry is the local-stack transport retry, and this run path never touches
+    // the local stack (nothing under evals/ builds a Supabase client) — its own
+    // 127.0.0.1/localhost gate would make it a no-op anyway. Do not "restore parity".
     sequence: { shuffle: true },
   },
 });

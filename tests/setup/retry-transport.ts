@@ -1,6 +1,7 @@
 // Retries ONE class of failure — the local stack's Kong→PostgREST keep-alive drop — and
-// nothing else. Registered as a `setupFiles` entry (vitest.config.ts), so it installs once
-// per worker, before any test module of that file is imported.
+// nothing else. Registered as a `setupFiles` entry (vitest.config.ts), so it runs once per
+// TEST FILE — not once per worker — before that file's modules are imported. The install is
+// guarded by a sentinel for exactly that reason; see the bottom of this file.
 //
 // WHY THIS EXISTS. Measured on 2026-07-30 while enabling `sequence.shuffle` (C10X-32): the
 // full suite went red on roughly 10-15% of runs, a DIFFERENT random case each time, none of
@@ -29,8 +30,18 @@
 // executed, which is exactly what the failures showed from the other side: every red found
 // the row absent ("Setup failed: card … was never written"), never duplicated. The residual
 // risk of a retried write landing twice is therefore accepted deliberately rather than
-// overlooked — and it is observable, because a double write in this suite surfaces loudly as
-// a `deck_user_name_unique` 409 or a count assertion, not as a false green.
+// overlooked. Note the predicate is about the BODY, not about idempotency — `method` is never
+// inspected, and that is on purpose: the measured flake was a POST (`POST /rest/v1/deck`), so
+// a GET-only gate would leave it in place.
+//
+// HOW LOUD A DOUBLE WRITE WOULD BE — MOSTLY, NOT ALWAYS (corrected by impl-review F3,
+// 2026-07-30; this paragraph used to say "not a false green" without qualification). Loud for
+// the shape actually measured: a duplicated `deck` insert violates `deck_user_name_unique` and
+// 409s, and every count / composition oracle in the suite goes red. NOT loud for a card: the
+// `flashcard` table carries no uniqueness constraint at all, so a duplicate written by
+// `study.test.ts`'s `createNonAcceptedCard` or `candidates.test.ts`'s `seedCard` — neither of
+// which is followed by a count assertion — would be silent. The safety argument above is what
+// carries those two seams; the 409 is not backing them up.
 //
 // THE PREDICATE IS DELIBERATELY NARROW — widen it only with the same kind of evidence:
 //   - status 502 AND Kong's own upstream wording. No other status is retried: a 500 from an
@@ -50,56 +61,68 @@
 // cannot reach. Left alone on purpose — a 502 there aborts the whole run with its own
 // message instead of producing a false green, which is the failure mode that matters.
 
-/** Kong's wording for "the upstream closed the connection before answering". */
-const KONG_UPSTREAM_FAILURE = "An invalid response was received from the upstream server";
+// The predicate itself lives in `./retry-policy.ts`, pure and exported, so it can be
+// asserted (`tests/lib/retry-transport.test.ts`) instead of only reasoned about. This file
+// keeps the part that cannot be pure: reading the body and re-issuing the request.
+import {
+  BACKOFF_MS,
+  isKongKeepAliveDrop,
+  isLocalStack,
+  isReplayableRequest,
+  MAX_ATTEMPTS,
+  RETRYABLE_STATUS,
+} from "./retry-policy";
 
-/** One original attempt plus at most two replays. */
-const MAX_ATTEMPTS = 3;
+/**
+ * Marks the global as already wrapped.
+ *
+ * `setupFiles` runs before EVERY test file, so `passthrough` captures whatever is installed
+ * at that moment. Today that is always the real `fetch`, because nothing configures
+ * `pool`/`isolate` and Vitest's defaults (`pool: "forks"`, `isolate: true`) give each file a
+ * fresh global. The day someone sets `isolate: false` / `singleFork`, or runs `--no-isolate`
+ * — a natural reflex when debugging exactly the kind of flake this file exists for — each
+ * file's setup would capture the PREVIOUS wrapper and they would nest: worst-case attempts
+ * become 3^N with compounding backoff, silently. One sentinel closes that, and `Symbol.for`
+ * is used rather than a local symbol so the check survives a re-evaluated module registry.
+ */
+const INSTALLED = Symbol.for("10xcards.retryTransport");
 
-/** Long enough for Kong to open a fresh upstream socket, short enough to be invisible. */
-const BACKOFF_MS = 25;
+const globals = globalThis as unknown as Record<PropertyKey, unknown>;
 
 const passthrough = globalThis.fetch;
 
-function isLocalStack(url: string): boolean {
-  try {
-    const { hostname } = new URL(url);
-    return hostname === "127.0.0.1" || hostname === "localhost";
-  } catch {
-    // A relative or malformed URL is not the local stack as far as this wrapper is concerned.
-    return false;
-  }
-}
-
-/** True only for a request whose body can be replayed verbatim. */
-function isReplayable(input: RequestInfo | URL, init: RequestInit | undefined): boolean {
-  if (input instanceof Request) return false;
-  const body = init?.body;
-  return body === undefined || body === null || typeof body === "string";
-}
-
-async function isKongUpstreamFailure(response: Response): Promise<boolean> {
+async function bodyTextOf(response: Response): Promise<string> {
   try {
     // `clone()` so the caller still gets an unread body when this turns out NOT to be the
     // flake and the response is handed back as-is.
-    return (await response.clone().text()).includes(KONG_UPSTREAM_FAILURE);
+    return await response.clone().text();
   } catch {
-    return false;
+    return "";
   }
 }
 
-globalThis.fetch = async function retryingFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+async function retryingFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   let response = await passthrough(input, init);
 
   const url = input instanceof Request ? input.url : String(input);
-  if (!isLocalStack(url) || !isReplayable(input, init)) return response;
+  if (!isLocalStack(url) || !isReplayableRequest(input, init)) return response;
 
   for (let attempt = 1; attempt < MAX_ATTEMPTS; attempt++) {
-    if (response.status !== 502 || !(await isKongUpstreamFailure(response))) return response;
+    // Status first, and deliberately outside the policy call: cloning and buffering every
+    // response body would be a real cost, and only this status can ever match.
+    // `isKongKeepAliveDrop` re-checks it so the policy stays complete on its own.
+    if (response.status !== RETRYABLE_STATUS) return response;
+    if (!isKongKeepAliveDrop(response.status, await bodyTextOf(response))) return response;
     await new Promise((resolve) => setTimeout(resolve, BACKOFF_MS * attempt));
     response = await passthrough(input, init);
   }
   // Three upstream failures in a row is no longer a keep-alive race; hand the 502 back and
   // let the assertion that was in flight report it.
   return response;
-};
+}
+
+// Install once, however many times this setup file is evaluated (see INSTALLED above).
+if (!globals[INSTALLED]) {
+  globals[INSTALLED] = true;
+  globalThis.fetch = retryingFetch;
+}

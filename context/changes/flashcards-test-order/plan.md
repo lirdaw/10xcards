@@ -135,6 +135,40 @@ Flip shuffle on permanently in both runners, then prove it: known seeds, ten fre
 
 **Contract**: Add the same `sequence: { shuffle: true }` to its `test` block, comment noting the eval's 10 cases are independent by construction and that the eval's red baseline (forced de/fr) is unrelated to ordering.
 
+#### 3. Transport-flake absorber — ADDENDUM, added in-change 2026-07-30
+
+> Not in the plan as written; recorded here rather than left to be discovered in the diff
+> (impl-review F1). It landed inside Phase 2 because criterion 2.3 is what surfaced it.
+
+**Files**: `tests/setup/retry-transport.ts` (new); `vitest.config.ts` (`setupFiles` entry)
+
+**Why**: Verifying 2.3 went **3/10 red**, and the reds were not order dependencies — each a
+different random case, each green in isolation, **none reproducing at its own seed**. Kong
+named the mechanism: it pools keep-alive sockets to PostgREST and holds them idle longer
+than PostgREST does, so the first request after a gap answers
+`502 upstream prematurely closed connection`. Measured, not assumed: **3/20 red with shuffle
+on, 3/20 with shuffle off** — equal, therefore pre-existing and independent of this change —
+with two candidate causes refuted by measurement (restarting `rest`+`kong`; cutting
+parallelism to `--maxWorkers=4`). Without absorbing it, the 40-run matrix could not
+distinguish "shuffle broke something" from "the dev stack dropped a socket".
+
+**Contract**: A `globalThis.fetch` wrapper installed via `setupFiles`, retrying **only** the
+conjunction — status `502` **and** Kong's own upstream wording **and** a `127.0.0.1`/`localhost`
+host **and** a replayable (string/absent) body — at most twice, with 25/50 ms backoff. No
+other status is retried; every other status in this suite is a signal something asserts on.
+
+**Scope note this addendum owes the reader**: the plan's guardrail "No changes to the 15
+order-safe files" is satisfied *file-wise* — none was edited — but this wrapper changes the
+runtime of **all 18**, so the guardrail should be read as "no edits to those files", not as
+"their behaviour is untouched".
+
+**Known boundary** (impl-review F2/F3, open at review time): the wrapper's predicate has no
+automated coverage and is not gated on HTTP method, so a POST that had already committed
+would be replayed. The argument that it cannot have committed is in the file header and is
+sound; the safety net behind it is narrower than first written — `flashcard` carries no
+uniqueness constraint, so a duplicate from `seedCard`/`createNonAcceptedCard` would be
+silent, while a duplicate `deck` insert (the shape actually measured) 409s loudly.
+
 ### Success Criteria:
 
 #### Automated Verification:

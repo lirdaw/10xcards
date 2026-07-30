@@ -30,7 +30,7 @@ deliberately un-pinned.
 | 2.1 Banner prints a seed, no CLI flags | `npm test` → `Running tests with seed "1785418078146"`, 220/220        |
 | 2.2 Known seeds replay through config  | `npx vitest run --sequence.seed=101\|202\|303` → 220/220 each          |
 | 2.3 Ten fresh unpinned runs            | **40** fresh runs, 40 distinct seeds, **220/220 every one** — see below |
-| 2.4 Lint and build                     | `npm run lint` exit 0 (6 pre-existing `no-console` warnings in `scripts/`, allowed by AGENTS.md); `npm run build` exit 0 |
+| 2.4 Lint and build                     | `npm run lint` exit 0 (6 pre-existing `no-console` warnings, all in `evals/generation-quality.eval.ts`; warnings not errors because `no-console` is configured `"warn"`, and `tests/lib/no-logging.test.ts` gates `src/` only — this cell first read "in `scripts/`, allowed by AGENTS.md", wrong on both counts, corrected 2026-07-30 by impl-review F5); `npm run build` exit 0 |
 | 2.5 Shuffled eval run                  | failure set **equals the baseline** — see the eval section below       |
 
 The 40 seeds of the final matrix run (all `220 passed (220)`):
@@ -105,8 +105,20 @@ never duplicated.
 (86 → 108) while the suite went **0/40 red**. So the flake fired 22 times in that window and
 was absorbed every time; before the wrapper the same class produced ~3 reds per 20 runs. No
 duplicate-write failure appeared across those 22 replayed requests — which is the failure mode
-a wrongly-retried POST would have produced, and it would have been loud
-(`deck_user_name_unique` 409, or a count assertion), never a false green.
+a wrongly-retried POST would have produced.
+
+> **How loud that failure would have been — corrected 2026-07-30 by this change's impl-review
+> (F3).** This paragraph originally ended "and it would have been loud
+> (`deck_user_name_unique` 409, or a count assertion), never a false green." That holds for
+> the shape actually measured — a duplicated `deck` insert does 409, and every count or
+> composition oracle goes red — but it is not universal, and the difference matters because it
+> is the net under a deliberately accepted risk. The `flashcard` table carries **no uniqueness
+> constraint** (the only `unique` in the SRS migrations is `flashcard_schedule.flashcard_id`),
+> and neither `study.test.ts`'s `createNonAcceptedCard` nor `candidates.test.ts`'s `seedCard`
+> is followed by a count assertion — so a duplicate card row there would be **silent**. Those
+> two seams rest on the never-committed argument above, not on a loud failure backing it up.
+> The retry is deliberately not gated on HTTP method: the measured flake was a POST, so a
+> GET-only gate would leave it in place.
 
 `tests/generation/failure-path.test.ts` — the suite's only `fetch` double (§6.9) — still
 passes 4/4: setup files run first, so the `realFetch` it captures at module scope IS this
@@ -182,6 +194,33 @@ What landed where:
 
 No §6.6 claim, breakage split, or denominator was altered — this change re-runs none of them, and
 the existing "re-derive before citing" rule stands unchanged.
+
+## Impl-review (2026-07-30) — what it changed
+
+`/10x-impl-review` re-ran every automated criterion above against the shipped files (all
+green, including a no-shuffle control and six extra fresh permutations) and confirmed all
+four Phase-1 fixes as MATCH with **no assertion weakened** — two strengthened. Nine findings,
+all triaged and all fixed. Five of them touch this change's own claims, so they are recorded
+here rather than only in `reviews/impl-review.md`:
+
+| # | What it found | What landed |
+| - | -------------- | ----------- |
+| F1 | `tests/setup/retry-transport.ts` + its `setupFiles` entry appear nowhere in `plan.md`, though they change the runtime of all 18 files — including the 15 the plan declared untouchable | A dated `#3. Transport-flake absorber — ADDENDUM` section in the plan's Phase 2, stating the measurement, the contract, and how to re-read the "no changes to the 15 order-safe files" guardrail |
+| F2 | The wrapper's predicate was **untestable by construction** — a side-effecting setup file exporting nothing — so widening it would make the suite quieter, never red | Pure half extracted to `tests/setup/retry-policy.ts`; `tests/lib/retry-transport.test.ts` adds **8 cases** with a positive control. Falsifiability proved: dropping the body half → **1 of 8 red**; hostname equality → substring → **1 of 8 red**; restore verified by `diff` |
+| F3 | "A double write would be loud, never a false green" was **over-broad** — `flashcard` carries no uniqueness constraint, so a duplicate from `createNonAcceptedCard` / `seedCard` would be silent | Corrected in the wrapper's header, in this file, and in `test-plan.md` §8, naming the two silent seams and why the retry is deliberately not method-gated |
+| F4 | Three `test-plan.md` pointers still said the suite has exactly one `fetch`/module seam (§4, §6.5, §6.9) | Each updated: the second seam exists, is a transport retry and **not** a double, and is not precedent for one |
+| F5 | The recorded lint warnings were attributed to `scripts/` under AGENTS.md's carve-out; they are in `evals/generation-quality.eval.ts`, which that carve-out does not cover | Corrected in this file and in `test-plan.md` §8, keeping the wrong wording visible as a dated correction |
+
+Four more were fixed without changing a claim: an install-idempotence sentinel on the wrapper
+(F6 — it would nest under `--no-isolate`), a `Location` assertion in both copies of
+`createCard` (F7 — §6.10 says the bare `302` proves nothing), a note that the eval config's
+missing `setupFiles` is deliberate (F8), and an order-safety comment on
+`positive-control.test.ts`'s rename, which carries the same shape as the fixed defect and is
+safe only by omission (F9 — found outside the plan's inventory).
+
+Suite after the review: **228/228, 19 files** — green on seeds 101/202/303, on five fresh
+un-pinned permutations, and on the no-shuffle control; `npm run lint` exit 0, `npm run build`
+exit 0.
 
 ## Follow-up left open, deliberately
 

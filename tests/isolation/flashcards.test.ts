@@ -79,7 +79,13 @@ async function createCard(as: typeof a, deckPublicId: string, front: string, bac
     body: cardForm(front, back),
     as,
   });
+  // The status alone proves nothing — this endpoint redirects on success AND on every
+  // refusal (§6.10), so only the Location separates the two. Without this line a rejected
+  // create is diagnosed by the row check below, which reports the confusing "was never
+  // written" instead of the `?error=` it actually answered. `createDeck` above checks its
+  // own Location for the same reason.
   expect(response.status).toBe(302);
+  expect(response.headers.get("Location")).toBe(`/decks/${deckPublicId}`);
 
   const created = (await cardsOf(as, deckPublicId)).find((card) => card.front === front);
   if (!created) throw new Error(`Setup failed: card "${front}" was never written to deck ${deckPublicId}.`);
