@@ -266,9 +266,9 @@ None — no schema, no production code. The one operational change: a future red
 
 #### Automated
 
-- [x] 3.1 Replay line present in test-plan; lesson present in lessons.md
-- [x] 3.2 `npm test` green after doc edits (220/220)
+- [x] 3.1 Replay line present in test-plan; lesson present in lessons.md — 14caf6f
+- [x] 3.2 `npm test` green after doc edits (220/220) — 14caf6f
 
 #### Manual
 
-- [x] 3.3 Read-through of test-plan §6 + §8 and the lesson
+- [x] 3.3 Read-through of test-plan §6 + §8 and the lesson — 14caf6f
