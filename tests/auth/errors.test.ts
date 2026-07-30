@@ -3,8 +3,12 @@ import * as SignIn from "@/pages/api/auth/signin";
 import * as SignUp from "@/pages/api/auth/signup";
 import {
   authErrorMessage,
+  AUTH_CAPTCHA_FAILED_MESSAGE,
+  AUTH_CONFLICT_MESSAGE,
   AUTH_EMAIL_EXISTS_MESSAGE,
+  AUTH_EMAIL_NOT_AUTHORIZED_MESSAGE,
   AUTH_EMAIL_NOT_CONFIRMED_MESSAGE,
+  AUTH_EMAIL_PROVIDER_DISABLED_MESSAGE,
   AUTH_GENERIC_MESSAGE,
   AUTH_INVALID_CREDENTIALS_MESSAGE,
   AUTH_INVALID_EMAIL_MESSAGE,
@@ -65,6 +69,25 @@ describe("authErrorMessage — code chain", () => {
     ["user_banned", AUTH_USER_BANNED_MESSAGE],
     ["over_request_rate_limit", AUTH_RATE_LIMIT_MESSAGE],
     ["over_email_send_rate_limit", AUTH_RATE_LIMIT_MESSAGE],
+    // What GoTrue actually answers for an empty address on /signup — it reads one as an
+    // anonymous sign-in attempt (measured against the local stack, see the signup block).
+    ["anonymous_provider_disabled", AUTH_MISSING_CREDENTIALS_MESSAGE],
+    // The five below cannot be produced against the local stack — they need a GoTrue config
+    // this project does not run (a mail-domain allow-list, e-mail auth off, captcha on) or an
+    // upstream condition (a row lock, a timeout). Their rows use the SAME literal as the map
+    // key, so this table only proves the module agrees with itself: a typo'd or renamed code
+    // is invisible here AND to Stryker. What makes them non-arbitrary is the artifact they
+    // were checked against — see the reachability record in `src/lib/auth-errors.ts`.
+    //
+    // The load-bearing property is not the wording but the RETRY SEMANTICS: the catch-all's
+    // "Spróbuj ponownie" must not survive on a branch where a retry can never succeed.
+    ["email_address_not_authorized", AUTH_EMAIL_NOT_AUTHORIZED_MESSAGE],
+    ["email_provider_disabled", AUTH_EMAIL_PROVIDER_DISABLED_MESSAGE],
+    ["captcha_failed", AUTH_CAPTCHA_FAILED_MESSAGE],
+    ["conflict", AUTH_CONFLICT_MESSAGE],
+    // A timeout IS the transport story, so it reuses the network copy rather than minting a
+    // fourteenth sentence that says the same thing.
+    ["request_timeout", AUTH_NETWORK_MESSAGE],
   ];
 
   it.each(cases)("maps %s to its own constant", (code, expected) => {
@@ -95,9 +118,15 @@ describe("authErrorMessage — code chain", () => {
       AUTH_SIGNUP_DISABLED_MESSAGE,
       AUTH_USER_BANNED_MESSAGE,
       AUTH_RATE_LIMIT_MESSAGE,
+      AUTH_MISSING_CREDENTIALS_MESSAGE,
+      AUTH_EMAIL_NOT_AUTHORIZED_MESSAGE,
+      AUTH_EMAIL_PROVIDER_DISABLED_MESSAGE,
+      AUTH_CAPTCHA_FAILED_MESSAGE,
+      AUTH_CONFLICT_MESSAGE,
+      AUTH_NETWORK_MESSAGE,
       AUTH_GENERIC_MESSAGE,
     ]);
-    expect(distinct.size).toBe(11);
+    expect(distinct.size).toBe(17);
   });
 });
 
@@ -167,6 +196,12 @@ describe("authErrorMessage — the invariant", () => {
         user_banned: 0,
         over_request_rate_limit: 0,
         over_email_send_rate_limit: 0,
+        anonymous_provider_disabled: 0,
+        email_address_not_authorized: 0,
+        email_provider_disabled: 0,
+        captcha_failed: 0,
+        conflict: 0,
+        request_timeout: 0,
       }).map((code) => withSentinelMessage({ code, name: "AuthApiError", status: 400 })),
       withSentinelMessage({ name: "AuthRetryableFetchError", status: 503 }),
       withSentinelMessage({ name: "AuthInvalidCredentialsError", status: 400 }),
@@ -350,16 +385,24 @@ describe("POST /api/auth/signup — malformed body", () => {
   //   POST /auth/v1/signup                    {"error_code":"anonymous_provider_disabled", 422}
   //   POST /auth/v1/token?grant_type=password {"error_code":"validation_failed",           400}
   //
-  // (probed directly against the local stack, 2026-07-28). `anonymous_provider_disabled` is
-  // not in the mapper's table, so this lands on the catch-all — i.e. the user is told nothing
-  // useful. That is asserted here BY EQUALITY rather than smoothed over: it is the truth
-  // today, and pinning it means the day someone maps that code the test goes red and the
-  // improvement gets noticed instead of landing silently. Whether it SHOULD be mapped is a
-  // question about `auth-errors.ts`'s table, not about malformed-body handling, so it is not
-  // resolved here.
+  // (probed directly against the local stack, 2026-07-28; re-confirmed 2026-07-30 by the RED
+  // run of this case). The prediction this comment used to carry has been CARRIED OUT: it
+  // said `anonymous_provider_disabled` was absent from the mapper's table, that the case
+  // therefore pinned the catch-all by equality, and that "the day someone maps that code the
+  // test goes red and the improvement gets noticed instead of landing silently". C10X-34
+  // mapped it; this case went red on exactly that equality and now reads
+  // AUTH_MISSING_CREDENTIALS_MESSAGE. The mechanism worked as designed — do not weaken the
+  // equality back to a membership check.
   //
-  // What this case does prove is the property the phase exists for: an owned message from the
-  // closed set, never a framework 500 and never the upstream string.
+  // The two routes still answer DIFFERENT upstream codes for an empty address, and both now
+  // map: signup's `anonymous_provider_disabled` to the missing-credentials copy, signin's
+  // `validation_failed` to AUTH_VALIDATION_MESSAGE (the signin File case above). The
+  // asymmetry is upstream's choice, recorded rather than papered over.
+  //
+  // Beyond the mapping, this case still proves the property the phase exists for — an owned
+  // message from the closed set, never a framework 500 and never the upstream string — and it
+  // now additionally proves the new table entry is reached through the REAL route, which no
+  // pure-mapper row can show.
   it("answers owned copy, never the upstream string, when the email part is a File", async () => {
     const form = new FormData();
     form.set("email", new File([`${SENTINEL}@example.com`], "email.txt", { type: "text/plain" }));
@@ -371,7 +414,7 @@ describe("POST /api/auth/signup — malformed body", () => {
     const location = response.headers.get("Location") ?? "";
     expect(location.startsWith("/auth/signup?")).toBe(true);
     const error = new URL(location, "http://localhost:4321").searchParams.get("error") ?? "";
-    expect(error).toBe(AUTH_GENERIC_MESSAGE);
+    expect(error).toBe(AUTH_MISSING_CREDENTIALS_MESSAGE);
     expect(AUTH_MESSAGES).toContain(error);
     // The no-leak half, which is what makes the catch-all acceptable rather than merely
     // unhelpful: GoTrue's own wording never reaches the address bar.

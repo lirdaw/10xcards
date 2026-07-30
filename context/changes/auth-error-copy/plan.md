@@ -786,25 +786,25 @@ None — no schema change, no migration, no data to move. Nothing here touches `
 
 #### Automated
 
-- [x] 0.1 Local stack up and `OPENROUTER_API_KEY` unset
-- [x] 0.2 `npm test` green; pass count and file count recorded
-- [x] 0.3 `npx vitest run tests/auth/errors.test.ts` green; count recorded
-- [x] 0.4 `npm run lint` exit 0; `npm run build` exit 0
+- [x] 0.1 Local stack up and `OPENROUTER_API_KEY` unset — ccd0e7e
+- [x] 0.2 `npm test` green; pass count and file count recorded — ccd0e7e
+- [x] 0.3 `npx vitest run tests/auth/errors.test.ts` green; count recorded — ccd0e7e
+- [x] 0.4 `npm run lint` exit 0; `npm run build` exit 0 — ccd0e7e
 
 ### Phase 1: Mapper — reachability and the closed set
 
 #### Automated
 
-- [ ] 1.1 `npx vitest run tests/auth/errors.test.ts` green, count increased
-- [ ] 1.2 `npm test` green
-- [ ] 1.3 Breakage check A: remove the `anonymous_provider_disabled` entry → signup File case red; string and split recorded
-- [ ] 1.4 Breakage check B: repoint a new code at an existing constant → its `it.each` mapping row red; split recorded
-- [ ] 1.5 `npm run lint` exit 0
+- [x] 1.1 `npx vitest run tests/auth/errors.test.ts` green, count increased
+- [x] 1.2 `npm test` green
+- [x] 1.3 Breakage check A: remove the `anonymous_provider_disabled` entry → signup File case red; string and split recorded
+- [x] 1.4 Breakage check B: repoint a new code at an existing constant → its `it.each` mapping row red; split recorded
+- [x] 1.5 `npm run lint` exit 0
 
 #### Manual
 
-- [ ] 1.6 Empty e-mail on sign-up shows the missing-credentials message in a browser
-- [ ] 1.7 Sign-in's differing answer for the same input confirmed acceptable and recorded
+- [x] 1.6 Empty e-mail on sign-up shows the missing-credentials message in a browser
+- [x] 1.7 Sign-in's differing answer for the same input confirmed acceptable and recorded
 
 ### Phase 2: Falsifiability and the coverage asymmetry
 
