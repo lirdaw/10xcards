@@ -810,25 +810,25 @@ None — no schema change, no migration, no data to move. Nothing here touches `
 
 #### Automated
 
-- [x] 2.1 `npm test` green
-- [x] 2.2 Breakage check C: delete the `AuthRetryableFetchError` entry → name-rung case red; split recorded
-- [x] 2.3 Breakage check D: collapse `signup.ts:19` to one branch → new signup case red, existing case green
-- [x] 2.4 `npm run lint` exit 0
+- [x] 2.1 `npm test` green — 390c052
+- [x] 2.2 Breakage check C: delete the `AuthRetryableFetchError` entry → name-rung case red; split recorded — 390c052
+- [x] 2.3 Breakage check D: collapse `signup.ts:19` to one branch → new signup case red, existing case green — 390c052
+- [x] 2.4 `npm run lint` exit 0 — 390c052
 
 ### Phase 3: The `?error=` channel, both ends
 
 #### Automated
 
-- [ ] 3.1 `npm test` green; existing endpoint cases unaffected
-- [ ] 3.2 Breakage check E: helper returns its input unchanged → crafted-value case red, member case green
-- [ ] 3.3 `npm run lint` exit 0; `npm run build` exit 0
+- [x] 3.1 `npm test` green; existing endpoint cases unaffected
+- [x] 3.2 Breakage check E: helper returns its input unchanged → crafted-value case red, member case green
+- [x] 3.3 `npm run lint` exit 0; `npm run build` exit 0
 
 #### Manual
 
-- [ ] 3.4 Crafted `?error=` renders no banner
-- [ ] 3.5 Real failure shows the banner and the URL carries no `error=` afterwards
-- [ ] 3.6 F5 replays nothing; the form is clean
-- [ ] 3.7 Browser Back/Forward across sign-in still work (`replaceState`, not `pushState`)
+- [x] 3.4 Crafted `?error=` renders no banner
+- [x] 3.5 Real failure shows the banner and the URL carries no `error=` afterwards
+- [x] 3.6 F5 replays nothing; the form is clean
+- [x] 3.7 Browser Back/Forward across sign-in still work (`replaceState`, not `pushState`)
 
 ### Phase 4: The banner gate — make the decision testable
 

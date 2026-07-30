@@ -22,6 +22,7 @@ import {
   AUTH_USER_BANNED_MESSAGE,
   AUTH_VALIDATION_MESSAGE,
   AUTH_WEAK_PASSWORD_MESSAGE,
+  ownedAuthMessage,
 } from "@/lib/auth-errors";
 import { accountA } from "../fixtures/accounts";
 import { callEndpoint } from "../fixtures/endpoint";
@@ -253,6 +254,52 @@ describe("authErrorMessage — the invariant", () => {
       // Membership in the closed set is the stronger form of the same claim: the output is
       // not merely sentinel-free, it is one of this project's own constants.
       expect(AUTH_MESSAGES).toContain(message);
+    }
+  });
+});
+
+// THE OTHER END OF THE SAME CLOSED SET. Every assertion above pins `AUTH_MESSAGES` where a
+// message is PRODUCED. It was ignored where one is CONSUMED: both auth pages read `?error=`
+// straight into `serverError` (`signin.astro:5`, `signup.astro:5`) and `ServerError.tsx:8`
+// renders any non-empty string, so a crafted link put attacker-chosen text inside a
+// trust-carrying red banner on this project's own sign-in page. Not XSS — React escapes, and
+// the roadmap already records that — but content injection: a low-grade phishing vector.
+//
+// The helper is deliberately in `auth-errors.ts`, beside the set it enforces, so the producer
+// and the consumer cannot drift apart. A rejected value degrades to `null`, i.e. to NO BANNER,
+// which is the correct failure: an error the app cannot vouch for must not be shown as one.
+describe("ownedAuthMessage — the read side of the closed set", () => {
+  it("returns a project-owned message unchanged", () => {
+    expect(ownedAuthMessage(AUTH_INVALID_CREDENTIALS_MESSAGE)).toBe(AUTH_INVALID_CREDENTIALS_MESSAGE);
+  });
+
+  it("rejects a crafted value, including one carrying a real message inside it", () => {
+    // EQUALITY, never containment, and the second input is why. An attacker who cannot invent
+    // trusted copy from scratch appends to copy the user already trusts — so the cheap
+    // implementation ("does it look like one of ours?") passes exactly the case that matters.
+    // The truncation is the mirror image: a near-miss must fail too, or the check is a prefix
+    // test wearing a membership test's name.
+    expect(ownedAuthMessage(`Twoje konto zostało przejęte. Zadzwoń pod 0700-${suffix}.`)).toBeNull();
+    expect(ownedAuthMessage(`${AUTH_INVALID_CREDENTIALS_MESSAGE} Zadzwoń pod 0700-${suffix}.`)).toBeNull();
+    expect(ownedAuthMessage(AUTH_INVALID_CREDENTIALS_MESSAGE.slice(0, -1))).toBeNull();
+  });
+
+  it("rejects an absent or empty parameter", () => {
+    // `null` is what `searchParams.get` answers for a parameter that is not there at all, and
+    // it is the ordinary case — every clean page load takes this branch.
+    expect(ownedAuthMessage(null)).toBeNull();
+    expect(ownedAuthMessage("")).toBeNull();
+    expect(ownedAuthMessage("   ")).toBeNull();
+  });
+
+  // POSITIVE CONTROL, and it is what makes the three cases above falsifiable rather than
+  // decorative: `() => null` satisfies all of them and reads as perfect protection. Driving
+  // the WHOLE set rather than one member also means a constant added to `AUTH_MESSAGES`
+  // without a thought for the read side cannot silently stop rendering.
+  it("accepts every constant in the closed set", () => {
+    expect(AUTH_MESSAGES.length).toBeGreaterThan(0);
+    for (const message of AUTH_MESSAGES) {
+      expect(ownedAuthMessage(message)).toBe(message);
     }
   });
 });

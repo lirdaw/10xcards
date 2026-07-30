@@ -1,8 +1,11 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import SignInForm from "@/components/auth/SignInForm";
+import { ownedAuthMessage } from "@/lib/auth-errors";
 
-const error = Astro.url.searchParams.get("error");
+// Never the raw parameter: `?error=` is attacker-writable and the banner it feeds carries this
+// app's own authority. Anything outside the closed set degrades to null, i.e. to no banner.
+const error = ownedAuthMessage(Astro.url.searchParams.get("error"));
 ---
 
 <Layout title="Sign in">

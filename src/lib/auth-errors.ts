@@ -94,6 +94,31 @@ export const AUTH_MESSAGES: readonly string[] = [
   AUTH_CONFLICT_MESSAGE,
 ];
 
+/**
+ * The READ side of the same closed set: an untrusted `?error=` value in, one of this
+ * project's own messages or nothing out.
+ *
+ * `AUTH_MESSAGES` used to be enforced only where a message is produced. Both auth pages read
+ * `Astro.url.searchParams.get("error")` straight into `serverError`, and `ServerError.tsx:8`
+ * renders any non-empty string — so a crafted link rendered attacker-chosen text inside a
+ * trust-carrying red banner on this project's own sign-in page. Not XSS (React escapes), but
+ * content injection: a low-grade phishing vector.
+ *
+ * Membership by EQUALITY, never containment. The attack is not inventing trusted copy from
+ * scratch — it is appending to copy the user already trusts, which any "does it look like one
+ * of ours?" test would wave through.
+ *
+ * `null` is the deliberate rejection value: `ServerError` renders nothing for a falsy message,
+ * so a value this app cannot vouch for degrades to NO BANNER rather than to a banner with
+ * hedged copy. An error the app cannot vouch for must not be shown as one.
+ *
+ * It lives here, beside the set it enforces, so the producer and the consumer cannot drift.
+ */
+export function ownedAuthMessage(raw: string | null): string | null {
+  if (raw === null) return null;
+  return AUTH_MESSAGES.includes(raw) ? raw : null;
+}
+
 /** Codes GoTrue returns in the response body. Plain string keys — `ErrorCode` is not exported. */
 const MESSAGE_BY_CODE: Record<string, string> = {
   invalid_credentials: AUTH_INVALID_CREDENTIALS_MESSAGE,
