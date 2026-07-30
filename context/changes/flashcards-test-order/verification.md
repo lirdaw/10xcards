@@ -151,6 +151,38 @@ cases were green in both fully-logged runs.
 
 Cost: three runs at roughly $0.012 each.
 
+## Phase 3 — doc-sync
+
+Docs only; no test or config file was touched in this phase.
+
+| Criterion                        | Command / check                                             | Result                                                                    |
+| -------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 3.1 Replay line in the test plan | `grep -n "sequence.seed" context/foundation/test-plan.md`   | hits at `:23` (header) and `:535` (§6.2 rule)                             |
+| 3.1 Lesson present               | `grep -n "positive control" context/foundation/lessons.md`  | hits at `:201`, `:203`–`:205` — the new entry, alongside the pre-existing RLS one |
+| 3.2 Suite still green            | `npm test`                                                   | seed `1785422681609`, **220 passed (220)**, 18 files                      |
+
+What landed where:
+
+- **`test-plan.md` §6.2** — two new bullets under the positive-control discipline that produced
+  the defect: (a) a positive control must own the fixture it mutates, with the
+  assert-what-you-re-read-vs-a-file-scope-constant distinction and the fixture-less-aggregate
+  case; (b) shuffle is permanently on in both runners, seed un-pinned, replay with
+  `npx vitest run --sequence.seed=<n>` — plus the "if it does not reproduce at its own seed it
+  is not an ordering defect" pointer at `tests/setup/retry-transport.ts`.
+- **`test-plan.md` header** — a dated "Last updated" entry stating what this change does and does
+  **not** claim: no risk row moves and no coverage claim changes; the axis is whether the
+  existing claims are trustworthy in any order.
+- **`test-plan.md` §8** — three ledger entries: order-independence proven by execution
+  (seeds 101/202/303 + 40 fresh permutations + the no-shuffle control), the transport flake with
+  its shuffle-off measurement and its two refuted candidate causes, and the eval's failure-set
+  equality with the run-1 gap named rather than rounded.
+- **`lessons.md`** — one new entry ("A positive control must OWN the fixture it mutates — and run
+  the suite shuffled to prove it"), carrying the two quiet failure modes, the no-restore-after-mutate
+  rule, and the "shuffle until green under-counts" measurement (three seeds fired four of six pairs).
+
+No §6.6 claim, breakage split, or denominator was altered — this change re-runs none of them, and
+the existing "re-derive before citing" rule stands unchanged.
+
 ## Follow-up left open, deliberately
 
 The forced-language generation defect is **found, not fixed** — out of scope by plan ("Not

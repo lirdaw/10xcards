@@ -252,23 +252,23 @@ None — no schema, no production code. The one operational change: a future red
 
 #### Automated
 
-- [x] 2.1 `npm test` banner prints seed with no CLI flags
-- [x] 2.2 Seeds 101/202/303 replay green through config
-- [x] 2.3 Ten fresh unpinned runs green, seeds recorded
-- [x] 2.4 `npm run lint` and `npm run build` exit 0
-- [x] 2.5 Shuffled eval run — failure set equals de/fr baseline, seed in banner
+- [x] 2.1 `npm test` banner prints seed with no CLI flags — f1bb55f
+- [x] 2.2 Seeds 101/202/303 replay green through config — f1bb55f
+- [x] 2.3 Ten fresh unpinned runs green, seeds recorded — f1bb55f
+- [x] 2.4 `npm run lint` and `npm run build` exit 0 — f1bb55f
+- [x] 2.5 Shuffled eval run — failure set equals de/fr baseline, seed in banner — f1bb55f
 
 #### Manual
 
-- [x] 2.6 Eval exit-1 accepted as baseline red; run table in verification.md
+- [x] 2.6 Eval exit-1 accepted as baseline red; run table in verification.md — f1bb55f
 
 ### Phase 3: Doc-sync
 
 #### Automated
 
-- [ ] 3.1 Replay line present in test-plan; lesson present in lessons.md
-- [ ] 3.2 `npm test` green after doc edits (220/220)
+- [x] 3.1 Replay line present in test-plan; lesson present in lessons.md
+- [x] 3.2 `npm test` green after doc edits (220/220)
 
 #### Manual
 
-- [ ] 3.3 Read-through of test-plan §6 + §8 and the lesson
+- [x] 3.3 Read-through of test-plan §6 + §8 and the lesson
