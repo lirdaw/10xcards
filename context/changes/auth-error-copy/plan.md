@@ -795,25 +795,25 @@ None — no schema change, no migration, no data to move. Nothing here touches `
 
 #### Automated
 
-- [x] 1.1 `npx vitest run tests/auth/errors.test.ts` green, count increased
-- [x] 1.2 `npm test` green
-- [x] 1.3 Breakage check A: remove the `anonymous_provider_disabled` entry → signup File case red; string and split recorded
-- [x] 1.4 Breakage check B: repoint a new code at an existing constant → its `it.each` mapping row red; split recorded
-- [x] 1.5 `npm run lint` exit 0
+- [x] 1.1 `npx vitest run tests/auth/errors.test.ts` green, count increased — 1c8f578
+- [x] 1.2 `npm test` green — 1c8f578
+- [x] 1.3 Breakage check A: remove the `anonymous_provider_disabled` entry → signup File case red; string and split recorded — 1c8f578
+- [x] 1.4 Breakage check B: repoint a new code at an existing constant → its `it.each` mapping row red; split recorded — 1c8f578
+- [x] 1.5 `npm run lint` exit 0 — 1c8f578
 
 #### Manual
 
-- [x] 1.6 Empty e-mail on sign-up shows the missing-credentials message in a browser
-- [x] 1.7 Sign-in's differing answer for the same input confirmed acceptable and recorded
+- [x] 1.6 Empty e-mail on sign-up shows the missing-credentials message in a browser — 1c8f578
+- [x] 1.7 Sign-in's differing answer for the same input confirmed acceptable and recorded — 1c8f578
 
 ### Phase 2: Falsifiability and the coverage asymmetry
 
 #### Automated
 
-- [ ] 2.1 `npm test` green
-- [ ] 2.2 Breakage check C: delete the `AuthRetryableFetchError` entry → name-rung case red; split recorded
-- [ ] 2.3 Breakage check D: collapse `signup.ts:19` to one branch → new signup case red, existing case green
-- [ ] 2.4 `npm run lint` exit 0
+- [x] 2.1 `npm test` green
+- [x] 2.2 Breakage check C: delete the `AuthRetryableFetchError` entry → name-rung case red; split recorded
+- [x] 2.3 Breakage check D: collapse `signup.ts:19` to one branch → new signup case red, existing case green
+- [x] 2.4 `npm run lint` exit 0
 
 ### Phase 3: The `?error=` channel, both ends
 

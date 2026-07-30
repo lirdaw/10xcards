@@ -159,3 +159,93 @@ this change's.
   hosted-only. Recorded in the module, unverifiable locally.
 - **Nothing about the read side.** `?error=` is still consumed unconstrained by both auth pages;
   that is Phase 3.
+
+---
+
+## Phase 2: Falsifiability and the coverage asymmetry
+
+Driven test-first (`/10x-tdd`), 2026-07-30. **No `src/` change ships in this phase** — the two
+production edits below are breakage checks C and D, both restored and both verified restored.
+The phase's whole claim is that two assertions became *killable*, so the evidence is not "the
+suite is green" (it already was) but **the asymmetry between the same neuter before and after
+the test edit**.
+
+### Runs
+
+| # | Command | Result | Detail |
+| --- | --- | --- | --- |
+| 2.1 | `npm test` | **241 passed / 241, 19 files** | seed `1785440443892`, 2.63 s. Phase 1 left 240; the +1 is the new signup discriminator case. The name-rung edit changes an input, not a count |
+| 2.1 | `npx vitest run tests/auth/errors.test.ts` | **51 passed / 51** | seed `1785440423841`. 50 → 51 |
+| 2.4 | `npm run lint` | **exit 0** | unchanged: 0 errors, the same 6 pre-existing `no-console` warnings in `evals/generation-quality.eval.ts` |
+
+### Breakage check C — delete `AuthRetryableFetchError` from `MESSAGE_BY_NAME`
+
+Run **twice against the same neuter**, which is the only shape that carries this phase's claim.
+
+| Against | Observed |
+| --- | --- |
+| The test **as it stood** (`status: 503`) | **0 of 50 red — the whole file green.** The production entry was deleted and nothing noticed |
+| The test **after the edit** (`status: 0`) | **1 of 50 red**, on `separates a transport failure from a rejected credential, on \`name\` alone` |
+
+```
+AssertionError: expected 'Nie udało się dokończyć operacji. Spr…' to be 'Brak połączenia z serwerem uwierzytel…'
+  Expected: "Brak połączenia z serwerem uwierzytelniania. Spróbuj ponownie za chwilę."
+  Received: "Nie udało się dokończyć operacji. Spróbuj ponownie."
+```
+
+The first row is the finding, measured rather than argued: the case titled "on `name` alone"
+supplied `status: 503`, and `messageByStatus(503)` returns the *same* constant, so the rung it
+names was never observed. The second row is the same run after one input changed. **This
+breakage check was impossible before this phase** — that is the deliverable.
+
+`status: 0` is faithful, not contrived, and the source was read rather than trusted:
+`@supabase/auth-js/dist/module/lib/fetch.js` constructs this class at three sites — `:26` (the
+thrown value is not a Response) and `:112` (the fetch call itself threw, i.e. the ordinary
+network failure) pass **0**, while `:30` passes a real status from
+`NETWORK_ERROR_CODES [502,503,504,520-524,530]`. Only the `0` form is answerable by the `name`
+rung alone. The `status >= 500` rung keeps its own separate input in `falls to status when
+neither code nor name is recognised`, so deleting *that* rung stays catchable too: two rungs,
+two inputs.
+
+Restored; `git diff -- src/` **empty** and `Get-FileHash` identical to the pristine copy taken
+before the first edit (`AF55893205137791A40205EC8BA679394EA5FA1FA81ECF3850D624A8047A4011`).
+
+### Breakage check D — collapse `signup.ts:19` to always `AUTH_VALIDATION_MESSAGE`
+
+**1 of 51 red**, on the new case, while `answers a project-owned redirect when the body is not a
+form at all` — the branch that was already covered — stayed **green**. That split is the
+coverage asymmetry stated as a measurement.
+
+```
+AssertionError: expected 'Popraw dane w formularzu i spróbuj po…' to be 'Nie udało się dokończyć operacji. Spr…'
+  Expected: "Nie udało się dokończyć operacji. Spróbuj ponownie."
+  Received: "Popraw dane w formularzu i spróbuj ponownie."
+```
+
+**What the failure string proves beyond the split**, and it is test-plan §6.10 confirmed by
+measurement rather than cited: with the discriminator collapsed the route still answered a
+`302`, still to `/auth/signup?`, still carrying an `error=` key. A status assertion would have
+passed; `toContain("error=")` would have passed. Only the **equality** on the decoded parameter
+went red — which is why this case asserts `toBe(AUTH_GENERIC_MESSAGE)` with
+`not.toBe(AUTH_VALIDATION_MESSAGE)` beside it.
+
+Restored; `git diff -- src/` **empty**, hash identical to pristine
+(`CBA6DECBEC40795A6BB58C3EB56C57E5CC50737A59841CF69FA3E846574E7C49`).
+
+Neither new case costs GoTrue budget: both return from the `catch` around `formData()`, before
+`createClient` (`signup.ts:16-21` vs `:25`). The rate-limit hazard the plan flags is untouched
+by this phase.
+
+### What Phase 2 does NOT prove
+
+- **Nothing new about production behaviour.** No `src/` line ships. Both branches under test
+  already behaved correctly; what changed is that a regression in either is now visible.
+- **`AUTH_UNAVAILABLE_MESSAGE` is still unobserved**, and is now *named* as such at the site a
+  reader meets it rather than left to be inferred. Its branch needs `createClient() === null`,
+  i.e. a double of `astro:env/server` — §6.9 confines module doubles to one file and admits them
+  only for a claim unreachable otherwise. A surviving Stryker mutant on that constant is
+  expected, not a gap.
+- **The `name` rung is proven only through the pure mapper.** No test drives a real transport
+  failure through a route; that would need the fetch seam, which this phase does not open.
+- **`isFormContentType`'s own logic** is covered by `tests/lib/forms.test.ts`, not here — this
+  case pins that `signup.ts` *consults* it on both branches, not what it decides.

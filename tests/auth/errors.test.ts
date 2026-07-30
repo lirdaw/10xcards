@@ -131,10 +131,27 @@ describe("authErrorMessage — code chain", () => {
 });
 
 describe("authErrorMessage — the chain below `code`", () => {
-  // `code` is read off the response body, so five classes never carry one. Without the
-  // `name` link a transport failure would read as "popraw dane w formularzu".
+  // `code` is read off the response body, so five classes never carry one. Without the `name`
+  // link a transport failure falls to the STATUS rung, and below 500 that is
+  // AUTH_GENERIC_MESSAGE — "spróbuj ponownie", which says nothing about the connection.
+  // (It is not AUTH_VALIDATION_MESSAGE: that constant is reachable only via the
+  // `validation_failed` code. An earlier version of this comment claimed otherwise.)
+  //
+  // `status: 0` IS the discriminating input, and it is faithful rather than contrived.
+  // @supabase/auth-js/dist/module/lib/fetch.js constructs this class at three sites: `:26`
+  // (the thrown value is not a Response) and `:112` (the fetch call itself threw — the
+  // ordinary network failure) both pass **0**, while `:30` passes a real status from
+  // NETWORK_ERROR_CODES [502,503,504,520-524,530]. Only the 0 form is answerable by the
+  // `name` rung alone: 0 is neither 429 nor >= 500, so `messageByStatus` returns null.
+  //
+  // THIS CASE USED TO SUPPLY `status: 503` AND WAS THEREFORE UNFALSIFIABLE. 503 reaches the
+  // same constant through `messageByStatus`, so the MESSAGE_BY_NAME entry could be deleted
+  // with the whole file green — measured, 50/50 passing with the entry removed. The `status`
+  // rung keeps its own separate input in "falls to status when neither code nor name is
+  // recognised" below (an unrecognised name at 500), so deleting THAT rung stays catchable
+  // too. Two rungs, two inputs — do not merge them back into one.
   it("separates a transport failure from a rejected credential, on `name` alone", () => {
-    const transport = authErrorMessage(withSentinelMessage({ name: "AuthRetryableFetchError", status: 503 }));
+    const transport = authErrorMessage(withSentinelMessage({ name: "AuthRetryableFetchError", status: 0 }));
 
     expect(transport).toBe(AUTH_NETWORK_MESSAGE);
     expect(transport).not.toBe(AUTH_GENERIC_MESSAGE);
@@ -166,6 +183,15 @@ describe("authErrorMessage — the chain below `code`", () => {
   });
 });
 
+// NAMED NEGATIVE SPACE: `AUTH_UNAVAILABLE_MESSAGE` is the one member of `AUTH_MESSAGES` that
+// nothing in this file observes beyond the non-emptiness scan below. It is not an oversight
+// and not a TODO. Its branch is `createClient() === null`, which needs SUPABASE_URL/KEY to be
+// unset — and under this runner they are transform-time inlined literals from
+// `astro:env/server`, so reaching it means doubling that module. test-plan §6.9 confines
+// module doubles to ONE file and admits them only for a claim unreachable any other way; this
+// claim does not earn that. The mapper never returns it either (it is not in MESSAGE_BY_CODE,
+// MESSAGE_BY_NAME or messageByStatus) — both routes emit it directly, before any auth call.
+// If you are here because a mutant on that constant survived: that is expected, not a gap.
 describe("authErrorMessage — the invariant", () => {
   // Well-formedness, not copy: `ServerError.tsx:8` renders nothing for a falsy message, so an
   // empty constant is a failed sign-in with no visible reason at all. Asserting it over the
@@ -376,6 +402,40 @@ describe("POST /api/auth/signup — malformed body", () => {
     expect(location).not.toContain(SENTINEL);
     // This branch returns BEFORE createClient, so it costs no GoTrue round trip and no
     // rate-limit budget — unlike the File case below.
+  });
+
+  // The OTHER half of `signup.ts:19`'s discriminator, and until this case existed only ONE
+  // half was tested: a regression collapsing `isFormContentType(req) ? GENERIC : VALIDATION`
+  // to "always VALIDATION" stayed green, while signin's identical discriminator was covered
+  // on both branches. Measured, not inferred — with signup.ts collapsed to one branch the
+  // file ran 1 of 51 red, on THIS case, and the non-form case above stayed green.
+  //
+  // Same staging as signin's twin: a body announced as multipart carrying a boundary the body
+  // does not contain. A real client abort is unreachable through the Container API, and both
+  // causes throw a bare TypeError, which is exactly why the endpoint branches on the HEADER
+  // rather than on the exception (tests/lib/forms.test.ts). Also returns before `createClient`
+  // — no GoTrue round trip, no rate-limit budget.
+  it("tells a truncated form apart from a body that was never a form", async () => {
+    const response = await callEndpoint(SignUp, {
+      url: "/api/auth/signup",
+      body: `--REAL\r\nContent-Disposition: form-data; name="email"\r\n\r\n${SENTINEL}@example.com`,
+      headers: { "Content-Type": "multipart/form-data; boundary=NOTTHEBOUNDARY" },
+      as: accountA(),
+    });
+
+    expect(response.status).toBe(302);
+    const location = response.headers.get("Location") ?? "";
+    // The signup target, not signin's — the two handlers carry their own base path.
+    expect(location.startsWith("/auth/signup?")).toBe(true);
+    const error = new URL(location, "http://localhost:4321").searchParams.get("error") ?? "";
+    // Equality plus the `not.toBe` beside it is the pair that makes this discriminating rather
+    // than decorative: refusal and success share the 302, and the collapsed guard still
+    // redirects with an `error=` key — only these two assertions separate the branches
+    // (test-plan §6.10).
+    expect(error).toBe(AUTH_GENERIC_MESSAGE);
+    expect(error).not.toBe(AUTH_VALIDATION_MESSAGE);
+    expect(AUTH_MESSAGES).toContain(error);
+    expect(location).not.toContain(SENTINEL);
   });
 
   // NOT a copy of signin's File case, and the difference is measured, not assumed. On signup
