@@ -786,10 +786,10 @@ None — no schema change, no migration, no data to move. Nothing here touches `
 
 #### Automated
 
-- [ ] 0.1 Local stack up and `OPENROUTER_API_KEY` unset
-- [ ] 0.2 `npm test` green; pass count and file count recorded
-- [ ] 0.3 `npx vitest run tests/auth/errors.test.ts` green; count recorded
-- [ ] 0.4 `npm run lint` exit 0; `npm run build` exit 0
+- [x] 0.1 Local stack up and `OPENROUTER_API_KEY` unset
+- [x] 0.2 `npm test` green; pass count and file count recorded
+- [x] 0.3 `npx vitest run tests/auth/errors.test.ts` green; count recorded
+- [x] 0.4 `npm run lint` exit 0; `npm run build` exit 0
 
 ### Phase 1: Mapper — reachability and the closed set
 
