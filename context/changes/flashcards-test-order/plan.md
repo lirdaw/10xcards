@@ -238,29 +238,29 @@ None — no schema, no production code. The one operational change: a future red
 
 #### Automated
 
-- [x] 1.1 Replay seed 101 green (220/220)
-- [x] 1.2 Replay seed 202 green (220/220)
-- [x] 1.3 Replay seed 303 green (220/220)
-- [x] 1.4 Declaration-order `npm test` green (220/220)
-- [x] 1.5 `npm run lint` exit 0
+- [x] 1.1 Replay seed 101 green (220/220) — eaaf6f1
+- [x] 1.2 Replay seed 202 green (220/220) — eaaf6f1
+- [x] 1.3 Replay seed 303 green (220/220) — eaaf6f1
+- [x] 1.4 Declaration-order `npm test` green (220/220) — eaaf6f1
+- [x] 1.5 `npm run lint` exit 0 — eaaf6f1
 
 #### Manual
 
-- [x] 1.6 Diff review — fixes only add owned fixtures, no assertion changed meaning
+- [x] 1.6 Diff review — fixes only add owned fixtures, no assertion changed meaning — eaaf6f1
 
 ### Phase 2: Enable `sequence.shuffle` in both configs + verification matrix
 
 #### Automated
 
-- [ ] 2.1 `npm test` banner prints seed with no CLI flags
-- [ ] 2.2 Seeds 101/202/303 replay green through config
-- [ ] 2.3 Ten fresh unpinned runs green, seeds recorded
-- [ ] 2.4 `npm run lint` and `npm run build` exit 0
-- [ ] 2.5 Shuffled eval run — failure set equals de/fr baseline, seed in banner
+- [x] 2.1 `npm test` banner prints seed with no CLI flags
+- [x] 2.2 Seeds 101/202/303 replay green through config
+- [x] 2.3 Ten fresh unpinned runs green, seeds recorded
+- [x] 2.4 `npm run lint` and `npm run build` exit 0
+- [x] 2.5 Shuffled eval run — failure set equals de/fr baseline, seed in banner
 
 #### Manual
 
-- [ ] 2.6 Eval exit-1 accepted as baseline red; run table in verification.md
+- [x] 2.6 Eval exit-1 accepted as baseline red; run table in verification.md
 
 ### Phase 3: Doc-sync
 

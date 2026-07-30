@@ -45,6 +45,13 @@ const astroViteConfig = getViteConfig({
     // Real LLM latency: one generation call plus per-card judge calls per case.
     testTimeout: 120_000,
     hookTimeout: 120_000,
+    // Same policy as vitest.config.ts, kept structurally parallel with it (C10X-32). The
+    // 10 matrix cases are independent by construction — each generates its own cards and
+    // grades only those — so shuffle changes nothing about what they measure; it is on so
+    // the two runners cannot drift into different ordering regimes. Note this eval's red
+    // baseline (forced `niemiecki`/`francuski` → Polish cards, C10X-31) is a REAL generation
+    // defect and has nothing to do with ordering: `npm run eval` exits 1 on it either way.
+    sequence: { shuffle: true },
   },
 });
 
