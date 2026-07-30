@@ -238,15 +238,15 @@ None — no schema, no production code. The one operational change: a future red
 
 #### Automated
 
-- [ ] 1.1 Replay seed 101 green (220/220)
-- [ ] 1.2 Replay seed 202 green (220/220)
-- [ ] 1.3 Replay seed 303 green (220/220)
-- [ ] 1.4 Declaration-order `npm test` green (220/220)
-- [ ] 1.5 `npm run lint` exit 0
+- [x] 1.1 Replay seed 101 green (220/220)
+- [x] 1.2 Replay seed 202 green (220/220)
+- [x] 1.3 Replay seed 303 green (220/220)
+- [x] 1.4 Declaration-order `npm test` green (220/220)
+- [x] 1.5 `npm run lint` exit 0
 
 #### Manual
 
-- [ ] 1.6 Diff review — fixes only add owned fixtures, no assertion changed meaning
+- [x] 1.6 Diff review — fixes only add owned fixtures, no assertion changed meaning
 
 ### Phase 2: Enable `sequence.shuffle` in both configs + verification matrix
 
