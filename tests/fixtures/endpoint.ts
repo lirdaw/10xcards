@@ -85,10 +85,17 @@ export async function callEndpoint(
     body,
   });
 
+  // `satisfies Pick<App.Locals, "user">` keeps `user` type-checked against the real Locals;
+  // the cast below covers only what the container cannot supply. @astrojs/cloudflare augments
+  // App.Locals with a REQUIRED `cfContext: ExecutionContext` (Astro 6 removed
+  // locals.runtime.ctx in its favour), but the Container API runs in Node, not workerd — there
+  // is no ExecutionContext to hand it, and no endpoint under test reads one.
+  const locals = { user: { id: as.userId } as unknown as User } satisfies Pick<App.Locals, "user">;
+
   return container.renderToResponse(endpoint as unknown as RenderableComponent, {
     routeType: "endpoint",
     request,
     params,
-    locals: { user: { id: as.userId } as unknown as User },
+    locals: locals as App.Locals,
   });
 }

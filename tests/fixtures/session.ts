@@ -62,7 +62,14 @@ export async function signInAndCaptureCookies(email: string, password: string): 
 
   return {
     userId: data.user.id,
-    cookieHeader: captured.map(({ name, value }) => serializeCookieHeader(name, value)).join("; "),
+    // Options are deliberately EMPTY — never the `options` that setAll also hands over. This
+    // builds a REQUEST Cookie header, which is bare `name=value` pairs; the captured options
+    // are Set-Cookie RESPONSE attributes, so forwarding them would emit
+    // "sb-x=v; Max-Age=3600; Path=/; HttpOnly; SameSite=Lax" per cookie. Joined with "; " that
+    // is a malformed Cookie header — and per the note at the top of this file, the read path
+    // swallows a malformed cookie with a console.warn and treats the session as ABSENT, so
+    // every test would run signed-OUT while reading exactly like perfect isolation.
+    cookieHeader: captured.map(({ name, value }) => serializeCookieHeader(name, value, {})).join("; "),
   };
 }
 
