@@ -65,6 +65,13 @@ describe("account A reaches its own deck through the endpoints", () => {
   });
 
   it("renames the deck and reads the new name back", async () => {
+    // ORDER-SAFETY NOTE (impl-review F9, C10X-32). This case permanently mutates the deck
+    // the `beforeAll` above created, and the case at :51 re-reads that same row — the exact
+    // shape §6.2's owned-fixture rule now forbids. It is safe only by omission: :51 projects
+    // `user_id`, keys on `public_id`, and asserts nothing about `originalName`, so no
+    // permutation can fire it. Left as-is deliberately — this file's subject IS the shared
+    // deck's lifecycle, so an owned fixture would test something else. If you ever add an
+    // assertion here about the deck's NAME, give it its own deck first.
     const response = await callEndpoint(RenameDeck, {
       url: `/api/decks/${publicId}`,
       params: { publicId },

@@ -6,7 +6,30 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-07-29 (C10X-31 `ai-candidate-generation-test-3` shipped). **§3 Phase 5
+> Last updated: 2026-07-30 (C10X-32 `flashcards-test-order` shipped). **The suite is now
+> order-independent and shuffled by default** — `sequence: { shuffle: true }` is on
+> permanently in BOTH runners, seed un-pinned, so an inter-`it()` dependence fails loudly
+> instead of hiding behind declaration order. No risk row moves and no coverage claim
+> changes: this is about whether the existing claims are *trustworthy*, not about what they
+> cover.
+>
+> What it found and what it fixed. Six order-dependent case-pairs across three files, all
+> one shape — a positive control mutating the shared `beforeAll` fixture that the denials
+> beside it assert a file-scope constant against (plus one fixture-less aggregate, the
+> `srs_state = 3` canary, whose `length > 0` control held only because siblings had run
+> first). Four confirmed by execution, **two latent** — visible only to static analysis, so
+> "shuffle until green" would have under-counted them. Four edits, no assertion weakened:
+> every mutating control now owns the row it mutates. The rule is in **§6.2**, together
+> with the replay procedure (`npx vitest run --sequence.seed=<n>`). One thing surfaced that
+> is NOT this change's: a local-stack transport flake (Kong keep-alive → PostgREST `502`),
+> measured at the **same rate with shuffle off**, now absorbed by a narrow `fetch` wrapper
+> with a positive control proving it fired (22 absorbed drops across a 0/40-red matrix), and
+> whose predicate the impl-review then made assertable rather than only argued.
+> Suite: **228/228, 19 files** (220/220, 18 at phase completion), green across 40 fresh permutations; the eval's failure set
+> under shuffle equals its C10X-31 baseline (forced `niemiecki`/`francuski`, still red, still
+> out of scope). Evidence: `context/changes/flashcards-test-order/verification.md`.
+>
+> Previously: 2026-07-29 (C10X-31 `ai-candidate-generation-test-3` shipped). **§3 Phase 5
 > is `complete` and Risk #7 is covered as far as a proxy can cover it** — the project's
 > first LLM-as-judge eval exists, ran against the real provider, and its very first
 > calibrated run found a REAL generation defect, which is the eval doing its job rather
@@ -320,7 +343,7 @@ The classic test base for this project. AI-native tools (if any) carry a
 | -------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | unit + integration   | Vitest                                                  | 4.1.10                                                                      | Configured through `getViteConfig()` from `astro/config` (`vitest.config.ts`), which is what resolves the `@/*` alias and `astro:env/server`. The adapter's `@cloudflare/vite-plugin` is stripped there — it fights Astro over the `ssr` environment and tests target Node; checked: 2026-07-15                                                                 |
 | endpoint rendering   | Astro Container API                                     | ships with Astro 6                                                          | `renderToResponse` with `routeType: "endpoint"` renders an API route against a real `Request`; checked: 2026-07-15                                                                                                                                                                                                                                              |
-| API mocking          | one confined module double — **see §6.9**               | Vitest's own `vi.mock` / `vi.hoisted`; no mocking library                   | Only the external HTTP edge (the LLM provider) is ever doubled; the database is real via local Supabase. Exactly one file does it (`tests/generation/failure-path.test.ts`), doubling **`astro:env/server`** plus a pass-through `globalThis.fetch` to reach the 502/422 branches the harness otherwise seals. Read §6.9 before copying it; checked: 2026-07-26 |
+| API mocking          | one confined module double — **see §6.9**               | Vitest's own `vi.mock` / `vi.hoisted`; no mocking library                   | Only the external HTTP edge (the LLM provider) is ever doubled; the database is real via local Supabase. Exactly one file does it (`tests/generation/failure-path.test.ts`), doubling **`astro:env/server`** plus a pass-through `globalThis.fetch` to reach the 502/422 branches the harness otherwise seals. Read §6.9 before copying it; checked: 2026-07-26. Since 2026-07-30 a **second** `fetch` seam exists and is NOT a double — `tests/setup/retry-transport.ts`, a suite-wide `setupFiles` wrapper that replays Kong's keep-alive `502` and nothing else; it fabricates no response, so it is not precedent for a second double (§6.9) |
 | database under test  | Supabase CLI local stack                                | 2.98.2 (devDependency; `^2.23.4` in `package.json` is only the range floor) | Driven by `npm run db:start` / `db:stop` / `db:reset`; RLS is only meaningful against a real Postgres. CI starts the same stack and reads its URL + publishable key from `supabase status -o env`; checked: 2026-07-15                                                                                                                                          |
 | e2e                  | none yet — deliberately deferred                        | —                                                                           | No rollout phase claims e2e; promote only if a risk survives cheaper layers                                                                                                                                                                                                                                                                                     |
 | accessibility        | `eslint-plugin-jsx-a11y`                                | 6.10.2                                                                      | Lint-level only; PRD names baseline a11y but no risk in §2 requires an axe run yet                                                                                                                                                                                                                                                                              |
@@ -485,6 +508,43 @@ records the bug this rule was written from.
   denial suite cannot be the result of a chain that was never connected.
 - **Denials assert 404, never 403** — an absent row and an RLS-hidden row
   must stay indistinguishable.
+- **A positive control must OWN the fixture it mutates** (added 2026-07-30 by
+  C10X-32, and it is this section's own discipline that produced the defect).
+  The bullet above requires a control beside every denial; the cheap way to
+  write one is against the shared `beforeAll` fixture — which is exactly what
+  makes the pair pass in declaration order and fail in any other. Create the
+  deck / card / session the control mutates **inside its own `it()`**
+  (`tests/isolation/flashcards.test.ts`'s two `controlDeckId` cases,
+  `candidates.test.ts`'s own-session rewrite, and the `generate.test.ts:371-374`
+  "Control deck" this pattern was copied from). Never restore the shared
+  fixture at the end of a mutating case — restore-after-mutate is itself
+  order-dependent hygiene; the owned fixture is the whole fix.
+  - The load-bearing distinction on the reading side: **assert what you re-read
+    inside the `it()`, never a file-scope constant** captured before a sibling
+    could have moved it. `candidates.test.ts`'s overwrite/delete denials are safe
+    for precisely this reason (each re-reads `before` itself); the read denial
+    beside them, which compares against the seeded `error_message`, was not.
+  - And an aggregate that owns no fixture — a scan whose positive control is
+    `length > 0` — depends on its siblings just as hard. The `srs_state = 3`
+    canary (§6.6 Phase 4) now seeds one schedule row it owns before scanning, and
+    keeps the scan account-wide.
+- **Shuffle is permanently on, in both runners** (`sequence: { shuffle: true }`
+  in `vitest.config.ts` and `vitest.eval.config.ts`, files AND tests within a
+  file). The seed is deliberately **un-pinned**, so each run draws a fresh
+  permutation and CI accumulates coverage instead of re-testing one order
+  forever. Every run's banner prints `Running tests with seed "<n>"` — **to
+  replay a red run exactly, `npx vitest run --sequence.seed=<n>`** (no extra
+  flag; the config already supplies `shuffle`). A red under a fresh seed is
+  normally a real inter-`it()` dependence, and the fix is the owned-fixture rule
+  above, not a pinned seed.
+  - **If it does not reproduce at its own seed, it is not an ordering defect.**
+    The local stack has a pre-existing transport flake — Kong holds a keep-alive
+    socket to PostgREST longer than PostgREST does, so the first request after an
+    idle gap can answer `502 upstream prematurely closed connection` — measured at
+    the same rate with shuffle off. `tests/setup/retry-transport.ts` (a
+    `setupFiles` `fetch` wrapper) absorbs exactly that response, from a local URL,
+    at most twice, and nothing else. Read its header before widening what it
+    retries; every other status in this suite is a signal something asserts on.
 
 ### 6.3 Adding a test for a new API endpoint
 
@@ -650,6 +710,11 @@ will cost you a wasted afternoon if you rediscover them the hard way:
   > lifts it with a confined `astro:env/server` double plus a pass-through `fetch`.
   > It is the **only** file in the suite that doubles anything, and §6.9 states the
   > conditions. Nothing above changes for a test that stays on the success path.
+  > **Still true as written on 2026-07-30 (C10X-32), and worth stating so nobody reads it
+  > as stale**: `tests/setup/retry-transport.ts` also wraps `globalThis.fetch`, for every
+  > file, but it **doubles nothing** — it replays Kong's keep-alive `502` from a local URL
+  > and passes everything else through untouched, so no test here sees a fabricated
+  > response. §6.9 carries the distinction.
 - **Card content is not an oracle.** Mock output is identical on every call
   (`Przykładowe pytanie 1..N`), so grouping by `front` cannot tell a
   duplicated generation apart from the mock repeating itself. Use
@@ -1910,6 +1975,20 @@ check, not evidence that the double is confined. The live hazard is **intra**-fi
 `globalThis.fetch` replacement must be restored in an `afterAll` or a later `it()` in the
 same file reads the database through a stale double.
 
+> **There is now a SECOND `fetch` seam in this suite, and it is deliberately not a double**
+> (added 2026-07-30 by C10X-32; this section otherwise still reads as if `failure-path.test.ts`
+> were the only one). `tests/setup/retry-transport.ts` is a `setupFiles` entry, so it wraps
+> `globalThis.fetch` for **every** test file — but it fabricates no response and intercepts no
+> module: it replays one transport failure (Kong's keep-alive `502` from a local URL, at most
+> twice) and hands everything else straight through. Three consequences for a reader of this
+> section. It is **not precedent for a second module double** — the rule above stands, and the
+> location bullet still means what it says. Its predicate is falsifiable rather than
+> reasoned-about: the pure half lives in `tests/setup/retry-policy.ts` and is asserted by
+> `tests/lib/retry-transport.test.ts`. And it is **never restored**, which does not violate the
+> intra-file rule above — that rule is about a per-file double outliving its `describe`, while
+> this one is installed by the harness for the whole file on purpose. §6.2's shuffle bullet
+> carries the reason it exists.
+
 **The deliberate-breakage check for this path** is the one that decides whether the seam is
 doing anything at all: **comment out the `vi.mock("astro:env/server", …)` factory.** The
 right red is `expected 200 to be 502` — without the seam the request falls through to mock
@@ -2316,6 +2395,60 @@ contributors should respect these unless the underlying assumption changes.
   `workflow_dispatch` leg — with a separate, low-credit-limit OpenRouter key — is a named
   follow-up to be ticketed via `/jira-backlog-sync`, and the forced-language prompt defect
   the first run found is another; neither is folded into the headline.
+
+- **Suite ORDER-INDEPENDENCE last proven by execution: 2026-07-30** (C10X-32, change folder
+  `flashcards-test-order`). This is a different axis from every entry above — it says the
+  claims are trustworthy in any order, not that anything new is covered. Suite **228/228,
+  19 files after this change's impl-review** (220/220, 18 at phase completion; the review
+  added `tests/lib/retry-transport.test.ts`, 8 cases, so the transport wrapper's predicate is
+  asserted rather than only argued — see the entry below). The matrix was run at 220/220 and
+  re-confirmed at 228/228 on seeds 101/202/303 plus five fresh permutations. It comprised: the
+  three seeds that were red before the fix (101 / 202 / 303, replayed
+  green), **40 fresh un-pinned permutations, 0 red**, and a no-shuffle control
+  (`--sequence.shuffle=false`) so declaration-order green was not traded away. Local stack
+  up, `OPENROUTER_API_KEY` unset, `npm run lint` exit 0 (6 pre-existing `no-console` warnings,
+  all in `evals/generation-quality.eval.ts` — warnings, not errors, because `no-console` is
+  configured `"warn"`, and `tests/lib/no-logging.test.ts` gates `src/` only; **this line first
+  said "in `scripts/`, allowed by AGENTS.md" and both halves were wrong** — `scripts/` emits
+  none of them, and AGENTS.md's carve-out names `scripts/`, not `evals/`; corrected 2026-07-30
+  by this change's impl-review, F5), `npm run build` exit 0. `sequence: { shuffle: true }`
+  now lives in **both** configs — the two are deliberate independent copies, so each was
+  edited on its own. Six pairs across three files were fixed by four edits; **two of the six
+  were latent**, found by static analysis after three shuffled seeds never fired them, which
+  is why the inventory came from reading rather than from re-rolling seeds.
+- **A pre-existing local-stack flake was diagnosed here and is NOT an ordering defect** —
+  recorded because a future contributor will meet it and reach for the wrong hypothesis. Kong
+  pools keep-alive connections to PostgREST and holds them idle longer than PostgREST does,
+  so the first request after a gap can answer `502 upstream prematurely closed connection`;
+  it surfaced downstream as whatever assertion was in flight, and none of the reds reproduced
+  at their own seed. Measured, not assumed: **3/20 red with shuffle on, 3/20 with shuffle
+  off** — equal, therefore independent of this change — and two candidate causes were
+  **refuted** by measurement (restarting `rest` + `kong` did not clear it; cutting file
+  parallelism to `--maxWorkers=4` did not either). `tests/setup/retry-transport.ts` replays
+  only that response, only from a local URL, at most twice, only for a replayable body — and
+  **that predicate is asserted, not just described**: its pure half lives in
+  `tests/setup/retry-policy.ts` and `tests/lib/retry-transport.test.ts` pins it in 8 cases,
+  two of which were proved falsifiable by breakage runs (drop the body half → 1 of 8 red;
+  hostname equality → substring → 1 of 8 red). Added by this change's impl-review (F2),
+  because a guard that can swallow a failing response must be able to go red itself. Its
+  positive control in the wild is what makes the green evidence: over the 40-run matrix Kong logged
+  **22 more** such drops (86 → 108) while the suite went **0/40 red**, and no
+  duplicate-write failure appeared. **How loud such a failure would be is narrower than first
+  written** (corrected by this change's impl-review, F3): a duplicated `deck` insert 409s on
+  `deck_user_name_unique` and every count oracle goes red, but `flashcard` carries no
+  uniqueness constraint, so a duplicate from `createNonAcceptedCard` / `seedCard` — neither
+  followed by a count assertion — would be **silent**. Those seams rest on the
+  never-committed argument in the wrapper's header, not on a loud failure. The retry is
+  deliberately not method-gated: the measured flake was a POST.
+- **The eval path is shuffled too, and its failure set is unchanged.** Three runs
+  (~$0.012 each), oracle = failure-set equality, never the exit code: run 3 reproduces the
+  C10X-31 baseline exactly (`forced/niemiecki` + `forced/francuski`, 8 passed), the de/fr core
+  is red in 3 of 3, and every red in every run sits on the **forced** path — no `auto` case,
+  no `polski`/`angielski`. `forced/hiszpański` behaved as the documented intermittent (1 of 5
+  cards mixed, green on its calibration re-run). Two reds in run 1 are **unidentified** — that
+  run's output was truncated before it was saved — and the change's `verification.md` says so
+  rather than rounding them up. The forced-language defect stays open, owned by the C10X-31
+  follow-up.
 
 Refresh (`/10x-test-plan --refresh`) when:
 

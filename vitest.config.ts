@@ -29,9 +29,24 @@ const astroViteConfig = getViteConfig({
     // failures instead). accounts then provisions the run's two accounts once and hands
     // them to every file via provide/inject, keeping the suite under the auth rate limit.
     globalSetup: ["tests/setup/preflight.ts", "tests/setup/accounts.ts"],
+    // Per-file, in the worker — which is the point: it wraps the `globalThis.fetch` every
+    // test and every rendered endpoint reaches the local stack through, to retry Kong's
+    // keep-alive 502 and nothing else. It is NOT a second preflight; read the header of that
+    // file before widening what it retries.
+    setupFiles: ["tests/setup/retry-transport.ts"],
     // Sign-in plus endpoint round-trips against local Postgres exceed the 5s default.
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    // Permanent shuffle (files AND tests within a file): an inter-`it()` dependency is a
+    // real defect that declaration order hides, so it must fail loudly here rather than
+    // wait for someone to pass a flag (C10X-32). The seed is deliberately UN-pinned
+    // (default `Date.now()`) — a pinned seed would test one permutation forever, while
+    // un-pinned accumulates permutations across CI runs. Every run's banner prints
+    // `Running tests with seed "<n>"`, so a red is replayable exactly:
+    // `npx vitest run --sequence.seed=<n>`. Hooks are unaffected — `beforeAll`/`beforeEach`
+    // still run before the tests in their scope — and so is `globalSetup` ordering above
+    // (preflight before accounts).
+    sequence: { shuffle: true },
   },
 });
 

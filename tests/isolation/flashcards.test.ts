@@ -66,6 +66,32 @@ async function cardsOf(as: typeof a, deckPublicId: string) {
   return data ?? [];
 }
 
+/**
+ * Creates an accepted card through the real endpoint and returns its public_id.
+ *
+ * Exists for the positive controls, which each own the deck and card they mutate rather
+ * than reaching for the shared `beforeAll` fixture the denials assert against (C10X-32).
+ */
+async function createCard(as: typeof a, deckPublicId: string, front: string, back: string): Promise<string> {
+  const response = await callEndpoint(CreateCard, {
+    url: `/api/decks/${deckPublicId}/cards`,
+    params: { publicId: deckPublicId },
+    body: cardForm(front, back),
+    as,
+  });
+  // The status alone proves nothing — this endpoint redirects on success AND on every
+  // refusal (§6.10), so only the Location separates the two. Without this line a rejected
+  // create is diagnosed by the row check below, which reports the confusing "was never
+  // written" instead of the `?error=` it actually answered. `createDeck` above checks its
+  // own Location for the same reason.
+  expect(response.status).toBe(302);
+  expect(response.headers.get("Location")).toBe(`/decks/${deckPublicId}`);
+
+  const created = (await cardsOf(as, deckPublicId)).find((card) => card.front === front);
+  if (!created) throw new Error(`Setup failed: card "${front}" was never written to deck ${deckPublicId}.`);
+  return created.public_id;
+}
+
 describe("account B is denied account A's flashcards", () => {
   let aDeckId: string;
   let bDeckId: string;
@@ -200,18 +226,30 @@ describe("account B is denied account A's flashcards", () => {
   it("still lets A edit A's own card", async () => {
     // Positive control: without it, an endpoint that 404'd on every edit would pass
     // every denial above.
+    //
+    // Its OWN deck and card, deliberately (C10X-32). Editing the shared beforeAll card
+    // rewrites the very content the three denials above compare to the file-scope A_FRONT
+    // constant, so this pair was green only in declaration order and red under
+    // --sequence.shuffle. And the card must not land in aDeckId either: those denials also
+    // assert that deck holds exactly ONE card, so an extra row there is the same order
+    // dependence wearing a different hat — the reason generate.test.ts's "Control deck"
+    // comment gives verbatim.
+    const controlDeckId = await createDeck(a, `A's edit control deck ${suffix}`);
+    const controlCardId = await createCard(a, controlDeckId, `A's control front ${suffix}`, A_BACK);
+
     const front = `A's edited front ${suffix}`;
     const response = await callEndpoint(EditCard, {
-      url: `/api/decks/${aDeckId}/cards/${aCardId}`,
-      params: { publicId: aDeckId, cardPublicId: aCardId },
+      url: `/api/decks/${controlDeckId}/cards/${controlCardId}`,
+      params: { publicId: controlDeckId, cardPublicId: controlCardId },
       body: cardForm(front, A_BACK),
       as: a,
     });
 
     expect(response.status).toBe(302);
-    expect(response.headers.get("Location")).toBe(`/decks/${aDeckId}?saved=${aCardId}`);
+    expect(response.headers.get("Location")).toBe(`/decks/${controlDeckId}?saved=${controlCardId}`);
 
-    const cards = await cardsOf(a, aDeckId);
+    const cards = await cardsOf(a, controlDeckId);
+    expect(cards).toHaveLength(1);
     expect(cards[0].front).toBe(front);
   });
 });
@@ -307,13 +345,24 @@ describe("account B is denied a state transition on account A's flashcards", () 
   it("still lets A transition A's own card", async () => {
     // Positive control. Without it, a wholesale-broken chain — a policy that denies
     // everything, a batch endpoint that 404s unconditionally — passes both denials above.
-    const response = await setState(a, aDeckId, [aCardId], "rejected");
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true, changed: [aCardId], skipped: [] });
+    //
+    // Its OWN deck and card, for the same reason as the edit control one describe up
+    // (C10X-32): moving the SHARED card to `rejected` breaks the first denial's
+    // precondition that the transition B attempts is a legal accepted -> rejected one, so
+    // the pair was green only in declaration order. The own DECK is chosen for uniformity
+    // rather than necessity — this describe happens to carry no length assertion on A's
+    // deck today, and a fix should not lean on what a describe accidentally omits.
+    const controlDeckId = await createDeck(a, `A's transition control deck ${suffix}`);
+    const controlFront = `A's transition control front ${suffix}`;
+    const controlCardId = await createCard(a, controlDeckId, controlFront, `A's transition control back ${suffix}`);
 
-    const after = await rowOf(a, aCardId);
+    const response = await setState(a, controlDeckId, [controlCardId], "rejected");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, changed: [controlCardId], skipped: [] });
+
+    const after = await rowOf(a, controlCardId);
     expect(after.state_id).toBe(3);
     // Reject is not delete (S-02's rule): the content survives the move intact.
-    expect(after.front).toBe(`A's batch front ${suffix}`);
+    expect(after.front).toBe(controlFront);
   });
 });

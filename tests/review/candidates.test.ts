@@ -664,15 +664,18 @@ describe("account B is denied account A's generation-session audit columns", () 
     );
   });
 
-  /** The whole row read back as its owner — the only trustworthy view of what landed. */
-  async function auditRowOf(as: typeof a) {
+  /**
+   * The whole row read back as its owner — the only trustworthy view of what landed.
+   * Defaults to the shared seeded session; the rewrite control passes its own (C10X-32).
+   */
+  async function auditRowOf(as: typeof a, publicId: string = session.publicId) {
     const { data, error } = await clientFor(as.cookieHeader)
       .from("generation_session")
       .select("*")
-      .eq("public_id", session.publicId)
+      .eq("public_id", publicId)
       .maybeSingle();
     expect(error).toBeNull();
-    if (!data) throw new Error(`Generation session ${session.publicId} is not readable by its owner.`);
+    if (!data) throw new Error(`Generation session ${publicId} is not readable by its owner.`);
     return data;
   }
 
@@ -737,16 +740,36 @@ describe("account B is denied account A's generation-session audit columns", () 
   it("still lets A rewrite A's own audit columns", async () => {
     // Positive control for both denials above. Without it, a wholesale-broken write path —
     // a policy that denies everyone, a grant nobody holds — satisfies them both.
+    //
+    // Its OWN session, deliberately (C10X-32): this rewrite PERSISTS, and the read case
+    // above asserts the shared session's error_message still equals the value beforeAll
+    // seeded — so rewriting the shared row made that pair green only in declaration order
+    // (observed red under --sequence.shuffle on all three research seeds). Same shape as
+    // the beforeAll seed, so the control still writes a real private audit column.
+    const ownSourceText = `Audit control source ${suffix}`;
+    const ownMessage = `Audit control failure ${suffix}`;
+    const own = await seedGenerationSession(
+      a,
+      ownSourceText,
+      { requested: 3, generated: 0, saved: 0 },
+      {
+        status: "failed",
+        requestPayload: { messages: [{ role: "user", content: ownSourceText }] },
+        responsePayload: { error: { message: ownMessage } },
+        errorMessage: ownMessage,
+      },
+    );
+
     const repaired = `Audit repaired ${suffix}`;
     const { data, error } = await clientFor(a.cookieHeader)
       .from("generation_session")
       .update({ error_message: repaired })
-      .eq("public_id", session.publicId)
+      .eq("public_id", own.publicId)
       .select("public_id, error_message");
 
     expect(error).toBeNull();
-    expect(data).toEqual([{ public_id: session.publicId, error_message: repaired }]);
-    expect((await auditRowOf(a)).error_message).toBe(repaired);
+    expect(data).toEqual([{ public_id: own.publicId, error_message: repaired }]);
+    expect((await auditRowOf(a, own.publicId)).error_message).toBe(repaired);
   });
 });
 

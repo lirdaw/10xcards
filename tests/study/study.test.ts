@@ -95,7 +95,12 @@ async function createCard(as: typeof a, deckPublicId: string, front: string, bac
     body: cardForm(front, back),
     as,
   });
+  // The status alone proves nothing — this endpoint redirects on success AND on every
+  // refusal (§6.10), so only the Location separates the two. Without this line a rejected
+  // create is diagnosed by the row check below, which reports the confusing "was never
+  // written" instead of the `?error=` it actually answered.
   expect(response.status).toBe(302);
+  expect(response.headers.get("Location")).toBe(`/decks/${deckPublicId}`);
 
   const client = clientFor(as.cookieHeader);
   const { data: deck } = await deckIdByPublicId(client, deckPublicId);
@@ -869,9 +874,21 @@ describe("Risk #3 — every grade takes the write path, not just Good", () => {
   });
 
   it("never writes srs_state 3 — the canary for a flipped enable_short_term", async () => {
+    // One schedule row this case OWNS, seeded first (C10X-32). The scan below is
+    // account-wide and this case has no fixture of its own, so in declaration order its
+    // positive control held only because earlier cases had already written schedule rows:
+    // shuffled first it goes red, or — worse — flakes green off a row another file's
+    // parallel worker raced in, while the main assertion is vacuous. loadSession is the
+    // seam that triggers ensureSchedule, exactly as the real /study/[publicId] loader does.
+    const canaryDeckId = await createDeck(a, `Canary deck ${suffix}`);
+    const canaryCardId = await createCard(a, canaryDeckId, `Canary front ${suffix}`, `Canary back ${suffix}`);
+    await loadSession(a, canaryDeckId, canaryCardId);
+
     // A single Relearning row means LongTermScheduler is no longer the scheduler in play, and
     // every exact-`due` oracle in this file is suspect. RLS scopes the read to account A, so
-    // this observes the rows this run wrote and nothing else.
+    // this observes the rows this run wrote and nothing else. The breadth is deliberate and
+    // is the canary's documented point (test-plan §6.6 Phase 4) — it stays account-wide
+    // rather than narrowing to the owned row, which only guarantees the control is not vacuous.
     const { data, error } = await clientFor(a.cookieHeader).from("flashcard_schedule").select("srs_state");
     expect(error).toBeNull();
     // Positive control: an empty result would satisfy the claim vacuously.
