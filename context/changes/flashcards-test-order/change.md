@@ -1,9 +1,9 @@
 ---
 change_id: flashcards-test-order
 title: Make the test suite order-independent and enable sequence.shuffle
-status: planned
+status: plan_reviewed
 created: 2026-07-29
-updated: 2026-07-29
+updated: 2026-07-30
 archived_at: null
 ---
 
