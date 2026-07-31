@@ -765,30 +765,30 @@ it in the cloud after the push, as a recorded observation.
 
 #### Automated
 
-- [x] 3.1 Suite green: `npm test`
-- [x] 3.2 Lint passes: `npm run lint`
-- [x] 3.3 Build passes: `npm run build`
-- [x] 3.4 `npx astro sync` clean before lint
+- [x] 3.1 Suite green: `npm test` — eb1a0e5
+- [x] 3.2 Lint passes: `npm run lint` — eb1a0e5
+- [x] 3.3 Build passes: `npm run build` — eb1a0e5
+- [x] 3.4 `npx astro sync` clean before lint — eb1a0e5
 
 #### Manual
 
-- [x] 3.5 Breakage check: `select` revoked on `language` yields 500, not 400; restore verified by diff
-- [x] 3.6 Breakage check: `is_active = false` on `de` yields 400 and writes nothing; restored
+- [x] 3.5 Breakage check: `select` revoked on `language` yields 500, not 400; restore verified by diff — eb1a0e5
+- [x] 3.6 Breakage check: `is_active = false` on `de` yields 400 and writes nothing; restored — eb1a0e5
 
 ### Phase 4: The selector reads the table
 
 #### Automated
 
-- [ ] 4.1 `npx astro sync` then `npm run lint` pass
-- [ ] 4.2 Build passes: `npm run build`
-- [ ] 4.3 Suite still green: `npm test`
+- [x] 4.1 `npx astro sync` then `npm run lint` pass
+- [x] 4.2 Build passes: `npm run build`
+- [x] 4.3 Suite still green: `npm test`
 
 #### Manual
 
-- [ ] 4.4 Selector shows "Ten sam co tekst" first, then five languages in `sort_order`
-- [ ] 4.5 Deactivating a row in Studio removes it from the selector without a deploy
-- [ ] 4.6 Generating with each of the six selector values succeeds end to end
-- [ ] 4.7 Forcing German in the browser returns German cards (first hand reproduction)
+- [x] 4.4 Selector shows "Ten sam co tekst" first, then five languages in `sort_order`
+- [x] 4.5 Deactivating a row in Studio removes it from the selector without a deploy
+- [x] 4.6 Generating with each of the six selector values succeeds end to end
+- [x] 4.7 Forcing German in the browser returns German cards (first hand reproduction)
 
 ### Phase 5: Eval matrix, acceptance run and documentation
 

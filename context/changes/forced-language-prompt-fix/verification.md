@@ -159,3 +159,137 @@ Phase 5 means the restructuring broke it — a one-variable signal.
 The commit shape still honours criterion 1.8: the map ships as `fix(C10X-41)` carrying only the
 two `src/` files, with the change-folder artifacts in a separate `docs(C10X-41)` commit. So the
 fix stays independently revertable and cherry-pickable even though it is not shipped early.
+
+---
+
+## Phase 4: The selector reads the table
+
+### Ordinary gates (criteria 4.1–4.3)
+
+| Gate | Result |
+| --- | --- |
+| `npx astro sync` then `npm run lint` | exit 0 — **0 errors**, 6 warnings, all the pre-existing `no-console` in `evals/generation-quality.eval.ts` |
+| `npm run build` | exit 0 |
+| `npm test` | **262 passed / 262, 23 files**, seed `1785500462789`, 2.72 s |
+
+No test in the suite reaches the island's JSX (test-plan §7), so the three criteria above say
+the wiring type-checks and nothing regressed — they say nothing about what renders. That is
+what the four manual rows below are for, and they were driven in a real Chrome against
+`npm run dev`, not reasoned about.
+
+### 4.4 — the selector's contents come from the table
+
+Read off the live accessibility tree at `/generate`, signed in:
+
+```
+combobox "Ten sam co tekst"
+ option "Ten sam co tekst" (selected) value="auto"
+ option "Polski"     value="pl"
+ option "Angielski"  value="en"
+ option "Hiszpański" value="es"
+ option "Niemiecki"  value="de"
+ option "Francuski"  value="fr"
+```
+
+`auto` first and selected by default; then the five active rows in `sort_order`, with the
+Polish labels unchanged from the deleted `LANGUAGE_LABELS`. The **values** are the change: they
+are now the table's `code`, not the Polish exonyms that used to be the wire value.
+
+`it` / `Włoski` — the seeded-inactive sixth row — never appears, which is the `is_active` filter
+observed through the UI rather than only through `tests/db/languages.test.ts`.
+
+### 4.5 — deactivating a row removes it, with no deploy
+
+The capability the table was chosen for, so it was measured rather than assumed. Table dumped
+before the edit, then `update public.language set is_active = false where code = 'fr'` against
+the running local DB (what a Studio edit does), then a **plain page reload** — no rebuild, no
+dev-server restart:
+
+```
+option "Ten sam co tekst" value="auto"   option "Polski"     value="pl"
+option "Angielski"        value="en"     option "Hiszpański" value="es"
+option "Niemiecki"        value="de"
+```
+
+`Francuski` is gone. Restored with `is_active = true`, and the restore **verified by diff** of
+the full six-row dump before/after (`diff` empty) plus a second reload showing `fr` back in the
+list — this project's restore discipline, never a visual check (test-plan §6.6 records a
+restore that silently no-opped).
+
+### 4.6 — all six selector values generate end to end
+
+Six submissions through the real form, mock mode (`OPENROUTER_API_KEY` unset), each with its own
+short source-text marker so the rows are attributable. The oracle is the audit table, not the
+green banner:
+
+```
+ language | status    | generated | saved | marker   | request_payload->>'targetLanguage'
+----------+-----------+-----------+-------+----------+-----------------------------------
+ auto     | succeeded |         5 |     5 | Fotosynt | (null)
+ pl       | succeeded |         5 |     5 | Case pl. | Polish
+ en       | succeeded |         5 |     5 | Case en. | English
+ es       | succeeded |         5 |     5 | Case es. | Spanish
+ de       | succeeded |         5 |     5 | Case de. | German
+ fr       | succeeded |         5 |     5 | Case fr. | French
+```
+
+That table is the whole change in one row set: the **code** is what the audit column stores, the
+**rendered name** is what reaches the generator, and `auto` resolves to `null` rather than to a
+name — the role separation the plan is about, observed end to end through the browser for the
+first time. The lookup, the regex shape guard and `createGenerationSession` all ran; no case
+fell into the `400` refusal.
+
+### 4.7 — forcing German returns German cards
+
+The first hand reproduction of the defective flow. `OPENROUTER_API_KEY` added to `.env`
+temporarily (backup taken first, `md5` recorded), dev server restarted, mock banner confirmed
+**gone**, then: deck `C10X-41 Faza 4`, language `Niemiecki`, 3 cards, Polish source text about
+photosynthesis.
+
+Result — 3/3 cards in German, saved:
+
+```
+front: Was ist Fotosynthese?
+back:  Fotosynthese ist der Prozess, bei dem Pflanzen Lichtenergie in chemische Energie
+       umwandeln. Sie findet in Chloroplasten statt und produziert Sauerstoff als Nebenprodukt.
+
+front: Wo findet die lichtabhängige Phase der Fotosynthese statt?
+back:  Die lichtabhängige Phase der Fotosynthese findet in den Thylakoiden der Chloroplasten
+       statt, wo Lichtenergie in chemische Energie umgewandelt wird.
+
+front: Welcher Farbstoff ist der Hauptakteur bei der Lichtabsorption?
+back:  Der Hauptfarbstoff, der Licht absorbiert, ist Chlorophyll a. …
+```
+
+And the audit row proves the sentence that produced them was rendered from the table, not from
+the request:
+
+```
+ language | model              | status    | generated | saved
+----------+--------------------+-----------+-----------+-------
+ de       | openai/gpt-4o-mini | succeeded |         3 |     3
+
+substring(request_payload, 'Write the flashcards in this language: [A-Za-z]+\.')
+ → Write the flashcards in this language: German.
+```
+
+`.env` restored from the pristine copy and **verified by `md5sum -c` (OK)**, with a `grep` for
+`OPENROUTER` in the file returning zero hits — so `npm test`'s preflight clamp is intact.
+
+One thing this row does NOT show, worth stating because it looks like an inconsistency above:
+`request_payload->>'targetLanguage'` is `null` for the real run while the mock runs carry it.
+That is by design — on the real path the column stores the actual OpenRouter request body, whose
+system message carries the name; only mock mode records the resolved name as its own field
+(`openrouter.ts`, Phase 3 item 1).
+
+### What Phase 4 does not prove
+
+- **Nothing here is an automated assertion.** Four browser rows plus a row oracle; the island's
+  JSX stays untested by construction (test-plan §7), so a regression in this selector is caught
+  by reading the diff, not by `npm test`.
+- **The empty-language-list branch was not exercised.** `generate.astro` treats an empty result
+  as "render the selector with `auto` only" and only a query **error** as the error state; the
+  error branch is covered by the plan's own Phase 3 breakage check (revoked `select` → 500), the
+  empty branch by neither.
+- **One sample per language.** 4.6 ran in mock mode, so it proves the wiring, not generation
+  quality; 4.7 is one real run at temperature 0.4. The statistical claim is Phase 5's eval.

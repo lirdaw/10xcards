@@ -3,14 +3,31 @@ import AuthenticatedLayout from "@/layouts/AuthenticatedLayout.astro";
 import { GeneratorForm } from "@/components/generate/GeneratorForm";
 import { createClient } from "@/lib/supabase";
 import { listDecks } from "@/lib/decks";
+import { listActiveLanguages } from "@/lib/languages";
 
-// Load the user's decks for the target selector. Branch on the query error vs empty
-// (lessons: SSR error-vs-empty) so a transient DB failure renders an error state
-// rather than silently offering only "Nowa talia". Route guard is in middleware —
-// no top-level return in the frontmatter (lessons).
+// Load the user's decks for the target selector, and the offered languages for the
+// language selector. Branch on the query error vs empty (lessons: SSR error-vs-empty)
+// so a transient DB failure renders an error state rather than silently offering only
+// "Nowa talia" — or, for languages, a selector missing every language while looking
+// like a deliberately short list. Route guard is in middleware — no top-level return
+// in the frontmatter (lessons).
+//
+// The two reads are independent (the language dictionary is not scoped to the deck),
+// so they go out together rather than one after the other.
+//
+// An EMPTY language list is NOT an error: it is the correct reading of an admin having
+// deactivated everything, and the island still offers "Ten sam co tekst" (`auto`), which
+// has no row behind it because it is a mode, not a language.
 const supabase = createClient(Astro.request.headers, Astro.cookies);
-const { data, error: loadError } = supabase ? await listDecks(supabase) : { data: [], error: null };
-const decks = (data ?? []).map((d) => ({ publicId: d.public_id, name: d.name }));
+const [decksResult, languagesResult] = supabase
+  ? await Promise.all([listDecks(supabase), listActiveLanguages(supabase)])
+  : ([
+      { data: null, error: null },
+      { data: null, error: null },
+    ] as const);
+const loadError = decksResult.error ?? languagesResult.error;
+const decks = (decksResult.data ?? []).map((d) => ({ publicId: d.public_id, name: d.name }));
+const languages = (languagesResult.data ?? []).map((l) => ({ code: l.code, label: l.ui_label }));
 ---
 
 <AuthenticatedLayout title="Generuj fiszki" activeItem="generate">
@@ -27,10 +44,10 @@ const decks = (data ?? []).map((d) => ({ publicId: d.public_id, name: d.name }))
     {
       loadError ? (
         <div class="rounded-2xl border border-red-500/30 bg-red-900/20 p-8 text-center text-red-200">
-          <p>Nie udało się wczytać Twoich talii. Spróbuj odświeżyć stronę.</p>
+          <p>Nie udało się wczytać danych do generowania. Spróbuj odświeżyć stronę.</p>
         </div>
       ) : (
-        <GeneratorForm decks={decks} client:load />
+        <GeneratorForm decks={decks} languages={languages} client:load />
       )
     }
   </div>
