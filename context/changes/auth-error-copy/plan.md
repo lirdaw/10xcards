@@ -855,25 +855,25 @@ None — no schema change, no migration, no data to move. Nothing here touches `
 
 #### Manual
 
-- [x] 5.4 Server error announced by a screen reader
-- [x] 5.5 A `ServerError` on one dynamic non-auth site (`GeneratorForm`) announced once, rendering unchanged
-- [x] 5.6 Field error read as the input's description
+- [x] 5.4 Server error announced by a screen reader — c0439d1
+- [x] 5.5 A `ServerError` on one dynamic non-auth site (`GeneratorForm`) announced once, rendering unchanged — c0439d1
+- [x] 5.6 Field error read as the input's description — c0439d1
 - [x] 5.7 Error ring and neutral focus ring unchanged side-by-side — 97b34aa
-- [x] 5.8 Password manager fills on sign-in and offers to save on sign-up
+- [x] 5.8 Password manager fills on sign-in and offers to save on sign-up — c0439d1
 - [x] 5.9 `/auth/confirm-email` copy true under both confirmation configurations — 97b34aa
 
 ### Phase 6: Comments, pointers, documents and whole-change verification
 
 #### Automated
 
-- [x] 6.1 `npm test` green; final pass count and file count recorded
-- [x] 6.2 `npm run lint` exit 0; `npm run build` exit 0
-- [x] 6.3 `git diff -- src/` empty after every breakage restore, verified against a pristine copy
-- [x] 6.4 Stryker run on `src/lib/auth-errors.ts` completed; score and survivor classification recorded
-- [x] 6.5 `1 of 33` / `33 cases` occurrences all carry a dated correction (test-plan + two archived files)
+- [x] 6.1 `npm test` green; final pass count and file count recorded — c0439d1
+- [x] 6.2 `npm run lint` exit 0; `npm run build` exit 0 — c0439d1
+- [x] 6.3 `git diff -- src/` empty after every breakage restore, verified against a pristine copy — c0439d1
+- [x] 6.4 Stryker run on `src/lib/auth-errors.ts` completed; score and survivor classification recorded — c0439d1
+- [x] 6.5 `1 of 33` / `33 cases` occurrences all carry a dated correction (test-plan + two archived files) — c0439d1
 
 #### Manual
 
-- [x] 6.6 Every `file:line` in the new test-plan entry resolves on disk
-- [x] 6.7 Manual browser checks from Phases 3–5 recorded in `verification.md` as observed
-- [x] 6.8 roadmap H-03's ⚠️ bullet carries the dated C10X-34 line; its `- **Status:**` line untouched
+- [x] 6.6 Every `file:line` in the new test-plan entry resolves on disk — c0439d1
+- [x] 6.7 Manual browser checks from Phases 3–5 recorded in `verification.md` as observed — c0439d1
+- [x] 6.8 roadmap H-03's ⚠️ bullet carries the dated C10X-34 line; its `- **Status:**` line untouched — c0439d1
