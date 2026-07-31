@@ -269,6 +269,30 @@ export type Database = {
         }
         Relationships: []
       }
+      language: {
+        Row: {
+          code: string
+          is_active: boolean
+          prompt_name: string
+          sort_order: number
+          ui_label: string
+        }
+        Insert: {
+          code: string
+          is_active?: boolean
+          prompt_name: string
+          sort_order: number
+          ui_label: string
+        }
+        Update: {
+          code?: string
+          is_active?: boolean
+          prompt_name?: string
+          sort_order?: number
+          ui_label?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

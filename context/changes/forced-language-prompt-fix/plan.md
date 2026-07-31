@@ -750,16 +750,16 @@ it in the cloud after the push, as a recorded observation.
 
 #### Automated
 
-- [ ] 2.1 Migration applies from scratch: `npx supabase db reset`
-- [ ] 2.2 Generated types regenerate with no further diff
-- [ ] 2.3 Suite green including `tests/db/languages.test.ts`: `npm test`
-- [ ] 2.4 Lint passes: `npm run lint`
-- [ ] 2.5 Build passes: `npm run build`
+- [x] 2.1 Migration applies from scratch: `npx supabase db reset`
+- [x] 2.2 Generated types regenerate with no further diff
+- [x] 2.3 Suite green including `tests/db/languages.test.ts`: `npm test`
+- [x] 2.4 Lint passes: `npm run lint`
+- [x] 2.5 Build passes: `npm run build`
 
 #### Manual
 
-- [ ] 2.6 Six rows visible in Studio with the expected `sort_order` (five active, `it` inactive)
-- [ ] 2.7 `pg_policies` shows exactly one `select`-only policy on `language`
+- [x] 2.6 Six rows visible in Studio with the expected `sort_order` (five active, `it` inactive)
+- [x] 2.7 `pg_policies` shows exactly one `select`-only policy on `language`
 
 ### Phase 3: Server wiring
 
