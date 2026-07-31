@@ -2,6 +2,9 @@ import type { APIRoute } from "astro";
 import { createClient } from "@/lib/supabase";
 import { createDeck, deckNameExists } from "@/lib/decks";
 import { NAME_MIN, NAME_MAX } from "@/lib/deck-limits";
+// Only genuine strings are read: a `File` part survives an `as string` cast and makes
+// `.trim()` throw. See the helper's own comment for why it is not inlined here.
+import { formString } from "@/lib/forms";
 // Every `?error=` string this file emits comes from the closed set the deck pages vouch for by
 // equality. Declaring one here instead would not fail loudly — it would fall out of the set and
 // the banner would silently stop appearing.
@@ -28,8 +31,22 @@ export const POST: APIRoute = async (context) => {
     return context.redirect("/auth/signin");
   }
 
-  const form = await context.request.formData();
-  const name = ((form.get("name") as string | null) ?? "").trim();
+  // formData() rejects for TWO causes: a body that was never a form (a crafted
+  // `application/json` POST) and a form-typed body that arrived broken (client abort
+  // mid-upload, truncation, transport reset). Unguarded, either is an uncontrolled framework
+  // 500 with no project-owned body. Both causes deliberately share ONE message, unlike
+  // signin/signup which split them: this endpoint's owned copy reads as "the operation failed"
+  // and is truthful for both, and it is the literal the failure branch below already carries,
+  // so the closed set does not grow. The full rationale is at cards/index.ts:41-54, the
+  // endpoint this guard is copied from. A `File` part needs no message of its own either —
+  // `formString` narrows it to "" and it falls into the length guard below.
+  let form: FormData;
+  try {
+    form = await context.request.formData();
+  } catch {
+    return context.redirect(`/decks?error=${encodeURIComponent(DECK_CREATE_FAILED_MESSAGE)}&open=create`);
+  }
+  const name = formString(form.get("name")).trim();
 
   if (name.length < NAME_MIN || name.length > NAME_MAX) {
     return context.redirect(`/decks?error=${encodeURIComponent(DECK_NAME_MESSAGE)}&open=create`);

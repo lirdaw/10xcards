@@ -765,29 +765,29 @@ procedure above — the suite will have written rows the constraint forbids in t
 
 #### Automated
 
-- [x] 1.1 Type checking passes: `npx tsc --noEmit`
-- [x] 1.2 Linting passes: `npm run lint`
-- [x] 1.3 Build passes: `npm run build`
-- [x] 1.4 Full suite still green at its pre-change count: `npm test`
-- [x] 1.5 No inline copy survives — message (grep returns only `src/lib/`)
-- [x] 1.8 No inline copy survives — number (grep over the six bound sites returns nothing)
+- [x] 1.1 Type checking passes: `npx tsc --noEmit` — e3d5643
+- [x] 1.2 Linting passes: `npm run lint` — e3d5643
+- [x] 1.3 Build passes: `npm run build` — e3d5643
+- [x] 1.4 Full suite still green at its pre-change count: `npm test` — e3d5643
+- [x] 1.5 No inline copy survives — message (grep returns only `src/lib/`) — e3d5643
+- [x] 1.8 No inline copy survives — number (grep over the six bound sites returns nothing) — e3d5643
 
 #### Manual
 
-- [x] 1.6 Duplicate-name copy unchanged after the hoist
-- [x] 1.7 Generate form's new-deck message keeps its own wording and trailing period
+- [x] 1.6 Duplicate-name copy unchanged after the hoist — e3d5643
+- [x] 1.7 Generate form's new-deck message keeps its own wording and trailing period — e3d5643
 
 ### Phase 2: Harden the two deck endpoints (C10X-37)
 
 #### Automated
 
-- [ ] 2.1 Type checking passes: `npx tsc --noEmit`
-- [ ] 2.2 Linting passes: `npm run lint`
-- [ ] 2.3 Full suite still green: `npm test`
+- [x] 2.1 Type checking passes: `npx tsc --noEmit`
+- [x] 2.2 Linting passes: `npm run lint`
+- [x] 2.3 Full suite still green: `npm test`
 
 #### Manual
 
-- [ ] 2.4 Create and rename unchanged in the browser (happy path, duplicate, empty)
+- [x] 2.4 Create and rename unchanged in the browser (happy path, duplicate, empty)
 
 ### Phase 3: Close the read side on the deck surface
 

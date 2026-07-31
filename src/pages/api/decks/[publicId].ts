@@ -2,6 +2,8 @@ import type { APIRoute } from "astro";
 import { createClient } from "@/lib/supabase";
 import { deckNameExists, renameDeck } from "@/lib/decks";
 import { NAME_MIN, NAME_MAX } from "@/lib/deck-limits";
+// See api/decks/index.ts: a `File` part survives an `as string` cast and makes `.trim()` throw.
+import { formString } from "@/lib/forms";
 // See api/decks/index.ts: the `?error=` strings are the closed set's, not this file's.
 import {
   SUPABASE_UNCONFIGURED_MESSAGE,
@@ -34,8 +36,17 @@ export const POST: APIRoute = async (context) => {
     return context.redirect("/auth/signin");
   }
 
-  const form = await context.request.formData();
-  const name = ((form.get("name") as string | null) ?? "").trim();
+  // Same guard as create, same one-message decision, for the reasons recorded at
+  // api/decks/index.ts and in full at cards/index.ts:41-54. `errorUrl` is already in scope
+  // here — it is built from the route param at :26, eleven lines above and already UUID-gated —
+  // so unlike cards/[cardPublicId].ts the catch has no ordering constraint to work around.
+  let form: FormData;
+  try {
+    form = await context.request.formData();
+  } catch {
+    return context.redirect(errorUrl(DECK_RENAME_FAILED_MESSAGE));
+  }
+  const name = formString(form.get("name")).trim();
 
   if (name.length < NAME_MIN || name.length > NAME_MAX) {
     return context.redirect(errorUrl(DECK_NAME_MESSAGE));
