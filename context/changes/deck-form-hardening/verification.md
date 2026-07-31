@@ -76,6 +76,28 @@ silently stop appearing. Only a live refusal closes that loop. Driven through th
 | Delete | deck removed, redirect to `/decks`, no banner (also the cleanup of the deck this pass created — the dev DB is back to its two original decks) |
 | Generate form (step 8) | new-deck name input `maxLength: 100` (from `NAME_MAX`), and its own copy is intact: `Nazwa nowej talii musi mieć od 1 do 100 znaków.` — **with** the trailing period, i.e. still distinct from the deck copy, which has none |
 
+### Step 6 — a REAL delete failure, as a pair
+
+The rows above reach the page-level banner by putting an owned message in the URL by hand.
+That proves the consumer accepts a set member; it does **not** prove the endpoint's own
+`if (error)` branch — the one a user actually meets — still produces one. The two are
+distinguishable here, and cheaply: `delete.ts:33-39` answers a **query error** with the
+`?error=` redirect and a **zero-row** result with a bare `404`, so the response shape says
+which branch ran.
+
+Induced against the LOCAL stack only, on a **throwaway deck created for this run** (never on
+existing data — if the neuter had failed to take, the deck deleted would have been the probe):
+
+| Run | Edit | Observed |
+| --- | --- | --- |
+| Red | `revoke delete on public.deck from authenticated` (privilege gone from `role_table_grants`) | delete → `302` to `/decks/<probe>?error=…` → banner `Nie udało się usunąć talii`, `role="alert"`, icon present, wrapper `mb-4`. Deck **still present**. Not a `404`, so the `error` branch is what ran |
+| Green (positive control) | `grant delete on public.deck to authenticated` | the **same** delete on the **same** deck succeeds: redirect to `/decks`, deck gone, no banner |
+
+The green run is the half that makes the red one evidence — without it, "the delete failed"
+is compatible with the click never landing. Restore verified by a `role_table_grants`
+before/after `diff`: **empty**. The probe deck was consumed by the positive control, so the
+dev database is back to its two original decks.
+
 ### 3.8 — spacing, measured rather than eyeballed
 
 The plan asks for a comparison against "a screenshot taken before the swap". Taken as a
