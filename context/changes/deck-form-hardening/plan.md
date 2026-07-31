@@ -781,30 +781,30 @@ procedure above — the suite will have written rows the constraint forbids in t
 
 #### Automated
 
-- [x] 2.1 Type checking passes: `npx tsc --noEmit`
-- [x] 2.2 Linting passes: `npm run lint`
-- [x] 2.3 Full suite still green: `npm test`
+- [x] 2.1 Type checking passes: `npx tsc --noEmit` — c9cc103
+- [x] 2.2 Linting passes: `npm run lint` — c9cc103
+- [x] 2.3 Full suite still green: `npm test` — c9cc103
 
 #### Manual
 
-- [x] 2.4 Create and rename unchanged in the browser (happy path, duplicate, empty)
+- [x] 2.4 Create and rename unchanged in the browser (happy path, duplicate, empty) — c9cc103
 
 ### Phase 3: Close the read side on the deck surface
 
 #### Automated
 
-- [ ] 3.1 Type checking passes: `npx tsc --noEmit`
-- [ ] 3.2 Linting passes: `npm run lint`
-- [ ] 3.3 Build passes: `npm run build`
-- [ ] 3.4 Full suite still green: `npm test`
-- [ ] 3.5 No raw `?error=` read survives in `src/pages/`
+- [x] 3.1 Type checking passes: `npx tsc --noEmit`
+- [x] 3.2 Linting passes: `npm run lint`
+- [x] 3.3 Build passes: `npm run build`
+- [x] 3.4 Full suite still green: `npm test`
+- [x] 3.5 No raw `?error=` read survives in `src/pages/`
 
 #### Manual
 
-- [ ] 3.6 A project literal shows the banner; a crafted value shows none (`/decks`)
-- [ ] 3.7 Same pair on the deck page and the review page
-- [ ] 3.8 A real deck-delete failure surfaces the page-level banner, with its icon and unchanged spacing
-- [ ] 3.9 The page-level banner is exposed as an alert in the accessibility tree (announcement not claimed)
+- [x] 3.6 A project literal shows the banner; a crafted value shows none (`/decks`)
+- [x] 3.7 Same pair on the deck page and the review page
+- [x] 3.8 A real deck-delete failure surfaces the page-level banner, with its icon and unchanged spacing
+- [x] 3.9 The page-level banner is exposed as an alert in the accessibility tree (announcement not claimed)
 
 ### Phase 4: Server-side tests for the deck form rules
 

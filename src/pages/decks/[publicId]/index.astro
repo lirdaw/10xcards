@@ -2,7 +2,9 @@
 import AuthenticatedLayout from "@/layouts/AuthenticatedLayout.astro";
 import DeckActions from "@/components/decks/DeckActions";
 import FlashcardWorkspace from "@/components/flashcards/FlashcardWorkspace";
+import { ServerError } from "@/components/auth/ServerError";
 import { createClient } from "@/lib/supabase";
+import { ownedRedirectMessage } from "@/lib/redirect-errors";
 import { getDeckByPublicId } from "@/lib/decks";
 import {
   listFlashcards,
@@ -83,7 +85,13 @@ if (deck && supabase) {
 // create modal); card-edit errors carry `edit=<cardPublicId>` (re-enters that
 // card's inline-edit form); anything else (e.g. deck/card delete) surfaces as a
 // page-level banner.
-const error = Astro.url.searchParams.get("error");
+// Vouch for the parameter AT THE READ. All four sinks below (the rename modal, the
+// create-card modal, the inline edit form and the page-level banner) derive from this one
+// const, so a single wrap closes the whole page; and it has to sit here, because every one
+// of those islands seeds `useState(serverError)` at first render — their `replaceState`
+// cleanup strips the URL long after the value was captured. Unvouchable ⇒ `null` ⇒ no
+// banner (see redirect-errors.ts).
+const error = ownedRedirectMessage(Astro.url.searchParams.get("error"));
 const open = Astro.url.searchParams.get("open");
 const editId = Astro.url.searchParams.get("edit");
 // The card whose edit just saved — the workspace plays a one-shot settle
@@ -146,10 +154,21 @@ const bannerError = error && !openRename && !openCreateCard && !editId ? error :
             client:load
           />
         </div>
+        {/* The one banner on this surface that raw `.astro` markup used to render itself —
+            a thirteenth copy of what eleven components get from `ServerError`, and the one
+            a change to that component could never reach. It also lacked `role="alert"`.
+            The `mb-4` wrapper is not decoration: `ServerError` carries every other class of
+            the old `<p>` but not that margin, and it takes only `message` — no `className` —
+            so a bare swap would delete the only spacing above `FlashcardWorkspace`. Giving
+            the component a `className` prop would edit a surface with twelve call sites to
+            fix one page. And the `{bannerError && …}` conditional stays OUTSIDE the wrapper:
+            `ServerError` returns null for a falsy message, so an always-rendered `<div>`
+            would contribute its `mb-4` on every error-free load — the mirror image of the
+            regression the wrapper exists to prevent. */}
         {bannerError && (
-          <p class="mb-4 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-900/30 px-3 py-2 text-sm text-red-300">
-            {bannerError}
-          </p>
+          <div class="mb-4">
+            <ServerError message={bannerError} />
+          </div>
         )}
         <FlashcardWorkspace
           deckPublicId={deck.public_id}
