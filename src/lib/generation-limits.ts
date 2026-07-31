@@ -43,3 +43,26 @@ export const COUNT_MAX = 15;
 export const LANGUAGES = ["auto", "polski", "angielski", "hiszpański", "niemiecki", "francuski"] as const;
 
 export type Language = (typeof LANGUAGES)[number];
+
+/**
+ * The MODEL-facing name for each forced language — the twin of `GeneratorForm`'s
+ * `LANGUAGE_LABELS`, which renders the same values for a human.
+ *
+ * The values above serve two contracts at once (the API's Zod enum and the
+ * `generation_session.language` audit column), so they are Polish exonyms. Interpolating
+ * one of those directly into the English system prompt is what produced the defect this
+ * fixes: "Write the flashcards in this language: niemiecki." returned Polish cards in
+ * 0/5 of the graded cards, four runs of four, while `francuski` did the same and
+ * `auto` — which interpolates no name at all — was flawless at 25/25.
+ * See context/archive/2026-07-29-ai-candidate-generation-test-3/verification.md.
+ *
+ * Typed by the union, so a language added to LANGUAGES without a model-facing name is a
+ * compile error here — the same guarantee the human-facing half already has.
+ */
+export const PROMPT_LANGUAGE_NAMES: Record<Exclude<Language, "auto">, string> = {
+  polski: "Polish",
+  angielski: "English",
+  hiszpański: "Spanish",
+  niemiecki: "German",
+  francuski: "French",
+};

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { OPENROUTER_API_KEY, OPENROUTER_MODEL } from "astro:env/server";
 import { FRONT_MAX, BACK_MAX } from "@/lib/flashcards";
+import { PROMPT_LANGUAGE_NAMES } from "@/lib/generation-limits";
 
 // OpenRouter client on plain `fetch` (no SDK — avoids the ~3 MB bundle and the
 // nodejs_compat risk on Workers; see context/foundation/infrastructure.md). Mirrors
@@ -91,10 +92,22 @@ function responseSchema() {
 // System prompt: hard rules encoded so bad cards are minimised at the source (Workers
 // limits => no corrective re-call in MVP). Length self-check keeps skips low.
 function systemPrompt(language: string, count: number) {
+  // The forced branch emits the MODEL-facing name, never the caller's contract value: the
+  // whitelist values are Polish exonyms (they double as the API enum and the audit
+  // column), and a Polish word inside this English sentence is what made `niemiecki` and
+  // `francuski` come back Polish. The `auto` branch interpolates no name and is untouched
+  // — it was already at 25/25.
+  //
+  // `language` is a bare string by GenerateArgs' contract, so the lookup is widened here;
+  // the endpoint's Zod enum is what guarantees the key exists, and PROMPT_LANGUAGE_NAMES
+  // is typed by the union at its definition so no whitelist value can be missing from it.
+  // The fallback is therefore unreachable through the endpoint and exists only so a direct
+  // caller passing something else gets today's behaviour rather than `undefined`.
+  const names: Record<string, string | undefined> = PROMPT_LANGUAGE_NAMES;
   const languageRule =
     language === "auto"
       ? "Write the flashcards in the SAME language as the source text."
-      : `Write the flashcards in this language: ${language}.`;
+      : `Write the flashcards in this language: ${names[language] ?? language}.`;
   return [
     `You generate study flashcards from the user's source text.`,
     `Produce exactly ${count} question/answer flashcards.`,
