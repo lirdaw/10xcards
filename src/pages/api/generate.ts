@@ -39,8 +39,11 @@ import {
 //
 // And the string that reaches the prompt is no longer the request's at all: it is
 // `prompt_name` from the matched ROW. The injection surface therefore MOVED rather than
-// disappearing — it is closed today only because the table has no write policies. Whatever
-// admin surface eventually writes `prompt_name` inherits that guard duty.
+// disappearing — it is closed today because the table is write-proof from the app: the
+// migration revokes write privileges from `authenticated` AND declares no write policy, two
+// independent enforcers (`20260731120000_language_dictionary.sql`). Whatever admin surface
+// eventually writes `prompt_name` has to open one of them, and inherits this guard duty when
+// it does — see the change's follow-ups/admin-panel.md.
 
 // Server-side OpenRouter timeout. MUST be clearly shorter than the client's fetch
 // timeout (~55s) so the server almost always answers first — otherwise the client aborts

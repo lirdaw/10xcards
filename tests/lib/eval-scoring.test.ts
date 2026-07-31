@@ -21,11 +21,19 @@ function verdict(overrides: Partial<CardVerdict> = {}): CardVerdict {
   return { language_ok: true, detected_language: "Polish", usable: true, reason: "ok", ...overrides };
 }
 
-/** A clean 5-card case: everything requested came back, every verdict good. */
+/**
+ * A clean 5-card case: everything requested came back, every verdict good.
+ *
+ * The fixture vocabulary follows the matrix it stands in for: case names key on the
+ * language CODE (`forced/es`) and `expectedLanguage` is an ENGLISH name (`Polish`), which
+ * is what the eval states to the judge and what `detected_language` comes back in. Both
+ * used to be Polish exonyms; they are pure fixture text either way — no assertion here
+ * changed meaning when they moved.
+ */
 function goodCase(name: string, verdicts: CardVerdict[] = Array.from({ length: 5 }, () => verdict())): CaseResult {
   return {
     name,
-    expectedLanguage: "polski",
+    expectedLanguage: "Polish",
     requestedCount: 5,
     returnedCount: verdicts.length,
     generatedCount: verdicts.length,
@@ -38,7 +46,7 @@ describe("evaluateRun", () => {
   // without it, every failure assertion below is satisfied by a scorer that rejects
   // everything — and this run's red would then be unattributable.
   it("passes an all-good run with no failures", () => {
-    expect(evaluateRun([goodCase("auto/pl"), goodCase("forced/polski")])).toEqual({
+    expect(evaluateRun([goodCase("auto/pl"), goodCase("forced/pl")])).toEqual({
       pass: true,
       failures: [],
     });
@@ -77,17 +85,20 @@ describe("evaluateRun", () => {
   it("fails a case on a single wrong-language card, and only that case", () => {
     const cases = [
       goodCase("auto/pl"),
-      goodCase("forced/hiszpański", [
-        verdict({ detected_language: "Spanish" }),
-        verdict({ detected_language: "Spanish" }),
-        verdict({ detected_language: "Spanish" }),
-        verdict({ detected_language: "Spanish" }),
-        verdict({ language_ok: false, detected_language: "Polish" }),
-      ]),
+      {
+        ...goodCase("forced/es", [
+          verdict({ detected_language: "Spanish" }),
+          verdict({ detected_language: "Spanish" }),
+          verdict({ detected_language: "Spanish" }),
+          verdict({ detected_language: "Spanish" }),
+          verdict({ language_ok: false, detected_language: "Polish" }),
+        ]),
+        expectedLanguage: "Spanish",
+      },
     ];
     const result = evaluateRun(cases);
     expect(result.pass).toBe(false);
-    expect(result.failures).toEqual(["[forced/hiszpański] language: 1/5 cards not in polski (detected: Polish)"]);
+    expect(result.failures).toEqual(["[forced/es] language: 1/5 cards not in Spanish (detected: Polish)"]);
   });
 
   // An empty card list is the per-case floor — and with zero judged cards the usability
@@ -96,7 +107,7 @@ describe("evaluateRun", () => {
   it("trips the per-case floor on an empty card list", () => {
     const empty: CaseResult = {
       name: "auto/de",
-      expectedLanguage: "niemiecki",
+      expectedLanguage: "German",
       requestedCount: 5,
       returnedCount: 0,
       generatedCount: 0,
@@ -154,9 +165,9 @@ describe("per-case metrics", () => {
 
 describe("summaryRows", () => {
   it("prints one row per case carrying its name", () => {
-    const rows = summaryRows([goodCase("auto/pl"), goodCase("forced/francuski")]);
+    const rows = summaryRows([goodCase("auto/pl"), goodCase("forced/fr")]);
     expect(rows).toHaveLength(2);
     expect(rows[0]).toContain("auto/pl");
-    expect(rows[1]).toContain("forced/francuski");
+    expect(rows[1]).toContain("forced/fr");
   });
 });

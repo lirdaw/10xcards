@@ -779,30 +779,30 @@ it in the cloud after the push, as a recorded observation.
 
 #### Automated
 
-- [x] 4.1 `npx astro sync` then `npm run lint` pass
-- [x] 4.2 Build passes: `npm run build`
-- [x] 4.3 Suite still green: `npm test`
+- [x] 4.1 `npx astro sync` then `npm run lint` pass — b015662
+- [x] 4.2 Build passes: `npm run build` — b015662
+- [x] 4.3 Suite still green: `npm test` — b015662
 
 #### Manual
 
-- [x] 4.4 Selector shows "Ten sam co tekst" first, then five languages in `sort_order`
-- [x] 4.5 Deactivating a row in Studio removes it from the selector without a deploy
-- [x] 4.6 Generating with each of the six selector values succeeds end to end
-- [x] 4.7 Forcing German in the browser returns German cards (first hand reproduction)
+- [x] 4.4 Selector shows "Ten sam co tekst" first, then five languages in `sort_order` — b015662
+- [x] 4.5 Deactivating a row in Studio removes it from the selector without a deploy — b015662
+- [x] 4.6 Generating with each of the six selector values succeeds end to end — b015662
+- [x] 4.7 Forcing German in the browser returns German cards (first hand reproduction) — b015662
 
 ### Phase 5: Eval matrix, acceptance run and documentation
 
 #### Automated
 
-- [ ] 5.1 Suite green: `npm test`
-- [ ] 5.2 `npm run eval` exits 0 after the re-run-once rule, or its residual failure set is recorded and is a strict subset of the C10X-31 baseline
-- [ ] 5.3 `forced/de` and `forced/fr` report 5/5 language fidelity
-- [ ] 5.4 `forced/fr-on-en` reports 5/5
-- [ ] 5.5 No case regresses below its C10X-31 baseline
-- [ ] 5.6 Lint and build pass
+- [x] 5.1 Suite green: `npm test`
+- [x] 5.2 `npm run eval` exits 0 after the re-run-once rule, or its residual failure set is recorded and is a strict subset of the C10X-31 baseline
+- [x] 5.3 `forced/de` and `forced/fr` report 5/5 language fidelity
+- [x] 5.4 `forced/fr-on-en` reports 5/5
+- [x] 5.5 No case regresses below its C10X-31 baseline
+- [x] 5.6 Lint and build pass
 
 #### Manual
 
-- [ ] 5.7 `verification.md` carries the run table, old→new case-name mapping, cost and wall-clock
-- [ ] 5.8 test-plan and lessons.md entries read correctly against the code
-- [ ] 5.9 Admin-panel follow-up file written for `/jira-backlog-sync`
+- [x] 5.7 `verification.md` carries the run table, old→new case-name mapping, cost and wall-clock
+- [x] 5.8 test-plan and lessons.md entries read correctly against the code
+- [x] 5.9 Admin-panel follow-up file written for `/jira-backlog-sync`

@@ -293,3 +293,276 @@ system message carries the name; only mock mode records the resolved name as its
   empty branch by neither.
 - **One sample per language.** 4.6 ran in mock mode, so it proves the wiring, not generation
   quality; 4.7 is one real run at temperature 0.4. The statistical claim is Phase 5's eval.
+
+---
+
+## Phase 5: Eval matrix, acceptance run and documentation
+
+Date: 2026-07-31. Same machine and stack as Phase 1.
+
+### What changed
+
+| File | Change |
+| --- | --- |
+| `evals/generation-quality.eval.ts` | drives `targetLanguage` (Phase 3's contract), resolves names from the shared `PROMPT_LANGUAGE_NAMES`, states the judge expectation as an **English** name, renames cases onto the language **code**, and adds `forced/fr-on-en` |
+| `evals/lib/judge.ts` | `JudgeInput.expectedLanguage` JSDoc corrected — it promised an app-selector exonym; the rubric has always asked `detected_language` back as an English name. No behaviour change |
+| `evals/lib/scoring.ts` | one comment example (`"forced/hiszpański"` → `"forced/es"`) |
+| `tests/lib/eval-scoring.test.ts` | fixture vocabulary only — case names onto codes, `expectedLanguage` onto English names. No assertion changed meaning |
+| `src/lib/generation-limits.ts` | `LANGUAGES`, `Language` and Phase 1's `PROMPT_LANGUAGE_NAMES` **deleted**; a comment records where each of the three roles went |
+
+Order inside the phase was load-bearing and was followed: the matrix moved off
+`import type { Language }` **before** the export was deleted (plan item 4).
+
+### The old→new case-name mapping
+
+The C10X-31 baseline is recorded under the old names, so it stays readable against the new
+table only through this:
+
+| C10X-31 name | now | note |
+| --- | --- | --- |
+| `auto/pl` … `auto/fr` | unchanged | already keyed on the code |
+| `forced/polski` | `forced/pl` | the identity positive control |
+| `forced/angielski` | `forced/en` | |
+| `forced/hiszpański` | `forced/es` | the documented intermittent |
+| `forced/niemiecki` | `forced/de` | 0/5 at baseline |
+| `forced/francuski` | `forced/fr` | 0/5 at baseline |
+| — | `forced/fr-on-en` | **new**: no baseline, first measured here |
+
+The rename is not cosmetic: the case name used to be the wire value, and the wire value is
+now a two-letter code. Leaving `forced/niemiecki` in place would name a string that no
+longer exists anywhere in the system.
+
+### Ordinary gates (criteria 5.1, 5.6)
+
+| Gate | Result |
+| --- | --- |
+| `npx astro sync` | clean |
+| `npm run lint` | exit 0 — **0 errors**, 6 warnings, the same pre-existing `no-console` in `evals/generation-quality.eval.ts` |
+| `npx tsc --noEmit` | **clean** — see the finding below, this one is not routine |
+| `npm run build` | exit 0 |
+| `npm test` | **262 passed / 262, 23 files**, seed `1785502719409`, 2.87 s |
+
+The suite count is unchanged from Phase 4 (262/262, 23 files) and that is the expected
+result: `eval-scoring.test.ts` changed fixture STRINGS, not cases.
+
+Re-run after the two comment corrections found by manual check 5.8 below: **262/262 again**,
+seed `1785503894768` — a different permutation, since the runner's seed is deliberately
+un-pinned (test-plan §6.2) — with `npm run lint` exit 0, `npx tsc --noEmit` clean and
+`npm run build` exit 0 alongside it.
+
+### A finding, measured rather than noticed: `npm test` + `lint` + `build` were all green over a type error
+
+Phase 3 changed `GenerateArgs.language` to `targetLanguage`. The eval kept passing
+`language:` until this phase — for two phases, on a branch whose every gate was green.
+Measured rather than argued: the five files were reverted to `HEAD` (Phase 4's end state,
+`b015662`) and
+
+```
+$ npx tsc --noEmit
+evals/generation-quality.eval.ts(96,9): error TS2353: Object literal may only specify known
+properties, and 'language' does not exist in type 'GenerateArgs'.        [exit 2]
+```
+
+— exactly one error, and nothing in the project's gate set sees it. `npm run lint` is
+ESLint with type-aware RULES, which is not `tsc` diagnostics; `astro build` does not run
+`astro check`; and `npm test` never collects `evals/**`, by the deliberate isolation
+C10X-31 built. So the eval — the acceptance instrument for Risk #7 — could sit
+uncompilable while the branch read green, and the only thing that would have surfaced it is
+running it.
+
+Restore: all five files copied back from pristine copies taken before the revert, verified
+by **MD5 per file** (5/5 `OK`), then `npx tsc --noEmit` clean again. Not a visual check
+(test-plan §6.6 records a restore that silently no-opped).
+
+This is recorded as a gap, not fixed here — adding `tsc --noEmit` to `npm run lint` or to
+CI is a gate change with its own blast radius and belongs to its own ticket. Named in the
+does-NOT-prove list in test-plan §6.6.
+
+### Acceptance runs (criteria 5.2–5.5)
+
+Same invocation as Phase 1 — the key lives in the user-scope `OPENROUTER_EVAL_KEY` and is
+mapped onto `OPENROUTER_API_KEY` for the one process, so `npm test`'s preflight clamp stays
+intact:
+
+```powershell
+$env:OPENROUTER_API_KEY = [Environment]::GetEnvironmentVariable('OPENROUTER_EVAL_KEY','User')
+npx vitest run -c vitest.eval.config.ts --disable-console-intercept
+```
+
+`--disable-console-intercept` is deliberate and Phase 1 explains why: Vitest 4 swallows
+`console.log` from PASSING tests, so an all-green run otherwise prints no summary table.
+
+Two runs, both **exit 0**, `11 passed (11)`:
+
+| Run | Seed | Wall-clock (Vitest) |
+| --- | --- | --- |
+| 1 | `1785502740173` | 108 s (106.19 s) |
+| 2 | `1785502867030` | 154 s (151.96 s) |
+
+Run 1's table verbatim (`generator: openai/gpt-4o-mini | judge: google/gemini-2.5-flash`;
+row order is the shuffled execution order):
+
+```
+case                | lang     | usable | count | skip
+auto/en             | OK 5/5   | 5/5    | 5/5   | 0%
+auto/pl             | OK 5/5   | 4/5    | 5/5   | 0%
+auto/de             | OK 5/5   | 5/5    | 5/5   | 0%
+forced/fr-on-en     | OK 5/5   | 5/5    | 5/5   | 0%
+forced/fr           | OK 5/5   | 5/5    | 5/5   | 0%
+forced/de           | OK 5/5   | 5/5    | 5/5   | 0%
+forced/pl           | OK 5/5   | 5/5    | 5/5   | 0%
+forced/en           | OK 5/5   | 5/5    | 5/5   | 0%
+forced/es           | OK 5/5   | 5/5    | 5/5   | 0%
+auto/fr             | OK 5/5   | 5/5    | 5/5   | 0%
+auto/es             | OK 5/5   | 5/5    | 5/5   | 0%
+```
+
+Run 2's, same shape:
+
+```
+case                | lang     | usable | count | skip
+auto/en             | OK 5/5   | 5/5    | 5/5   | 0%
+forced/de           | OK 5/5   | 5/5    | 5/5   | 0%
+forced/fr           | OK 5/5   | 5/5    | 5/5   | 0%
+auto/pl             | OK 5/5   | 5/5    | 5/5   | 0%
+auto/es             | OK 5/5   | 5/5    | 5/5   | 0%
+auto/de             | OK 5/5   | 5/5    | 5/5   | 0%
+forced/pl           | OK 5/5   | 4/5    | 5/5   | 0%
+auto/fr             | OK 5/5   | 5/5    | 5/5   | 0%
+forced/en           | OK 5/5   | 5/5    | 5/5   | 0%
+forced/fr-on-en     | OK 5/5   | 5/5    | 5/5   | 0%
+forced/es           | OK 5/5   | 5/5    | 5/5   | 0%
+```
+
+Against the C10X-31 baseline
+(`context/archive/2026-07-29-ai-candidate-generation-test-3/verification.md`):
+
+| Case | Baseline | Run 1 | Run 2 | Criterion |
+| --- | --- | --- | --- | --- |
+| `forced/de` (`niemiecki`) | **0/5**, every card Polish, 4 of 4 runs | 5/5 | 5/5 | 5.3 ✔ |
+| `forced/fr` (`francuski`) | **0/5**, every card Polish, 4 of 4 runs | 5/5 | 5/5 | 5.3 ✔ |
+| `forced/fr-on-en` | — (new) | 5/5 | 5/5 | 5.4 ✔ |
+| `forced/es` (`hiszpański`) | 4/5 intermittent (5/5 once) | 5/5 | 5/5 | 5.5 ✔ (above baseline) |
+| `forced/pl`, `forced/en` | 5/5 | 5/5 | 5/5 | 5.5 ✔ |
+| `auto/pl`…`auto/fr` | 5/5 each | 5/5 each | 5/5 each | 5.5 ✔ |
+
+**Criterion 5.2 is met in its strong form**: `npm run eval` exits **0** on the full matrix,
+so the "residual failure set is a strict subset of the baseline" fallback the plan wrote for
+a partial result was never needed. No case is red, in either run, and the re-run-once
+calibration rule therefore had nothing to arbitrate — the second run is an independent
+second sample, not an appeal.
+
+Language fidelity 110/110 cards across the two runs. Count compliance 55/55 (100%) and
+skip-rate 0% in both, matching every prior measurement.
+
+**Cost**: not independently metered. The project's recorded figure is ~$0.012–0.013 per
+full matrix run; this matrix is 11 cases rather than 10, so ~$0.03 for the pair. Estimate,
+not a measurement.
+
+### The one usable=false card, in both runs — and why it is not a regression
+
+Aggregate usability was **54/55 = 98.2%** in each run against an 80% run-level threshold.
+The single rejected card is the same card both times, and it is instructive:
+
+```
+front: Jakie były główne osiągnięcia Kopernika?
+back:  Kopernik był astronomem, matematykiem, lekarzem i duchownym. Jego najważniejsze
+       dzieło to "O obrotach sfer niebieskich".
+verdict: language_ok=true (Polish), usable=false — the back does not fully answer the
+       front; it omits his most significant achievement, the heliocentric model.
+```
+
+It landed under `auto/pl` in run 1 and under `forced/pl` in run 2 — both of which run on
+the same PL reference text, so this is one generator weakness on one source text surfacing
+under whichever case drew it, not two separate failures. The judge's reading is defensible
+on a hand read: the question asks for achievements and the answer lists professions plus a
+title. Nothing about it touches this change; it is a usability blemish inside a threshold
+with ~18 points of headroom, and it is recorded rather than smoothed over precisely because
+"98.2%" alone would hide that the two runs rejected the *same* card.
+
+### The confound-breaking case, and what it adds
+
+`forced/fr-on-en` is the case the plan added because every other forced case runs on the PL
+source text. On that matrix a green `forced/fr` is compatible with a weaker story than the
+one this change claims — and `forced/pl` is green by construction, since the target agrees
+with the source. Forcing French over the **English** reference text removes the overlap:
+Polish is absent from the request entirely and the target is neither the source language
+nor Polish, so a French card can only have come from the interpolated name.
+
+It returned 5/5 in both runs, on Great Barrier Reef content in French
+(`La Grande Barrière de Corail s'étend sur environ 2 300 kilomètres.`) — which is the
+strongest single piece of evidence in this change that the rendering layer, not the source
+text, is what determines the output language.
+
+### What Phase 5 does not prove
+
+- **The eval is still local and human-triggered.** No CI leg, no schedule — C10X-31's
+  deferred `workflow_dispatch` follow-up is untouched (test-plan §5). "Covered" here means
+  "the capability exists and was exercised on this date", never "a signal is being watched".
+- **Two samples are not statistical power.** Both runs are single samples per case at
+  temperature 0.4. `forced/es` was intermittent at baseline and is 5/5 twice here; that is
+  encouraging and is not proof the intermittency is gone.
+- **The judge is an LLM's opinion.** Calibrated by hand at C10X-31 and spot-checked again in
+  Phase 1; `EVAL_JUDGE_MODEL` exists so a suspect verdict can be cross-examined.
+- **The seed rows in the CLOUD are unverified.** The eval reads no database at all, and the
+  ordinary suite reads the LOCAL one. Seed-row drift is one of the two classes no oracle in
+  this project covers (test-plan §6.6, C10X-29) — so after `db push` the production
+  `language` rows must be read once by hand, as a recorded observation. That is ship-time
+  work, not Phase 5's.
+- **`tsc` is not in any gate.** See the finding above.
+
+### 5.8 — the doc entries read against the code, and what that pass found
+
+The criterion is "read correctly against the code they describe", so each factual claim in
+the new `test-plan.md` §6.6 entry, the §8 lines and the `lessons.md` rule was checked against
+the file it names — not against memory of writing it. Six were confirmed as written
+(`LANGUAGE_CODE_RE = /^[a-z]{2,8}$/` and its position before the DB round-trip; the seed's six
+rows with `it` inactive; `getActiveLanguage` resolving absence as `{ data: null, error: null }`;
+`AUDIT_LANGUAGE = "es"` with the payload assertion pinned to a name asserted `not.toBe` the
+code; `generate.astro` reading the list per request with no cache; the `tests/` → `evals/`
+re-export direction). **Two were wrong, and both are corrected.**
+
+**1. "Closed only because the table has no write policies" was incomplete — there are TWO
+enforcers.** The migration also runs `revoke all on language from authenticated`, and that
+line is load-bearing rather than tidy: Supabase's default privileges `grant all` on every new
+table in `public`, so the `grant select` beside it narrows nothing on its own. The
+one-enforcer phrasing appeared in **four** places and each is now fixed — the two documents
+written this phase (`test-plan` §6.6 and the follow-up), plus **two source comments that
+predate this phase and contradicted their own code**: `src/pages/api/generate.ts:42` and the
+header of `tests/db/languages.test.ts`, whose own write case (lines 73–82) had described the
+pair correctly all along. This matters beyond wording: with two layers the deliberate-breakage
+check is a **pair** — adding a write policy alone leaves the suite GREEN, because the missing
+grant absorbs the write — and the one-enforcer sentence would have sent the next contributor
+to run half of it and conclude the assertion was falsifiable.
+
+**2. The §8 suite-count breakdown named the wrong new case.** It read "+1 membership sub-case
+in `generate.test.ts`". Diffing the `it()` titles against `e4164a9` shows the +1 is
+`replays a keyed session even when its language has since been deactivated`; the membership
+widening added **no** case at all — it went into the existing whitelist case, which now drives
+three inputs (injection text → refused by the regex; `xx` → refused by the table; a deactivated
+code → refused the same way) and was retitled accordingly. Corrected, with the method
+recorded, because "+4 and +1 sums to five" is arithmetic that agrees with itself whichever
+case is which.
+
+Both corrections are the C10X-34 class exactly: a comment that reads plausibly and describes a
+weaker system than the one the code implements. Neither changes behaviour — the edits are
+comments and documents — and the suite was re-run after them.
+
+### 5.9 — the follow-up file
+
+`follow-ups/admin-panel.md` exists and states: what the screen is, the role model and the two
+write enforcers a ticket would have to open, that language configuration is one function among
+several the PRD names for the admin area, and — the part that must not be lost — that
+`prompt_name` inherits the prompt-injection guard the Zod enum used to hold, with the three
+concrete measures that inheritance implies (a DB CHECK on shape, endpoint validation over a
+narrow vocabulary, and a case proving a crafted `prompt_name` cannot steer the generator). No
+Jira ticket was created, per the plan's "What We're NOT Doing"; it is raised via
+`/jira-backlog-sync`.
+
+### 5.7 — what this file carries
+
+Both acceptance runs with their seeds, verbatim summary tables and wall-clock; the old→new
+case-name mapping; the cost estimate stated as an estimate; the `tsc` finding with its
+observed error string and its MD5-verified restore; and the Phase 1 measurement, which sits in
+this same file above — so the acceptance run reads as a comparison against a recorded green
+baseline rather than as a first measurement.

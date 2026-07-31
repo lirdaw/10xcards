@@ -12,9 +12,11 @@ import { PROMPT_LANGUAGE_NAMES } from "../fixtures/language-names";
 // described in tests/fixtures/language-names.ts: the eval proves the behaviour against
 // its own literal and can never see this table, so nothing but this file connects the
 // string the model is shown to the string the database holds. The READ-ONLY claim is that
-// a signed-in user can read the table and cannot write it: the table has no write
-// policies at all (deny-by-default, the `flashcard_state` precedent), which is what keeps
-// it read-only until an admin surface exists to own it.
+// a signed-in user can read the table and cannot write it — held by TWO independent
+// enforcers, revoked write privileges AND the absence of any write policy, which is why
+// the breakage check for it is a PAIR (see the write case below, and the migration's own
+// note). That is a deliberate step past the `flashcard_state` precedent, and it is what
+// keeps the table read-only until an admin surface exists to own it.
 //
 // Every case here is READ-ONLY against the seeded rows — nothing mutates a seeded row and
 // nothing flips `is_active`. That is what makes the file safe under the shuffled runner

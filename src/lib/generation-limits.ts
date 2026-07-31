@@ -2,7 +2,7 @@
 // from here — the endpoint (src/pages/api/generate.ts) and the island
 // (src/components/generate/GeneratorForm.tsx) — so the client's guard and the server's
 // schema cannot drift apart. That drift is exactly the mechanism test-plan §2 Risk #6
-// describes ("the server trusts the client"); until now these four values existed twice.
+// describes ("the server trusts the client"); until now these values existed twice.
 //
 // Why a new module rather than an existing one. `src/lib/flashcards.ts` already
 // single-sources FRONT_MAX/BACK_MAX and three islands import from it, so it would work
@@ -33,47 +33,15 @@ export const SOURCE_MAX = 10_000;
 export const COUNT_MIN = 1;
 export const COUNT_MAX = 15;
 
-/**
- * SUPERSEDED by the `language` dictionary table; deleted once its last reader is.
- *
- * Deliberately NOT tagged `@deprecated`: `@typescript-eslint/no-deprecated` is an ERROR in
- * this project, so the tag would fail `npm run lint` at each of the two remaining readers
- * below — turning an intentional two-phase sequence into a red gate.
- *
- * This was the offered set AND the endpoint's prompt-injection guard. The endpoint no
- * longer reads it: `src/pages/api/generate.ts` guards the SHAPE with a regex and decides
- * MEMBERSHIP against the table, so the set is data rather than a deploy. What still reads
- * it is `GeneratorForm.tsx` (as a value, until the selector reads the table) and
- * `evals/generation-quality.eval.ts` (as a type, until the matrix moves to the shared
- * model-facing names). Both go away later in this change; deleting the export before them
- * would fail `astro build` on a missing named export and take the eval's types with it.
- *
- * `auto` = "same language as the source text" and is the one value with no row behind it —
- * it is a MODE, not a language, which is why the generator now expresses it as `null`.
- */
-export const LANGUAGES = ["auto", "polski", "angielski", "hiszpański", "niemiecki", "francuski"] as const;
-
-export type Language = (typeof LANGUAGES)[number];
-
-/**
- * The MODEL-facing name for each forced language — the twin of `GeneratorForm`'s
- * `LANGUAGE_LABELS`, which renders the same values for a human.
- *
- * The values above serve two contracts at once (the API's Zod enum and the
- * `generation_session.language` audit column), so they are Polish exonyms. Interpolating
- * one of those directly into the English system prompt is what produced the defect this
- * fixes: "Write the flashcards in this language: niemiecki." returned Polish cards in
- * 0/5 of the graded cards, four runs of four, while `francuski` did the same and
- * `auto` — which interpolates no name at all — was flawless at 25/25.
- * See context/archive/2026-07-29-ai-candidate-generation-test-3/verification.md.
- *
- * Typed by the union, so a language added to LANGUAGES without a model-facing name is a
- * compile error here — the same guarantee the human-facing half already has.
- */
-export const PROMPT_LANGUAGE_NAMES: Record<Exclude<Language, "auto">, string> = {
-  polski: "Polish",
-  angielski: "English",
-  hiszpański: "Spanish",
-  niemiecki: "German",
-  francuski: "French",
-};
+// The language set used to live here too, as `LANGUAGES` / `Language` (the offered values,
+// the endpoint's Zod enum and its prompt-injection guard) and, from Phase 1 of C10X-41, as
+// `PROMPT_LANGUAGE_NAMES` (their model-facing English names). All three are GONE: the set
+// is now the `language` table, read through `src/lib/languages.ts`, so shipping or
+// retiring a language is data rather than a deploy. The three roles that value used to
+// serve at once are now separate columns — `code` on the wire and in the audit column,
+// `ui_label` for the selector, `prompt_name` for the model — which is the whole point of
+// the change (see lessons.md, "A contract value must never be interpolated into a prompt").
+//
+// The shape guard the enum used to provide moved WITH the decision it belonged to:
+// `LANGUAGE_CODE_RE` in `src/pages/api/generate.ts` bounds the string before any DB
+// round-trip, and the table decides membership.

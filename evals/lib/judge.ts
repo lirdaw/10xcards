@@ -37,7 +37,12 @@ export interface JudgeInput {
   back: string;
   /** The source text the card was generated from (grounding for the rubric). */
   sourceExcerpt: string;
-  /** Human-readable language name as shown in the app's selector, e.g. "hiszpański". */
+  /**
+   * The ENGLISH name of the language the card must be in, e.g. "Spanish" — the same wording
+   * the rubric asks `detected_language` to come back in, so the verdict's two language
+   * fields are stated in one vocabulary. It is deliberately NOT the app selector's label:
+   * that is a Polish exonym for a human, and its wire value is now a two-letter code.
+   */
   expectedLanguage: string;
 }
 
