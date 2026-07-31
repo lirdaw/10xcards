@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase";
 import { createDeck, deckNameExists, deleteDeck } from "@/lib/decks";
 import { deckIdByPublicId } from "@/lib/flashcards";
 import { generateCandidates, resolveModel, OpenRouterError } from "@/lib/openrouter";
-import { SOURCE_MAX, COUNT_MIN, COUNT_MAX, LANGUAGES } from "@/lib/generation-limits";
+import { getActiveLanguage } from "@/lib/languages";
+import { SOURCE_MAX, COUNT_MIN, COUNT_MAX } from "@/lib/generation-limits";
 import {
   createGenerationSession,
   failGenerationSession,
@@ -20,12 +21,29 @@ import {
 // (candidates + counts) plus retriable error codes to drive the "Ponów" button
 // (FR-018). All copy stays Polish; validation is Zod (mirrors the LLM layer).
 
-// SOURCE_MAX / COUNT_MIN / COUNT_MAX / LANGUAGES now come from @/lib/generation-limits,
-// which the island imports too — they used to be declared here AND at
-// GeneratorForm.tsx:12-30, i.e. one business rule with two definitions, which is the
-// drift test-plan §2 Risk #6 is about. The whitelist still does the job it was added for
-// (impl-review F3): a hand-crafted body cannot inject arbitrary text into the LLM system
-// prompt.
+// SOURCE_MAX / COUNT_MIN / COUNT_MAX now come from @/lib/generation-limits, which the
+// island imports too — they used to be declared here AND at GeneratorForm.tsx:12-30, i.e.
+// one business rule with two definitions, which is the drift test-plan §2 Risk #6 is about.
+//
+// `language` is no longer one of them. It used to be a Zod enum over the same constant, and
+// that enum was doing TWO jobs: naming the offered set, and acting as a prompt-injection
+// guard (impl-review F3) — `language` was interpolated verbatim into the LLM system prompt,
+// so an arbitrary string was arbitrary instruction text. Both jobs still exist; they are now
+// held by two layers instead of one:
+//
+//   1. LANGUAGE_CODE_RE below — a SHAPE guard that runs before any DB round-trip. It admits
+//      no space, no punctuation and at most eight characters, so instruction text cannot
+//      pass it whatever the table happens to hold.
+//   2. `getActiveLanguage` — MEMBERSHIP, decided by the `language` table rather than by a
+//      compile-time list, so shipping or retiring a language is data, not a deploy.
+//
+// And the string that reaches the prompt is no longer the request's at all: it is
+// `prompt_name` from the matched ROW. The injection surface therefore MOVED rather than
+// disappearing — it is closed today because the table is write-proof from the app: the
+// migration revokes write privileges from `authenticated` AND declares no write policy, two
+// independent enforcers (`20260731120000_language_dictionary.sql`). Whatever admin surface
+// eventually writes `prompt_name` has to open one of them, and inherits this guard duty when
+// it does — see the change's follow-ups/admin-panel.md.
 
 // Server-side OpenRouter timeout. MUST be clearly shorter than the client's fetch
 // timeout (~55s) so the server almost always answers first — otherwise the client aborts
@@ -41,6 +59,14 @@ const SERVER_TIMEOUT_MS = 40_000;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// The SHAPE half of the two-layer language guard described above. Pinned here rather than
+// derived from the table, because it must hold even for a code the table has never seen —
+// it is what keeps a crafted body from reaching a query, let alone a prompt. `auto` matches
+// it and needs no special case in the schema; it is the ONE value with no row behind it, and
+// the handler branches on it below.
+const LANGUAGE_CODE_RE = /^[a-z]{2,8}$/;
+const LANGUAGE_AUTO = "auto";
+
 // Exactly one of deckPublicId / newDeckName — either target an existing deck or
 // create one inline. sourceText/count bounds mirror FR-003 and the plan.
 const bodySchema = z
@@ -48,7 +74,7 @@ const bodySchema = z
     deckPublicId: z.string().regex(UUID_RE).optional(),
     newDeckName: z.string().trim().min(1).max(100).optional(),
     sourceText: z.string().min(1).max(SOURCE_MAX),
-    language: z.enum(LANGUAGES),
+    language: z.string().regex(LANGUAGE_CODE_RE),
     count: z.number().int().min(COUNT_MIN).max(COUNT_MAX),
     // Optional, and the column behind it is nullable: a client that never learned about
     // the key must keep working. Deduplication is opt-in per attempt, not a precondition.
@@ -152,6 +178,39 @@ export const POST: APIRoute = async (context) => {
     }
   }
 
+  // --- Resolve the MODEL-facing language name. The shape guard already ran in the schema;
+  // this is the membership half, and it is the only thing that turns a wire code into the
+  // string the system prompt interpolates. ---
+  //
+  // ORDERING, and both halves of it are load-bearing.
+  //
+  // AFTER the replay above: "Ponów" replays the payload VERBATIM, language included. Were
+  // the lookup first, an admin deactivating a language between the attempt and the retry
+  // would turn a recoverable replay into a 400 — stranding the user with cards that did
+  // land and that they can no longer reach, i.e. FR-018 inverted. Pinned by
+  // tests/generation/generate.test.ts ("replays a keyed session even when its language has
+  // since been deactivated").
+  //
+  // BEFORE deck resolution: a refused language must never reach a deck query.
+  let targetLanguage: string | null = null;
+  if (language !== LANGUAGE_AUTO) {
+    // Error before absence, as everywhere else in this handler (lessons: error-vs-empty).
+    // Reporting an outage as "unknown language" would tell the user to fix a request that
+    // was fine — and, worse, would make a dead `language` table look like a validation rule
+    // doing its job.
+    const { data: row, error } = await getActiveLanguage(supabase, language);
+    if (error) {
+      return json(500, { error: "Nie udało się odczytać listy języków" });
+    }
+    if (!row) {
+      // Absence covers BOTH an unknown code and a deactivated one, and the two are
+      // deliberately indistinguishable from outside — the same refusal the Zod enum used to
+      // give, with the same copy.
+      return json(400, { error: "Nieprawidłowe dane wejściowe" });
+    }
+    targetLanguage = row.prompt_name;
+  }
+
   // --- Resolve the target deck. For an EXISTING deck, resolve its bigint id up front
   // so a missing/foreign deck 404s before we pay for a generation. For a NEW deck, only
   // CHECK the name is free here — the deck is created on the success path (below), so a
@@ -198,7 +257,7 @@ export const POST: APIRoute = async (context) => {
   }, SERVER_TIMEOUT_MS);
   let result;
   try {
-    result = await generateCandidates({ sourceText, language, count, signal: controller.signal });
+    result = await generateCandidates({ sourceText, targetLanguage, count, signal: controller.signal });
   } catch (err) {
     // Transport failure or timeout. Persist a FAILED session (audit + error_message)
     // so a flaky call is recoverable and observable; no cards inserted. Return a

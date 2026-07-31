@@ -24,7 +24,7 @@ export interface CardVerdict {
 
 /** One matrix case's raw outcome: generation numbers plus the per-card verdicts. */
 export interface CaseResult {
-  /** Stable case label, e.g. "auto/pl" or "forced/hiszpański". */
+  /** Stable case label, e.g. "auto/pl" or "forced/es". */
   name: string;
   /** The language the cards were expected in (as stated to the judge). */
   expectedLanguage: string;

@@ -6,7 +6,36 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-07-31 (C10X-34 `auth-error-copy` shipped — roadmap H-03, not a §3 rollout
+> Last updated: 2026-07-31, second entry of the day (C10X-41 `forced-language-prompt-fix`
+> shipped — not a §3 rollout phase). **No risk row moves, and that is the point worth reading:
+> the AI-native layer this file added at §3 Phase 5 has now completed its loop.** C10X-31's first
+> calibrated run found a real generation defect and recorded it; C10X-41 fixed it and used the
+> same instrument as the acceptance check. `forced/de` and `forced/fr` went from **0/5 cards in
+> the target language, four runs of four**, to **5/5 in both** acceptance runs.
+>
+> The class is the reusable part, and it now has a `lessons.md` rule. One value — `LANGUAGES` —
+> served three roles at once: the API's Zod enum, the `generation_session.language` audit column,
+> and the token interpolated into the English system prompt. A value chosen for a machine reader
+> is not a value a model must understand, so the prompt said `… : niemiecki.` and the model
+> answered in Polish. Three things made the defect nasty: it is **silent** (valid JSON, right card
+> count, HTTP 200 — the user just gets cards they will reject, straight onto the PRD's 75%
+> metric), it is **partial** (`polski`/`angielski` passed through the identical code, so "forced
+> language is broken" was never true), and **no deterministic layer can see it** — the response
+> contract is intact, so only an LLM-judge eval can go red.
+>
+> Two things about the evidence rather than the coverage. The matrix gained
+> **`forced/fr-on-en`** — French forced over the ENGLISH reference text — because every other
+> forced case runs on the PL source, where a green is compatible with "the model just followed
+> the source language"; it is 5/5 twice, and it is the strongest single piece of evidence that
+> the interpolated NAME is what decides the output language. And a **gap was measured rather than
+> noticed**: reverting to `b015662` shows `npx tsc --noEmit` exits **2** on the eval alone
+> (`TS2353`, `language` vs `targetLanguage`) — so the acceptance instrument for Risk #7 sat
+> uncompilable for two phases behind a fully green `lint` + `build` + `npm test`, because none of
+> the three is a type-check over `evals/`. Recorded, not fixed. Suite **262/262, 23 files**; eval
+> **11/11 twice**, both exit 0. Evidence:
+> `context/changes/forced-language-prompt-fix/verification.md`.
+>
+> Previously: 2026-07-31 (C10X-34 `auth-error-copy` shipped — roadmap H-03, not a §3 rollout
 > phase). **No risk row moves.** What it adds is the READ end of a channel this file only ever
 > pinned at the write end, the first automated coverage of the OpenRouter banner gate, and — the
 > reason to read it even if auth is not your concern — the correction of five comments and one
@@ -233,7 +262,7 @@ research's job, see §1 principle #3).
 | 4   | Private source text or the LLM API key escapes into a log line or an error response body. **Covered 2026-07-26 (C10X-28), with a named boundary: the response-body half is pinned on both failure branches, the log half only for what `src/` itself writes. Read §6.6's C10X-28 entry before citing this as closed.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | High   | Medium     | PRD §Guardrails (privacy of pasted source text), PRD §NFR (privacy); `context/foundation/lessons.md` (prod secret is separate from `.env`; missing secret silently degraded to mock mode); abuse lens (secret/PII leakage)             |
 | 5   | The production schema drifts from the migration history — the deployed app writes against an un-migrated database. **Covered 2026-07-28 (C10X-29) per drift CLASS, not as one range — writing "classes 4-9 are uncovered" would be false for four of them. Gated in CI and deploy-blocking: a migration committed but never pushed; a history desync from `migration repair`; an out-of-order version skipped by `db push`. Gated in the `ci` job: a stale generated `src/db/database.types.ts`. Detectable only off the deploy path, by an on-demand DDL diff nobody is scheduled to run: a migration file amended after it was pushed; production changed by hand in Studio; `repair --status applied` on something never applied. Not covered at all: `config.toml` vs dashboard config, and seed/dictionary row drift. Read §6.6's C10X-29 entry before citing this as closed.** | High   | Medium     | interview Q2 (real incident during M2L5); `context/foundation/lessons.md` ×2 (cloud migration is a step distinct from app deploy; blind `migration repair` desynced prod history); hot-spot dir `supabase/migrations/` (6 commits/30d) |
 | 6   | The server trusts the client — a crafted request bypasses the source-text length limit and the card content rules that the UI enforces. **Covered on the server side, in two dated halves: source text 2026-07-26 (C10X-28), card content 2026-07-28 (C10X-30). Both LENGTH limits have exactly one definition (`SOURCE_MAX`; `FRONT_MAX`/`BACK_MAX`), and the card pair now carries a second enforcer independent of the endpoints — a DB CHECK. `/cards/batch`'s `IDS_MAX` is the exception and is asserted rather than single-sourced: the review island mirrors it as a commented copy, so the server is its only enforcer. The boundary: only the SERVER half is asserted. The three card islands mirror the constants by import but their enforcement is not tested (§7), and unlike `GeneratorForm` they carry no `maxLength`, so their over-length branch IS reachable through the browser and rests on a manual check. Read §6.6's C10X-30 entry before citing this as closed — on the card endpoints the refusal is a `302`, not a `4xx`.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Medium | Medium     | PRD FR-003 (maximum source-text length), PRD FR-007; abuse lens (untrusted input, server-side validation parity); hot-spot dir `src/lib/` (18 commits/30d)                                                                             |
-| 7   | Generation returns cards in the wrong language or cards that are unusable, so the acceptance rate falls below 75% and the product thesis fails. **Covered 2026-07-29 (C10X-31), as far as a proxy can cover it: a local, human-triggered LLM-as-judge eval (`npm run eval` — never part of `npm test`) proves language fidelity and usability across all six selector values against the real provider, and its first calibrated run found a real defect — the forced-language prompt path answers in Polish for `niemiecki`/`francuski` while `auto` is flawless; recorded and raised as a follow-up, not fixed here. The judge does NOT measure the 75% acceptance rate — only real users produce that. Read §6.6's C10X-31 entry before citing this as closed.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | High   | Medium     | PRD §Success Criteria (≥75% of generated cards accepted; ≥75% of cards created via generation), PRD §NFR (cards follow the source-text language: PL/EN/ES); roadmap S-05                                                               |
+| 7   | Generation returns cards in the wrong language or cards that are unusable, so the acceptance rate falls below 75% and the product thesis fails. **Covered 2026-07-29 (C10X-31), as far as a proxy can cover it: a local, human-triggered LLM-as-judge eval (`npm run eval` — never part of `npm test`) proves language fidelity and usability across all six selector values against the real provider, and its first calibrated run found a real defect — the forced-language prompt path answers in Polish for `niemiecki`/`francuski` while `auto` is flawless; recorded and raised as a follow-up, not fixed here. The judge does NOT measure the 75% acceptance rate — only real users produce that. Read §6.6's C10X-31 entry before citing this as closed.** **The defect that first run found is FIXED and re-measured, 2026-07-31 (C10X-41): the prompt now interpolates a model-facing English name resolved from a `language` dictionary table instead of the Polish exonym that doubled as the API enum and the audit-column value, and the matrix — now ELEVEN cases, with `forced/fr-on-en` added so one target is neither the source language nor Polish — runs 11/11 at 5/5 language fidelity, twice. Two things do NOT move: the judge still does not measure the 75% acceptance rate, and the eval is still local and human-triggered, so this row means "exercised on that date", never "a signal is being watched". Read §6.6's C10X-41 entry, whose does-NOT-prove list includes a gap this change measured rather than closed — `tsc` is in no gate, so the acceptance instrument itself sat uncompilable for two green phases.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | High   | Medium     | PRD §Success Criteria (≥75% of generated cards accepted; ≥75% of cards created via generation), PRD §NFR (cards follow the source-text language: PL/EN/ES); roadmap S-05                                                               |
 
 ### Risk Response Guidance
 
@@ -362,6 +391,14 @@ Sequencing notes:
   changes to the generation path"), raised as a follow-up. §6.6's C10X-31 entry carries the
   claims table and the does-NOT-prove list; §5's LLM-as-judge row is rewritten to the
   local-only, human-triggered reality.
+  **That follow-up is CLOSED as of 2026-07-31 (C10X-41)** — the prompt now interpolates a
+  model-facing English name resolved from a `language` dictionary table, and the same eval is
+  the acceptance check: `forced/de` and `forced/fr` at 5/5 in two runs, plus a new
+  `forced/fr-on-en` case whose target is neither the source language nor Polish. The phase's
+  status does not move (it was already `complete`) and neither does what the eval is: still
+  local, still human-triggered, still not a measurement of the 75% acceptance rate. C10X-31's
+  OTHER deferred item — the `workflow_dispatch` leg — remains open and untouched. Read §6.6's
+  C10X-41 entry with this one; the matrix it describes is 11 cases, not the 10 recorded here.
 
 ## 4. Stack
 
@@ -1885,6 +1922,89 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
   `context/changes/auth-error-copy/verification.md` (after archiving:
   `context/archive/<date>-auth-error-copy/verification.md`).
 
+- **Roadmap slice C10X-41 (`forced-language-prompt-fix`, 2026-07-31)** — not a §3 rollout
+  phase. It is recorded here because it is the first time this project's AI-native layer was
+  used the way an eval is supposed to be used: **the defect C10X-31's first calibrated run
+  FOUND is now fixed, and the same instrument is the acceptance check.** No risk row moves and
+  no new coverage layer exists; what changes is that Risk #7's one known live defect is closed
+  and re-measured, and that the matrix grew a case designed to make a green mean more.
+
+  The defect and its class, because the class is the reusable part. `LANGUAGES`
+  (`src/lib/generation-limits.ts`) was ONE value serving three roles: the API's Zod enum, the
+  value persisted to `generation_session.language`, and the token interpolated into the English
+  system prompt. Values chosen to serve a contract are chosen for a machine reader, so the
+  prompt read `Write the flashcards in this language: niemiecki.` — a Polish exonym inside an
+  English sentence — and the model answered in **Polish**. The fix is a rendering layer: the
+  set moved into a `language` dictionary table with `code` (wire + audit), `ui_label` (human)
+  and `prompt_name` (model), the endpoint resolves the name, and `generateCandidates` takes an
+  already-resolved `targetLanguage: string | null`, so the generator module now carries no
+  language vocabulary and no `"auto"` sentinel at all. The rule is in `lessons.md`
+  ("Wartość kontraktowa … nigdy nie trafia do promptu LLM").
+
+  | Claim | What proves it |
+  | --- | --- |
+  | The forced path returns target-language cards for the two languages that were 0/5 | `forced/de` and `forced/fr` at **5/5**, in **both** acceptance runs (baseline: 0/5, every card Polish, four of four runs) |
+  | …and the fix is the interpolated NAME, not the source text | **`forced/fr-on-en`** — French forced over the ENGLISH reference text, 5/5 twice. Every other forced case runs on the PL source, where a green is compatible with "the model followed the source language"; here Polish is absent from the request and the target is neither the source nor Polish |
+  | The instrument has not simply become permissive | `forced/pl` (the identity positive control) and the five `auto/*` cases stayed 5/5, and one card was still judged `usable=false` in each run — a scorer that passes everything would not have produced that |
+  | The eval drives PRODUCTION code, not a copy | it calls `generateCandidates()` with the same `targetLanguage` the endpoint resolves; the difference is only WHERE the name comes from — the table in production, `tests/fixtures/language-names.ts` in the eval |
+  | A seed typo cannot slip between the two halves | that fixture is the single pin: `tests/db/languages.test.ts` asserts every active row's `prompt_name` against it, `evals/fixtures/language-names.ts` re-exports it. Inline the strings on either side and the pin is gone |
+  | The table's names and the endpoint's resolution are wired | `tests/db/languages.test.ts` (seed content, `sort_order`, the `is_active` filter falsified by a seeded-inactive `it` row, read-only enforcement) and `tests/generation/generate.test.ts` (**three** refusal inputs in one case — injection text refused by the regex, a well-formed unknown `xx` refused by the table, and a DEACTIVATED code refused the same way — each writing nothing; plus `row.language` carrying the CODE while `request_payload` carries the rendered NAME, two strings that now differ, which is what makes that assertion evidence the rendering ran) |
+  | Deactivating a language cannot strand a user mid-retry | the ordering is a contract, not an implementation detail, and it has its own case: a keyed session still REPLAYS after its language is deactivated, because the lookup sits after the idempotency short-circuit and before deck resolution. Put it first and "Ponów" turns a recoverable replay into a `400` over cards that already landed (FR-018) |
+
+  **The measurement worth carrying forward is a gap, not a claim.** Phase 3 changed
+  `GenerateArgs.language` to `targetLanguage`; the eval kept passing `language:` for two
+  phases whose every gate was green. Measured by reverting to `b015662`: `npx tsc --noEmit`
+  exits **2** with exactly one error, `evals/generation-quality.eval.ts(96,9) TS2353`. Nothing
+  in the gate set sees it — `npm run lint` is ESLint with type-aware RULES, not `tsc`
+  diagnostics; `astro build` does not run `astro check`; and `npm test` never collects
+  `evals/**`, by the deliberate isolation C10X-31 built. So **the acceptance instrument for
+  Risk #7 can sit uncompilable behind a fully green branch**, and only running it says so.
+  Recorded, not fixed: adding `tsc --noEmit` to the gate set is a gate change with its own
+  blast radius and belongs to its own ticket.
+
+  **What this does NOT prove — read this before citing Risk #7 as closed.**
+  - **The 75% acceptance rate**, unchanged from C10X-31: the judge is a proxy for quality and
+    only real users produce the product metric.
+  - **Nothing about CI.** The eval stays local and human-triggered; C10X-31's deferred
+    `workflow_dispatch` leg is untouched (§5). "Covered on this date" ≠ "watched".
+  - **Two samples are not statistical power.** One sample per case per run, temperature 0.4.
+    `forced/es` was the documented intermittent at baseline and is 5/5 twice here — that is
+    encouraging, not proof the intermittency is gone.
+  - **The CLOUD seed rows.** The eval reads no database and the suite reads the LOCAL one, so
+    nothing here observes production's `language` rows. Seed-row drift is one of the two
+    classes no oracle in this project covers (the C10X-29 entry above), which makes reading
+    them once after `db push` a ship-time step rather than an inference.
+  - **The island half**, as always (§7). The selector's contents, and the
+    Studio-edit-without-a-deploy capability the table was chosen for, rest on browser checks
+    recorded in the change's `verification.md`.
+  - **The injection surface MOVED, it did not disappear.** The Zod enum over `LANGUAGES` was
+    a prompt-injection guard (impl-review F3 on the generation slice); the interpolated string
+    now comes from a table ROW. The request side is still bounded before any DB round-trip
+    (`LANGUAGE_CODE_RE = /^[a-z]{2,8}$/`), and the row side is closed because the table is
+    write-proof from the app through **two** independent enforcers — revoked write privileges
+    for `authenticated` **and** the absence of any write policy. That second layer is not
+    belt-and-braces: Supabase's default privileges `grant all` on every new table in `public`,
+    so the migration's `grant select` line narrows nothing on its own, and the `revoke` is what
+    makes it mean what it reads like. It also dictates the breakage check — adding a write
+    policy alone leaves `tests/db/languages.test.ts` GREEN, because the missing grant absorbs
+    the write, so the check is a **pair** (§6.10's shape, one table over). Whatever surface
+    eventually writes `prompt_name` must open one of the two layers, and inherits the guard
+    duty when it does — written down in the change's `follow-ups/admin-panel.md` so a future
+    panel cannot inherit it silently.
+
+  **One count in the C10X-31 entry above is now stale, and is corrected here rather than in
+  place**: that entry describes a **10-case** matrix (5× `auto`, 5× forced), which is what
+  C10X-31 shipped and what its recorded runs measured. It is **11** as of this change, and the
+  five forced cases are named on the language CODE (`forced/de`, not `forced/niemiecki`) — the
+  old→new mapping is in the change's `verification.md`, so the C10X-31 baseline stays readable
+  against the new table.
+
+  Full evidence — both acceptance runs with their seeds, tables, wall-clock and the baseline
+  comparison; the `tsc` measurement with its verified per-file MD5 restore; and the one
+  `usable=false` card that appeared in both runs:
+  `context/changes/forced-language-prompt-fix/verification.md` (after archiving:
+  `context/archive/<date>-forced-language-prompt-fix/verification.md`).
+
 ### 6.7 Adding a test for the SRS / study path
 
 (Added by §3 Phase 4. It sits after §6.6 so the existing §6.6 references in
@@ -2673,6 +2793,48 @@ contributors should respect these unless the underlying assumption changes.
   `follow-ups/review-fixes.md` and named in §6.6's does-NOT-prove list; **to be ticketed via
   `/jira-backlog-sync`**. Its first step is the enumeration this review did not do: confirm the
   six deck endpoints' `?error=` values are a closed set of literals.
+
+- **Risk #7's known live defect closed and re-measured: 2026-07-31** (C10X-41, change folder
+  `forced-language-prompt-fix`). Ordinary suite **262/262, 23 files**, seed `1785502719409`
+  (257/257, 22 at the C10X-34 baseline; **+4** in the new `tests/db/languages.test.ts` and
+  **+1** in `tests/generation/generate.test.ts` — the keyed-replay-after-deactivation case.
+  The membership widening added no case: it went into the existing whitelist case, which
+  now drives three inputs and is retitled "400s a language neither layer of its guard
+  admits". A count that read "+1 membership case" would have been wrong about which claim is
+  new — checked by diffing the `it()` titles against `e4164a9`, not by arithmetic).
+  Local stack up, `OPENROUTER_API_KEY` unset,
+  `npm run lint` exit 0 (the same 6 pre-existing `no-console` warnings in
+  `evals/generation-quality.eval.ts`), `npm run build` exit 0. The eval: **two** acceptance runs,
+  seeds `1785502740173` and `1785502867030`, both **exit 0** at `11 passed (11)`, every case 5/5
+  on language — 110/110 cards across the pair — count compliance 55/55 and skip-rate 0% in both.
+  `forced/de` and `forced/fr` were **0/5, four of four runs** at the C10X-31 baseline. The
+  fixture-string edits in `tests/lib/eval-scoring.test.ts` changed no assertion's meaning, which
+  is why the suite count moved only by the two genuinely new claims.
+- **The confound-breaker is what makes the green worth more than the last one.**
+  `forced/fr-on-en` (French forced over the ENGLISH reference text) has no C10X-31 baseline —
+  it exists because every other forced case runs on the PL source, and a target that agrees with
+  the source language cannot separate "the prompt named the language" from "the model followed
+  the text". 5/5 in both runs.
+- **A gate gap was measured here and deliberately left open.** `npx tsc --noEmit` is in no
+  script and no CI job, so the eval — the acceptance instrument for Risk #7 — carried a real
+  type error (`TS2353`) across two phases whose `lint`, `build` and `npm test` were all green.
+  Reverting to `b015662` reproduces it in one line; the restore was verified by per-file **MD5**
+  (5/5 `OK`), never visually. Fixing it is a gate change with its own blast radius and is not
+  this change's; §6.6's C10X-41 entry names it.
+- **Two things about this coverage date do not refresh themselves.** The eval is human-triggered
+  (§5), so the date means "exercised", not "watched". And **nothing here observes the CLOUD
+  `language` rows** — seed-row drift is one of the two classes no oracle in this project covers,
+  so reading them once after `npx supabase db push` is a ship-time step this change carries
+  rather than a check it wired.
+- **The admin-panel follow-up is written and unticketed, on purpose.** The `language` table was
+  built so a configuration surface is possible (`is_active`, `sort_order`, two rendered names,
+  and a per-request read with no cache — so a Studio edit reaches the selector with no deploy,
+  measured in the change's §4.5), the PRD makes that surface a nice-to-have behind a Non-Goal,
+  and the constraint that must travel with it — whatever writes `prompt_name` has to open one of
+  the table's two read-only enforcers and inherits the prompt-injection guard the Zod enum used
+  to hold — is recorded in
+  `context/changes/forced-language-prompt-fix/follow-ups/admin-panel.md`. **To be ticketed via
+  `/jira-backlog-sync`.**
 
 Refresh (`/10x-test-plan --refresh`) when:
 

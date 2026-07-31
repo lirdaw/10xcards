@@ -90,11 +90,21 @@ function responseSchema() {
 
 // System prompt: hard rules encoded so bad cards are minimised at the source (Workers
 // limits => no corrective re-call in MVP). Length self-check keeps skips low.
-function systemPrompt(language: string, count: number) {
+function systemPrompt(targetLanguage: string | null, count: number) {
+  // `targetLanguage` arrives ALREADY RENDERED for the model — "German", never `niemiecki`
+  // and never a wire code. A Polish exonym inside this English sentence is what made
+  // `niemiecki` and `francuski` come back Polish (0/5 graded cards, four runs of four),
+  // while the null branch, which interpolates no name at all, was already at 25/25.
+  //
+  // This module therefore carries NO language vocabulary: no whitelist, no map, and no
+  // `"auto"` sentinel — the mode is `null`, so a value that doubles as an API enum and an
+  // audit-column value can no longer leak into a prompt. Resolving a code to this name is
+  // the endpoint's job (src/pages/api/generate.ts, via the `language` table), which is also
+  // what keeps `npm run eval` free of a database dependency it is designed not to have.
   const languageRule =
-    language === "auto"
+    targetLanguage === null
       ? "Write the flashcards in the SAME language as the source text."
-      : `Write the flashcards in this language: ${language}.`;
+      : `Write the flashcards in this language: ${targetLanguage}.`;
   return [
     `You generate study flashcards from the user's source text.`,
     `Produce exactly ${count} question/answer flashcards.`,
@@ -130,7 +140,8 @@ function validate(rawCards: unknown[]): CardCandidate[] {
 
 interface GenerateArgs {
   sourceText: string;
-  language: string;
+  /** The model-facing language name, already resolved — or `null` for "same as the source text". */
+  targetLanguage: string | null;
   count: number;
   signal?: AbortSignal;
 }
@@ -140,7 +151,7 @@ interface GenerateArgs {
 // OpenRouterError (with audit payloads) on transport/HTTP/parse failure.
 export async function generateCandidates({
   sourceText,
-  language,
+  targetLanguage,
   count,
   signal,
 }: GenerateArgs): Promise<GenerateResult> {
@@ -152,7 +163,7 @@ export async function generateCandidates({
       cards,
       generatedCount: cards.length,
       model: `${model} (mock)`,
-      rawRequest: { mock: true, model, language, count },
+      rawRequest: { mock: true, model, targetLanguage, count },
       rawResponse: { mock: true, cards },
     };
   }
@@ -165,7 +176,7 @@ export async function generateCandidates({
   const body = {
     model,
     messages: [
-      { role: "system", content: systemPrompt(language, count) },
+      { role: "system", content: systemPrompt(targetLanguage, count) },
       { role: "user", content: sourceText },
     ],
     max_tokens: maxTokens,

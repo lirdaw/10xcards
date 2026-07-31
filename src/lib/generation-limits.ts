@@ -2,7 +2,7 @@
 // from here — the endpoint (src/pages/api/generate.ts) and the island
 // (src/components/generate/GeneratorForm.tsx) — so the client's guard and the server's
 // schema cannot drift apart. That drift is exactly the mechanism test-plan §2 Risk #6
-// describes ("the server trusts the client"); until now these four values existed twice.
+// describes ("the server trusts the client"); until now these values existed twice.
 //
 // Why a new module rather than an existing one. `src/lib/flashcards.ts` already
 // single-sources FRONT_MAX/BACK_MAX and three islands import from it, so it would work
@@ -33,13 +33,15 @@ export const SOURCE_MAX = 10_000;
 export const COUNT_MIN = 1;
 export const COUNT_MAX = 15;
 
-/**
- * Allowed target languages. Whitelisted so a hand-crafted body cannot inject arbitrary
- * text into the LLM system prompt; `auto` = "same language as the source text".
- *
- * Values only — the island derives its own labels from these, so no UI shape lives in a
- * lib module and a language added here without a label is a type error there.
- */
-export const LANGUAGES = ["auto", "polski", "angielski", "hiszpański", "niemiecki", "francuski"] as const;
-
-export type Language = (typeof LANGUAGES)[number];
+// The language set used to live here too, as `LANGUAGES` / `Language` (the offered values,
+// the endpoint's Zod enum and its prompt-injection guard) and, from Phase 1 of C10X-41, as
+// `PROMPT_LANGUAGE_NAMES` (their model-facing English names). All three are GONE: the set
+// is now the `language` table, read through `src/lib/languages.ts`, so shipping or
+// retiring a language is data rather than a deploy. The three roles that value used to
+// serve at once are now separate columns — `code` on the wire and in the audit column,
+// `ui_label` for the selector, `prompt_name` for the model — which is the whole point of
+// the change (see lessons.md, "A contract value must never be interpolated into a prompt").
+//
+// The shape guard the enum used to provide moved WITH the decision it belonged to:
+// `LANGUAGE_CODE_RE` in `src/pages/api/generate.ts` bounds the string before any DB
+// round-trip, and the table decides membership.

@@ -6,12 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ServerError } from "@/components/auth/ServerError";
 import { cn } from "@/lib/utils";
-import { SOURCE_MAX, COUNT_MIN, COUNT_MAX, LANGUAGES, type Language } from "@/lib/generation-limits";
+import { SOURCE_MAX, COUNT_MIN, COUNT_MAX } from "@/lib/generation-limits";
 
-// SOURCE_MAX / COUNT_MIN / COUNT_MAX / LANGUAGES are IMPORTED, not redeclared: this file
-// used to carry its own copies of all four against src/pages/api/generate.ts, so the
-// client guard and the server schema could drift apart silently (test-plan §2 Risk #6).
-// The endpoint imports the same module, so the two ends now move together.
+// SOURCE_MAX / COUNT_MIN / COUNT_MAX are IMPORTED, not redeclared: this file used to
+// carry its own copies against src/pages/api/generate.ts, so the client guard and the
+// server schema could drift apart silently (test-plan §2 Risk #6). The endpoint imports
+// the same module, so the two ends now move together.
 const NEW_DECK = "__new__";
 
 // Client-side fetch timeout. MUST be longer than the server's OpenRouter timeout (~40s)
@@ -20,25 +20,31 @@ const NEW_DECK = "__new__";
 // idempotency key below, not by this ordering, which only ever narrowed it.
 const CLIENT_TIMEOUT_MS = 55_000;
 
-// The lib exports VALUES; the labels are UI and stay here. Typing the map by the
-// `Language` union is what keeps them in step: add a language to generation-limits.ts
-// without a label and this object stops compiling.
-const LANGUAGE_LABELS: Record<Language, string> = {
-  auto: "Ten sam co tekst",
-  polski: "Polski",
-  angielski: "Angielski",
-  hiszpański: "Hiszpański",
-  niemiecki: "Niemiecki",
-  francuski: "Francuski",
-};
+// The offered languages are DATA now: `src/pages/generate.astro` reads the `language`
+// table and passes `code` + `ui_label` down as props, so shipping or retiring one is an
+// admin edit rather than a deploy. This file used to hold both halves of that list — a
+// hard-coded `LANGUAGE_LABELS` map keyed by the `Language` union — and neither survives.
+//
+// `auto` is the one option with no row behind it, and that is not an oversight to be
+// tidied into the table: it is a MODE ("same language as the source text"), which the
+// generator expresses as `null` and the endpoint short-circuits before the lookup. It is
+// rendered first, from here, because it is the default.
+const AUTO_LANGUAGE = { code: "auto", label: "Ten sam co tekst" };
 
 interface DeckOption {
   publicId: string;
   name: string;
 }
 
+interface LanguageOption {
+  code: string;
+  label: string;
+}
+
 interface Props {
   decks: DeckOption[];
+  /** Active rows from the `language` table, already in `sort_order`. */
+  languages: LanguageOption[];
 }
 
 interface Candidate {
@@ -100,11 +106,11 @@ const fieldClass = "border-white/20 bg-white/5 text-white placeholder:text-blue-
 // the review screen where they are accepted, edited or rejected. Curation itself is
 // deliberately NOT here — the results below live in React state only, so anything
 // actionable had to move to a server-rendered screen (S-05, /decks/<id>/review).
-export function GeneratorForm({ decks }: Props) {
+export function GeneratorForm({ decks, languages }: Props) {
   const hasDecks = decks.length > 0;
   const [deckChoice, setDeckChoice] = React.useState<string>(hasDecks ? decks[0].publicId : NEW_DECK);
   const [newDeckName, setNewDeckName] = React.useState("");
-  const [language, setLanguage] = React.useState<string>("auto");
+  const [language, setLanguage] = React.useState<string>(AUTO_LANGUAGE.code);
   const [count, setCount] = React.useState(5);
   const [sourceText, setSourceText] = React.useState("");
 
@@ -234,9 +240,9 @@ export function GeneratorForm({ decks }: Props) {
               disabled={pending}
               className={cn("h-9 w-full rounded-md border px-3 text-sm", fieldClass)}
             >
-              {LANGUAGES.map((l) => (
-                <option key={l} value={l} className="bg-slate-900">
-                  {LANGUAGE_LABELS[l]}
+              {[AUTO_LANGUAGE, ...languages].map((l) => (
+                <option key={l.code} value={l.code} className="bg-slate-900">
+                  {l.label}
                 </option>
               ))}
             </select>
