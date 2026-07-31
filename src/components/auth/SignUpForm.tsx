@@ -92,6 +92,7 @@ export default function SignUpForm({ serverError }: Props) {
         }}
         placeholder="you@example.com"
         error={errors.email}
+        autoComplete="email"
         icon={<Mail className="size-4" />}
       />
 
@@ -107,6 +108,7 @@ export default function SignUpForm({ serverError }: Props) {
         placeholder="Min. 6 characters"
         error={errors.password}
         hint={passwordHint}
+        autoComplete="new-password"
         icon={<Lock className="size-4" />}
         endContent={
           <PasswordToggle
@@ -130,6 +132,10 @@ export default function SignUpForm({ serverError }: Props) {
         }}
         placeholder="Re-enter your password"
         error={errors.confirmPassword}
+        // `new-password` on the confirm field too — that is what tells a password manager the
+        // pair is one new credential, so it offers to generate/save once instead of treating
+        // this as a second, different secret.
+        autoComplete="new-password"
         icon={<Lock className="size-4" />}
         endContent={
           <PasswordToggle

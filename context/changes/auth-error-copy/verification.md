@@ -458,3 +458,72 @@ negative space (Phase 2 §3), and it stays that: seen once by hand, asserted now
   pinned by its own doc comment and by manual check 4.7, not by an assertion.
 - **The deletion of `isOpenRouterConfigured` is carried by search and build**, not by a test —
   it had no callers, so no behaviour changed and none could be observed.
+
+---
+
+## Phase 5: The auth surface — accessibility and the env violation
+
+Run 2026-07-31. Local stack up, `OPENROUTER_API_KEY` unset, dev server on `:4322` (4321 was
+in use). Suite **254/254, 21 files** (20 before; +`tests/lib/no-env-access.test.ts`),
+`npm run lint` exit 0 (6 pre-existing `no-console` warnings, all in `evals/`),
+`npm run build` exit 0. Enumerated search: **zero** `import.meta.env` / `process.env` under
+`src/`.
+
+### The one part of this phase driven test-first
+
+Point 4 (the env violation) was the only TDD'able item — points 1–3 are island JSX, which
+`environment: "node"` and the absence of any DOM library make unreachable by construction
+(§7). It was driven RED → GREEN, and the RED is the evidence:
+
+| Step | Observed |
+| --- | --- |
+| RED, before touching `src/` | **1 of 3 red** in `tests/lib/no-env-access.test.ts`: `expected [ Array(1) ] to deeply equal []`, the array being `"pages/auth/confirm-email.astro:4: [import.meta.env] const isAutoConfirmed = import.meta.env.DEV;"`. Both positive controls **green**, which is what makes the red mean something — the walker really reaches the tree (>50 files, four named ones present) and the patterns really fire on the six spellings while staying silent on `import.meta.url` |
+| GREEN, after deleting the branch | 3/3 |
+
+**A guard that fires on its own documentation, recorded because it will happen again.** The
+first GREEN attempt was still red — on the **comment I had just written** in
+`confirm-email.astro`, which spelled the forbidden token while explaining its removal. That
+is the documented cost of a textual scan (the same one `no-logging.test.ts` carries), and the
+documented response is to reword the prose, never to weaken the pattern. Done that way; the
+comment now names the token indirectly and says why.
+
+### Manual verification — what was observed
+
+Two rows are closed by measurement, two by observation, and **three are closed only to the
+mechanism, because a screen reader and a password manager cannot be driven from automation**.
+That split is stated per row rather than averaged away.
+
+| Row | What was observed | Closed? |
+| --- | --- | --- |
+| 5.4 | Real failed sign-in (`nobody-phase5@example.com`): banner rendered as `<p role="alert">` with text **"Nieprawidłowy e-mail lub hasło."** — the owned constant, not an upstream string — and **exactly one** `[role="alert"]` node on the page. `error=` already absent from the URL (Phase 3's `replaceState`, re-confirmed incidentally) | **Mechanism only.** Whether a screen reader *announces* it is untested — and the code comment says why it is weakest here: the node is present at mount after a full-page redirect |
+| 5.5 | `/generate`, signed in. Baseline: **1** `[role="alert"]`, the static config `Banner.astro` — not `ServerError`. After provoking the island's error branch: **2**, the second being a `<p role="alert">` carrying `ServerError`'s exact classes and the message "Nazwa nowej talii musi mieć od 1 do 100 znaków." Node was **absent then present**, i.e. genuinely inserted dynamically. Screenshot shows rendering unchanged (same red pill) | **Mechanism only**, same reason. But the *insertion* — the case `role="alert"` is actually specified for — is confirmed |
+| 5.6 | Clean field: `aria-invalid` and `aria-describedby` **both absent** (the "no dangling reference, no permanent `false`" contract). After a validation error: `aria-invalid="true"`, `aria-describedby="email-error"` / `"password-error"`, each resolving to a rendered node whose text **is** the error message. Field errors are descriptions, not a second alert — the alert count stayed **1** while two field errors were showing, so there is no double announcement | **Mechanism only.** Wiring is right; being *read* needs a screen reader |
+| 5.7 | **Controlled experiment, per `lessons.md`'s two measurement rules** — transitions killed first (`*{transition:none!important}`), colours compared as canvas pixels, never as strings. Measured the focused error field, then removed `aria-invalid`+`aria-describedby` from the live DOM, re-measured, restored: **`identicalWithVsWithoutAria: true`, `identicalAfterRestore: true`** — byte-identical computed styles, so the attributes introduce no styling whatsoever. Error ring: a real 2px box-shadow in `oklch(0.704 0.191 22.216)` (= `--destructive`). Neutral ring on a clean field: `oklch(1 0 0)`, i.e. the shared `--ring` token at pixel `255,255,255,255` — full alpha, as `global.css` requires | **CLOSED by measurement.** Isolating the attribute in the live DOM is a stronger control than a side-by-side against a git revert, because it varies exactly one thing |
+| 5.8 | Sign-in: `email`, `current-password`. Sign-up: `email`, `new-password`, `new-password` (the confirm field too). All six read off the live DOM | **Mechanism only.** Whether a password manager *offers* fill/save is untested — no manager can be driven from here |
+| 5.9 | **Both configurations exercised for real, not argued.** Confirmations **off** (`config.toml` as committed): sign-up → `/auth/confirm-email`, title "Account created", copy as written. Then `enable_confirmations = true` under `[auth.email]` only, stack restarted, second sign-up: **same route, same page, identical copy**. The discriminator is the mailbox — Mailpit held **exactly one** message, "Confirm your email address" to `phase5-confirm-on@example.com`, and **zero** for the confirmations-off account | **CLOSED by observation.** The old code would have shown "Check your email" for **both** under any production build (`DEV` false), including the zero-mail case — which is the defect, seen from the user's side |
+
+**Restore of the `config.toml` flip, verified rather than assumed.** `md5sum` against a
+pristine copy taken before the edit: **`5815200252c9a013d5dd018b7ea43279`** on both, `diff`
+empty, `git status --porcelain supabase/` empty. Stack restarted on the restored config and
+the suite re-run as the behavioural confirmation: **254/254 on a fresh seed**. A checksum says
+the bytes came back; only the run says the stack did.
+
+**Two accounts left in the local `auth.users`** by these checks —
+`phase5-manual@example.com` and `phase5-confirm-on@example.com`. Harmless to the suite (it
+provisions its own per run) and cleared by `npm run db:reset`; recorded for the same reason
+research recorded its probe accounts.
+
+### What Phase 5 does NOT prove
+
+- **No announcement is asserted anywhere.** `role="alert"` and the `aria-*` wiring are pinned
+  as DOM facts; that a screen reader speaks them is carried by rows 5.4–5.6, and two of those
+  three are still open. Nothing here is evidence about assistive-technology behaviour.
+- **No test asserts on any of this markup**, by construction — that is §7's island negative
+  space, unchanged. The env guard is the phase's only assertion, and it observes a source
+  tree, not a render.
+- **`role="alert"` reached eleven call sites across nine components**, ten of them off the
+  auth surface. Exactly **one** of those ten was exercised (`GeneratorForm`); the other nine
+  are covered by the shared-component argument, not by observation.
+- **The guard is textual and line-by-line**, so an aliased read (`const e = import.meta.env`)
+  or a read split across lines passes it. Stated in the file's own header; it guards the
+  accidental read that ships, not someone routing around it.

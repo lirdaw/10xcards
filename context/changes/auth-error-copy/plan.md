@@ -834,33 +834,33 @@ None — no schema change, no migration, no data to move. Nothing here touches `
 
 #### Automated
 
-- [x] 4.1 `npm test` green, `tests/lib/config-status.test.ts` collected
-- [x] 4.2 Breakage check F: block-level gate → `requiresSession: false` signed-out case red, others green; split recorded
-- [x] 4.3 `isOpenRouterConfigured` returns zero hits repo-wide
-- [x] 4.4 `npm run lint` exit 0; `npm run build` exit 0
+- [x] 4.1 `npm test` green, `tests/lib/config-status.test.ts` collected — 033796e
+- [x] 4.2 Breakage check F: block-level gate → `requiresSession: false` signed-out case red, others green; split recorded — 033796e
+- [x] 4.3 `isOpenRouterConfigured` returns zero hits repo-wide — 033796e
+- [x] 4.4 `npm run lint` exit 0; `npm run build` exit 0 — 033796e
 
 #### Manual
 
-- [x] 4.5 Signed out, no OpenRouter key → no OpenRouter banner
-- [x] 4.6 Signed in, no OpenRouter key → banner present
-- [x] 4.7 Supabase unset → Supabase banner visible while signed out; `.env` restore verified by diff
+- [x] 4.5 Signed out, no OpenRouter key → no OpenRouter banner — 033796e
+- [x] 4.6 Signed in, no OpenRouter key → banner present — 033796e
+- [x] 4.7 Supabase unset → Supabase banner visible while signed out; `.env` restore verified by diff — 033796e
 
 ### Phase 5: The auth surface — accessibility and the env violation
 
 #### Automated
 
-- [ ] 5.1 `npm test` green
-- [ ] 5.2 Zero `import.meta.env` and zero `process.env` under `src/`
-- [ ] 5.3 `npm run lint` exit 0; `npm run build` exit 0
+- [x] 5.1 `npm test` green
+- [x] 5.2 Zero `import.meta.env` and zero `process.env` under `src/`
+- [x] 5.3 `npm run lint` exit 0; `npm run build` exit 0
 
 #### Manual
 
 - [ ] 5.4 Server error announced by a screen reader
 - [ ] 5.5 A `ServerError` on one dynamic non-auth site (`GeneratorForm`) announced once, rendering unchanged
 - [ ] 5.6 Field error read as the input's description
-- [ ] 5.7 Error ring and neutral focus ring unchanged side-by-side
+- [x] 5.7 Error ring and neutral focus ring unchanged side-by-side
 - [ ] 5.8 Password manager fills on sign-in and offers to save on sign-up
-- [ ] 5.9 `/auth/confirm-email` copy true under both confirmation configurations
+- [x] 5.9 `/auth/confirm-email` copy true under both confirmation configurations
 
 ### Phase 6: Comments, pointers, documents and whole-change verification
 

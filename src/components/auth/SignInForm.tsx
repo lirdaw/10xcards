@@ -69,6 +69,7 @@ export default function SignInForm({ serverError }: Props) {
         }}
         placeholder="you@example.com"
         error={errors.email}
+        autoComplete="email"
         icon={<Mail className="size-4" />}
       />
 
@@ -83,6 +84,7 @@ export default function SignInForm({ serverError }: Props) {
         }}
         placeholder="Your password"
         error={errors.password}
+        autoComplete="current-password"
         icon={<Lock className="size-4" />}
         endContent={
           <PasswordToggle
