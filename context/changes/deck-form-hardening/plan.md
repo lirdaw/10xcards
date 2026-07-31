@@ -810,19 +810,19 @@ procedure above — the suite will have written rows the constraint forbids in t
 
 #### Automated
 
-- [x] 4.1 New file passes: `npx vitest run tests/validation/decks.test.ts`
-- [x] 4.2 Full suite green, count risen by the new cases: `npm test`
-- [x] 4.3 Green under three fresh shuffle seeds
-- [x] 4.4 Linting passes: `npm run lint`
+- [x] 4.1 New file passes: `npx vitest run tests/validation/decks.test.ts` — aaf4b00
+- [x] 4.2 Full suite green, count risen by the new cases: `npm test` — aaf4b00
+- [x] 4.3 Green under three fresh shuffle seeds — aaf4b00
+- [x] 4.4 Linting passes: `npm run lint` — aaf4b00
 
 ### Phase 5: Guards — the closed set, the page wiring, and the signed-out class
 
 #### Automated
 
-- [ ] 5.1 New and renamed guard files pass
-- [ ] 5.2 Full suite green: `npm test`
-- [ ] 5.3 Linting passes: `npm run lint`
-- [ ] 5.4 Type checking passes: `npx tsc --noEmit`
+- [x] 5.1 New and renamed guard files pass
+- [x] 5.2 Full suite green: `npm test`
+- [x] 5.3 Linting passes: `npm run lint`
+- [x] 5.4 Type checking passes: `npx tsc --noEmit`
 
 ### Phase 6: Deliberate breakage, and the documents that still say this is open
 

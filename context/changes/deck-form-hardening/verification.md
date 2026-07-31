@@ -282,3 +282,84 @@ submit-button ref did not register. `requestSubmit()` dispatches the same `submi
 button click does, so the islands' `onSubmit`/`preventDefault()` is exercised faithfully — but
 it is a scripted submit, not a mouse-and-keyboard one, and the table should be read as
 evidence about the **guard**, not about pointer handling.
+
+---
+
+## Phase 5 — Guards: the closed set, the page wiring, and the signed-out class (2026-07-31)
+
+### Automated
+
+| Check | Result |
+| --- | --- |
+| `npx vitest run tests/lib/redirect-errors.test.ts tests/lib/error-param-guard.test.ts tests/validation/signed-out.test.ts` | **23 passed / 23, 3 files**, seed `1785530536385` |
+| `npm test` | **298 passed / 298, 26 files**, seed `1785530573036` |
+| Two further fresh un-pinned seeds | **298/298** at `1785530592055`, `1785530597362` |
+| `npm run lint` | exit 0 — the same 6 pre-existing `no-console` warnings in `evals/generation-quality.eval.ts`, unchanged |
+| `npx tsc --noEmit` | exit 0 |
+
+**The count movement, measured rather than derived.** Phase 4 recorded **278/278, 24 files**.
+`redirect-errors.test.ts` adds **6**, `signed-out.test.ts` adds **9**, and the page guard went
+**3 → 8** (`+5`) — 278 + 20 = **298**, which is what ran. Files move by **2**, not 3:
+`error-param-guard.test.ts` is a `git mv` of `auth-error-param-guard.test.ts`, not a new file.
+No other file's case count moved.
+
+### What each file claims, and what it deliberately does not
+
+| File | Claim | The case that makes it falsifiable |
+| --- | --- | --- |
+| `tests/lib/redirect-errors.test.ts` | `ownedRedirectMessage` admits a set member and rejects everything else — including a value that **contains** a real message and a one-character truncation | the **whole-set positive control**; without it `() => null` satisfies every rejection case and reads as perfect protection |
+| …same | No member is `""` | an empty member would render as no reason at all (`ServerError.tsx:8`), i.e. indistinguishable from a clean load |
+| …same | The two card-content members are built from the LIVE `FRONT_MAX`/`BACK_MAX` | the expectation is **interpolated**, not imported — a moved bound would otherwise leave a stale member the endpoint no longer emits |
+| `tests/lib/error-param-guard.test.ts` | Both surfaces' pages still call **their own** helper, per LINE | the walker control, the detector control, **and** the new cross-surface case |
+| `tests/validation/signed-out.test.ts` | All six redirect-style endpoints answer a signed-out caller with `Location` **equal** to `/auth/signin` | three signed-**in** controls reaching each endpoint's own owned error copy |
+
+**Why the page guard became a table, and it is not tidiness.** The two surfaces vouch against
+**different** closed sets — `src/pages/auth` against `AUTH_MESSAGES`, `src/pages/decks` against
+`REDIRECT_MESSAGES`. A single shared "is it wrapped in something?" regex would therefore accept a
+deck page wrapped in `ownedAuthMessage`: lexically a wrap, semantically the wrong vocabulary, and
+that page would vouch for "Nieprawidłowy e-mail lub hasło" while refusing its own endpoints' copy.
+So `WRAPPED_READ` is now built per surface from ITS helper's name, and a case asserts each
+surface's pattern **rejects the other's helper by name**. The `?open=` non-firing case was
+written for exactly these deck pages and now runs against both surfaces.
+
+**The one measurement taken here rather than in Phase 6, because it backs a claim written into a
+comment.** The `cards/[cardPublicId].ts` row sends a real `FormData`, and the file states that is
+a **precondition** and not incidental setup. Verified by deleting the body and re-running:
+**1 of 9 red**, exactly that row, on
+
+```
+expected '/decks/00000000-0000-4000-8000-000000000001?error=Nie%20uda%C5%82o%20si%C4%99%20zapisa%C4%87%20zmian&edit=00000000-0000-4000-8000-000000000002' to be '/auth/signin'
+```
+
+with every other row green. That endpoint reads `formData()` at `:48`, **before** its
+`!context.locals.user` check at `:71` — the only one of the six in that order, and its own comment
+records it as "an ordering nobody chose". Restored, and the observed string is now in the comment
+beside the row so the next reader does not tidy the six rows into one uniform shape.
+
+### Not claimed by this phase
+
+- **Nothing here is falsifiable evidence yet, except the one probe above.** Every other split and
+  every restore belongs to Phase 6.
+- **The signed-out file's three missing positive controls, and the reason is stated in the file
+  rather than left to be inferred from a count.** Both delete endpoints reach a **query**
+  immediately after their user check, so a control for them needs the database this file
+  deliberately does not touch; `cards/[cardPublicId].ts`'s only query-free branch (its `formData()`
+  catch) runs **before** the user check, so a control routed through it would prove nothing about
+  the gate. Three controls over three endpoints is what can be had for free.
+- **The page guard proves the read is lexically WRAPPED**, not that the wrapped value reaches
+  `serverError`, and not that either helper behaves — three files, three claims.
+- **Nothing observes the URL cleanup.** No assertion reads `window.location`; the islands'
+  `replaceState` strip is still browser-checked only (Phase 3, and the duplicate-name row in
+  Phase 4's manual matrix).
+- **`SUPABASE_UNCONFIGURED_MESSAGE`'s branch is asserted nowhere**, deliberately: reaching it needs
+  `createClient() === null`, i.e. an `astro:env/server` double, and §6.9 admits one only for a
+  claim unreachable otherwise. It is a set member and is covered as such by the whole-set control.
+- **`cards/batch.ts` is absent from the signed-out class on purpose** — a JSON endpoint answering
+  `401`, already covered by `tests/middleware.test.ts`.
+
+### Shuffle safety
+
+All three files are order-independent **by construction**: none opens a database connection, none
+provisions an account, and none shares a fixture — the two guard files read the source tree, and
+`signed-out.test.ts` builds a fresh container and a fresh `Request` per row. The three green
+un-pinned seeds above are the evidence rather than the argument.
