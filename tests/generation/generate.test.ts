@@ -7,6 +7,7 @@ import { deckIdByPublicId } from "@/lib/flashcards";
 import { SOURCE_MAX, COUNT_MIN, COUNT_MAX } from "@/lib/generation-limits";
 import { accountA } from "../fixtures/accounts";
 import { callEndpoint } from "../fixtures/endpoint";
+import { PROMPT_LANGUAGE_NAMES } from "../fixtures/language-names";
 import { createScoping } from "../fixtures/scoping";
 import { clientFor } from "../fixtures/session";
 
@@ -91,6 +92,18 @@ const NEW_DECK_TEXT = `${mark("new-deck")} Tekst dla nowej talii`;
 const DIFFERENT_KEYS_TEXT = `${mark("different-keys")} Tekst z dwoma kluczami`;
 const NO_KEY_TEXT = `${mark("no-key")} Tekst bez klucza`;
 const FAILED_KEY_TEXT = `${mark("failed-key")} Tekst po nieudanej sesji`;
+const REPLAY_INACTIVE_TEXT = `${mark("replay-inactive")} Tekst odtwarzany po dezaktywacji języka`;
+
+/**
+ * A language code the `language` table holds with `is_active = false`.
+ *
+ * The seed carries `it` (Włoski) as a prepared-but-unshipped row precisely so the active
+ * filter is falsifiable by a read — no client this harness can build may write the table
+ * (tests/db/languages.test.ts). Here it stands in for "a code that WAS active when the
+ * first attempt ran and has since been deactivated", which is the only way to reach that
+ * state without a write.
+ */
+const INACTIVE_LANGUAGE = "it";
 
 function deckForm(name: string): FormData {
   const body = new FormData();
@@ -364,6 +377,39 @@ describe("/api/generate deduplicates a retry by its idempotency key", () => {
     expect(await cardsOf(ownDeck)).toHaveLength(COUNT);
   });
 
+  it("replays a keyed session even when its language has since been deactivated", async () => {
+    // WHERE the language lookup sits is a contract, not an implementation detail, and this
+    // is the case that pins it: the lookup runs AFTER the idempotency replay short-circuit,
+    // never before it.
+    //
+    // "Ponów" replays the payload VERBATIM, language included. Put the lookup first and an
+    // admin deactivating a language between the attempt and the retry turns a recoverable
+    // replay into a 400 — the user is stranded holding cards that did land and that they can
+    // no longer reach, which is FR-018 inverted. Deck resolution must still come after the
+    // lookup, so a refused language never reaches a deck query; only the replay outranks it.
+    //
+    // The second request swaps in the seeded-inactive code rather than repeating `es`,
+    // because that IS the state under test — a code the table no longer offers. No client
+    // this harness can build may deactivate a row, so `it` stands in for one.
+    const ownDeck = await createDeck(`Replay inactive deck ${suffix}`);
+    const key = crypto.randomUUID();
+    const body = { deckPublicId: ownDeck, sourceText: REPLAY_INACTIVE_TEXT, count: COUNT, idempotencyKey: key };
+
+    const first = await generate({ ...body, language: "es" });
+    expect(first.status).toBe(200);
+    const original = (await first.json()) as Success;
+
+    const replay = await generate({ ...body, language: INACTIVE_LANGUAGE });
+    expect(replay.status).toBe(200);
+    const replayed = (await replay.json()) as Success;
+
+    // The same session, not a fresh one — a 200 carrying a NEW sessionPublicId would mean
+    // the endpoint generated again rather than replaying.
+    expect(replayed.sessionPublicId).toBe(original.sessionPublicId);
+    expect(replayed.candidates).toHaveLength(COUNT);
+    expect(await succeededSessions(REPLAY_INACTIVE_TEXT)).toHaveLength(1);
+  });
+
   it("gives a different source text its own session (positive control)", async () => {
     // Guards the COUNTING, not the dedup: every assertion above reads sessions filtered
     // by source_text, so a helper that had stopped scoping — or an endpoint writing
@@ -615,22 +661,43 @@ describe("/api/generate rejects a request that fails its input contract", () => 
     expect(await allSessions(BAD_COUNT_TEXT)).toHaveLength(0);
   });
 
-  it("400s a language off the whitelist, and writes nothing", async () => {
-    // The whitelist is a prompt-injection guard, not a nicety (impl-review F3): `language`
-    // is interpolated into the LLM system prompt, so an arbitrary string would be arbitrary
-    // instruction text. The island renders a <select> over the same six values.
-    const response = await generate({
-      deckPublicId,
-      sourceText: BAD_LANGUAGE_TEXT,
-      language: BAD_LANGUAGE,
-      count: COUNT,
-    });
+  it("400s a language neither layer of its guard admits, and writes nothing", async () => {
+    // The language guard is a prompt-injection guard, not a nicety (impl-review F3): the
+    // name it resolves is interpolated into the LLM system prompt, so anything that got
+    // through would be instruction text. It used to be one Zod enum; it is now two layers,
+    // and the three inputs below are one per REFUSAL ROUTE:
+    //
+    //   - BAD_LANGUAGE — spaces, punctuation, 40-odd characters: refused by the SHAPE regex
+    //     in the schema, before any query runs. This is the injection input proper.
+    //   - "xx" — well-formed, so it passes the regex and is refused by MEMBERSHIP: the
+    //     `language` table has no such row.
+    //   - the seeded-INACTIVE code: a row exists, and `is_active = false` withholds it. The
+    //     refusal is deliberately identical to "unknown", so nobody can probe the table for
+    //     languages that are prepared but unshipped.
+    //
+    // What this case does NOT prove is WHICH layer caught which input — all three answer the
+    // same 400 with the same copy, by design, so the status cannot attribute them. That
+    // attribution is the deliberate-breakage PAIR the plan carries as manual checks 3.5/3.6
+    // (revoke `select` on `language` → the query-error branch must answer 500, not this 400;
+    // deactivate `de` → this 400, not a generation). Same discipline as §6.10's endpoint-vs-
+    // CHECK pair: one run cannot separate two enforcers that answer alike.
+    for (const language of [BAD_LANGUAGE, "xx", INACTIVE_LANGUAGE]) {
+      const response = await generate({
+        deckPublicId,
+        sourceText: BAD_LANGUAGE_TEXT,
+        language,
+        count: COUNT,
+      });
 
-    expect(response.status).toBe(400);
-    // The submitted language carries no run suffix, so it is named explicitly — and it is
-    // the one input here that would be genuinely dangerous to echo: it is prompt-injection
-    // text, and http.ts renders the endpoint's `error` string verbatim in the island.
-    await expectErrorBody(response, BAD_LANGUAGE);
+      expect(response.status, `language "${language}" was not refused`).toBe(400);
+      // The submitted language carries no run suffix, so it is named explicitly — and
+      // BAD_LANGUAGE is the one input here that would be genuinely dangerous to echo: it is
+      // prompt-injection text, and http.ts renders the endpoint's `error` string verbatim in
+      // the island.
+      await expectErrorBody(response, language);
+    }
+
+    // Status-agnostic, so a 400 returned AFTER a write had landed cannot read as a pass.
     expect(await allSessions(BAD_LANGUAGE_TEXT)).toHaveLength(0);
   });
 
@@ -759,10 +826,16 @@ describe("/api/generate creates the deck inline on the newDeckName path", () => 
 // payload.
 
 const AUDIT_TEXT = `${mark("audit-success")} Tekst do audytu udanej generacji`;
-// A forced language, not "auto": the containment assertion on request_payload has to find
-// the SUBMITTED value, and "hiszpański" cannot appear there by accident the way "auto"
-// (also a Zod default-ish literal in other payloads) plausibly could.
-const AUDIT_LANGUAGE = "hiszpański";
+// A forced language, not "auto": the two containment assertions below have to find the two
+// DIFFERENT strings this change pulled apart — the submitted CODE in the `language` column,
+// the MODEL-facing name in the request payload. Under "auto" they would collapse into one.
+//
+// It is now a code (`es`), not the Polish exonym it used to be: the endpoint's whitelist
+// was a compile-time Zod enum over exonyms and is now a shape regex plus a lookup in the
+// `language` table, so the wire value is the table's primary key.
+const AUDIT_LANGUAGE = "es";
+/** What the prompt layer must render that code as — the shared fixture, never a local literal. */
+const AUDIT_PROMPT_NAME = PROMPT_LANGUAGE_NAMES.es;
 
 describe("/api/generate persists the success-path audit columns", () => {
   it("records the five audit columns and the counters on a succeeded session", async () => {
@@ -810,7 +883,13 @@ describe("/api/generate persists the success-path audit columns", () => {
 
     const requestPayload = JSON.stringify(row.request_payload);
     expect(requestPayload).toContain('"mock":true');
-    expect(requestPayload).toContain(AUDIT_LANGUAGE);
+    // The RENDERED name, not the submitted code — and the guard on the line above it is what
+    // stops this being tautological: while the audit column and the prompt token were the
+    // same string, containment here proved only that SOMETHING round-tripped. Now the two
+    // differ by construction, so finding "Spanish" in a payload built from a request that
+    // said "es" is evidence the rendering layer ran.
+    expect(AUDIT_PROMPT_NAME).not.toBe(AUDIT_LANGUAGE);
+    expect(requestPayload).toContain(AUDIT_PROMPT_NAME);
 
     // The fronts come from the RESPONSE the caller saw, not from a copy of the mock
     // literals — so this also pins that the audit trail and the answer agree.

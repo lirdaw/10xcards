@@ -34,11 +34,22 @@ export const COUNT_MIN = 1;
 export const COUNT_MAX = 15;
 
 /**
- * Allowed target languages. Whitelisted so a hand-crafted body cannot inject arbitrary
- * text into the LLM system prompt; `auto` = "same language as the source text".
+ * SUPERSEDED by the `language` dictionary table; deleted once its last reader is.
  *
- * Values only — the island derives its own labels from these, so no UI shape lives in a
- * lib module and a language added here without a label is a type error there.
+ * Deliberately NOT tagged `@deprecated`: `@typescript-eslint/no-deprecated` is an ERROR in
+ * this project, so the tag would fail `npm run lint` at each of the two remaining readers
+ * below — turning an intentional two-phase sequence into a red gate.
+ *
+ * This was the offered set AND the endpoint's prompt-injection guard. The endpoint no
+ * longer reads it: `src/pages/api/generate.ts` guards the SHAPE with a regex and decides
+ * MEMBERSHIP against the table, so the set is data rather than a deploy. What still reads
+ * it is `GeneratorForm.tsx` (as a value, until the selector reads the table) and
+ * `evals/generation-quality.eval.ts` (as a type, until the matrix moves to the shared
+ * model-facing names). Both go away later in this change; deleting the export before them
+ * would fail `astro build` on a missing named export and take the eval's types with it.
+ *
+ * `auto` = "same language as the source text" and is the one value with no row behind it —
+ * it is a MODE, not a language, which is why the generator now expresses it as `null`.
  */
 export const LANGUAGES = ["auto", "polski", "angielski", "hiszpański", "niemiecki", "francuski"] as const;
 

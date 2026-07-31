@@ -750,30 +750,30 @@ it in the cloud after the push, as a recorded observation.
 
 #### Automated
 
-- [x] 2.1 Migration applies from scratch: `npx supabase db reset`
-- [x] 2.2 Generated types regenerate with no further diff
-- [x] 2.3 Suite green including `tests/db/languages.test.ts`: `npm test`
-- [x] 2.4 Lint passes: `npm run lint`
-- [x] 2.5 Build passes: `npm run build`
+- [x] 2.1 Migration applies from scratch: `npx supabase db reset` — 1c1cfee
+- [x] 2.2 Generated types regenerate with no further diff — 1c1cfee
+- [x] 2.3 Suite green including `tests/db/languages.test.ts`: `npm test` — 1c1cfee
+- [x] 2.4 Lint passes: `npm run lint` — 1c1cfee
+- [x] 2.5 Build passes: `npm run build` — 1c1cfee
 
 #### Manual
 
-- [x] 2.6 Six rows visible in Studio with the expected `sort_order` (five active, `it` inactive)
-- [x] 2.7 `pg_policies` shows exactly one `select`-only policy on `language`
+- [x] 2.6 Six rows visible in Studio with the expected `sort_order` (five active, `it` inactive) — 1c1cfee
+- [x] 2.7 `pg_policies` shows exactly one `select`-only policy on `language` — 1c1cfee
 
 ### Phase 3: Server wiring
 
 #### Automated
 
-- [ ] 3.1 Suite green: `npm test`
-- [ ] 3.2 Lint passes: `npm run lint`
-- [ ] 3.3 Build passes: `npm run build`
-- [ ] 3.4 `npx astro sync` clean before lint
+- [x] 3.1 Suite green: `npm test`
+- [x] 3.2 Lint passes: `npm run lint`
+- [x] 3.3 Build passes: `npm run build`
+- [x] 3.4 `npx astro sync` clean before lint
 
 #### Manual
 
-- [ ] 3.5 Breakage check: `select` revoked on `language` yields 500, not 400; restore verified by diff
-- [ ] 3.6 Breakage check: `is_active = false` on `de` yields 400 and writes nothing; restored
+- [x] 3.5 Breakage check: `select` revoked on `language` yields 500, not 400; restore verified by diff
+- [x] 3.6 Breakage check: `is_active = false` on `de` yields 400 and writes nothing; restored
 
 ### Phase 4: The selector reads the table
 
