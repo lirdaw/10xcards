@@ -734,17 +734,17 @@ it in the cloud after the push, as a recorded observation.
 
 #### Automated
 
-- [ ] 1.1 Full matrix run completes: `npm run eval`
-- [ ] 1.2 `forced/niemiecki` and `forced/francuski` each report 5/5 language fidelity
-- [ ] 1.3 The six baseline-green cases stay green
-- [ ] 1.4 `forced/hiszpański` is at or above its 4/5 baseline
-- [ ] 1.5 The shipped map passes the ordinary gates: `npm test`, `npm run lint`, `npm run build`
+- [x] 1.1 Full matrix run completes: `npm run eval` — e4164a9
+- [x] 1.2 `forced/niemiecki` and `forced/francuski` each report 5/5 language fidelity — e4164a9
+- [x] 1.3 The six baseline-green cases stay green — e4164a9
+- [x] 1.4 `forced/hiszpański` is at or above its 4/5 baseline — e4164a9
+- [x] 1.5 The shipped map passes the ordinary gates: `npm test`, `npm run lint`, `npm run build` — e4164a9
 
 #### Manual
 
-- [ ] 1.6 Run table, cost and wall-clock recorded in `verification.md`
-- [ ] 1.7 Go/no-go decision recorded, including any fallback taken and its measured run
-- [ ] 1.8 The map is committed on its own, and the commit contains nothing else
+- [x] 1.6 Run table, cost and wall-clock recorded in `verification.md` — e4164a9
+- [x] 1.7 Go/no-go decision recorded, including any fallback taken and its measured run — e4164a9
+- [x] 1.8 The map is committed on its own, and the commit contains nothing else — e4164a9
 
 ### Phase 2: The `language` dictionary table
 
