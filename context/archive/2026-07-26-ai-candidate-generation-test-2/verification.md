@@ -59,6 +59,17 @@ property of the table. Note what did **not** fire: "keeps the distinct code clas
 compares the constants directly, not the mapping, so it is blind to a repointed key by
 construction. Only the per-code case catches this.
 
+> **Correction line, 2026-07-31 (C10X-34 `auth-error-copy`) — the run above is NOT rewritten.**
+> The denominator has moved: `tests/auth/errors.test.ts` held **33** cases on the day this run
+> was made and holds **55** now (C10X-30 added the malformed-body cases, C10X-34 added six
+> mapping rows with their non-emptiness twins, the signup discriminator case and four
+> `ownedAuthMessage` cases). Nothing about the observed split changes — it records what was
+> actually executed on 2026-07-26 — but "1 of 33" must not be quoted as a current figure, and
+> the check has not been re-run since. Same rule the project applied to C10X-30's "4xx" wording:
+> an archived artifact gains a dated line and loses nothing. The blindness noted in the last two
+> sentences was **re-confirmed by measurement** under C10X-34's breakage check B and is now
+> stated in the test file's own comment, which had claimed the opposite.
+
 **Restore**: key reverted; `npx vitest run tests/auth/errors.test.ts` → 33/33 green;
 `git status --porcelain src/` shows only the phase's three intended paths
 (`signin.ts`, `signup.ts` modified, `auth-errors.ts` new). No breakage edit was committed.

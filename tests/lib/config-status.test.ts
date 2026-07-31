@@ -5,11 +5,16 @@ import { visibleConfigStatuses, type ConfigStatus } from "@/lib/config-status";
 // when it pulled `readJsonResponse` and `rateOutcome` out of islands (test-plan §7): the JSX
 // stays unreachable, the DECISION does not have to be.
 //
-// Every entry here is FABRICATED. The real `missingConfigs` is computed at import time from
-// `astro:env/server` (config-status.ts:28,37), so under the runner it always reflects the
-// local stack — Supabase configured, OpenRouter not — and the one entry whose gating matters
-// most (an UNCONFIGURED Supabase) would be unreachable. That is why the function takes its
-// list as a parameter rather than closing over the constant.
+// Every entry here is FABRICATED. The real `missingConfigs` (config-status.ts:50) is derived
+// from two `configured` reads taken at import time out of `astro:env/server`
+// (config-status.ts:31,40), so under the runner it always reflects the local stack — Supabase
+// configured, OpenRouter not — and the one entry whose gating matters most (an UNCONFIGURED
+// Supabase) would be unreachable. That is why the function takes its list as a parameter
+// rather than closing over the constant.
+//
+// (Line numbers re-derived 2026-07-31 by C10X-34's Phase 6: this comment shipped citing
+// `config-status.ts:28,37`, which points at the array opener and a closing brace. The claim
+// was right, the pointer was not.)
 const entry = (name: string, requiresSession: boolean): ConfigStatus => ({
   name,
   configured: false,

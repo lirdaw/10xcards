@@ -40,9 +40,16 @@ import { callEndpoint } from "../fixtures/endpoint";
 // the invariant.
 //
 // The mapper is pure and imports nothing, so most of this needs no database — but the
-// suite's preflight/globalSetup still requires the local stack (test-plan §6.1). The one
-// endpoint case at the bottom genuinely needs it: it drives the real route against real
-// GoTrue and reads the redirect the browser would follow.
+// suite's preflight/globalSetup still requires the local stack (test-plan §6.1).
+//
+// THIS COMMENT USED TO SAY "the one endpoint case at the bottom". It was true when the file
+// shipped with a single one and rotted as later slices added more; there are now SEVEN,
+// across four describes. Three of them genuinely reach real GoTrue — signin's redirect case
+// and each route's File-part case — and those are the ones that spend the shared rate-limit
+// budget the block above `POST /api/auth/signin — malformed body` warns about. The other
+// four return from the `catch` around `formData()`, before `createClient`, so they cost
+// nothing. Keep the split in mind before adding a case: the cheap shape is preferred where
+// it can carry the claim.
 
 const suffix = Date.now().toString(36);
 const SENTINEL = `leak-probe-${suffix}`;
@@ -97,16 +104,31 @@ describe("authErrorMessage — code chain", () => {
     expect(authErrorMessage(withSentinelMessage({ code, name: "AuthApiError", status: 400 }))).toBe(expected);
   });
 
-  // A message that is present but empty is a message the user cannot act on — and it is what
-  // every `StringLiteral -> ""` mutant on this module produces. Asserting non-emptiness kills
-  // that class without pinning a single word of the copy.
+  // A message that is present but empty is a message the user cannot act on. This scan says
+  // every mapped code answers with SOMETHING readable, without pinning a word of the copy.
+  //
+  // WHAT IT DOES NOT DO — the previous version of this comment claimed it "kills every
+  // `StringLiteral -> ""` mutant on this module", and that is false. The mapper branches on
+  // TRUTHINESS (`auth-errors.ts:261,265`), so a constant mutated to `""` is not returned at
+  // all: `byCode` is falsy, the chain falls through, and the catch-all answers — non-empty,
+  // case green. The assertion that actually kills that class is `has no empty constant in the
+  // closed set` below, which reads `AUTH_MESSAGES` directly instead of through the chain; its
+  // own comment says so correctly and is the one to trust.
   it.each(cases)("answers %s with non-empty copy", (code) => {
     expect(authErrorMessage({ code }).length).toBeGreaterThan(0);
   });
 
   // The mapped classes must stay distinguishable: a user who mistyped a password and a user
-  // whose account is banned must not read the same sentence. This is what a mutant that
-  // repoints one key at another constant breaks.
+  // whose account is banned must not read the same sentence.
+  //
+  // WHAT THIS GUARDS, precisely — the previous version said it "is what a mutant that repoints
+  // one key at another constant breaks", and that is false. This `Set` is built from IMPORTED
+  // CONSTANTS and never calls the mapper, so it cannot observe a map value at all. Measured,
+  // not argued: C10X-34's breakage check B repointed `captcha_failed` at AUTH_GENERIC_MESSAGE
+  // and this case stayed GREEN while the `maps captcha_failed …` row went red. It is a fair
+  // guard against a different regression — a human unifying two constants' copy, e.g.
+  // "simplifying" the banned message into the invalid-credentials one — and the count below is
+  // hand-built, so it must move whenever a constant is added or merged.
   it("keeps the distinct code classes distinct", () => {
     const distinct = new Set([
       AUTH_INVALID_CREDENTIALS_MESSAGE,
@@ -159,9 +181,19 @@ describe("authErrorMessage — the chain below `code`", () => {
     expect(transport).not.toBe(AUTH_INVALID_CREDENTIALS_MESSAGE);
   });
 
-  it("tells an empty form field apart from wrong credentials", () => {
-    // What supabase-js raises for `{ email: "", password: "" }` — i.e. what an empty form
-    // produces, since `form.get("email") as string` hands `""` straight through.
+  // TITLE AND COMMENT BOTH CORRECTED (C10X-34). They used to read "tells an empty form field
+  // apart from wrong credentials" / "what an empty form produces, since
+  // `form.get("email") as string` hands `""` straight through" — and both halves are now
+  // wrong. The cast is gone (`formString`, C10X-30), and supabase-js raises this class only
+  // when the credentials object LACKS the `email` key (`GoTrueClient.js:667,835`, an
+  // `'email' in credentials` test) — `formString` always returns a string, so the key is
+  // always present and NO HTTP input on these two routes can produce it.
+  //
+  // What the case covers is therefore a DEFENSIVE entry, kept rather than deleted (the
+  // reachability record in `auth-errors.ts` says why). The empty field itself is covered by
+  // the CODE table: `validation_failed` on signin, `anonymous_provider_disabled` on signup —
+  // both mapped, both pinned through the real routes at the bottom of this file.
+  it("maps the client-side credentials class by name, though no request can reach it", () => {
     expect(authErrorMessage({ name: "AuthInvalidCredentialsError", status: 400 })).toBe(
       AUTH_MISSING_CREDENTIALS_MESSAGE,
     );
@@ -238,7 +270,7 @@ describe("authErrorMessage — the invariant", () => {
       // for `code: "constructor"` — truthy, so it was returned as copy and reached
       // `encodeURIComponent` in the address bar. `code` comes from the GoTrue response
       // body, so it is upstream-controlled. The closed-set assertion below is what fails
-      // on the regression; `not.toContain(SENTINEL)` alone would not (impl-review F1).
+      // on the regression; `not.toContain(SENTINEL)` alone would not (C10X-28 impl-review F1).
       withSentinelMessage({ code: "constructor", status: 400 }),
       withSentinelMessage({ code: "toString", status: 400 }),
       withSentinelMessage({ name: "valueOf", status: 400 }),
@@ -330,7 +362,13 @@ describe("POST /api/auth/signin", () => {
   });
 });
 
-// TWO COSTS TO KNOW BEFORE ADDING A CASE BELOW (impl-review F10).
+// TWO COSTS TO KNOW BEFORE ADDING A CASE BELOW (C10X-30 impl-review F10).
+//
+// EVERY F-NUMBER IN THIS FILE CARRIES ITS TICKET, and that is not decoration. This file
+// shipped under C10X-28 (`ai-candidate-generation-test-2`), but the findings cited from here
+// down are C10X-30's (`server-side-validation-test`) — and C10X-28's own impl-review has an
+// F4 and an F7 with entirely unrelated content. A reader who opened "the impl-review for this
+// file's change" landed on the wrong findings; qualified 2026-07-31 by C10X-34.
 //
 // 1. Every case that reaches GoTrue spends the run's shared auth budget. `supabase/config.toml`
 //    allows 30 sign-in/sign-up requests per 5 minutes per IP, and `tests/fixtures/accounts.ts`
@@ -374,7 +412,7 @@ describe("POST /api/auth/signin — malformed body", () => {
   });
 
   // The OTHER cause of a formData() rejection, and it must not share the first one's copy
-  // (impl-review F7). A body announced as multipart that does not parse is a truncated or
+  // (C10X-30 impl-review F7). A body announced as multipart that does not parse is a truncated or
   // reset upload — nothing the user typed is wrong, so "Popraw dane w formularzu" would send
   // them hunting for a mistake they did not make. `AUTH_GENERIC_MESSAGE` ("spróbuj ponownie")
   // is the honest answer and is already in the closed set, so no new copy was introduced.
@@ -427,8 +465,8 @@ describe("POST /api/auth/signin — malformed body", () => {
   });
 });
 
-// Phase 2 changed FOUR production files and, until impl-review F4, `signup.ts` was reached by
-// no test at all — not one line of it. Its two new branches are verbatim copies of signin's,
+// C10X-30's Phase 2 changed FOUR production files and, until that change's impl-review F4,
+// `signup.ts` was reached by no test at all — not one line of it. Its two new branches are verbatim copies of signin's,
 // which is an argument that they are correct today, not that they will stay correct: a copy
 // with no assertion is exactly what drifts. Same boundary as the block above — malformed-BODY
 // handling, never an input rule; presence/format/length on auth remain C10X-36's.

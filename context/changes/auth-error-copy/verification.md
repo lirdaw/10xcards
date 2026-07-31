@@ -410,7 +410,10 @@ before and after, identical, and the file green again at 6/6.
 
 ### The parameter is load-bearing, and this is where it is recorded
 
-`missingConfigs` is computed at import time from `astro:env/server` (`config-status.ts:28,37`),
+`missingConfigs` (`config-status.ts:50`) is derived from two `configured` reads taken at import
+time out of `astro:env/server` (`config-status.ts:31,40` — this section first cited `:28,37`,
+inherited from the plan; corrected 2026-07-31 by the Phase 6 pointer check, which is what that
+check is for),
 so under the runner it can only ever describe the local stack — Supabase **configured**,
 OpenRouter not. A filter closing over that constant would leave the one entry whose gating
 matters most (an *un*configured Supabase) unreachable by any test, and breakage check F above
@@ -527,3 +530,241 @@ research recorded its probe accounts.
 - **The guard is textual and line-by-line**, so an aliased read (`const e = import.meta.env`)
   or a read split across lines passes it. Stated in the file's own header; it guards the
   accidental read that ships, not someone routing around it.
+
+> **Correction, 2026-07-31 (Phase 6) — a count in this section is wrong and is not silently
+> patched.** The row above and the `ServerError.tsx` comment shipped in this phase both say
+> `role="alert"` reached "**eleven** call sites across nine components". Re-derived by
+> enumeration (`grep -rn "<ServerError" src/`, 12 render sites minus the one inside the
+> component's own comment): **twelve call sites across eleven components** — the two auth forms
+> plus **ten sites in nine components** off the auth surface (`StudySession` carries two). The
+> "ten off auth / nine components" half was right; the total was not. Nothing about the
+> coverage claim changes: exactly one of the ten non-auth sites (`GeneratorForm`) was exercised,
+> the other nine still rest on the shared-component argument. Recorded here and corrected in the
+> component's comment, because a miscount in a comment is what the next contributor reasons
+> from — which is the class Phase 6 exists to end, and this one was inside this very change.
+
+---
+
+## Phase 6: Comments, pointers, documents and whole-change verification
+
+Run 2026-07-31. No behaviour changes: **every `src/` edit in this phase is a comment**, verified
+mechanically rather than claimed (see the src-diff check below). The phase's deliverable is that
+the prose around this change stops contradicting the code, and that its numbers carry dates.
+
+### Runs
+
+| # | Command | Result | Detail |
+| --- | --- | --- | --- |
+| 6.1 | `npm test` | **254 passed / 254, 21 files** | seed `1785478059142`, 2.70 s. Identical to Phase 5's count, which is the expected result of a comment-only phase — and the pre-edit reading at seed `1785477410771` was the same, so the two bracket the edits |
+| 6.1 | `npx vitest run tests/auth/errors.test.ts` | **55 passed / 55** | the figure that replaces "(33 cases)" in test-plan §6.6. Baseline was 38 |
+| 6.2 | `npm run lint` | **exit 0** | 0 errors; the same 6 pre-existing `no-console` warnings in `evals/generation-quality.eval.ts:148-163` recorded since Phase 0 |
+| 6.2 | `npm run build` | **exit 0** | server built in 6.38 s; the same pre-existing `[WARN] [@astrojs/sitemap]` about the missing `site` option |
+
+### 6.3 — no breakage edit survives anywhere in `src/`
+
+Stated as a measurement rather than as "I restored them". Every earlier phase verified its own
+restore against a pristine copy (hashes recorded in each section above); what this check adds is
+the whole-change statement, taken at the end:
+
+```
+$ git diff --stat -- src/
+ src/components/auth/ServerError.tsx | 10 ++++++++--
+ src/lib/forms.ts                    | 14 ++++++++++++--
+ 2 files changed, 20 insertions(+), 4 deletions(-)
+
+$ git diff -U0 -- src/ | grep -E "^\+" | grep -v "^+++" | grep -vE "^\+\s*(//|\*|/\*)"
+(no output)
+```
+
+**Zero non-comment lines added to `src/` in this phase**, and the three files the breakage runs
+actually edited — `auth-errors.ts`, `signup.ts`, `config-status.ts` — do not appear in
+`git status` at all, i.e. they are byte-identical to the commits that shipped them. The second
+command is the load-bearing one: `--stat` alone would look the same for a phase that had
+smuggled a behaviour change into a documentation pass.
+
+### 6.4 — Stryker on the mapper
+
+`npx stryker run --mutate "src/lib/auth-errors.ts"`, permanent `mutate` list untouched
+(`stryker.config.json` still lists `generate.ts` + `generations.ts`). Done in 11 s, 5.51 tests
+per mutant.
+
+**92.98% total / 92.98% covered — 53 killed, 0 timeouts, 4 survived, 0 with no coverage.**
+C10X-28's run was 93.33% (42 / 3 / 0), taken before six map entries and `ownedAuthMessage`
+existed; the score moved by a third of a point because the denominator grew by eleven mutants
+and one more equivalent survivor came with the new helper.
+
+**No assertion was added.** All four survivors are `ConditionalExpression` mutants that strip an
+`x !== undefined` / `raw === null` guard, and each was confirmed equivalent **by execution**
+(`node -e`), not by argument:
+
+| Survivor | Mutation | Verdict |
+| --- | --- | --- |
+| `:118` | `if (raw === null) return null;` → `if (false)` | **Equivalent.** `AUTH_MESSAGES.includes(null)` is `false` (measured), so the helper still returns `null` for `null`. The guard is a readability/narrowing convenience |
+| `:241` | `status !== undefined && status >= 500` → `true && …` | **Equivalent.** `undefined >= 500` is `false` (measured) |
+| `:260` | `error.code !== undefined && Object.hasOwn(…)` → `true && …` | **Equivalent.** `Object.hasOwn(map, undefined)` is `false` (measured) |
+| `:264` | the same for `error.name` | **Equivalent**, same measurement |
+
+The last three are the same three C10X-28's impl-review classified as equivalent for the same
+reason; the first is the new helper's null guard, in that same class. Per CLAUDE.md's selective
+policy, an assertion goes in only when a survivor is a user-visible bug — none of these is, and
+adding one would pin a guard whose removal no user can observe.
+
+Worth carrying for the next runner: **Stryker cannot see the five inference-only codes either.**
+Their `it.each` rows use the same literal as the map key, so a mutant renaming a key is killed by
+a test that would equally have passed with both sides wrong. The mitigation stays the artifact
+named in the module (auth-js **2.105.3**'s `error-codes.d.ts`, path verified to resolve), not
+this score.
+
+### 6.5 — the denominator rot, closed everywhere it lives
+
+`grep -rn "1 of 33\|33 cases"` (excluding this change's own artifacts, which describe the rot
+rather than assert it) now returns **three** occurrences, each carrying a dated correction beside
+it:
+
+| Where | Treatment |
+| --- | --- |
+| `context/foundation/test-plan.md` §6.6 (C10X-28 entry) | **rewritten in place** — "(33 cases)" → "**55 cases as of 2026-07-31**; 33 when this row was written", with the reason the denominator moved twice |
+| `context/archive/2026-07-26-ai-candidate-generation-test-2/verification.md:48` | **dated correction line, run untouched.** The archived record of what was executed on 2026-07-26 stays exactly as it was |
+| …`/reviews/impl-review.md:93,334` | same, one line per occurrence |
+
+The archived rule is this project's own precedent (test-plan §8; C10X-30 corrected the "4xx"
+wording that way): an archived artifact records what was actually run on its date, so it gains a
+dated line and loses nothing. Both archived corrections also state that **the check has not been
+re-run** — a split whose denominator moved is not a split that was re-measured.
+
+### The comment corrections, and which were found by measurement
+
+Five false comments were named in the plan. **Two of the five were already corrected by earlier
+phases of this change** (the `name`-rung fallback claim, in Phase 2), so this phase closed the
+remaining three, plus a test title carrying the same false claim as its comment, plus one the
+plan could not have known about because it was introduced by this change's own Phase 5:
+
+| Site | The false claim | How it was settled |
+| --- | --- | --- |
+| file header | "the ONE endpoint case at the bottom" | **enumerated**: seven endpoint cases across four describes, three of which reach real GoTrue and four of which return before `createClient`. True when written, rotted as C10X-30 and this change added cases |
+| the non-emptiness `it.each` | "kills every `StringLiteral -> ""` mutant on this module" | **false by construction, and the mechanism is now in the comment**: the mapper branches on truthiness (`auth-errors.ts:261,265`), so a constant mutated to `""` is never returned — the chain falls through and the catch-all answers, non-empty and green. The closed-set scan is what kills the class |
+| `keeps the distinct code classes distinct` | "is what a mutant that repoints one key at another constant breaks" | **refuted by MEASUREMENT, not by reading** — Phase 1's breakage check B repointed `captcha_failed` and this case stayed GREEN while the mapping row went red. It is a fair guard against a different regression (a human unifying two constants' copy), which is what the comment now says |
+| `tells an empty form field apart from wrong credentials` | title **and** comment: an empty field reaches `AuthInvalidCredentialsError` via `form.get("email") as string` | both corrected. The cast is gone (`formString`, C10X-30) and supabase-js raises that class only when the credentials object LACKS the `email` key, which `formString` makes impossible. Renamed to `maps the client-side credentials class by name, though no request can reach it` — the title asserted the same false thing as the comment, so correcting one and not the other would have left the rot in the more visible half |
+| `ServerError.tsx:21-24` | "eight other components render this at eleven call sites" — while naming nine | **enumerated**, see the correction block at the end of Phase 5. Twelve sites, eleven components |
+
+Cross-ticket pointer rot: every `F<n>` citation in `tests/auth/errors.test.ts` and
+`tests/lib/forms.test.ts` now carries its owning ticket (`C10X-30 impl-review F10 / F7 / F4 / F5`,
+`C10X-28 impl-review F1`), with a block in `errors.test.ts` saying why the qualification is
+load-bearing: **C10X-28's own impl-review has an F4 and an F7 with unrelated content**, so an
+unqualified number sent a reader to the wrong findings. Attribution verified against the archived
+reviews before writing it, not assumed — `2026-07-28-server-side-validation-test/reviews/impl-review.md`
+carries F4 (`Phase 2 hardened eight branches; six are asserted`), F5 (`formString` duplicated),
+F7 (the bare `catch`) and F10 (rate-limit budget).
+
+`src/lib/forms.ts`'s "it existed on every form endpoint in this repo until C10X-30" is corrected
+against a measurement: **six** `formData()` readers exist under `src/pages/api/`, and
+`decks/index.ts:22-23` / `decks/[publicId].ts:31-32` still carry the unguarded read *and* the
+`as string | null` cast verbatim (grepped, both confirmed present today). C10X-37 owns them; the
+helper's own file no longer tells a contributor the class is closed. The same correction landed
+in `tests/lib/forms.test.ts`, which said "the four form endpoints" where four is the number of
+**callers**.
+
+### 6.6 — every `file:line` in the new test-plan entry resolves
+
+Checked by opening them, because the entry that ends pointer rot must not introduce any:
+`src/lib/auth-errors.ts`, `src/lib/forms.ts`, `src/lib/config-status.ts`,
+`tests/lib/config-status.test.ts`, `tests/lib/no-env-access.test.ts`, `tests/auth/errors.test.ts`,
+`src/pages/decks/index.astro`, `src/pages/decks/[publicId]/index.astro`,
+`src/pages/decks/[publicId]/review.astro`, `src/pages/auth/signin.astro`,
+`src/pages/auth/signup.astro` — **all present**. Three line-level citations were re-derived rather
+than copied: `signup.ts:19` is the `isFormContentType(...) ? GENERIC : VALIDATION` ternary,
+`decks/index.ts:22-23` and `decks/[publicId].ts:31-32` are the unguarded `formData()` and the cast
+on the lines named, `auth-errors.ts:261,265` are the two truthiness branches the corrected comment
+turns on, `supabase.ts:6-9` and `middleware.ts:50,52` are the null-client return and the two
+`locals.user` writes, and
+`node_modules/@supabase/auth-js/dist/module/lib/error-codes.d.ts` exists at **2.105.3**
+(`require(...).version`, read from the installed package).
+
+**And the check found one, which is the only reason to run it by hand.**
+`config-status.ts:28,37` — inherited from the plan and repeated in Phase 4's section above and in
+`tests/lib/config-status.test.ts:9` — points at `export const configStatuses = [` and a closing
+`},`. The claim it supports is true and the pointer was not: the import-time `configured` reads
+are at **`:31`** and **`:40`**, and `missingConfigs` itself is at **`:50`**. Corrected in both live
+sites; the frozen `plan.md` and `research.md` keep theirs, as historical artifacts do. Note the
+neighbouring `Layout.astro:17` in Phase 4's RED paragraph is **not** wrong in the same way — it is
+past tense ("the filter lived inline at…"), and it described the file before this change extracted
+the call, which now sits at `Layout.astro:15`.
+
+### 6.7 — the Phases 3–5 browser checks, re-observed on the current tree
+
+Phase 6 changes no behaviour, so the point of re-running these was **not** new evidence about the
+features — it was to confirm the comment-only edits left the surface intact, and to take one more
+reading of the rows Phase 5 could close only to the mechanism. Run 2026-07-31 against a fresh
+`npm run dev` on **`:4323`** (4321/4322 were reported in use by vite; the same
+`node_modules/.vite` re-optimization blip Phase 3 recorded hit the very first request — an
+`Invalid hook call … more than one copy of React` render, empty document — and cleared on reload,
+with `curl` already serving full HTML by then. Not a defect in this change; the production build
+is clean). Readings are `javascript_tool` evaluations in the page, not readings of a screenshot.
+
+| Row | What was observed on 2026-07-31 | Status |
+| --- | --- | --- |
+| 5.4 | Real failed sign-in (`nobody-phase6@example.com` + a wrong password, submitted through the form): a `<p role="alert">` carrying **"Nieprawidłowy e-mail lub hasło."** — the owned constant — and `location.search` **empty**, i.e. Phase 3's `replaceState` cleanup fired again. Two `[role="alert"]` nodes on the page and only one of them is `ServerError`; the other is the static config `Banner.astro`, which carries the role independently of this change | **Mechanism re-confirmed. Announcement still unobserved** |
+| 5.5 | `/generate`, signed in. Baseline **1** `[role="alert"]` (the config banner). After provoking the island's error branch with a 101-character deck name: **2**, the second a `<p role="alert">` with `ServerError`'s exact classes and "Nazwa nowej talii musi mieć od 1 do 100 znaków." **Absent → present**, i.e. genuinely inserted into the live DOM, which is the case the role is specified for. Screenshot shows the same red pill as before the attribute existed | **Mechanism re-confirmed. Announcement still unobserved** |
+| 5.6 | Clean fields on **both** forms: `aria-invalid` and `aria-describedby` **absent** (the no-dangling-reference contract). After a validation error: `aria-invalid="true"` on every field and `aria-describedby` resolving to a node whose text **is** the message — sign-in `email-error` → "Email is required", `password-error` → "Password is required"; sign-up additionally `confirmPassword-error` → "Please confirm your password". The alert count stayed **1** while three field errors were showing, so field errors are descriptions, not a second announcement | **Mechanism re-confirmed. Being read still unobserved** |
+| 5.8 | All six credential fields read off the live DOM: sign-in `email` / `current-password`; sign-up `email` / `new-password` / `new-password` (the confirm field too) | **Mechanism re-confirmed. Whether a manager offers fill/save still unobserved** |
+| 4.5 | Incidental: signed out, `/` served the guest landing with **zero** `[role="alert"]` nodes — no banner element at all, not merely no OpenRouter entry | re-confirmed |
+| 5.9 | Incidental: the sign-up that re-established a session landed on `/auth/confirm-email` titled **"Account created"**, copy beginning "If a confirmation link arrives in your inbox…" — the Phase 5 rewrite, under confirmations **off** | re-confirmed |
+
+> **Closed at the mechanism by the owner's decision, 2026-07-31 — and the Progress ticks must be
+> read against this line.** Rows 5.4, 5.5, 5.6 and 5.8 are marked `[x]`, but their titles claim
+> more than was observed: "announced by a screen reader", "read as the input's description",
+> "password manager fills … and offers to save". **What is evidence is the mechanism** — the
+> `role="alert"` node present and, off auth, provably inserted into a live DOM; `aria-invalid`
+> appearing only with an error and `aria-describedby` resolving to the exact message node; the six
+> `autocomplete` values. **No assistive technology and no password manager was exercised, by
+> anyone, at any point in this change.** A future reader who needs "it is announced" to be true
+> should learn here that the observation does not exist yet, rather than infer it from a checkbox.
+> §7's island negative space is unchanged, and test-plan §6.6's C10X-34 entry states the same
+> boundary in its does-NOT-prove list.
+
+**Why four rows could not be ticked from here on the evidence alone, stated once rather than
+implied.** Every
+assertion above is about the DOM the browser holds. What 5.4, 5.5 and 5.6 actually claim is that
+an **assistive technology speaks it**, and 5.8 that a **password manager offers** fill/save —
+neither is observable through page JavaScript, a screenshot, or the DevTools surface available to
+this agent. Chrome ships no scriptable accessibility-tree read (`getComputedAccessibleNode()` is
+unshipped), so "the mapping is right" cannot be strengthened into "it was announced". These rows
+need a human with a screen reader and a password manager, or an explicit decision to close them at
+the mechanism with the boundary recorded — which is what this table is.
+
+**Two incidentals worth recording rather than dropping.**
+- **A failed sign-in dropped the pre-existing session**: before the 5.4 probe the browser carried
+  a session (the gated OpenRouter banner was rendering); after it, no `sb-` cookie and `/` served
+  the guest landing. That is `@supabase/ssr` / GoTrue behaviour on a rejected
+  `signInWithPassword`, not anything this change touches — noted because it cost a confusing
+  minute mid-check and will cost the next person the same.
+- **One account left in the local `auth.users`**: `phase6-manual@example.com`, created to
+  re-establish a session for row 5.5. Harmless to the suite (it provisions its own per run),
+  cleared by `npm run db:reset` — same disposition as the accounts Phases 1 and 5 left.
+
+### 6.8 — the roadmap
+
+H-03's ⚠️ bullet gained one dated line: the C10X-28 attribution stands for the mapper and the
+gate, and C10X-34 / `auth-error-copy` (2026-07-31) closed the edges the side quest left open,
+enumerated. Its `- **Status:**` line is **untouched by design** — that flip belongs to
+`/10x-archive`, which matches on `Change ID`, and this change carries the id the row names
+(`roadmap.md` H-03 `Change ID: auth-error-copy`), so the archive step will match it. Verified by
+diffing the file: the only changed line in `roadmap.md` is the ⚠️ bullet.
+
+### What Phase 6 does NOT prove
+
+- **Nothing new about behaviour.** No `src/` line changed except comments, and the check above is
+  what makes that a measurement rather than an assurance. The suite count is identical on both
+  sides of the phase, which is the expected — and therefore weak — signal; the src-diff grep is
+  the strong one.
+- **Stryker's 92.98% is not evidence about the five inference-only codes.** It mutates this
+  module against this suite, and both sides of those rows carry the same literal.
+- **The four remaining manual rows (5.4, 5.5, 5.6, 5.8) are still open**, and this phase does not
+  close them: a screen reader and a password manager cannot be driven from here. Phase 5 recorded
+  the mechanism for each — `role="alert"` present and dynamically inserted, `aria-invalid` /
+  `aria-describedby` appearing only with an error and resolving to the right node, all six
+  `autocomplete` values on the live DOM — so what is missing is an assistive-technology
+  observation, not a wiring question.
+- **No document edited here is executable.** test-plan, roadmap and the two archived files are
+  read by humans and by agents; nothing in CI checks that their `file:line` citations still
+  resolve, which is precisely why the class recurs and why 6.6 was done by hand.
