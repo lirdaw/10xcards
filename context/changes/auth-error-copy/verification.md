@@ -249,3 +249,212 @@ by this phase.
   failure through a route; that would need the fetch seam, which this phase does not open.
 - **`isFormContentType`'s own logic** is covered by `tests/lib/forms.test.ts`, not here — this
   case pins that `signup.ts` *consults* it on both branches, not what it decides.
+
+---
+
+## Phase 3: The `?error=` channel, both ends
+
+Driven test-first (`/10x-tdd`), 2026-07-30, commit `f128f9b`. The phase is **mixed** by the
+skill's own gate and was run that way deliberately: the membership helper and its cases went
+through red→green, while the two `.astro` wirings and the two mount effects were built directly
+from the plan's contract — a page frontmatter and an island's JSX have no test layer in this
+project (§6.4, §7), so a failing test could not have led them.
+
+### Runs
+
+| # | Command | Result | Detail |
+| --- | --- | --- | --- |
+| 3.1 | `npx vitest run tests/auth/errors.test.ts` | **55 passed / 55** | seed `1785441701601`. Phase 2 left 51, so **+4**: the member case, the crafted case, the absent/empty case, and the all-constants positive control |
+| 3.1 | `npm test` | **245 passed / 245, 19 files** | seed `1785441830476`, 3.14 s; re-run after the breakage restore at seed `1785441952964`, 2.76 s, same count. Phase 2 left 241 — the +4 is entirely this file |
+| 3.3 | `npm run lint` | **exit 0** | unchanged: 0 errors, the same 6 pre-existing `no-console` warnings in `evals/generation-quality.eval.ts:148-163` |
+| 3.3 | `npm run build` | **exit 0** | server build complete in 6.58 s; the same pre-existing `[WARN] [@astrojs/sitemap]` about the missing `site` option |
+
+### RED, before any production edit
+
+**4 of 55 red**, all four on `TypeError: ownedAuthMessage is not a function` — i.e. on the
+absence of the code about to be written, not on an assertion. The other 51 stayed green, which
+is what shows the new block was added beside the existing claims rather than on top of them.
+
+### Breakage check E — make the helper return its input unchanged
+
+Neuter: the body replaced by `return raw;`.
+
+**2 of 55 red**, and the plan predicted **1**. Recorded as observed:
+
+```
+AssertionError: expected 'Twoje konto zostało przejęte. Zadzwoń…' to be null
+AssertionError: expected '' to be null
+```
+
+The first is the case the plan named. The second is `rejects an absent or empty parameter`,
+which the identity function also fails on the empty-string half — the prediction was rounder
+than the run, exactly as C10X-29's `missingLocal` neuter and C10X-30's case 8 were. The
+conclusion is unchanged.
+
+**What stayed GREEN is the evidence, not the reds.** `returns a project-owned message
+unchanged` and the positive control `accepts every constant in the closed set` both passed
+under the neuter. That asymmetry is what separates "these cases observe membership" from
+"these cases observe a helper that rejects everything" — without the control, `() => null`
+would satisfy all three rejection cases and read as perfect protection.
+
+Restored; `git diff --no-index` against the pristine copy taken before the edit **empty**
+(exit 0), pristine `MD5 D2624FD3C98F7F06BC481C2F60E93711`, and the file green again at 55/55
+(seed `1785441922961`).
+
+### Manual verification (browser, 2026-07-30)
+
+**How these were run, because it is not the ordinary setup.** A dev server was already running
+on `:4321` from an earlier session; a second `npm run dev` started for this phase took `:4322`
+and **crashed on every render** with `Invalid hook call … more than one copy of React` →
+`TypeError: Cannot read properties of null (reading 'useState')` at `SignInForm.tsx:13`. That is
+two Astro dev servers competing over one `node_modules/.vite` during dependency
+re-optimization — not a defect in this change, and the production `build` is clean. The checks
+below therefore ran against the `:4321` instance, which watches the same working tree and had
+hot-reloaded these edits (proven by the URL cleanup firing at all — that behaviour did not exist
+before this commit). The second server was stopped afterwards; the pre-existing one was left
+alone.
+
+The browser carried a live session throughout, visible as the OpenRouter configuration banner
+at the top of every screenshot. It does not affect any claim here — both auth pages render the
+same way either way — and the banner's own gating is Phase 4's subject, not evidence collected
+here.
+
+| # | Check | Observed |
+| --- | --- | --- |
+| 3.4 | Crafted `?error=` on **sign-in** | `?error=Twoje konto zostało przejęte. Zadzwoń pod 0700-123-456` → **no banner**. Address bar rewritten to a bare `/auth/signin` |
+| — | **Positive control**, same page | `?error=Nieprawidłowy e-mail lub hasło.` (a closed-set member) → banner rendered reading exactly that, URL likewise cleaned. Without this, 3.4's empty result would be indistinguishable from a broken page |
+| 3.5 | Real failed sign-in | `nobody-c10x34@example.com` + a wrong password submitted through the form → banner **"Nieprawidłowy e-mail lub hasło."**, address bar `http://localhost:4321/auth/signin`, **no `error=`** |
+| 3.6 | F5 on that page | **No banner replays**; both fields empty |
+| 3.7 | Back / Forward | `/auth/signup` → `/auth/signin?error=<member>` → **one** Back landed on `/auth/signup`; Forward returned to `/auth/signin`. `history.length` stayed **7** across the whole sequence, so the effect added no entry — `replaceState`, not `pushState`. On Forward `bannerShown: false`: the history entry carries the cleaned URL, so a stale error does not resurface that way either |
+| — | **Sign-up page mirror** | Crafted value → `bannerShown: false` and `document.body.innerText` does **not** contain `Zadzwoń pod 0700` anywhere on the page; member value `Konto z tym adresem e-mail już istnieje. Zaloguj się.` → rendered verbatim. Both pages are wired, so both were checked |
+
+The banner and `history.length` readings are `javascript_tool` evaluations in the page, not
+readings of a screenshot — `history.length` in particular has no visual form, and it is the one
+observation that separates `replaceState` from `pushState`.
+
+### What Phase 3 does NOT prove
+
+- **Only the helper is asserted.** That the two pages *call* it, and that the two islands strip
+  the parameter, rest entirely on the browser checks above. `.astro` frontmatter is not rendered
+  by any layer here (§6.4) and island JSX is unreachable by construction (§7) — the same
+  negative space `GeneratorForm`'s `maxLength` and `SessionSizeControl`'s bounds sit in. A
+  regression that deletes the `ownedAuthMessage(...)` call from `signin.astro` leaves the suite
+  **green**.
+- **Nothing observes the URL cleanup automatically.** No assertion anywhere reads
+  `window.location`; 3.5–3.7 are one human-driven pass.
+- **Other `?error=` consumers are untouched and unprotected.** `decks/index.astro:22`,
+  `decks/[publicId]/index.astro:86` and `review.astro:115` still read the parameter
+  unconstrained. Their messages come from a different closed set (or from none), so the helper
+  does not apply as written — out of scope, and named here rather than left to be inferred from
+  a helper that looks general.
+- **The helper does not sanitize, and must not be read as doing so.** It admits exact members of
+  `AUTH_MESSAGES` and nothing else, so its guarantee is only as good as that set's contents.
+  Moot today — React escapes, and the set is 19 hand-written Polish sentences — but a
+  constant carrying markup would pass unchanged.
+- **The banner's `role`/live-region semantics are still absent.** Phase 5's subject; nothing here
+  makes the message announceable.
+
+---
+
+## Phase 4: The banner gate — make the decision testable
+
+Driven test-first (`/10x-tdd`), 2026-07-30. The extraction and its cases went through
+red→green; §3's deletion of the dead `isOpenRouterConfigured` export is a mechanical removal
+with no observable behaviour, so it was made inline and is carried by the enumerated search
+below plus a clean build.
+
+### Runs
+
+| # | Command | Result | Detail |
+| --- | --- | --- | --- |
+| 4.1 | `npx vitest run tests/lib/config-status.test.ts` | **6 passed / 6** | seed `1785442727428`; the file is new, so all six are this phase's |
+| 4.1 | `npm test` | **251 passed / 251, 20 files** | seed `1785442791332`, 2.72 s. Phase 3 left 245 in 19 files — the +6 and the +1 file are entirely this one |
+| 4.3 | `grep -rn "isOpenRouterConfigured" --include=*.ts --include=*.tsx --include=*.astro` (excluding `node_modules`, `dist`) | **zero hits**, exit 1 | before the deletion the same search returned exactly one line, `src/lib/openrouter.ts:62` — its own definition. No call site existed to update |
+| 4.4 | `npm run lint` | **exit 0** | unchanged: 0 errors, the same 6 pre-existing `no-console` warnings in `evals/generation-quality.eval.ts:148-163` |
+| 4.4 | `npm run build` | **exit 0** | server built in 5.11 s; the same pre-existing `[WARN] [@astrojs/sitemap]` about the missing `site` option |
+
+### RED, before any production edit
+
+**6 of 6 red**, every one on `TypeError: visibleConfigStatuses is not a function` — the absence
+of the code about to be written, not a failed assertion. The function did not exist in any form:
+the filter lived inline in `Layout.astro:17` as an expression no layer in this project can
+reach.
+
+### Breakage check F — gate the whole block instead of each entry
+
+Neuter: the body replaced by `return hasSession ? entries : [];` — the exact regression the
+per-entry design exists to prevent, and the one that is self-hiding in production (an
+unconfigured Supabase forces `locals.user = null` on every path, `supabase.ts:6-9` +
+`middleware.ts:50,52`, so the banner explaining the breakage would disappear precisely when
+Supabase is what broke).
+
+**2 of 6 red**, exactly as predicted, both on the ungated entry in the signed-out state:
+
+```
+FAIL  visibleConfigStatuses > shows an ungated entry in both session states
+AssertionError: expected [] to deeply equal [ { name: 'Supabase', …(3) } ]
+
+FAIL  visibleConfigStatuses > returns only the ungated entry from a mixed list when signed out
+AssertionError: expected [] to deeply equal [ { name: 'Supabase', …(3) } ]
+```
+
+**The asymmetry is the evidence, not the reds.** Both `requiresSession: true` cases stayed
+green under the neuter — a block-level gate hides a gated entry from an anonymous visitor just
+as correctly as a per-entry one does, which is why a suite that only tested the OpenRouter
+semantics would have been fully green over this regression. The signed-in positive control
+(`shows every entry to a signed-in visitor, whatever its gating`) also stayed green, so the
+four survivors are not survivors of a function that returns everything.
+
+Restored from the pristine copy taken before the edit; `md5sum` **`fa58657d13b33ccfddd31cfccd8e9c48`**
+before and after, identical, and the file green again at 6/6.
+
+### The parameter is load-bearing, and this is where it is recorded
+
+`missingConfigs` is computed at import time from `astro:env/server` (`config-status.ts:28,37`),
+so under the runner it can only ever describe the local stack — Supabase **configured**,
+OpenRouter not. A filter closing over that constant would leave the one entry whose gating
+matters most (an *un*configured Supabase) unreachable by any test, and breakage check F above
+would have had nothing to go red on. Every entry in the test file is therefore fabricated; the
+real constant appears in no assertion.
+
+### Manual verification (browser, 2026-07-31)
+
+Run against the dev server already listening on `:4321` (the same instance Phase 3 used, and for
+the same reason — a second `npm run dev` competes with it over `node_modules/.vite`). Readings
+are `javascript_tool` evaluations in the page plus two screenshots; the banner's presence is
+tested on the served HTML (`OpenRouter nie jest skonfigurowany` / `Supabase nie jest
+skonfigurowany`), not by eye.
+
+| # | Check | Observed |
+| --- | --- | --- |
+| 4.6 | Signed in, `OPENROUTER_API_KEY` unset | Session `manual-c10x30@example.com`; `/` redirected to `/decks` and the page carried **"Uwaga: OpenRouter nie jest skonfigurowany — generacja fiszek działa w trybie mock (przykładowe karty). Zobacz dokumentację OpenRouter."** — one banner, at the top of a protected page |
+| 4.5 | Signed out, same key state | After "Wyloguj": no `sb-` cookie, `/` served the guest landing. `/`, `/auth/signin`, `/auth/signup` all **200 with no `Uwaga:` substring at all** — not merely no OpenRouter entry, no banner element. Screenshot of `/auth/signin` shows the page with no banner strip, against 4.6's pink strip |
+| 4.7 | `SUPABASE_URL`/`SUPABASE_KEY` commented out, signed out | `/auth/signin` served **"Uwaga: Supabase nie jest skonfigurowany — funkcje uwierzytelniania są wyłączone."** while the OpenRouter entry stayed **absent from the same response** — the per-entry gate visible in one render rather than across two |
+| 4.7 | **Independent oracle** that the env change reached the server | `POST /api/auth/signin` answered a redirect to `/auth/signin?error=Uwierzytelnianie%20jest%20chwilowo%20niedost%C4%99pne.%20Spr%C3%B3buj%20ponownie%20p%C3%B3%C5%BAniej.` — i.e. `createClient()` genuinely returned `null`. Without this, "the banner appeared" and "the server never reloaded `.env`" would be told apart by nothing |
+| 4.7 | Restore | `.env` copied back from the pristine copy taken before the edit: `diff` **empty** (exit 0), `md5` **`d9ddbf2e05c76862c41808617bfcbaa5`** identical to pristine, zero `TMP-C10X34` markers left. The running server picked the restore up as well — `/auth/signin` and `/` back to **no `Uwaga:` at all** |
+
+**A trap worth recording, because it cost a false reading here.** The first 4.5 probe fetched
+`/auth/signin` while the browser still carried the session, and the OpenRouter banner was
+present — which looks like the gate failing on an auth page. It is not: the gate keys on the
+**session**, not on the path, so a signed-in visitor sitting on `/auth/signin` is shown the
+gated entry correctly. A signed-out check has to actually be signed out; `fetch` from a page
+sends the cookie.
+
+**Incidental, and it changes no claim.** 4.7's oracle is the first time
+`AUTH_UNAVAILABLE_MESSAGE` has been observed end to end — the plan names it as deliberate
+negative space (Phase 2 §3), and it stays that: seen once by hand, asserted nowhere.
+
+### What Phase 4 does NOT prove
+
+- **Only the decision is asserted.** That `Layout.astro` *calls* `visibleConfigStatuses`, that it
+  passes `Boolean(Astro.locals.user)` rather than something else, and that `Banner.astro` renders
+  what comes back, rest on the manual checks below — the same `.astro` negative space as Phase 3
+  (§6.4, §7). A regression restoring an inline filter in the layout leaves the suite green.
+- **Nothing tests `configured` itself.** The `Boolean(SUPABASE_URL && SUPABASE_KEY)` /
+  `Boolean(OPENROUTER_API_KEY)` reads are import-time env access, i.e. the seam §6.9 confines to
+  one file; `missingConfigs`'s own contents are unasserted by decision.
+- **`requiresSession: false` on the Supabase entry is a data claim, not a tested one.** The
+  function honours whatever flag an entry carries; that Supabase's entry carries `false` is
+  pinned by its own doc comment and by manual check 4.7, not by an assertion.
+- **The deletion of `isOpenRouterConfigured` is carried by search and build**, not by a test —
+  it had no callers, so no behaviour changed and none could be observed.

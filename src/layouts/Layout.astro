@@ -1,7 +1,7 @@
 ---
 import "../styles/global.css";
 import Banner from "@/components/Banner.astro";
-import { missingConfigs } from "@/lib/config-status";
+import { missingConfigs, visibleConfigStatuses } from "@/lib/config-status";
 
 interface Props {
   title?: string;
@@ -9,12 +9,10 @@ interface Props {
 
 const { title = "10xCards" } = Astro.props;
 
-// `missingConfigs` is a module-level constant (it reads `astro:env/server` at import time),
-// so the session gate cannot live in it — it is a per-request fact and this layout is the
-// per-request surface. Filter PER ENTRY, never the whole block: Supabase's warning carries
-// `requiresSession: false` precisely because an unconfigured Supabase means nobody is ever
-// signed in, so a block-level gate would hide the one banner that explains the breakage.
-const visibleConfigs = missingConfigs.filter((cfg) => !cfg.requiresSession || Astro.locals.user);
+// The session is a per-request fact and this layout is the per-request surface, so it is
+// what supplies the flag; the decision itself lives in `visibleConfigStatuses`, where it has
+// tests (tests/lib/config-status.test.ts).
+const visibleConfigs = visibleConfigStatuses(missingConfigs, Boolean(Astro.locals.user));
 ---
 
 <!doctype html>

@@ -819,31 +819,31 @@ None — no schema change, no migration, no data to move. Nothing here touches `
 
 #### Automated
 
-- [x] 3.1 `npm test` green; existing endpoint cases unaffected
-- [x] 3.2 Breakage check E: helper returns its input unchanged → crafted-value case red, member case green
-- [x] 3.3 `npm run lint` exit 0; `npm run build` exit 0
+- [x] 3.1 `npm test` green; existing endpoint cases unaffected — f128f9b
+- [x] 3.2 Breakage check E: helper returns its input unchanged → crafted-value case red, member case green — f128f9b
+- [x] 3.3 `npm run lint` exit 0; `npm run build` exit 0 — f128f9b
 
 #### Manual
 
-- [x] 3.4 Crafted `?error=` renders no banner
-- [x] 3.5 Real failure shows the banner and the URL carries no `error=` afterwards
-- [x] 3.6 F5 replays nothing; the form is clean
-- [x] 3.7 Browser Back/Forward across sign-in still work (`replaceState`, not `pushState`)
+- [x] 3.4 Crafted `?error=` renders no banner — f128f9b
+- [x] 3.5 Real failure shows the banner and the URL carries no `error=` afterwards — f128f9b
+- [x] 3.6 F5 replays nothing; the form is clean — f128f9b
+- [x] 3.7 Browser Back/Forward across sign-in still work (`replaceState`, not `pushState`) — f128f9b
 
 ### Phase 4: The banner gate — make the decision testable
 
 #### Automated
 
-- [ ] 4.1 `npm test` green, `tests/lib/config-status.test.ts` collected
-- [ ] 4.2 Breakage check F: block-level gate → `requiresSession: false` signed-out case red, others green; split recorded
-- [ ] 4.3 `isOpenRouterConfigured` returns zero hits repo-wide
-- [ ] 4.4 `npm run lint` exit 0; `npm run build` exit 0
+- [x] 4.1 `npm test` green, `tests/lib/config-status.test.ts` collected
+- [x] 4.2 Breakage check F: block-level gate → `requiresSession: false` signed-out case red, others green; split recorded
+- [x] 4.3 `isOpenRouterConfigured` returns zero hits repo-wide
+- [x] 4.4 `npm run lint` exit 0; `npm run build` exit 0
 
 #### Manual
 
-- [ ] 4.5 Signed out, no OpenRouter key → no OpenRouter banner
-- [ ] 4.6 Signed in, no OpenRouter key → banner present
-- [ ] 4.7 Supabase unset → Supabase banner visible while signed out; `.env` restore verified by diff
+- [x] 4.5 Signed out, no OpenRouter key → no OpenRouter banner
+- [x] 4.6 Signed in, no OpenRouter key → banner present
+- [x] 4.7 Supabase unset → Supabase banner visible while signed out; `.env` restore verified by diff
 
 ### Phase 5: The auth surface — accessibility and the env violation
 
