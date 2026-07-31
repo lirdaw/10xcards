@@ -66,6 +66,19 @@ export function FormField({
           // AGENTS.md describes lives on the shared `ui/` primitives, and this component is
           // not one of them. Its red ring is the documented local one on the line below.
           aria-invalid={error ? true : undefined}
+          // Only while an error is present — a dangling `aria-describedby` is worse than none,
+          // and the condition here is deliberately the SAME expression that renders the `<p>`
+          // below, so the two cannot drift into pointing at nothing.
+          //
+          // `hint` is NOT described (impl-review F4, 2026-07-31, decided rather than overlooked).
+          // The two are mutually exclusive — `hint` is the `else` branch below — so its absence
+          // costs no dangling reference, but it does mean `SignUpForm`'s live "N more characters
+          // needed" is visible-only: a screen-reader user meets the guidance only after
+          // triggering the error it would have prevented. Closing it is not a one-liner: `hint`
+          // arrives as an opaque `ReactNode` from the parent, so an id has to come from a prop
+          // contract change or a `cloneElement`, and the manual screen-reader check that closed
+          // 5.6 would have to be re-run. Left open on purpose; the shape if it is ever taken is
+          // `aria-describedby={error ? errorId : hint ? hintId : undefined}`.
           aria-describedby={error ? errorId : undefined}
           className={cn(
             inputBase,

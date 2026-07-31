@@ -1821,11 +1821,30 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
     `createClient() === null`, i.e. an `astro:env/server` double, and §6.9 admits one only for a
     claim unreachable otherwise. It was seen once end to end during Phase 4's manual checks and
     that changes nothing. A surviving Stryker mutant on it is expected, not a gap.
-  - **The island and `.astro` halves, as always (§7).** The suite asserts the two pure functions;
-    that `signin.astro`/`signup.astro` *call* `ownedAuthMessage`, that both islands strip the
-    parameter with `replaceState`, and that `Layout.astro` *calls* `visibleConfigStatuses` with
-    `Boolean(Astro.locals.user)` rest entirely on browser checks. **A regression deleting the
-    `ownedAuthMessage(...)` call from `signin.astro` leaves the suite green.**
+  - **The island and `.astro` halves, as always (§7)** — but **one of the three is now closed, and
+    the sentence that used to end this bullet is no longer true** (corrected 2026-07-31 by this
+    change's impl-review, F2). It read: "A regression deleting the `ownedAuthMessage(...)` call from
+    `signin.astro` leaves the suite green." It did, and it no longer does —
+    `tests/lib/auth-error-param-guard.test.ts` is a textual guard over `src/pages/auth/**/*.astro`
+    asserting **per line** that a read of the parameter is the same line that wraps it, so
+    co-presence of an unused import cannot satisfy it. Proved falsifiable rather than argued:
+    unwrapping `signin.astro:8` turns **1 of 3** red, naming file and line
+    (`signin.astro:8: const error = Astro.url.searchParams.get("error");`), while **both positive
+    controls stay green** — and, the reason the guard exists, `errors.test.ts` stayed **55/55 green
+    through the same neuter**. Restored, `md5` identical to the pristine copy
+    (`0e0221b42845c63a2130bcb7cfd7266a`), `git diff -- src/` empty. It proves the call is *present
+    and composed*, never that its value reaches `serverError`. **Still resting on browser checks
+    alone**: that both islands strip the parameter with `replaceState`, and that `Layout.astro`
+    calls `visibleConfigStatuses` with `Boolean(Astro.locals.user)`.
+  - **The field/description association covers the ERROR only, never the `hint`** (added
+    2026-07-31 by this change's impl-review, F4). `FormField.tsx:69` emits `aria-describedby` on
+    the same condition that renders the error `<p>`, which is what makes a dangling reference
+    impossible — and `hint` is that condition's `else` branch, so it is never described. Concrete
+    cost: `SignUpForm.tsx:74-80`'s live "N more characters needed" is **visible-only**, so a
+    screen-reader user meets the guidance only after triggering the error it would have prevented.
+    Left open by decision, not by omission — `hint` arrives as an opaque `ReactNode`, so an id
+    needs a prop-contract change or a `cloneElement`, and the manual check that closed 5.6 would
+    have to be re-run. Recorded at the site in `FormField.tsx` with the shape it would take.
   - **`role="alert"` is a shared edit with a wider blast radius than auth**, and the counts here
     are enumerated (`grep -rn "<ServerError" src/`), not carried over: **twelve call sites across
     eleven components**, ten of those sites (nine components) off the auth surface and every one
@@ -1835,9 +1854,21 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
     are closed to the *mechanism* only, because a screen reader and a password manager cannot be
     driven from automation.
   - **Nothing observes the URL cleanup automatically.** No assertion reads `window.location`.
-  - **Other `?error=` consumers are untouched.** `decks/index.astro`, `decks/[publicId]/index.astro`
-    and `review.astro` still read the parameter unconstrained; their messages come from a
-    different set (or none), so the helper does not apply as written.
+  - **Other `?error=` consumers are untouched, and this one has an OWNER now** (added 2026-07-31 by
+    this change's impl-review, F1). `decks/index.astro:22`, `decks/[publicId]/index.astro:86` and
+    `review.astro:115` still read the parameter unconstrained; their messages come from a
+    different set (or none), so the helper does not apply as written. What the review added is not
+    the observation but the ticket: all three pass the raw value as `serverError` into an island
+    that renders it through the **same** `ServerError` red banner (`decks/index.astro:34` →
+    `CreateDeckModal.tsx:80`), i.e. the identical content-injection class this change closed on the
+    auth pages — behind the middleware guard, so the victim must already be signed in, which lowers
+    the severity and does not remove it. Every other deferred edge in this list carries a key
+    (C10X-36, C10X-37); a live vector recorded in prose alone is how one becomes a rediscovery. **To
+    be ticketed via `/jira-backlog-sync`** (same idiom as C10X-31's deferred `workflow_dispatch`
+    leg): a deck-side closed set plus an `ownedAuthMessage`-shaped helper — membership by equality,
+    `null` on anything else. The first step of that ticket is the thing this review did **not**
+    establish: enumerate what the six deck endpoints actually put in `?error=` and confirm it is a
+    closed set of literals.
   - **The two deck endpoints still carry the defects C10X-30 swept elsewhere** — unguarded
     `formData()` and the `as string | null` cast (`decks/index.ts:22-23`,
     `decks/[publicId].ts:31-32`). Owned by **C10X-37**; only the false *comment* about them, in
@@ -2598,9 +2629,12 @@ contributors should respect these unless the underlying assumption changes.
   follow-up.
 
 - **Roadmap H-03 / the auth `?error=` channel last proven by execution: 2026-07-31** (C10X-34,
-  change folder `auth-error-copy`). Suite **254/254, 21 files** (228/228, 19 at the Phase 0
+  change folder `auth-error-copy`). Suite **257/257, 22 files after this change's impl-review**
+  (254/254, 21 at phase completion; the review added `tests/lib/auth-error-param-guard.test.ts`, 3
+  cases, closing the one gap the entry above had disclosed rather than closed — see F2). At phase
+  completion it was 228/228, 19 at the Phase 0
   baseline; +17 in `tests/auth/errors.test.ts` — which went 38 → 55 — plus two new files,
-  `tests/lib/config-status.test.ts` (6) and `tests/lib/no-env-access.test.ts` (3)). Local stack
+  `tests/lib/config-status.test.ts` (6) and `tests/lib/no-env-access.test.ts` (3). Local stack
   up, `OPENROUTER_API_KEY` unset, `npm run lint` exit 0 (the same 6 pre-existing `no-console`
   warnings in `evals/generation-quality.eval.ts`), `npm run build` exit 0. Six deliberate-breakage
   checks ran, each restored and each restore **verified** by a hash or `diff` against a pristine
@@ -2626,10 +2660,19 @@ contributors should respect these unless the underlying assumption changes.
   `ServerError.tsx` were **re-derived by enumeration** and were wrong in the version that shipped
   in this change's own Phase 5 — recorded rather than quietly fixed.
 - **What is NOT closed by this entry, and is named rather than left to be inferred**: the island
-  and `.astro` halves of every claim above (§7, unchanged — the suite stays green if a page stops
-  calling `ownedAuthMessage`), `AUTH_UNAVAILABLE_MESSAGE`, the five inference-only GoTrue codes,
+  and `.astro` halves of every claim above (§7 — **with one exception added by this change's
+  impl-review**: a page that stops calling `ownedAuthMessage` now fails
+  `tests/lib/auth-error-param-guard.test.ts`, so that one sentence in the parenthesis no longer
+  holds; the `replaceState` strip and `Layout.astro`'s call are unchanged),
+  `AUTH_UNAVAILABLE_MESSAGE`, the five inference-only GoTrue codes,
   the two deck endpoints (**C10X-37**), auth input validation (**C10X-36**) and the English auth
   UI (**C10X-19**). §6.6's C10X-34 entry carries each with its reason.
+- **The impl-review left one live vector with an owner rather than a fix** (F1): the three deck
+  pages still read `?error=` unconstrained into the same `ServerError` banner — the class this
+  change closed on auth, one surface over, behind the session guard. Queued in the change's
+  `follow-ups/review-fixes.md` and named in §6.6's does-NOT-prove list; **to be ticketed via
+  `/jira-backlog-sync`**. Its first step is the enumeration this review did not do: confirm the
+  six deck endpoints' `?error=` values are a closed set of literals.
 
 Refresh (`/10x-test-plan --refresh`) when:
 

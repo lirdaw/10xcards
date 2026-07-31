@@ -569,6 +569,18 @@ sent and should be opened if it arrives, and sign-in is the next step either way
 the page (see What We're NOT Doing). Verify by enumerated search that `src/` afterwards contains
 **zero** `import.meta.env` occurrences.
 
+> **Addendum, 2026-07-31 (impl-review F3): what shipped is wider than this contract, deliberately.**
+> The contract asks for a one-off *search*; the implementation made it a permanent guard —
+> `tests/lib/no-env-access.test.ts`, 3 cases, positive controls in both directions, modelled on
+> `no-logging.test.ts`. The reason is the same one that file records: no ESLint rule in this project
+> forbids either spelling, so `import.meta.env.DEV` shipped with `lint` exit 0 and CI green and
+> became the one occurrence in the tree. A search proves the tree is clean today; only a guard keeps
+> it clean. Recorded here rather than left as untracked scope, and it carries **one constraint the
+> plan never weighed**: the scan is textual, so any `src/` file that merely *mentions* the token —
+> including inside a comment — turns it red. `confirm-email.astro:6-9` is already worded around it
+> and says so. The trade is stated in the guard's own header: reword the prose, do not weaken the
+> pattern.
+
 ### Success Criteria
 
 #### Automated Verification
