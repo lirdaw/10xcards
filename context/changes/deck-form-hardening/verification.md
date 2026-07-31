@@ -25,18 +25,56 @@ card `0e1e7ca8-…`.
 
 Every row asserts on the DOM (`[role="alert"]` node text), not on a glance at a screenshot.
 
-| Surface / value | Observed |
+> **Two methodology defects were found in the FIRST pass of this matrix and the whole matrix
+> was re-run. Recorded rather than quietly fixed, because both are traps the next contributor
+> will meet.**
+>
+> 1. **The reads raced hydration.** Every banner on the modal surfaces is rendered by a React
+>    island, and the first pass read the DOM immediately after `navigate` returned. Measured on
+>    the re-run: hydration completes **403–901 ms** after navigation. A "no banner" read taken
+>    inside that window says nothing about the guard. The re-run polls
+>    `astro-island[ssr]` until Astro drops the attribute, then waits a further 400 ms.
+> 2. **The positive control was unfalsifiable.** "The modal DID open" was asserted as
+>    `!!document.querySelector('input[name="name"]')` — and that input is in the SSR markup
+>    **whether the modal is open or closed** (measured with the modal closed: `exists: true`,
+>    `getClientRects().length: 0`, `offsetParent: null`). So the control was satisfied by a
+>    closed modal and could not have gone red. The re-run asserts **visibility**
+>    (`getClientRects().length > 0`), which is what separates "the guard suppressed the banner"
+>    from "the sink was never rendered". Same class as the `listDueCounts` false pass in
+>    test-plan §6.6 — an assertion that reads green because it cannot fail.
+>
+> The conclusions below are from the **second** pass. They agree with the first pass; the point
+> is that only the second pass is evidence.
+
+| Surface / value | Sink reachable? | Banner |
+| --- | --- | --- |
+| `/decks?open=create&error=Talia o tej nazwie już istnieje` (member) | modal **visible** | **shown**, text equal to the constant |
+| `/decks?open=create&error=Twoje konto zostało zablokowane, kliknij tutaj` (crafted) | modal **visible** | **none** |
+| `/decks?open=create&error=<member> — kliknij tutaj, aby odblokować konto` (containment) | modal **visible** | **none** — the case membership-by-equality exists for |
+| `/decks?open=create&error=Talia o tej nazwie już istniej` (one-char truncation) | modal **visible** | **none** |
+| `/decks/<A>?open=rename&error=Nazwa talii musi mieć od 1 do 100 znaków` (member) | rename modal **visible** | **shown** |
+| `/decks/<A>?open=rename&error=<member> - kliknij tutaj` (crafted) | rename modal **visible** | **none** |
+| `/decks/<B>/review?edit=<card>&error=Nie udało się zapisać zmian` (member) | edit form **visible** (2 textareas) | **shown** |
+| `/decks/<B>/review?edit=<card>&error=<member> — zaloguj się ponownie tutaj` (crafted) | edit form **visible** (2 textareas) | **none** |
+| `/decks/<A>?error=Nie udało się usunąć talii` (page-level, no companion param) | SSR — no hydration involved | **shown**, with icon, wrapper `mb-4` |
+| `/decks/<A>?error=<member> — kliknij tutaj` (page-level, crafted) | SSR | **none**: zero elements matching `bg-red-900/30`, page otherwise intact |
+
+### Real flows — the round trip nothing else proves
+
+The crafted-URL matrix proves the consumer rejects what it should. It does **not** prove that
+what the six producers actually emit still passes — after Phase 1 hoisted every literal into
+`redirect-errors.ts`, a single reworded producer would fall out of the set and the banner would
+silently stop appearing. Only a live refusal closes that loop. Driven through the real forms:
+
+| Flow | Observed |
 | --- | --- |
-| `/decks?open=create&error=Talia o tej nazwie już istnieje` (member) | banner **shown**, text equal to the constant |
-| `/decks?open=create&error=Twoje konto zostało zablokowane, kliknij tutaj` (crafted) | **no banner** — and `input[name="name"]` present, i.e. the modal DID open, so the absence is the guard and not a missing sink |
-| `/decks?open=create&error=<member> — kliknij tutaj, aby odblokować konto` (containment) | **no banner** — the case membership-by-equality exists for |
-| `/decks?open=create&error=Talia o tej nazwie już istniej` (one-char truncation) | **no banner** |
-| `/decks/<A>?open=rename&error=Nazwa talii musi mieć od 1 do 100 znaków` (member) | banner **shown** inside the rename modal |
-| `/decks/<A>?open=rename&error=<member> - kliknij tutaj` (crafted) | **no banner** |
-| `/decks/<B>/review?edit=<card>&error=Nie udało się zapisać zmian` (member) | banner **shown**; edit form open (`textarea` present) |
-| `/decks/<B>/review?edit=<card>&error=<member> — zaloguj się ponownie tutaj` (crafted) | **no banner**; edit form still open — again the sink was reachable |
-| `/decks/<A>?error=Nie udało się usunąć talii` (page-level banner, no companion param) | banner **shown** |
-| `/decks/<A>?error=<member> — kliknij tutaj` (page-level, crafted) | **no banner**: zero elements matching `bg-red-900/30` on the page |
+| Create, empty name | client guard fires, **no request**, message `Nazwa talii musi mieć od 1 do 100 znaków` (the hoisted `DECK_NAME_MESSAGE`, unchanged) |
+| Create, duplicate name | **real server refusal** → full-page navigation (`performance` navigation type `navigate`) → modal re-opens with `Talia o tej nazwie już istnieje`. **Producer → `?error=` → `ownedRedirectMessage` → banner, end to end** |
+| Create, unique name | deck created, appears in the list, no banner |
+| Rename → duplicate name | **real server refusal** → banner `Talia o tej nazwie już istnieje`; `<h1>` unchanged, modal pre-filled with the ORIGINAL name |
+| Rename → unique name | `<h1>` becomes the new name, modal closed, no banner |
+| Delete | deck removed, redirect to `/decks`, no banner (also the cleanup of the deck this pass created — the dev DB is back to its two original decks) |
+| Generate form (step 8) | new-deck name input `maxLength: 100` (from `NAME_MAX`), and its own copy is intact: `Nazwa nowej talii musi mieć od 1 do 100 znaków.` — **with** the trailing period, i.e. still distinct from the deck copy, which has none |
 
 ### 3.8 — spacing, measured rather than eyeballed
 
