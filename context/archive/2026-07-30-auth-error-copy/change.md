@@ -1,10 +1,10 @@
 ---
 change_id: auth-error-copy
 title: Audit and close H-03 — auth error copy and the OpenRouter banner gate
-status: impl_reviewed
+status: archived
 created: 2026-07-30
 updated: 2026-07-31
-archived_at: null
+archived_at: 2026-07-31T07:56:44Z
 ---
 
 ## Notes
