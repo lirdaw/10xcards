@@ -3,8 +3,12 @@ import * as SignIn from "@/pages/api/auth/signin";
 import * as SignUp from "@/pages/api/auth/signup";
 import {
   authErrorMessage,
+  AUTH_CAPTCHA_FAILED_MESSAGE,
+  AUTH_CONFLICT_MESSAGE,
   AUTH_EMAIL_EXISTS_MESSAGE,
+  AUTH_EMAIL_NOT_AUTHORIZED_MESSAGE,
   AUTH_EMAIL_NOT_CONFIRMED_MESSAGE,
+  AUTH_EMAIL_PROVIDER_DISABLED_MESSAGE,
   AUTH_GENERIC_MESSAGE,
   AUTH_INVALID_CREDENTIALS_MESSAGE,
   AUTH_INVALID_EMAIL_MESSAGE,
@@ -18,6 +22,7 @@ import {
   AUTH_USER_BANNED_MESSAGE,
   AUTH_VALIDATION_MESSAGE,
   AUTH_WEAK_PASSWORD_MESSAGE,
+  ownedAuthMessage,
 } from "@/lib/auth-errors";
 import { accountA } from "../fixtures/accounts";
 import { callEndpoint } from "../fixtures/endpoint";
@@ -35,9 +40,16 @@ import { callEndpoint } from "../fixtures/endpoint";
 // the invariant.
 //
 // The mapper is pure and imports nothing, so most of this needs no database — but the
-// suite's preflight/globalSetup still requires the local stack (test-plan §6.1). The one
-// endpoint case at the bottom genuinely needs it: it drives the real route against real
-// GoTrue and reads the redirect the browser would follow.
+// suite's preflight/globalSetup still requires the local stack (test-plan §6.1).
+//
+// THIS COMMENT USED TO SAY "the one endpoint case at the bottom". It was true when the file
+// shipped with a single one and rotted as later slices added more; there are now SEVEN,
+// across four describes. Three of them genuinely reach real GoTrue — signin's redirect case
+// and each route's File-part case — and those are the ones that spend the shared rate-limit
+// budget the block above `POST /api/auth/signin — malformed body` warns about. The other
+// four return from the `catch` around `formData()`, before `createClient`, so they cost
+// nothing. Keep the split in mind before adding a case: the cheap shape is preferred where
+// it can carry the claim.
 
 const suffix = Date.now().toString(36);
 const SENTINEL = `leak-probe-${suffix}`;
@@ -65,6 +77,25 @@ describe("authErrorMessage — code chain", () => {
     ["user_banned", AUTH_USER_BANNED_MESSAGE],
     ["over_request_rate_limit", AUTH_RATE_LIMIT_MESSAGE],
     ["over_email_send_rate_limit", AUTH_RATE_LIMIT_MESSAGE],
+    // What GoTrue actually answers for an empty address on /signup — it reads one as an
+    // anonymous sign-in attempt (measured against the local stack, see the signup block).
+    ["anonymous_provider_disabled", AUTH_MISSING_CREDENTIALS_MESSAGE],
+    // The five below cannot be produced against the local stack — they need a GoTrue config
+    // this project does not run (a mail-domain allow-list, e-mail auth off, captcha on) or an
+    // upstream condition (a row lock, a timeout). Their rows use the SAME literal as the map
+    // key, so this table only proves the module agrees with itself: a typo'd or renamed code
+    // is invisible here AND to Stryker. What makes them non-arbitrary is the artifact they
+    // were checked against — see the reachability record in `src/lib/auth-errors.ts`.
+    //
+    // The load-bearing property is not the wording but the RETRY SEMANTICS: the catch-all's
+    // "Spróbuj ponownie" must not survive on a branch where a retry can never succeed.
+    ["email_address_not_authorized", AUTH_EMAIL_NOT_AUTHORIZED_MESSAGE],
+    ["email_provider_disabled", AUTH_EMAIL_PROVIDER_DISABLED_MESSAGE],
+    ["captcha_failed", AUTH_CAPTCHA_FAILED_MESSAGE],
+    ["conflict", AUTH_CONFLICT_MESSAGE],
+    // A timeout IS the transport story, so it reuses the network copy rather than minting a
+    // fourteenth sentence that says the same thing.
+    ["request_timeout", AUTH_NETWORK_MESSAGE],
   ];
 
   it.each(cases)("maps %s to its own constant", (code, expected) => {
@@ -73,16 +104,31 @@ describe("authErrorMessage — code chain", () => {
     expect(authErrorMessage(withSentinelMessage({ code, name: "AuthApiError", status: 400 }))).toBe(expected);
   });
 
-  // A message that is present but empty is a message the user cannot act on — and it is what
-  // every `StringLiteral -> ""` mutant on this module produces. Asserting non-emptiness kills
-  // that class without pinning a single word of the copy.
+  // A message that is present but empty is a message the user cannot act on. This scan says
+  // every mapped code answers with SOMETHING readable, without pinning a word of the copy.
+  //
+  // WHAT IT DOES NOT DO — the previous version of this comment claimed it "kills every
+  // `StringLiteral -> ""` mutant on this module", and that is false. The mapper branches on
+  // TRUTHINESS (`auth-errors.ts:261,265`), so a constant mutated to `""` is not returned at
+  // all: `byCode` is falsy, the chain falls through, and the catch-all answers — non-empty,
+  // case green. The assertion that actually kills that class is `has no empty constant in the
+  // closed set` below, which reads `AUTH_MESSAGES` directly instead of through the chain; its
+  // own comment says so correctly and is the one to trust.
   it.each(cases)("answers %s with non-empty copy", (code) => {
     expect(authErrorMessage({ code }).length).toBeGreaterThan(0);
   });
 
   // The mapped classes must stay distinguishable: a user who mistyped a password and a user
-  // whose account is banned must not read the same sentence. This is what a mutant that
-  // repoints one key at another constant breaks.
+  // whose account is banned must not read the same sentence.
+  //
+  // WHAT THIS GUARDS, precisely — the previous version said it "is what a mutant that repoints
+  // one key at another constant breaks", and that is false. This `Set` is built from IMPORTED
+  // CONSTANTS and never calls the mapper, so it cannot observe a map value at all. Measured,
+  // not argued: C10X-34's breakage check B repointed `captcha_failed` at AUTH_GENERIC_MESSAGE
+  // and this case stayed GREEN while the `maps captcha_failed …` row went red. It is a fair
+  // guard against a different regression — a human unifying two constants' copy, e.g.
+  // "simplifying" the banned message into the invalid-credentials one — and the count below is
+  // hand-built, so it must move whenever a constant is added or merged.
   it("keeps the distinct code classes distinct", () => {
     const distinct = new Set([
       AUTH_INVALID_CREDENTIALS_MESSAGE,
@@ -95,26 +141,59 @@ describe("authErrorMessage — code chain", () => {
       AUTH_SIGNUP_DISABLED_MESSAGE,
       AUTH_USER_BANNED_MESSAGE,
       AUTH_RATE_LIMIT_MESSAGE,
+      AUTH_MISSING_CREDENTIALS_MESSAGE,
+      AUTH_EMAIL_NOT_AUTHORIZED_MESSAGE,
+      AUTH_EMAIL_PROVIDER_DISABLED_MESSAGE,
+      AUTH_CAPTCHA_FAILED_MESSAGE,
+      AUTH_CONFLICT_MESSAGE,
+      AUTH_NETWORK_MESSAGE,
       AUTH_GENERIC_MESSAGE,
     ]);
-    expect(distinct.size).toBe(11);
+    expect(distinct.size).toBe(17);
   });
 });
 
 describe("authErrorMessage — the chain below `code`", () => {
-  // `code` is read off the response body, so five classes never carry one. Without the
-  // `name` link a transport failure would read as "popraw dane w formularzu".
+  // `code` is read off the response body, so five classes never carry one. Without the `name`
+  // link a transport failure falls to the STATUS rung, and below 500 that is
+  // AUTH_GENERIC_MESSAGE — "spróbuj ponownie", which says nothing about the connection.
+  // (It is not AUTH_VALIDATION_MESSAGE: that constant is reachable only via the
+  // `validation_failed` code. An earlier version of this comment claimed otherwise.)
+  //
+  // `status: 0` IS the discriminating input, and it is faithful rather than contrived.
+  // @supabase/auth-js/dist/module/lib/fetch.js constructs this class at three sites: `:26`
+  // (the thrown value is not a Response) and `:112` (the fetch call itself threw — the
+  // ordinary network failure) both pass **0**, while `:30` passes a real status from
+  // NETWORK_ERROR_CODES [502,503,504,520-524,530]. Only the 0 form is answerable by the
+  // `name` rung alone: 0 is neither 429 nor >= 500, so `messageByStatus` returns null.
+  //
+  // THIS CASE USED TO SUPPLY `status: 503` AND WAS THEREFORE UNFALSIFIABLE. 503 reaches the
+  // same constant through `messageByStatus`, so the MESSAGE_BY_NAME entry could be deleted
+  // with the whole file green — measured, 50/50 passing with the entry removed. The `status`
+  // rung keeps its own separate input in "falls to status when neither code nor name is
+  // recognised" below (an unrecognised name at 500), so deleting THAT rung stays catchable
+  // too. Two rungs, two inputs — do not merge them back into one.
   it("separates a transport failure from a rejected credential, on `name` alone", () => {
-    const transport = authErrorMessage(withSentinelMessage({ name: "AuthRetryableFetchError", status: 503 }));
+    const transport = authErrorMessage(withSentinelMessage({ name: "AuthRetryableFetchError", status: 0 }));
 
     expect(transport).toBe(AUTH_NETWORK_MESSAGE);
     expect(transport).not.toBe(AUTH_GENERIC_MESSAGE);
     expect(transport).not.toBe(AUTH_INVALID_CREDENTIALS_MESSAGE);
   });
 
-  it("tells an empty form field apart from wrong credentials", () => {
-    // What supabase-js raises for `{ email: "", password: "" }` — i.e. what an empty form
-    // produces, since `form.get("email") as string` hands `""` straight through.
+  // TITLE AND COMMENT BOTH CORRECTED (C10X-34). They used to read "tells an empty form field
+  // apart from wrong credentials" / "what an empty form produces, since
+  // `form.get("email") as string` hands `""` straight through" — and both halves are now
+  // wrong. The cast is gone (`formString`, C10X-30), and supabase-js raises this class only
+  // when the credentials object LACKS the `email` key (`GoTrueClient.js:667,835`, an
+  // `'email' in credentials` test) — `formString` always returns a string, so the key is
+  // always present and NO HTTP input on these two routes can produce it.
+  //
+  // What the case covers is therefore a DEFENSIVE entry, kept rather than deleted (the
+  // reachability record in `auth-errors.ts` says why). The empty field itself is covered by
+  // the CODE table: `validation_failed` on signin, `anonymous_provider_disabled` on signup —
+  // both mapped, both pinned through the real routes at the bottom of this file.
+  it("maps the client-side credentials class by name, though no request can reach it", () => {
     expect(authErrorMessage({ name: "AuthInvalidCredentialsError", status: 400 })).toBe(
       AUTH_MISSING_CREDENTIALS_MESSAGE,
     );
@@ -137,6 +216,15 @@ describe("authErrorMessage — the chain below `code`", () => {
   });
 });
 
+// NAMED NEGATIVE SPACE: `AUTH_UNAVAILABLE_MESSAGE` is the one member of `AUTH_MESSAGES` that
+// nothing in this file observes beyond the non-emptiness scan below. It is not an oversight
+// and not a TODO. Its branch is `createClient() === null`, which needs SUPABASE_URL/KEY to be
+// unset — and under this runner they are transform-time inlined literals from
+// `astro:env/server`, so reaching it means doubling that module. test-plan §6.9 confines
+// module doubles to ONE file and admits them only for a claim unreachable any other way; this
+// claim does not earn that. The mapper never returns it either (it is not in MESSAGE_BY_CODE,
+// MESSAGE_BY_NAME or messageByStatus) — both routes emit it directly, before any auth call.
+// If you are here because a mutant on that constant survived: that is expected, not a gap.
 describe("authErrorMessage — the invariant", () => {
   // Well-formedness, not copy: `ServerError.tsx:8` renders nothing for a falsy message, so an
   // empty constant is a failed sign-in with no visible reason at all. Asserting it over the
@@ -167,6 +255,12 @@ describe("authErrorMessage — the invariant", () => {
         user_banned: 0,
         over_request_rate_limit: 0,
         over_email_send_rate_limit: 0,
+        anonymous_provider_disabled: 0,
+        email_address_not_authorized: 0,
+        email_provider_disabled: 0,
+        captcha_failed: 0,
+        conflict: 0,
+        request_timeout: 0,
       }).map((code) => withSentinelMessage({ code, name: "AuthApiError", status: 400 })),
       withSentinelMessage({ name: "AuthRetryableFetchError", status: 503 }),
       withSentinelMessage({ name: "AuthInvalidCredentialsError", status: 400 }),
@@ -176,7 +270,7 @@ describe("authErrorMessage — the invariant", () => {
       // for `code: "constructor"` — truthy, so it was returned as copy and reached
       // `encodeURIComponent` in the address bar. `code` comes from the GoTrue response
       // body, so it is upstream-controlled. The closed-set assertion below is what fails
-      // on the regression; `not.toContain(SENTINEL)` alone would not (impl-review F1).
+      // on the regression; `not.toContain(SENTINEL)` alone would not (C10X-28 impl-review F1).
       withSentinelMessage({ code: "constructor", status: 400 }),
       withSentinelMessage({ code: "toString", status: 400 }),
       withSentinelMessage({ name: "valueOf", status: 400 }),
@@ -192,6 +286,52 @@ describe("authErrorMessage — the invariant", () => {
       // Membership in the closed set is the stronger form of the same claim: the output is
       // not merely sentinel-free, it is one of this project's own constants.
       expect(AUTH_MESSAGES).toContain(message);
+    }
+  });
+});
+
+// THE OTHER END OF THE SAME CLOSED SET. Every assertion above pins `AUTH_MESSAGES` where a
+// message is PRODUCED. It was ignored where one is CONSUMED: both auth pages read `?error=`
+// straight into `serverError` (`signin.astro:5`, `signup.astro:5`) and `ServerError.tsx:8`
+// renders any non-empty string, so a crafted link put attacker-chosen text inside a
+// trust-carrying red banner on this project's own sign-in page. Not XSS — React escapes, and
+// the roadmap already records that — but content injection: a low-grade phishing vector.
+//
+// The helper is deliberately in `auth-errors.ts`, beside the set it enforces, so the producer
+// and the consumer cannot drift apart. A rejected value degrades to `null`, i.e. to NO BANNER,
+// which is the correct failure: an error the app cannot vouch for must not be shown as one.
+describe("ownedAuthMessage — the read side of the closed set", () => {
+  it("returns a project-owned message unchanged", () => {
+    expect(ownedAuthMessage(AUTH_INVALID_CREDENTIALS_MESSAGE)).toBe(AUTH_INVALID_CREDENTIALS_MESSAGE);
+  });
+
+  it("rejects a crafted value, including one carrying a real message inside it", () => {
+    // EQUALITY, never containment, and the second input is why. An attacker who cannot invent
+    // trusted copy from scratch appends to copy the user already trusts — so the cheap
+    // implementation ("does it look like one of ours?") passes exactly the case that matters.
+    // The truncation is the mirror image: a near-miss must fail too, or the check is a prefix
+    // test wearing a membership test's name.
+    expect(ownedAuthMessage(`Twoje konto zostało przejęte. Zadzwoń pod 0700-${suffix}.`)).toBeNull();
+    expect(ownedAuthMessage(`${AUTH_INVALID_CREDENTIALS_MESSAGE} Zadzwoń pod 0700-${suffix}.`)).toBeNull();
+    expect(ownedAuthMessage(AUTH_INVALID_CREDENTIALS_MESSAGE.slice(0, -1))).toBeNull();
+  });
+
+  it("rejects an absent or empty parameter", () => {
+    // `null` is what `searchParams.get` answers for a parameter that is not there at all, and
+    // it is the ordinary case — every clean page load takes this branch.
+    expect(ownedAuthMessage(null)).toBeNull();
+    expect(ownedAuthMessage("")).toBeNull();
+    expect(ownedAuthMessage("   ")).toBeNull();
+  });
+
+  // POSITIVE CONTROL, and it is what makes the three cases above falsifiable rather than
+  // decorative: `() => null` satisfies all of them and reads as perfect protection. Driving
+  // the WHOLE set rather than one member also means a constant added to `AUTH_MESSAGES`
+  // without a thought for the read side cannot silently stop rendering.
+  it("accepts every constant in the closed set", () => {
+    expect(AUTH_MESSAGES.length).toBeGreaterThan(0);
+    for (const message of AUTH_MESSAGES) {
+      expect(ownedAuthMessage(message)).toBe(message);
     }
   });
 });
@@ -222,7 +362,13 @@ describe("POST /api/auth/signin", () => {
   });
 });
 
-// TWO COSTS TO KNOW BEFORE ADDING A CASE BELOW (impl-review F10).
+// TWO COSTS TO KNOW BEFORE ADDING A CASE BELOW (C10X-30 impl-review F10).
+//
+// EVERY F-NUMBER IN THIS FILE CARRIES ITS TICKET, and that is not decoration. This file
+// shipped under C10X-28 (`ai-candidate-generation-test-2`), but the findings cited from here
+// down are C10X-30's (`server-side-validation-test`) — and C10X-28's own impl-review has an
+// F4 and an F7 with entirely unrelated content. A reader who opened "the impl-review for this
+// file's change" landed on the wrong findings; qualified 2026-07-31 by C10X-34.
 //
 // 1. Every case that reaches GoTrue spends the run's shared auth budget. `supabase/config.toml`
 //    allows 30 sign-in/sign-up requests per 5 minutes per IP, and `tests/fixtures/accounts.ts`
@@ -266,7 +412,7 @@ describe("POST /api/auth/signin — malformed body", () => {
   });
 
   // The OTHER cause of a formData() rejection, and it must not share the first one's copy
-  // (impl-review F7). A body announced as multipart that does not parse is a truncated or
+  // (C10X-30 impl-review F7). A body announced as multipart that does not parse is a truncated or
   // reset upload — nothing the user typed is wrong, so "Popraw dane w formularzu" would send
   // them hunting for a mistake they did not make. `AUTH_GENERIC_MESSAGE` ("spróbuj ponownie")
   // is the honest answer and is already in the closed set, so no new copy was introduced.
@@ -319,8 +465,8 @@ describe("POST /api/auth/signin — malformed body", () => {
   });
 });
 
-// Phase 2 changed FOUR production files and, until impl-review F4, `signup.ts` was reached by
-// no test at all — not one line of it. Its two new branches are verbatim copies of signin's,
+// C10X-30's Phase 2 changed FOUR production files and, until that change's impl-review F4,
+// `signup.ts` was reached by no test at all — not one line of it. Its two new branches are verbatim copies of signin's,
 // which is an argument that they are correct today, not that they will stay correct: a copy
 // with no assertion is exactly what drifts. Same boundary as the block above — malformed-BODY
 // handling, never an input rule; presence/format/length on auth remain C10X-36's.
@@ -343,6 +489,40 @@ describe("POST /api/auth/signup — malformed body", () => {
     // rate-limit budget — unlike the File case below.
   });
 
+  // The OTHER half of `signup.ts:19`'s discriminator, and until this case existed only ONE
+  // half was tested: a regression collapsing `isFormContentType(req) ? GENERIC : VALIDATION`
+  // to "always VALIDATION" stayed green, while signin's identical discriminator was covered
+  // on both branches. Measured, not inferred — with signup.ts collapsed to one branch the
+  // file ran 1 of 51 red, on THIS case, and the non-form case above stayed green.
+  //
+  // Same staging as signin's twin: a body announced as multipart carrying a boundary the body
+  // does not contain. A real client abort is unreachable through the Container API, and both
+  // causes throw a bare TypeError, which is exactly why the endpoint branches on the HEADER
+  // rather than on the exception (tests/lib/forms.test.ts). Also returns before `createClient`
+  // — no GoTrue round trip, no rate-limit budget.
+  it("tells a truncated form apart from a body that was never a form", async () => {
+    const response = await callEndpoint(SignUp, {
+      url: "/api/auth/signup",
+      body: `--REAL\r\nContent-Disposition: form-data; name="email"\r\n\r\n${SENTINEL}@example.com`,
+      headers: { "Content-Type": "multipart/form-data; boundary=NOTTHEBOUNDARY" },
+      as: accountA(),
+    });
+
+    expect(response.status).toBe(302);
+    const location = response.headers.get("Location") ?? "";
+    // The signup target, not signin's — the two handlers carry their own base path.
+    expect(location.startsWith("/auth/signup?")).toBe(true);
+    const error = new URL(location, "http://localhost:4321").searchParams.get("error") ?? "";
+    // Equality plus the `not.toBe` beside it is the pair that makes this discriminating rather
+    // than decorative: refusal and success share the 302, and the collapsed guard still
+    // redirects with an `error=` key — only these two assertions separate the branches
+    // (test-plan §6.10).
+    expect(error).toBe(AUTH_GENERIC_MESSAGE);
+    expect(error).not.toBe(AUTH_VALIDATION_MESSAGE);
+    expect(AUTH_MESSAGES).toContain(error);
+    expect(location).not.toContain(SENTINEL);
+  });
+
   // NOT a copy of signin's File case, and the difference is measured, not assumed. On signup
   // an empty address is read by GoTrue as an ANONYMOUS sign-in attempt, so the two routes
   // answer different upstream errors for the same input:
@@ -350,16 +530,24 @@ describe("POST /api/auth/signup — malformed body", () => {
   //   POST /auth/v1/signup                    {"error_code":"anonymous_provider_disabled", 422}
   //   POST /auth/v1/token?grant_type=password {"error_code":"validation_failed",           400}
   //
-  // (probed directly against the local stack, 2026-07-28). `anonymous_provider_disabled` is
-  // not in the mapper's table, so this lands on the catch-all — i.e. the user is told nothing
-  // useful. That is asserted here BY EQUALITY rather than smoothed over: it is the truth
-  // today, and pinning it means the day someone maps that code the test goes red and the
-  // improvement gets noticed instead of landing silently. Whether it SHOULD be mapped is a
-  // question about `auth-errors.ts`'s table, not about malformed-body handling, so it is not
-  // resolved here.
+  // (probed directly against the local stack, 2026-07-28; re-confirmed 2026-07-30 by the RED
+  // run of this case). The prediction this comment used to carry has been CARRIED OUT: it
+  // said `anonymous_provider_disabled` was absent from the mapper's table, that the case
+  // therefore pinned the catch-all by equality, and that "the day someone maps that code the
+  // test goes red and the improvement gets noticed instead of landing silently". C10X-34
+  // mapped it; this case went red on exactly that equality and now reads
+  // AUTH_MISSING_CREDENTIALS_MESSAGE. The mechanism worked as designed — do not weaken the
+  // equality back to a membership check.
   //
-  // What this case does prove is the property the phase exists for: an owned message from the
-  // closed set, never a framework 500 and never the upstream string.
+  // The two routes still answer DIFFERENT upstream codes for an empty address, and both now
+  // map: signup's `anonymous_provider_disabled` to the missing-credentials copy, signin's
+  // `validation_failed` to AUTH_VALIDATION_MESSAGE (the signin File case above). The
+  // asymmetry is upstream's choice, recorded rather than papered over.
+  //
+  // Beyond the mapping, this case still proves the property the phase exists for — an owned
+  // message from the closed set, never a framework 500 and never the upstream string — and it
+  // now additionally proves the new table entry is reached through the REAL route, which no
+  // pure-mapper row can show.
   it("answers owned copy, never the upstream string, when the email part is a File", async () => {
     const form = new FormData();
     form.set("email", new File([`${SENTINEL}@example.com`], "email.txt", { type: "text/plain" }));
@@ -371,7 +559,7 @@ describe("POST /api/auth/signup — malformed body", () => {
     const location = response.headers.get("Location") ?? "";
     expect(location.startsWith("/auth/signup?")).toBe(true);
     const error = new URL(location, "http://localhost:4321").searchParams.get("error") ?? "";
-    expect(error).toBe(AUTH_GENERIC_MESSAGE);
+    expect(error).toBe(AUTH_MISSING_CREDENTIALS_MESSAGE);
     expect(AUTH_MESSAGES).toContain(error);
     // The no-leak half, which is what makes the catch-all acceptable rather than merely
     // unhelpful: GoTrue's own wording never reaches the address bar.

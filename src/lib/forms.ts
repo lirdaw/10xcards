@@ -11,8 +11,18 @@
  * A cast is a compile-time claim, not a runtime check. A multipart part of type `File`
  * survives it untouched, so `.trim()` is called on a `File` and throws a `TypeError` — an
  * uncontrolled framework `500` on a crafted body, with no project-owned response. That is a
- * "server trusts the client" defect (test-plan §2 Risk #6), and it existed on every form
- * endpoint in this repo until C10X-30.
+ * "server trusts the client" defect (test-plan §2 Risk #6).
+ *
+ * **It is not gone from this repo, and this paragraph used to say it was** ("it existed on
+ * every form endpoint in this repo until C10X-30"; corrected 2026-07-31 by C10X-34). C10X-30
+ * swept FOUR of the six `formData()` readers under `src/pages/api/` — the two card endpoints
+ * and the two auth routes, which are the four callers of this helper. The deck pair was
+ * missed: `decks/index.ts:23` and `decks/[publicId].ts:32` still read `formData()` unguarded
+ * and still carry `((form.get("name") as string | null) ?? "").trim()` verbatim, so a crafted
+ * non-form body answers an uncontrolled `500` there and a `File` `name` part crashes the
+ * handler. Known, deferred by decision at that change's impl-review (F1), and owned by
+ * **C10X-37**. This file is what a contributor reads when they meet the helper, so it must
+ * not tell them the class is closed.
  *
  * `formString` is the runtime check the cast pretended to be. It only ever **narrows**: for a
  * genuine string it is the identity function, so no valid request changes behaviour. Anything

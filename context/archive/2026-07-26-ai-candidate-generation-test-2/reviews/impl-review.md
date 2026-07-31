@@ -91,6 +91,7 @@ documents this change left saying something now false.
   - Blind spot: None significant. Whether a real GoTrue can emit such a code was not
     determined; the invariant is stated unconditionally, so it holds either way.
 - **Decision**: FIXED — `Object.hasOwn` guards both lookups (`src/lib/auth-errors.ts`); four prototype-key inputs added to the closed-set case in `tests/auth/errors.test.ts`. Confirmed by breakage: reverting the guard turns **1 of 33** red, on `expect(AUTH_MESSAGES).toContain(message)` exactly.
+  > **Correction line, 2026-07-31 (C10X-34) — the run is not rewritten.** The denominator has moved: that file held **33** cases on 2026-07-26 and holds **55** now (C10X-30, then C10X-34). "1 of 33" records what was executed that day; it is not a current figure, and the check has not been re-run since.
 
 ### F2 — The pass-through `fetch` guard fails OPEN, on a duplicated URL literal
 
@@ -333,6 +334,11 @@ with `git diff -- src/` empty:
 | --- | --- |
 | Revert F1's `Object.hasOwn` to the bare lookup | **1 of 33 red** in `errors.test.ts`, on `expect(AUTH_MESSAGES).toContain(message)` — the closed-set assertion, not the sentinel one |
 | Make `generate.ts`'s Zod branch return `` `…: ${JSON.stringify(rawBody)}` `` | **7 of 20 red** in `generate.test.ts`, every one on F5's new raw-body assertion |
+
+> **Correction line, 2026-07-31 (C10X-34) — the table above is not rewritten.** The first row's
+> denominator has moved: `errors.test.ts` held **33** cases on 2026-07-26 and holds **55** now
+> (C10X-30, then C10X-34). The row records what was executed that day and stays as it is; do not
+> quote "1 of 33" as a current figure, and note the check has not been re-run since.
 
 One finding was fixed **differently from what the report proposed**, and it is worth reading:
 **F6**'s recommendation included aligning `maxLength` with `aria-invalid` in `GeneratorForm`.

@@ -11,8 +11,11 @@ export interface ConfigStatus {
    *
    * The banner tells whoever is looking which subsystems are degraded — useful to the
    * operator, ambient disclosure to an anonymous visitor. So it is decided PER ENTRY, and
-   * `Layout.astro` (not this module) applies it: `configured` is computed once at import
-   * time from `astro:env/server`, while "is there a session" is a per-request fact.
+   * this module applies it, in `visibleConfigStatuses` below; `Layout.astro` supplies only
+   * the per-request session flag. The split is not arbitrary: `configured` is computed once
+   * at import time from `astro:env/server`, while "is there a session" is a per-request
+   * fact — which is also why the filter takes its entry list as a parameter rather than
+   * closing over `missingConfigs`.
    *
    * Gating the whole block would invert the Supabase entry's purpose. When Supabase is
    * unconfigured, `createClient` returns `null`, so middleware always sets
@@ -45,3 +48,18 @@ export const configStatuses: ConfigStatus[] = [
 ];
 
 export const missingConfigs = configStatuses.filter((s) => !s.configured);
+
+/**
+ * Which of `entries` a visitor may see, given whether they are signed in.
+ *
+ * Filter PER ENTRY, never the whole block: Supabase's warning carries
+ * `requiresSession: false` precisely because an unconfigured Supabase means nobody is ever
+ * signed in, so a block-level gate would hide the one banner that explains the breakage.
+ *
+ * `entries` is a parameter rather than `missingConfigs` read from module scope so the
+ * decision is testable: that constant is fixed at import time from `astro:env/server`, so
+ * under the test runner it can only ever describe the local stack.
+ */
+export function visibleConfigStatuses(entries: ConfigStatus[], hasSession: boolean): ConfigStatus[] {
+  return entries.filter((cfg) => !cfg.requiresSession || hasSession);
+}

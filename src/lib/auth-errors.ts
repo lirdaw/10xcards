@@ -56,6 +56,15 @@ export const AUTH_VALIDATION_MESSAGE = "Popraw dane w formularzu i spróbuj pono
 export const AUTH_SIGNUP_DISABLED_MESSAGE = "Rejestracja jest obecnie wyłączona.";
 export const AUTH_USER_BANNED_MESSAGE = "To konto zostało zablokowane.";
 export const AUTH_SESSION_MISSING_MESSAGE = "Twoja sesja wygasła. Zaloguj się ponownie.";
+// The four below exist because the catch-all's "Spróbuj ponownie" is a LIE on their branches:
+// a retry cannot authorise a rejected address or switch e-mail auth back on. Retry semantics,
+// not wording, is what makes them separate constants.
+export const AUTH_EMAIL_NOT_AUTHORIZED_MESSAGE =
+  "Ten adres e-mail nie może otrzymać wiadomości z potwierdzeniem. Użyj innego adresu.";
+export const AUTH_EMAIL_PROVIDER_DISABLED_MESSAGE = "Logowanie i rejestracja e-mailem są obecnie wyłączone.";
+export const AUTH_CAPTCHA_FAILED_MESSAGE =
+  "Weryfikacja bezpieczeństwa nie powiodła się. Odśwież stronę i spróbuj ponownie.";
+export const AUTH_CONFLICT_MESSAGE = "Trwa inna operacja na tym koncie. Spróbuj ponownie za chwilę.";
 
 /**
  * Every value this module can ever return, including the unconfigured-Supabase constant the
@@ -79,7 +88,36 @@ export const AUTH_MESSAGES: readonly string[] = [
   AUTH_SIGNUP_DISABLED_MESSAGE,
   AUTH_USER_BANNED_MESSAGE,
   AUTH_SESSION_MISSING_MESSAGE,
+  AUTH_EMAIL_NOT_AUTHORIZED_MESSAGE,
+  AUTH_EMAIL_PROVIDER_DISABLED_MESSAGE,
+  AUTH_CAPTCHA_FAILED_MESSAGE,
+  AUTH_CONFLICT_MESSAGE,
 ];
+
+/**
+ * The READ side of the same closed set: an untrusted `?error=` value in, one of this
+ * project's own messages or nothing out.
+ *
+ * `AUTH_MESSAGES` used to be enforced only where a message is produced. Both auth pages read
+ * `Astro.url.searchParams.get("error")` straight into `serverError`, and `ServerError.tsx:8`
+ * renders any non-empty string — so a crafted link rendered attacker-chosen text inside a
+ * trust-carrying red banner on this project's own sign-in page. Not XSS (React escapes), but
+ * content injection: a low-grade phishing vector.
+ *
+ * Membership by EQUALITY, never containment. The attack is not inventing trusted copy from
+ * scratch — it is appending to copy the user already trusts, which any "does it look like one
+ * of ours?" test would wave through.
+ *
+ * `null` is the deliberate rejection value: `ServerError` renders nothing for a falsy message,
+ * so a value this app cannot vouch for degrades to NO BANNER rather than to a banner with
+ * hedged copy. An error the app cannot vouch for must not be shown as one.
+ *
+ * It lives here, beside the set it enforces, so the producer and the consumer cannot drift.
+ */
+export function ownedAuthMessage(raw: string | null): string | null {
+  if (raw === null) return null;
+  return AUTH_MESSAGES.includes(raw) ? raw : null;
+}
 
 /** Codes GoTrue returns in the response body. Plain string keys — `ErrorCode` is not exported. */
 const MESSAGE_BY_CODE: Record<string, string> = {
@@ -96,7 +134,68 @@ const MESSAGE_BY_CODE: Record<string, string> = {
   user_banned: AUTH_USER_BANNED_MESSAGE,
   over_request_rate_limit: AUTH_RATE_LIMIT_MESSAGE,
   over_email_send_rate_limit: AUTH_RATE_LIMIT_MESSAGE,
+  // GoTrue reads an empty address on /signup as an ANONYMOUS sign-in attempt, so this — not
+  // AuthInvalidCredentialsError — is what the single most common ordinary error produces.
+  // Measured against the local stack; see the reachability record below.
+  anonymous_provider_disabled: AUTH_MISSING_CREDENTIALS_MESSAGE,
+  // Config-flip codes: unreachable against this project's local stack, so their presence is
+  // INFERENCE from the auth-js typings, not measurement (reachability record below). They are
+  // here for the retry semantics — the catch-all would tell a user to retry something a retry
+  // can never fix.
+  email_address_not_authorized: AUTH_EMAIL_NOT_AUTHORIZED_MESSAGE,
+  email_provider_disabled: AUTH_EMAIL_PROVIDER_DISABLED_MESSAGE,
+  captcha_failed: AUTH_CAPTCHA_FAILED_MESSAGE,
+  conflict: AUTH_CONFLICT_MESSAGE,
+  request_timeout: AUTH_NETWORK_MESSAGE,
 };
+
+/**
+ * REACHABILITY RECORD — which of the above is live on THESE TWO ROUTES, and which is
+ * defensive redundancy. Written down once so it is not re-derived, and so nobody deletes a
+ * constant that guards a config flip believing it is unused. Scope: `signin.ts` (POST
+ * /auth/v1/token?grant_type=password) and `signup.ts` (POST /auth/v1/signup). Nothing here is
+ * a claim about other GoTrue surfaces.
+ *
+ * MEASURED against the local stack (2026-07-30, and 2026-07-28 for the two empty-address
+ * probes): `invalid_credentials`, `validation_failed`, `anonymous_provider_disabled`,
+ * `user_already_exists`, `over_request_rate_limit`.
+ *
+ * INFERENCE, not measurement — the five config-flip / upstream-condition codes
+ * (`email_address_not_authorized`, `email_provider_disabled`, `captcha_failed`, `conflict`,
+ * `request_timeout`) cannot be produced against this project's local stack: they need a GoTrue
+ * configuration this repo does not run, or a condition (a row lock, a timeout) that cannot be
+ * staged here. Their `it.each` rows in tests/auth/errors.test.ts use the same literal as the
+ * map key, so the suite proves only that this module agrees with itself — a typo'd or renamed
+ * code is invisible to it AND to Stryker, exactly as this file's header warns ("a typo in a
+ * key is not a compile error … which gives no exhaustiveness checking"). A runtime guard is
+ * not available: @supabase/auth-js/dist/module/lib/error-codes.js is `export {}` — the codes
+ * exist only as a type. So the artifact is named instead of trusted prose: ALL SIX codes added
+ * by C10X-34 were checked, character for character, against the `ErrorCode` union in
+ *
+ *   node_modules/@supabase/auth-js/dist/module/lib/error-codes.d.ts
+ *
+ * at auth-js **2.105.3** (a hoisted transitive of `@supabase/supabase-js`, so this repo pins
+ * no range for it — re-derive from that file rather than from this sentence).
+ *
+ * DEAD BY CONSTRUCTION on these two routes, and deliberately kept:
+ *
+ *   - `AUTH_SAME_PASSWORD_MESSAGE` / `same_password` — an `updateUser` concern. No
+ *     password-change flow exists in this app, so nothing can reach it here.
+ *   - `AUTH_SESSION_MISSING_MESSAGE` / `AuthSessionMissingError` — `session_not_found` does
+ *     not come back from `/token` or `/signup`.
+ *   - `MESSAGE_BY_NAME.AuthInvalidCredentialsError` — see the entry below; no HTTP input on
+ *     these routes can produce that class.
+ *
+ * PRODUCTION-ONLY DIVERGENCES (inference — this project's local stack cannot show either):
+ *
+ *   - `user_already_exists` is answered locally because `supabase/config.toml` sets
+ *     `enable_confirmations = false`. With confirmations ON, GoTrue answers **200 with an
+ *     obfuscated user** instead (anti-enumeration), so on production the "account already
+ *     exists" copy is not reached by that path at all.
+ *   - `email_address_invalid` appears to be hosted-only: locally the same input produces
+ *     `validation_failed`. The entry stays because it is the one code whose upstream copy
+ *     interpolates the submitted address — i.e. the concrete leak this module exists for.
+ */
 
 /** The classes that carry no code at all. `name` is set by every constructor. */
 const MESSAGE_BY_NAME: Record<string, string> = {
@@ -114,10 +213,22 @@ const MESSAGE_BY_NAME: Record<string, string> = {
   //   POST /auth/v1/token?grant_type=password  {"error_code":"validation_failed",           400}
   //   POST /auth/v1/signup                     {"error_code":"anonymous_provider_disabled", 422}
   //
-  // (the second because GoTrue reads an empty address as an anonymous sign-in attempt). So
-  // the first maps through CODE_MESSAGES to AUTH_VALIDATION_MESSAGE and the second, being
-  // absent from that table, falls to AUTH_GENERIC_MESSAGE. Both are pinned in
-  // tests/auth/errors.test.ts. Do not re-derive an empty-field story from this entry.
+  // (the second because GoTrue reads an empty address as an anonymous sign-in attempt).
+  //
+  // C10X-34 carried that measurement to its consequence, which the version of this comment
+  // above stopped short of: BOTH codes are now in MESSAGE_BY_CODE. `validation_failed` maps
+  // to AUTH_VALIDATION_MESSAGE as before, and `anonymous_provider_disabled` — which used to
+  // fall to the catch-all — maps to AUTH_MISSING_CREDENTIALS_MESSAGE, i.e. to the very
+  // constant this dead entry was written for. So the empty-field story is told by the CODE
+  // table now; both routes are pinned in tests/auth/errors.test.ts.
+  //
+  // This NAME entry is therefore dead by construction on these two routes, and kept as
+  // defensive redundancy rather than as the empty-field path. The proof it is unreachable is
+  // in `formString`: supabase-js raises AuthInvalidCredentialsError only when the credentials
+  // object LACKS the `email` key (`GoTrueClient.js:667,835`, an `'email' in credentials`
+  // test), while `formString` (`src/lib/forms.ts:27-29`) always returns a string — so the key
+  // is always present and no HTTP input can produce the class. Do not re-derive an
+  // empty-field story from this entry.
   AuthInvalidCredentialsError: AUTH_MISSING_CREDENTIALS_MESSAGE,
   AuthSessionMissingError: AUTH_SESSION_MISSING_MESSAGE,
 };

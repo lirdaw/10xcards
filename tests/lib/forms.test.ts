@@ -1,14 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { formString, isFormContentType } from "@/lib/forms";
 
-// The narrowing half of the four form endpoints' malformed-input handling, tested once here
-// instead of four times over HTTP.
+// The narrowing half of the malformed-input handling on the FOUR endpoints that call this
+// helper, tested once here instead of four times over HTTP.
+//
+// "Four" is the number of CALLERS, not the number of form endpoints in this repo — there are
+// six `formData()` readers under `src/pages/api/`. `decks/index.ts:23` and
+// `decks/[publicId].ts:32` still carry the raw `as string | null` cast and an unguarded
+// `formData()`; that is known, deferred, and owned by **C10X-37**. Corrected 2026-07-31
+// (C10X-34): this comment used to say "the four form endpoints", which read as a sweep that
+// had covered them all.
 //
 // Why this file exists at all: `formString` was inlined verbatim in all four handlers, so the
 // only way to observe it was to drive an endpoint, and only two of the eight branches ever
-// were (impl-review F4/F5). It is a pure function — the endpoint tests in
-// tests/validation/cards.test.ts and tests/auth/errors.test.ts still prove that each handler
-// actually CALLS it and answers with owned copy; this file proves what it returns.
+// were (**C10X-30** impl-review F4/F5 — not C10X-28's, whose own F4 is unrelated; the two
+// tickets' reviews coexist for one branch, which is how these citations rotted). It is a pure
+// function — the endpoint tests in tests/validation/cards.test.ts and tests/auth/errors.test.ts
+// still prove that each handler actually CALLS it and answers with owned copy; this file
+// proves what it returns.
 describe("formString", () => {
   // The identity half. This is the claim that matters for "no valid request changed
   // behaviour" when the `as string | null` casts were replaced.

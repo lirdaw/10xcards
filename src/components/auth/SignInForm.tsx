@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Mail, Lock, LogIn } from "lucide-react";
 import { FormField } from "@/components/auth/FormField";
 import { PasswordToggle } from "@/components/auth/PasswordToggle";
@@ -14,6 +14,23 @@ export default function SignInForm({ serverError }: Props) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+
+  // Consume the round-trip parameter once and strip it from the URL, so F5 does not replay a
+  // stale error and the message does not linger in the address bar or in browser history
+  // (lessons.md "Błąd formularza POST wraca do modala, nie w tle"; the four other islands that
+  // follow it). Only the `error` half of that rule transfers — its `open` parameter is a modal
+  // concern these pages do not have.
+  //
+  // The banner stays visible: `serverError` is a prop, captured by render before this runs, so
+  // removing the parameter does not clear the message. `replaceState`, never `pushState`, so
+  // Back/Forward across the sign-in are unchanged.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("error")) {
+      url.searchParams.delete("error");
+      window.history.replaceState({}, "", url.pathname + url.search);
+    }
+  }, []);
 
   function validate() {
     const next: typeof errors = {};
@@ -52,6 +69,7 @@ export default function SignInForm({ serverError }: Props) {
         }}
         placeholder="you@example.com"
         error={errors.email}
+        autoComplete="email"
         icon={<Mail className="size-4" />}
       />
 
@@ -66,6 +84,7 @@ export default function SignInForm({ serverError }: Props) {
         }}
         placeholder="Your password"
         error={errors.password}
+        autoComplete="current-password"
         icon={<Lock className="size-4" />}
         endContent={
           <PasswordToggle

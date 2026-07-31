@@ -6,7 +6,36 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-07-30 (C10X-32 `flashcards-test-order` shipped). **The suite is now
+> Last updated: 2026-07-31 (C10X-34 `auth-error-copy` shipped — roadmap H-03, not a §3 rollout
+> phase). **No risk row moves.** What it adds is the READ end of a channel this file only ever
+> pinned at the write end, the first automated coverage of the OpenRouter banner gate, and — the
+> reason to read it even if auth is not your concern — the correction of five comments and one
+> denominator that contradicted the code they explained.
+>
+> The framing is the finding. The work this ticket named was **already on `main`**, shipped as
+> side work under a foreign key (C10X-28's Phase 1 and Phase 4 §1, every commit scoped
+> `(C10X-28)`), and the audit of what lands "along the way" is where the edges were: the mapper
+> answered its single most common ordinary error — a blank e-mail on sign-up — with the
+> catch-all, while the constant written for that case was **dead by construction**; `AUTH_MESSAGES`
+> was enforced where messages are produced and ignored where they are consumed, so a crafted
+> `?error=` link rendered attacker-chosen text inside this project's own red banner; the banner
+> gate had **zero** automated coverage of a decision that is self-hiding when it regresses; and
+> `confirm-email.astro` carried the only `import.meta.env` in all of `src/`, against a hard
+> AGENTS.md rule and with a heuristic that lies under a production build.
+>
+> Two things about the evidence rather than the coverage. **Two assertions were unfalsifiable and
+> are now killable** — a case titled "on `name` alone" fed a `status` that reached the same
+> constant through a different rung (deleting the production entry left the file **0 of 50 red**;
+> after one input changed, **1 of 50**), and `signup.ts`'s malformed-body discriminator was half
+> tested while signin's twin was covered on both branches. And **two comments were corrected by
+> measurement, not by reading**: breakage check B proved the distinctness case is blind to a
+> repointed map key (it stayed green while the mapping row went red), and the mapper's truthiness
+> branch proves the non-emptiness scan cannot kill a `→ ""` mutant — the closed-set assertion is
+> what does. Suite **254/254, 21 files**; Stryker on the mapper **92.98%**, four survivors, all
+> confirmed equivalent **by execution**, no assertion added. Evidence:
+> `context/changes/auth-error-copy/verification.md`.
+>
+> Previously: 2026-07-30 (C10X-32 `flashcards-test-order` shipped). **The suite is now
 > order-independent and shuffled by default** — `sequence: { shuffle: true }` is on
 > permanently in BOTH runners, seed un-pinned, so an inter-`it()` dependence fails loudly
 > instead of hiding behind declaration order. No risk row moves and no coverage claim
@@ -475,6 +504,20 @@ oracle **independently of the store** — chain it in memory across several
 transitions and compare against what actually landed. §6.6's Phase 4 note
 records the bug this rule was written from.
 
+**When you extract a decision out of a layout or an island so it can be tested, the
+env-derived input must become a PARAMETER** (added 2026-07-31 by C10X-34, and it is the
+condition that makes the extraction worth anything). This project reads config through
+`astro:env/server`, which Vite inlines at transform time — so a module-level constant computed
+from it (`missingConfigs` in `src/lib/config-status.ts`) can only ever describe **the local
+stack** under the runner: Supabase configured, OpenRouter not. A function that closes over that
+constant is therefore testable only in the one state the runner happens to be in, and the state
+that matters is usually the other one. `visibleConfigStatuses(entries, hasSession)` takes the
+list; `Layout.astro` supplies `missingConfigs` and `Boolean(Astro.locals.user)`. Every entry in
+`tests/lib/config-status.test.ts` is fabricated and the real constant appears in no assertion —
+which is precisely what let breakage check F go red on an **un**configured Supabase, a state no
+test run can otherwise reach. Same shape as C10X-27's `readJsonResponse` / `rateOutcome`
+extractions (§7), with one extra rule: extract the decision **and** its inputs.
+
 ### 6.2 Adding an integration test
 
 - **Location**: `tests/isolation/` for ownership cases; a sibling folder
@@ -580,6 +623,19 @@ Two contracts, and they are separate claims — assert both:
   rather than asserting the status. `tests/generation/failure-path.test.ts` is the
   reference, and reaching a sealed failure branch is the one case where a module double
   is permitted: read **§6.9** first.
+- **A closed set enforced only where messages are PRODUCED is half a guarantee** (added
+  2026-07-31 by C10X-34). The bullet above pins what an endpoint puts into a URL; it says
+  nothing about what a page does with that URL on the way back. Both auth pages read
+  `?error=` straight into a trust-carrying red banner, so a crafted link rendered
+  attacker-chosen text on this project's own sign-in page — not XSS (React escapes), but
+  content injection. The rule: when a message travels through a URL, enforce membership on the
+  **read** side too, in a pure helper that lives **beside the set** (`ownedAuthMessage` in
+  `src/lib/auth-errors.ts`), so producer and consumer cannot drift. Three things make the test
+  real rather than decorative — membership by **equality**, never containment (the attack
+  appends to trusted copy, which any "does it look like ours?" check waves through); rejection
+  to a value the renderer already treats as "nothing", so an unvouchable error degrades to **no
+  banner**; and a positive control over the **whole set**, without which `() => null` satisfies
+  every rejection case and reads as perfect protection.
 
 Everything else follows §6.4 — real endpoint, real cookie, real Postgres, row-based
 assertions with a positive control, **404 never 403** for ownership, and a file-level
@@ -1349,7 +1405,7 @@ account's deck` asserts `foreign.data?.[deckPublicId]` is `undefined`, and it
   | A crafted request outside the UI gets a 4xx **and writes nothing**                                                                                                                | `tests/generation/generate.test.ts`, **six** refusal cases covering nine inputs — `sourceText` over the cap (raw, and again when it trims back under it), `count` below/above/non-integer, `language` off the whitelist, malformed `deckPublicId` and malformed `idempotencyKey`, `newDeckName` over 100 — each asserting the status **and** a **status-agnostic** session count, plus a deck count on the one path that could have created a deck                                        |
   | …with a boundary control, so the refusals are not an endpoint refusing everything                                                                                                 | "accepts a sourceText at exactly the limit and stores it whole"                                                                                                                                                                                                                                                                                                                                                                                                                           |
   | The source-text limit has exactly one definition                                                                                                                                  | `src/lib/generation-limits.ts`, imported by `api/generate.ts` **and** `GeneratorForm.tsx` (with `COUNT_MIN`, `COUNT_MAX` and `LANGUAGES`). Breakage: decouple the endpoint's own `.max()` from the shared constant → **exactly 2 of 20 red**, both over-limit cases, both on `expected 200 to be 400`, boundary control green                                                                                                                                                             |
-  | No upstream auth string can reach a URL                                                                                                                                           | `tests/auth/errors.test.ts` (33 cases): a mapper keyed on `AuthError.code` with a documented `code → name → status → default` chain, "never lets an input substring reach the output", "has no empty constant in the closed set", and one endpoint case asserting the `?error=` param **equals** a project constant and contains neither the submitted address nor `{`                                                                                                                    |
+  | No upstream auth string can reach a URL                                                                                                                                           | `tests/auth/errors.test.ts` (**55 cases as of 2026-07-31**; 33 when this row was written — the denominator moved under C10X-30 and again under C10X-34, so read any split quoted against "33" with its own date attached): a mapper keyed on `AuthError.code` with a documented `code → name → status → default` chain, "never lets an input substring reach the output", "has no empty constant in the closed set", and one endpoint case asserting the `?error=` param **equals** a project constant and contains neither the submitted address nor `{`                                                                                                                    |
   | An anonymous visitor is not told whether generation is live                                                                                                                       | **not a test — manual, and named as such.** The gate is per **entry** (`requiresSession` on `ConfigStatus`), applied in `Layout.astro`; the three browser-level checks are recorded in the change's `verification.md`                                                                                                                                                                                                                                                                     |
 
   **Four traps this slice paid for, so the next contributor does not.**
@@ -1706,6 +1762,128 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
   both breakage checks with observed failure strings, and the calibration decision:
   `context/changes/ai-candidate-generation-test-3/verification.md` (after archiving:
   `context/archive/<date>-ai-candidate-generation-test-3/verification.md`).
+
+- **Roadmap slice H-03 (`auth-error-copy`, C10X-34, 2026-07-31)** — not a §3 rollout phase. It
+  is recorded here because it closes the **read** end of the `?error=` channel C10X-28 opened
+  (Risk #4's auth half), gives the OpenRouter banner gate its first automated coverage, and
+  because it is the change that ended this file's own denominator rot. Its framing is unusual
+  and worth carrying: **the deliverable it was ticketed for was already on `main`**, shipped as
+  side work under a foreign ticket key (C10X-28's Phase 1 and Phase 4 §1, every commit scoped
+  `(C10X-28)`). So this slice audited what landed "along the way" and fixed the edges — which is
+  where the interesting findings were.
+
+  | Claim                                                                              | What proves it                                                                                                                                                                                                                                                                              |
+  | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | The most common ordinary auth error stops reading as the catch-all                 | `tests/auth/errors.test.ts`: `anonymous_provider_disabled` → `AUTH_MISSING_CREDENTIALS_MESSAGE` as a pure row **and** through the real `/api/auth/signup` route (the File-part case, re-pointed from `AUTH_GENERIC_MESSAGE`). GoTrue reads an empty address on `/signup` as an anonymous sign-in attempt — measured, and the two routes answer **different** codes for the same input |
+  | The catch-all's "Spróbuj ponownie" no longer survives where a retry cannot work     | four new constants behind `email_address_not_authorized`, `email_provider_disabled`, `captcha_failed`, `conflict` (plus `request_timeout` reusing the network copy). **Retry semantics, not wording, is the property** — and five of the six are INFERENCE, see the does-NOT-prove list      |
+  | The `name` rung is observed on `name` **alone**                                     | the case titled so now feeds `status: 0` (what auth-js's `fetch.js` passes for a real transport failure) instead of `503`, which reached the same constant through `messageByStatus`. Two rungs, two inputs                                                                                 |
+  | `signup.ts`'s malformed-body discriminator is covered on **both** branches          | a body announced `multipart/form-data` with a boundary it does not contain → `AUTH_GENERIC_MESSAGE` by equality plus `not.toBe(AUTH_VALIDATION_MESSAGE)`. Costs no GoTrue budget: it returns before `createClient`                                                                          |
+  | The closed set is enforced where a message is **consumed**, not only produced       | `ownedAuthMessage` (`src/lib/auth-errors.ts`) — membership by EQUALITY, `null` on anything else, so a crafted `?error=` degrades to **no banner**. Four cases including a value that CONTAINS a real message and a one-character truncation, plus the whole-set positive control            |
+  | The banner gate's decision is per **entry**, not per block                          | `tests/lib/config-status.test.ts` (6 cases) over the extracted `visibleConfigStatuses`. Entries are **fabricated**; the real `missingConfigs` appears in no assertion, because it is import-time env and under the runner can only ever describe the local stack                             |
+  | …and the self-hiding Supabase invariant is the one that matters                     | a `requiresSession: false` entry shown in **both** session states, and a mixed list signed-out returning only the ungated entry. That is the case a block-level gate breaks — see check F                                                                                                    |
+  | `src/` reads no build-time env                                                      | `tests/lib/no-env-access.test.ts` — a textual scan of the whole tree with two positive controls (the walker reaches >50 files; the patterns fire on six spellings while staying silent on `import.meta.url`). Same first-party-guard shape as `no-logging.test.ts`                          |
+  | The auth error surface announces itself and its fields carry their errors           | **not a test — manual, and named as such.** `role="alert"` on `ServerError`; `aria-invalid` + `aria-describedby` on `FormField` only while an error is present; `autocomplete` on all six credential fields. Observed as DOM facts in a browser, asserted nowhere (§7)                      |
+
+  **Six deliberate-breakage checks, all run, splits as observed.** Denominators move phase by
+  phase in this change (38 → 50 → 51 → 55 in `errors.test.ts`), so every row carries its own.
+
+  | Neuter                                                                | Result                                                                                                                                                                                                                             |
+  | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | A — remove the `anonymous_provider_disabled` map entry                | **2 of 50 red**, identical string on both: the pure row **and** the real-route signup case. The endpoint red is the load-bearing one — it shows the code arrives from upstream rather than that the table agrees with itself         |
+  | B — repoint `captcha_failed` at `AUTH_GENERIC_MESSAGE`                | **1 red** (filtered run, denominator 50) on its mapping row — and `keeps the distinct code classes distinct` **stayed GREEN**, which is how the false comment on that case was found                                                |
+  | C — delete `AuthRetryableFetchError` from `MESSAGE_BY_NAME`           | **0 of 50 red against the test as it stood**, then **1 of 50** after one input changed. The pair is the deliverable: the first row is the finding, the second is the same neuter made catchable                                     |
+  | D — collapse `signup.ts:19` to always `AUTH_VALIDATION_MESSAGE`       | **1 of 51 red** on the new case while the already-covered non-form case stayed green. The route still answered `302` to `/auth/signup?` still carrying `error=` — only the **equality** went red (§6.10 confirmed by measurement)   |
+  | E — make `ownedAuthMessage` return its input unchanged                | **2 of 55 red** (the plan predicted 1; the second is the empty-string half, recorded as observed). **What stayed green is the evidence**: the member case and the whole-set positive control, without which `() => null` reads as perfect protection |
+  | F — gate the whole banner block when signed out                       | **2 of 6 red**, both on the ungated entry signed out; both `requiresSession: true` cases and the signed-in control stayed green. **That asymmetry is the evidence** — a block gate hides a gated entry just as correctly as a per-entry one does |
+
+  **Mutation testing on the mapper.** `npx stryker run --mutate "src/lib/auth-errors.ts"`
+  (permanent `mutate` list untouched), 2026-07-31: **92.98% — 53 killed, 4 survived, 0 with no
+  coverage**. C10X-28's run was 93.33% (42/3/0) before six map entries and `ownedAuthMessage`
+  existed. **No assertion was added**: all four survivors are `ConditionalExpression` mutants
+  stripping an `x !== undefined` / `raw === null` guard, and each was confirmed **equivalent by
+  execution** rather than argued — `Object.hasOwn(map, undefined)` is `false`,
+  `undefined >= 500` is `false`, and `AUTH_MESSAGES.includes(null)` is `false`, so every mutated
+  branch returns what the original returns. Three of them are the same three C10X-28 classified;
+  the fourth is the new helper's null guard, same class.
+
+  **What this does NOT prove — read this before citing the auth surface as closed.**
+  - **Five of the six new codes are INFERENCE, not measurement.** `email_address_not_authorized`,
+    `email_provider_disabled`, `captcha_failed`, `conflict` and `request_timeout` cannot be
+    produced against this project's local stack, and their `it.each` rows use the **same literal
+    as the map key** — so the suite proves only that the module agrees with itself, and a typo'd
+    or renamed code is invisible to it **and** to Stryker. No runtime guard is available
+    (`error-codes.js` is `export {}`; the codes exist only as a type). The mitigation is an
+    artifact, named in the module: all six were checked against the `ErrorCode` union in
+    `node_modules/@supabase/auth-js/dist/module/lib/error-codes.d.ts` at auth-js **2.105.3**.
+    The two production-only divergences (`user_already_exists` under confirmations-on,
+    `email_address_invalid` appearing hosted-only) are inference for the same reason.
+  - **`AUTH_UNAVAILABLE_MESSAGE` is asserted nowhere**, deliberately: its branch needs
+    `createClient() === null`, i.e. an `astro:env/server` double, and §6.9 admits one only for a
+    claim unreachable otherwise. It was seen once end to end during Phase 4's manual checks and
+    that changes nothing. A surviving Stryker mutant on it is expected, not a gap.
+  - **The island and `.astro` halves, as always (§7)** — but **one of the three is now closed, and
+    the sentence that used to end this bullet is no longer true** (corrected 2026-07-31 by this
+    change's impl-review, F2). It read: "A regression deleting the `ownedAuthMessage(...)` call from
+    `signin.astro` leaves the suite green." It did, and it no longer does —
+    `tests/lib/auth-error-param-guard.test.ts` is a textual guard over `src/pages/auth/**/*.astro`
+    asserting **per line** that a read of the parameter is the same line that wraps it, so
+    co-presence of an unused import cannot satisfy it. Proved falsifiable rather than argued:
+    unwrapping `signin.astro:8` turns **1 of 3** red, naming file and line
+    (`signin.astro:8: const error = Astro.url.searchParams.get("error");`), while **both positive
+    controls stay green** — and, the reason the guard exists, `errors.test.ts` stayed **55/55 green
+    through the same neuter**. Restored, `md5` identical to the pristine copy
+    (`0e0221b42845c63a2130bcb7cfd7266a`), `git diff -- src/` empty. It proves the call is *present
+    and composed*, never that its value reaches `serverError`. **Still resting on browser checks
+    alone**: that both islands strip the parameter with `replaceState`, and that `Layout.astro`
+    calls `visibleConfigStatuses` with `Boolean(Astro.locals.user)`.
+  - **The field/description association covers the ERROR only, never the `hint`** (added
+    2026-07-31 by this change's impl-review, F4). `FormField.tsx:69` emits `aria-describedby` on
+    the same condition that renders the error `<p>`, which is what makes a dangling reference
+    impossible — and `hint` is that condition's `else` branch, so it is never described. Concrete
+    cost: `SignUpForm.tsx:74-80`'s live "N more characters needed" is **visible-only**, so a
+    screen-reader user meets the guidance only after triggering the error it would have prevented.
+    Left open by decision, not by omission — `hint` arrives as an opaque `ReactNode`, so an id
+    needs a prop-contract change or a `cloneElement`, and the manual check that closed 5.6 would
+    have to be re-run. Recorded at the site in `FormField.tsx` with the shape it would take.
+  - **`role="alert"` is a shared edit with a wider blast radius than auth**, and the counts here
+    are enumerated (`grep -rn "<ServerError" src/`), not carried over: **twelve call sites across
+    eleven components**, ten of those sites (nine components) off the auth surface and every one
+    of them a *dynamic* insertion, which is the case the role is specified for. Exactly **one**
+    of the ten was exercised (`GeneratorForm`); the other nine rest on the shared-component
+    argument. Nothing here is evidence about what a screen reader announces — three manual rows
+    are closed to the *mechanism* only, because a screen reader and a password manager cannot be
+    driven from automation.
+  - **Nothing observes the URL cleanup automatically.** No assertion reads `window.location`.
+  - **Other `?error=` consumers are untouched, and this one has an OWNER now** (added 2026-07-31 by
+    this change's impl-review, F1). `decks/index.astro:22`, `decks/[publicId]/index.astro:86` and
+    `review.astro:115` still read the parameter unconstrained; their messages come from a
+    different set (or none), so the helper does not apply as written. What the review added is not
+    the observation but the ticket: all three pass the raw value as `serverError` into an island
+    that renders it through the **same** `ServerError` red banner (`decks/index.astro:34` →
+    `CreateDeckModal.tsx:80`), i.e. the identical content-injection class this change closed on the
+    auth pages — behind the middleware guard, so the victim must already be signed in, which lowers
+    the severity and does not remove it. Every other deferred edge in this list carries a key
+    (C10X-36, C10X-37); a live vector recorded in prose alone is how one becomes a rediscovery. **To
+    be ticketed via `/jira-backlog-sync`** (same idiom as C10X-31's deferred `workflow_dispatch`
+    leg): a deck-side closed set plus an `ownedAuthMessage`-shaped helper — membership by equality,
+    `null` on anything else. The first step of that ticket is the thing this review did **not**
+    establish: enumerate what the six deck endpoints actually put in `?error=` and confirm it is a
+    closed set of literals.
+  - **The two deck endpoints still carry the defects C10X-30 swept elsewhere** — unguarded
+    `formData()` and the `as string | null` cast (`decks/index.ts:22-23`,
+    `decks/[publicId].ts:31-32`). Owned by **C10X-37**; only the false *comment* about them, in
+    `src/lib/forms.ts`, is corrected here.
+  - **Auth INPUT validation is still absent** (presence, format, length before the GoTrue call) —
+    **C10X-36**. What exists on these routes is malformed-body handling only, and the test file
+    says so in a comment so a green `describe` cannot be read as "auth input is validated".
+  - **The auth UI is still English** (`signin.astro`, `signup.astro`, `confirm-email.astro`, the
+    three auth islands) while the banner copy is Polish — **C10X-19**'s sweep. `confirm-email`'s
+    new copy was written in English on purpose, to match the page it lives in.
+
+  Full evidence — every breakage edit with its observed failure string and denominator, the
+  verified restores, the Stryker register, and what each manual browser row actually showed:
+  `context/changes/auth-error-copy/verification.md` (after archiving:
+  `context/archive/<date>-auth-error-copy/verification.md`).
 
 ### 6.7 Adding a test for the SRS / study path
 
@@ -2449,6 +2627,52 @@ contributors should respect these unless the underlying assumption changes.
   run's output was truncated before it was saved — and the change's `verification.md` says so
   rather than rounding them up. The forced-language defect stays open, owned by the C10X-31
   follow-up.
+
+- **Roadmap H-03 / the auth `?error=` channel last proven by execution: 2026-07-31** (C10X-34,
+  change folder `auth-error-copy`). Suite **257/257, 22 files after this change's impl-review**
+  (254/254, 21 at phase completion; the review added `tests/lib/auth-error-param-guard.test.ts`, 3
+  cases, closing the one gap the entry above had disclosed rather than closed — see F2). At phase
+  completion it was 228/228, 19 at the Phase 0
+  baseline; +17 in `tests/auth/errors.test.ts` — which went 38 → 55 — plus two new files,
+  `tests/lib/config-status.test.ts` (6) and `tests/lib/no-env-access.test.ts` (3). Local stack
+  up, `OPENROUTER_API_KEY` unset, `npm run lint` exit 0 (the same 6 pre-existing `no-console`
+  warnings in `evals/generation-quality.eval.ts`), `npm run build` exit 0. Six deliberate-breakage
+  checks ran, each restored and each restore **verified** by a hash or `diff` against a pristine
+  copy taken before the edit — including the `.env` and `supabase/config.toml` flips behind the
+  manual checks. Mutation coverage on `src/lib/auth-errors.ts`: **92.98%** (53 killed / 4
+  survived / 0 uncovered), no assertion added — every survivor confirmed **equivalent by
+  execution**, not by argument.
+- **Two predictions in that plan were less precise than the runs, and both are recorded as
+  observed.** Breakage check E was predicted to turn 1 case red and turns **2** (the identity
+  function also fails the empty-string half), and check A's red is a **pair** — a pure row and a
+  real-route endpoint case — not the single row the plan named. Same discipline as C10X-29's
+  `missingLocal` neuter and C10X-30's case 8: the conclusion is unchanged, the prediction was
+  rounder than reality.
+- **This change is also the one that closed the denominator rot this ledger keeps warning
+  about.** `tests/auth/errors.test.ts` was cited as "33 cases" in §6.6's C10X-28 entry while
+  holding 55, and the matching "1 of 33 red" lives in two **archived** artifacts. The §6.6 figure
+  is corrected in place; the archived pair gained **dated correction lines and were not
+  rewritten**, per this project's own precedent (C10X-30's "4xx" wording). Five comments in
+  `tests/auth/errors.test.ts` that contradicted the code are corrected at the site a reader meets
+  them — two of them found by *measurement* rather than by reading (breakage check B showed the
+  distinctness case is blind to a repointed map key; the mapper's truthiness branch showed the
+  non-emptiness scan cannot kill a `→ ""` mutant). The `role="alert"` call-site counts in
+  `ServerError.tsx` were **re-derived by enumeration** and were wrong in the version that shipped
+  in this change's own Phase 5 — recorded rather than quietly fixed.
+- **What is NOT closed by this entry, and is named rather than left to be inferred**: the island
+  and `.astro` halves of every claim above (§7 — **with one exception added by this change's
+  impl-review**: a page that stops calling `ownedAuthMessage` now fails
+  `tests/lib/auth-error-param-guard.test.ts`, so that one sentence in the parenthesis no longer
+  holds; the `replaceState` strip and `Layout.astro`'s call are unchanged),
+  `AUTH_UNAVAILABLE_MESSAGE`, the five inference-only GoTrue codes,
+  the two deck endpoints (**C10X-37**), auth input validation (**C10X-36**) and the English auth
+  UI (**C10X-19**). §6.6's C10X-34 entry carries each with its reason.
+- **The impl-review left one live vector with an owner rather than a fix** (F1): the three deck
+  pages still read `?error=` unconstrained into the same `ServerError` banner — the class this
+  change closed on auth, one surface over, behind the session guard. Queued in the change's
+  `follow-ups/review-fixes.md` and named in §6.6's does-NOT-prove list; **to be ticketed via
+  `/jira-backlog-sync`**. Its first step is the enumeration this review did not do: confirm the
+  six deck endpoints' `?error=` values are a closed set of literals.
 
 Refresh (`/10x-test-plan --refresh`) when:
 

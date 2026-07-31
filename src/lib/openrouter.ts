@@ -58,11 +58,6 @@ export class OpenRouterError extends Error {
   }
 }
 
-// True when a real key is present. Mock mode otherwise (deterministic sample cards).
-export function isOpenRouterConfigured() {
-  return Boolean(OPENROUTER_API_KEY);
-}
-
 // The model that generateCandidates would use. The endpoint needs it to stamp the
 // `model` (NOT NULL) column on a FAILED session, where no GenerateResult exists.
 export function resolveModel() {
