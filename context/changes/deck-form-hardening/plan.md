@@ -793,27 +793,27 @@ procedure above — the suite will have written rows the constraint forbids in t
 
 #### Automated
 
-- [x] 3.1 Type checking passes: `npx tsc --noEmit`
-- [x] 3.2 Linting passes: `npm run lint`
-- [x] 3.3 Build passes: `npm run build`
-- [x] 3.4 Full suite still green: `npm test`
-- [x] 3.5 No raw `?error=` read survives in `src/pages/`
+- [x] 3.1 Type checking passes: `npx tsc --noEmit` — f060c56
+- [x] 3.2 Linting passes: `npm run lint` — f060c56
+- [x] 3.3 Build passes: `npm run build` — f060c56
+- [x] 3.4 Full suite still green: `npm test` — f060c56
+- [x] 3.5 No raw `?error=` read survives in `src/pages/` — f060c56
 
 #### Manual
 
-- [x] 3.6 A project literal shows the banner; a crafted value shows none (`/decks`)
-- [x] 3.7 Same pair on the deck page and the review page
-- [x] 3.8 A real deck-delete failure surfaces the page-level banner, with its icon and unchanged spacing
-- [x] 3.9 The page-level banner is exposed as an alert in the accessibility tree (announcement not claimed)
+- [x] 3.6 A project literal shows the banner; a crafted value shows none (`/decks`) — f060c56
+- [x] 3.7 Same pair on the deck page and the review page — f060c56
+- [x] 3.8 A real deck-delete failure surfaces the page-level banner, with its icon and unchanged spacing — f060c56
+- [x] 3.9 The page-level banner is exposed as an alert in the accessibility tree (announcement not claimed) — f060c56
 
 ### Phase 4: Server-side tests for the deck form rules
 
 #### Automated
 
-- [ ] 4.1 New file passes: `npx vitest run tests/validation/decks.test.ts`
-- [ ] 4.2 Full suite green, count risen by the new cases: `npm test`
-- [ ] 4.3 Green under three fresh shuffle seeds
-- [ ] 4.4 Linting passes: `npm run lint`
+- [x] 4.1 New file passes: `npx vitest run tests/validation/decks.test.ts`
+- [x] 4.2 Full suite green, count risen by the new cases: `npm test`
+- [x] 4.3 Green under three fresh shuffle seeds
+- [x] 4.4 Linting passes: `npm run lint`
 
 ### Phase 5: Guards — the closed set, the page wiring, and the signed-out class
 

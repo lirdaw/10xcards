@@ -132,3 +132,153 @@ Two deltas, both intended: `role` `null` → `"alert"`, and `svg` `false` → `t
 **exposed as an alert in the accessibility tree**. **Announcement is deliberately NOT claimed
 on this surface**: the banner arrives by a full-page redirect, so the live region is present
 at MOUNT, the case `ServerError.tsx:12-19` records as unreliable across screen readers.
+
+---
+
+## Phase 4 — Server-side tests for the deck form rules (2026-07-31)
+
+### Automated
+
+| Check | Result |
+| --- | --- |
+| `npx vitest run tests/validation/decks.test.ts` | **16 passed / 16**, seed `1785529167512`; re-run verbose at seed `1785529180542`, same 16 |
+| `npm test` | **278 passed / 278, 24 files**, seed `1785529194605` |
+| Three further fresh un-pinned seeds | **278/278** at `1785529230802`, `1785529235608`, `1785529240374` |
+| `npm run lint` | exit 0 — the same 6 pre-existing `no-console` warnings in `evals/generation-quality.eval.ts`, unchanged |
+| `npx tsc --noEmit` | exit 0 (not a Phase 4 criterion; run because the phase adds a fixture module) |
+
+**The count movement, measured rather than derived.** The Phase 3 row above records
+**266/266, 24 files**. `git show c9cc103:tests/validation/decks.test.ts | grep -c '  it('`
+returns **4** — the four malformed-body cases Phase 2 landed as its own evidence — and the
+file now holds **16**. 266 + 12 = **278**, which is what ran. No other file's case count
+moved: `cards.test.ts` was edited, but only to import two helpers it previously declared.
+
+### What the file asserts, and with which oracle
+
+The split is the part worth reading, because `deck` has no containing column and the two
+helpers the need points at are both wrong (`deckNameExists` filters one exact name and
+`.maybeSingle()`s; `listDecks` has **no WHERE clause at all** and decays into a false pass
+past PostgREST's `max_rows`, exactly as the `listDueCounts` denial did).
+
+| Claim | Oracle |
+| --- | --- |
+| Over-`NAME_MAX` create is refused and writes nothing | raw count scoped by a per-case name **marker**, `.like()` — the name under test *is* the marker |
+| Over-`NAME_MAX` rename is refused and the row is untouched | the **row**, `toEqual(before)` column for column — an UPDATE leaves no count to move |
+| …and the refusals are not an endpoint refusing everything | **two** boundary controls (create and rename at exactly `NAME_MAX`), each asserting length **and** equality of the stored string |
+| The trim direction is the mirror of `/api/generate`'s raw cap | a `NAME_MAX`-character name padded with trailing whitespace is **accepted** and stored at exactly `NAME_MAX` |
+| Missing / empty / whitespace-only is one indistinguishable refusal | **create: no row oracle** (below); **rename: the row**, all three shapes |
+| A body that was never a form answers an owned redirect | create: none; rename: the row. Both assert the decoded `error` by equality |
+| A body announced as a form that does not parse answers the same | same, plus `not.toBe(NAME_MESSAGE)` — which pins that the **catch** answered, not the length guard reading an unparsed body as empty |
+| A `File` part reads as empty rather than crashing | create: none; rename: the row. Message is the existing length copy — no new set member |
+| A refusal echoes nothing back | the **raw** `Location`, before decoding, carries neither the case marker nor the run suffix |
+| A duplicate name is refused and the existing deck is untouched | count **and** row, on a deck the case creates inside its own `it()` |
+| The database refuses the same names independently of the endpoint | direct RLS-scoped inserts → `23514`, asserted by **code and by constraint name `deck_name_check`**, with an in-range insert as the positive control |
+
+### Three decisions recorded rather than left to be inferred
+
+**1. The nameless CREATE cases have no row oracle, and the file says so.** There is no name to
+carry a marker, so a marker-scoped count reads `0` before and after whatever the endpoint
+does — an assertion that cannot go red, which is the `listDueCounts` false-pass class one
+table over. A delta over account A's own decks is not the escape either: A is shared across
+**files**, and `generate.test.ts` (`newDeckName`) and `isolation/decks.test.ts` both create
+decks as A in parallel workers, so the delta races. Those four cases rest on the `302` plus
+the decoded `error` **equality**, and that is honest for a second reason: `deck_name_check`
+refuses a `''` name independently — asserted in the DB-layer `describe` — so at the endpoint
+layer there is nothing a row oracle could have distinguished. **Consequence for Phase 6:
+under run 1 these particular cases attribute nothing to either enforcement layer.** Their
+rename twins are where the same refusal gets a real oracle, which is why every nameless case
+is routed through both endpoints.
+
+**2. The messages are spelled out in the test, not imported from `@/lib/redirect-errors`.**
+Phase 2's four cases imported the constants; Phase 4 changed them to literals, with the
+bound-derived one interpolated from `NAME_MAX` exactly as the endpoint builds it — the
+discipline `cards.test.ts` already follows for `FRONT_MESSAGE`/`BACK_MESSAGE`. Importing the
+constant makes the assertion agree with itself, and the failure this file exists to catch is
+precisely a "tidied" string: a reworded message drops out of the closed set silently, so the
+banner stops appearing rather than anything going red. `NAME_MAX` itself is still imported,
+which is why Phase 6's run 1 must decouple the endpoint's **comparison** and never raise the
+constant.
+
+**3. `sized()` and `errorParam()` moved to `tests/fixtures/redirect-cases.ts`.** They were
+authored in `cards.test.ts` and are needed verbatim here; a character-for-character copy
+between two test files is the drift `tests/fixtures/scoping.ts` was extracted to end (C10X-28
+impl-review F7). `cards.test.ts` now imports them and declares neither, along with the `ORIGIN`
+const that only `errorParam` used. Its 12 cases are unchanged and stayed green throughout.
+
+### Shuffle safety
+
+The create `describe` has **no shared fixture at all**: every case owns the marker it counts
+and, where it creates a deck, the deck it reads back. The rename `describe` shares one deck,
+which is safe because every case that touches it is a refusal asserting `toEqual(before)`
+against a row it re-reads **inside its own `it()`**; the one case that genuinely mutates a
+deck — the boundary control — creates its own. That is §6.2's owned-fixture rule, and the five
+green un-pinned seeds above are the evidence rather than the argument.
+
+### Not claimed by this phase
+
+- **Nothing here is falsifiable evidence yet.** Every split, every red/green attribution and
+  every restore belongs to Phase 6; a green suite is a claim about today, not about the
+  assertions' worth.
+- **The island half.** `CreateDeckModal` and `DeckActions` run their own trimmed 1..100 check
+  and `preventDefault()` on failure, so the server's over-length branch is not reachable
+  through the hydrated UI. No layer in this plan reaches an island's JSX (§7); their half is
+  carried by the Phase 1–3 manual checks.
+- **The cloud's rows.** Every assertion runs against the local stack. `deck_name_check` ships
+  in `20260705180246_init_core_schema.sql` and long predates this change, so no migration is
+  pending and the drift gate is not involved.
+- **The signed-out branch of either endpoint** — Phase 5 owns it, for all six redirect-style
+  routes rather than these two.
+
+### Manual — the island half, run because the plan leaves it to manual checks
+
+The plan's Phase 4 has **no** manual list ("assertions only"), and this matrix is not an
+attempt to invent one. It covers the thing Phase 4 explicitly does **not** assert and §7 names
+as unreachable by any layer in this project: the two deck islands' own 1..100 guard. Driven in
+a real browser against `npm run dev` (localhost:4321), signed in as a throwaway local account.
+Deck `7ff17480-…`.
+
+**Measured first, because it decides whether the matrix is worth running at all**: neither
+`#deck-name` nor `#deck-rename` carries a `maxLength` attribute (`hasAttribute('maxlength')`
+→ `false` on both). So unlike `GeneratorForm`, nothing truncates the input first and the
+islands' over-length branch is the branch a **user actually meets** — §7's "third instance"
+note, confirmed rather than assumed.
+
+Hydration was polled (`astro-island[ssr]` gone, then a further 400 ms) before every read, per
+the methodology Phase 3 had to correct; measured at **975 ms** on the first `/decks` load.
+
+| Island / input | Navigated? | `POST /api/decks*` | Banner inside the modal |
+| --- | --- | --- | --- |
+| create, 101 chars | no | **0** | equal to `DECK_NAME_MESSAGE` |
+| create, empty | no | **0** | equal |
+| create, whitespace-only `"   "` | no | **0** | equal |
+| create, exactly 100 | **yes** | **1**, 200 | deck created |
+| create, duplicate of that 100-char name | **yes** | **1**, 200 | modal re-opened, equal to `"Talia o tej nazwie już istnieje"`, URL stripped back to `/decks` |
+| rename, 101 chars | no | **0** | equal |
+| rename, empty | no | **0** | equal |
+| rename, whitespace-only `"  \t "` | no | **0** | equal |
+| rename, exactly 100 | **yes** | **1**, 200 | `h1` is the new name, length 100 |
+
+Every banner was compared to the constant by **equality** in the DOM, and scoped to the node
+inside the `<form>` — the page also carries the OpenRouter config banner as a second
+`[role="alert"]`, so an unscoped `querySelector('[role="alert"]')` reads that one and the case
+passes on the wrong node. That is a live trap on this surface, not a hypothetical.
+
+**"Zero POSTs" is only evidence because of the rows that produced one.** Network requests were
+cleared between groups and re-read; the accepting cases fired exactly one POST each, so a
+blocked case's zero is the guard working rather than a form that never submits. Without those
+rows the whole table would be satisfied by an island whose submit handler was broken outright.
+
+**The duplicate row is a bonus this phase did not plan for and is worth keeping**: it is the
+only check anywhere in this change that exercises the Phase 3 read-side guard on a message the
+**server actually produced**, rather than one hand-crafted into the URL — island passes it →
+endpoint refuses → `?error=` → `ownedRedirectMessage` vouches → banner renders inside the modal
+→ `replaceState` strips the parameter. The crafted-URL matrix in Phase 3 cannot show that the
+producer and the consumer agree in the real round trip; this does.
+
+**Methodology, recorded rather than smoothed over.** Values were set through the native
+`HTMLInputElement.prototype.value` setter plus an `input` event (React controlled inputs ignore
+a plain assignment), and submitted with `form.requestSubmit()` after a click on the resolved
+submit-button ref did not register. `requestSubmit()` dispatches the same `submit` event a
+button click does, so the islands' `onSubmit`/`preventDefault()` is exercised faithfully — but
+it is a scripted submit, not a mouse-and-keyboard one, and the table should be read as
+evidence about the **guard**, not about pointer handling.

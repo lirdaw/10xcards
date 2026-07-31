@@ -6,6 +6,9 @@ import { listDecks } from "@/lib/decks";
 import { BACK_MAX, deckIdByPublicId, FRONT_MAX, SOURCE_MANUAL, STATE_ACCEPTED } from "@/lib/flashcards";
 import { accountA } from "../fixtures/accounts";
 import { callEndpoint } from "../fixtures/endpoint";
+// `sized` and `errorParam` were authored here and moved to a fixture when
+// tests/validation/decks.test.ts needed them verbatim — see that file's header.
+import { errorParam, sized } from "../fixtures/redirect-cases";
 import { clientFor } from "../fixtures/session";
 
 // Card-content rules on the server (test-plan §2 Risk #6, the half C10X-28 left open): the
@@ -38,25 +41,11 @@ import { clientFor } from "../fixtures/session";
 
 const a = accountA();
 const suffix = Date.now().toString(36);
-const ORIGIN = "http://localhost:4321";
 
 // The two project-owned literals these endpoints refuse with. Built from the shared
 // constants, exactly as the endpoints build them.
 const FRONT_MESSAGE = `Przód fiszki musi mieć od 1 do ${FRONT_MAX} znaków`;
 const BACK_MESSAGE = `Tył fiszki musi mieć od 1 do ${BACK_MAX} znaków`;
-
-/**
- * A string of EXACTLY `length` characters, opening with `marker` so each case's rows and
- * failure strings are identifiable.
- *
- * ASCII padding on purpose: `char_length` counts code points while the endpoint counts
- * UTF-16 units, so a boundary string built from astral characters would measure differently
- * on the two sides and the case would stop testing the bound it names (see the migration
- * header, 20260728104500_flashcard_content_bounds.sql).
- */
-function sized(marker: string, length: number): string {
-  return (marker + "x".repeat(length)).slice(0, length);
-}
 
 function deckForm(name: string): FormData {
   const body = new FormData();
@@ -162,11 +151,6 @@ async function createCard(deckPublicId: string, front: string, back: string): Pr
   expect(response.status).toBe(302);
   expect(response.headers.get("Location")).toBe(`/decks/${deckPublicId}`);
   return findCardByFront(await deckIdOf(deckPublicId), front.trim());
-}
-
-/** The decoded `error` param — asserted by EQUALITY everywhere, never with `toContain`. */
-function errorParam(location: string | null): string | null {
-  return new URL(location ?? "", ORIGIN).searchParams.get("error");
 }
 
 describe("POST /api/decks/[publicId]/cards enforces the content rules server-side", () => {
