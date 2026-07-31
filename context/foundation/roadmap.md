@@ -66,11 +66,12 @@ ani do grafu zależności. Źródłem jest Jira (bug / dług / polish), nie PRD;
 jest wtórna. Mają wiersz tutaj i blok w `## Slices` wyłącznie po to, żeby `/10x-archive`
 miał co domknąć — bez tego zamknięty task znika z roadmapy bez śladu w `## Done`.
 
-> **Uwaga do wiersza H-03: jego `not started` jest nieaktualne — kod już wyszedł, pod obcym
-> `Change ID`.** Przeczytaj blok `### H-03` w `## Slices`, zanim cokolwiek z niego weźmiesz do
-> roboty. To jest zarazem ogólniejsza pułapka tej tabeli: `/10x-archive` przestawia Status,
-> dopasowując archiwizowaną zmianę po `Change ID`, więc **praca wykonana pod cudzym change-id
-> zostawia tu wiersz, którego nikt automatycznie nie domknie**.
+> **Pułapka tej tabeli:** `/10x-archive` przestawia Status, dopasowując archiwizowaną
+> zmianę po `Change ID` — więc **praca wykonana pod cudzym change-id zostawia tu wiersz,
+> którego nikt automatycznie nie domknie**. Przykład: cały zakres H-03 wyszedł jako praca
+> poboczna pod `ai-candidate-generation-test-2` (C10X-28), a wiersz H-03 czekał na osobną
+> zmianę pod własnym `Change ID` — domknęła go dopiero `auth-error-copy` (C10X-34,
+> 2026-07-31).
 
 ## Streams
 
