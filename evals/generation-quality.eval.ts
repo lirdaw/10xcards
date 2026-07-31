@@ -55,13 +55,40 @@ interface MatrixCase {
   expectedLanguage: string;
 }
 
+/**
+ * The model-facing name for a code, or a loud throw.
+ *
+ * `PROMPT_LANGUAGE_NAMES` is keyed by `string` on purpose (see the fixture's header: the
+ * languages the app SHIPS and the languages the eval has a reference text for are different
+ * sets that happen to coincide at five). This project extends `astro/tsconfigs/strict`, which
+ * does NOT enable `noUncheckedIndexedAccess`, so a miss types as `string` and IS `undefined` —
+ * and `undefined` is not `null`, so `systemPrompt` would take the FORCED branch and instruct
+ * the model `Write the flashcards in this language: undefined.` while the judge was told to
+ * expect `undefined`. Silent nonsense inside the acceptance instrument for Risk #7.
+ *
+ * The reachable path is authoring a sixth reference text without a fixture entry: `AUTO_CASES`
+ * maps over `Object.keys(REFERENCE_TEXTS)`, so that alone is enough. This mirrors the guard the
+ * DB half already has (`tests/db/languages.test.ts`: `expect(PROMPT_LANGUAGE_NAMES[row.code]).toBeDefined()`)
+ * — the two sides pin the same fixture, so both must fail loudly on a hole in it.
+ */
+function promptName(code: string): string {
+  const name = PROMPT_LANGUAGE_NAMES[code];
+  if (!name) {
+    throw new Error(
+      `No model-facing name for "${code}" in tests/fixtures/language-names.ts. ` +
+        `Add one there (it is the pin between this eval and the language table's prompt_name).`,
+    );
+  }
+  return name;
+}
+
 // Cases 1–5: the `auto` prompt path ("SAME language as the source text", no name
 // interpolated at all) over each language's own reference text.
 const AUTO_CASES: MatrixCase[] = (Object.keys(REFERENCE_TEXTS) as ReferenceLanguageCode[]).map((code) => ({
   name: `auto/${code}`,
   sourceText: REFERENCE_TEXTS[code].text,
   targetLanguage: null,
-  expectedLanguage: PROMPT_LANGUAGE_NAMES[code],
+  expectedLanguage: promptName(code),
 }));
 
 // Cases 6–10: the forced prompt path over the ONE fixed PL source text. Case 6
@@ -75,8 +102,8 @@ const FORCED_CODES: ReferenceLanguageCode[] = ["pl", "en", "es", "de", "fr"];
 const FORCED_CASES: MatrixCase[] = FORCED_CODES.map((code) => ({
   name: `forced/${code}`,
   sourceText: REFERENCE_TEXTS.pl.text,
-  targetLanguage: PROMPT_LANGUAGE_NAMES[code],
-  expectedLanguage: PROMPT_LANGUAGE_NAMES[code],
+  targetLanguage: promptName(code),
+  expectedLanguage: promptName(code),
 }));
 
 // Case 11: the confound-breaker. Every forced case above runs on the PL source text, so a
@@ -88,8 +115,8 @@ const FORCED_CASES: MatrixCase[] = FORCED_CODES.map((code) => ({
 const CROSS_SOURCE_CASE: MatrixCase = {
   name: "forced/fr-on-en",
   sourceText: REFERENCE_TEXTS.en.text,
-  targetLanguage: PROMPT_LANGUAGE_NAMES.fr,
-  expectedLanguage: PROMPT_LANGUAGE_NAMES.fr,
+  targetLanguage: promptName("fr"),
+  expectedLanguage: promptName("fr"),
 };
 
 const MATRIX: MatrixCase[] = [...AUTO_CASES, ...FORCED_CASES, CROSS_SOURCE_CASE];

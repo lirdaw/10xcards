@@ -18,9 +18,15 @@ type Client = SupabaseClient<Database>;
  *
  * `prompt_name` is deliberately NOT projected: it is model-facing, the UI is human-facing,
  * and the island receiving it would be the same role-mixing this table was built to end.
+ *
+ * `code` is a tie-break, not decoration. `sort_order` carries a UNIQUE constraint, so it is
+ * already a total order today — but a sort with one key is one schema edit away from being
+ * planner-dependent, and at six rows the planner would return insertion order anyway, so the
+ * suite's two sequence assertions would stay GREEN while the selector's order became
+ * arbitrary. That is the failure mode test-plan §6.6 records for `study_due_cards`' `f.id asc`.
  */
 export function listActiveLanguages(supabase: Client) {
-  return supabase.from("language").select("code, ui_label").eq("is_active", true).order("sort_order");
+  return supabase.from("language").select("code, ui_label").eq("is_active", true).order("sort_order").order("code");
 }
 
 /**

@@ -690,11 +690,17 @@ describe("/api/generate rejects a request that fails its input contract", () => 
       });
 
       expect(response.status, `language "${language}" was not refused`).toBe(400);
-      // The submitted language carries no run suffix, so it is named explicitly — and
-      // BAD_LANGUAGE is the one input here that would be genuinely dangerous to echo: it is
-      // prompt-injection text, and http.ts renders the endpoint's `error` string verbatim in
-      // the island.
-      await expectErrorBody(response, language);
+      // The no-echo argument is passed for BAD_LANGUAGE ONLY, and the asymmetry is
+      // deliberate. It is the one input here that would be genuinely dangerous to echo —
+      // prompt-injection text, and http.ts renders the endpoint's `error` string verbatim
+      // in the island — while `"xx"` and the inactive code are inert two-character tokens.
+      // Passing those to a `not.toContain` scan would assert almost nothing and could go
+      // red for a reason unrelated to leakage: they pass today only because
+      // "Nieprawidłowe dane wejściowe" happens to contain no `xx` and no `it`, so a future
+      // edit to that copy — not a leak — would break the case. Every input still gets the
+      // status assertion above, the shape check inside expectErrorBody, and the
+      // status-agnostic row oracle below.
+      await expectErrorBody(response, ...(language === BAD_LANGUAGE ? [language] : []));
     }
 
     // Status-agnostic, so a 400 returned AFTER a write had landed cannot read as a pass.

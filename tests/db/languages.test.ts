@@ -51,9 +51,16 @@ describe("the language dictionary table", () => {
     expect(data?.length).toBeGreaterThan(0);
 
     for (const row of data ?? []) {
-      // Asserted PER ROW against the fixture, not as set equality against exactly five.
-      // Shipping a sixth language is then a one-line fixture edit plus a seed row, not a
-      // red assertion in a file that has nothing to do with the new language.
+      // Asserted PER ROW against the fixture, not as set equality against exactly five, so
+      // this loop states the claim that actually matters — every ACTIVE row carries the
+      // model-facing name the prompt layer will interpolate — without caring how many rows
+      // there are. A sixth language satisfies it by adding a fixture entry and a seed row.
+      //
+      // It does NOT follow that a sixth language leaves this file untouched: the sequence
+      // assertion below and its twin in `listActiveLanguages` are a deliberate SECOND,
+      // tighter claim about order and membership, and both go red on a sixth active row.
+      // That is intended — the selector's contents are a user-visible list — but it means
+      // shipping a language is a three-line edit here, not a one-line one.
       expect(PROMPT_LANGUAGE_NAMES[row.code], `no model-facing name for active code "${row.code}"`).toBeDefined();
       expect(row.prompt_name).toBe(PROMPT_LANGUAGE_NAMES[row.code]);
       expect(row.ui_label).toBe(UI_LABELS[row.code]);
@@ -80,8 +87,14 @@ describe("the language dictionary table", () => {
     //
     // So the deliberate-breakage check for this case is a PAIR, per test-plan §6.10:
     // adding a write policy alone leaves the suite GREEN, because the missing grant
-    // absorbs the write. Measured — policy + restored grant is what turns this case red.
-    // One run cannot tell "the grant caught it" from "the policy caught it".
+    // absorbs the write — only policy + restored grant turns this case red. One run
+    // cannot tell "the grant caught it" from "the policy caught it".
+    //
+    // That is established BY CONSTRUCTION, not by a run, and the distinction is
+    // deliberate: `authenticated` holds no INSERT/UPDATE/DELETE on this table at all, so
+    // a write policy alone provably cannot enable a write. The grants are dumped in the
+    // change's verification.md (§2.7) beside `flashcard_state`'s, which still carries the
+    // full default-privilege set and is what this table departs from.
     //
     // The row oracle below is the assertion, not a supplement: an error alone would not
     // prove nothing landed, and under RLS a refused UPDATE/DELETE is a silent 0-row no-op
