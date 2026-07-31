@@ -765,17 +765,17 @@ procedure above — the suite will have written rows the constraint forbids in t
 
 #### Automated
 
-- [ ] 1.1 Type checking passes: `npx tsc --noEmit`
-- [ ] 1.2 Linting passes: `npm run lint`
-- [ ] 1.3 Build passes: `npm run build`
-- [ ] 1.4 Full suite still green at its pre-change count: `npm test`
-- [ ] 1.5 No inline copy survives — message (grep returns only `src/lib/`)
-- [ ] 1.8 No inline copy survives — number (grep over the six bound sites returns nothing)
+- [x] 1.1 Type checking passes: `npx tsc --noEmit`
+- [x] 1.2 Linting passes: `npm run lint`
+- [x] 1.3 Build passes: `npm run build`
+- [x] 1.4 Full suite still green at its pre-change count: `npm test`
+- [x] 1.5 No inline copy survives — message (grep returns only `src/lib/`)
+- [x] 1.8 No inline copy survives — number (grep over the six bound sites returns nothing)
 
 #### Manual
 
-- [ ] 1.6 Duplicate-name copy unchanged after the hoist
-- [ ] 1.7 Generate form's new-deck message keeps its own wording and trailing period
+- [x] 1.6 Duplicate-name copy unchanged after the hoist
+- [x] 1.7 Generate form's new-deck message keeps its own wording and trailing period
 
 ### Phase 2: Harden the two deck endpoints (C10X-37)
 

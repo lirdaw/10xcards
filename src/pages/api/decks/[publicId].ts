@@ -1,8 +1,14 @@
 import type { APIRoute } from "astro";
 import { createClient } from "@/lib/supabase";
 import { deckNameExists, renameDeck } from "@/lib/decks";
-
-const NAME_TAKEN = "Talia o tej nazwie już istnieje";
+import { NAME_MIN, NAME_MAX } from "@/lib/deck-limits";
+// See api/decks/index.ts: the `?error=` strings are the closed set's, not this file's.
+import {
+  SUPABASE_UNCONFIGURED_MESSAGE,
+  DECK_NAME_MESSAGE,
+  DECK_NAME_TAKEN_MESSAGE,
+  DECK_RENAME_FAILED_MESSAGE,
+} from "@/lib/redirect-errors";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -21,7 +27,7 @@ export const POST: APIRoute = async (context) => {
 
   const supabase = createClient(context.request.headers, context.cookies);
   if (!supabase) {
-    return context.redirect(errorUrl("Supabase nie jest skonfigurowany"));
+    return context.redirect(errorUrl(SUPABASE_UNCONFIGURED_MESSAGE));
   }
 
   if (!context.locals.user) {
@@ -31,21 +37,21 @@ export const POST: APIRoute = async (context) => {
   const form = await context.request.formData();
   const name = ((form.get("name") as string | null) ?? "").trim();
 
-  if (name.length < 1 || name.length > 100) {
-    return context.redirect(errorUrl("Nazwa talii musi mieć od 1 do 100 znaków"));
+  if (name.length < NAME_MIN || name.length > NAME_MAX) {
+    return context.redirect(errorUrl(DECK_NAME_MESSAGE));
   }
 
   // Friendly pre-check; the UNIQUE constraint remains the real backstop. Renaming
   // to the same name (same deck) is a no-op, not a collision.
   const { data: existing } = await deckNameExists(supabase, name);
   if (existing && existing.public_id !== publicId) {
-    return context.redirect(errorUrl(NAME_TAKEN));
+    return context.redirect(errorUrl(DECK_NAME_TAKEN_MESSAGE));
   }
 
   const { data: updated, error } = await renameDeck(supabase, publicId, name);
   if (error) {
     // 23505 = unique_violation: the pre-check lost a TOCTOU race.
-    const msg = error.code === "23505" ? NAME_TAKEN : "Nie udało się zmienić nazwy talii";
+    const msg = error.code === "23505" ? DECK_NAME_TAKEN_MESSAGE : DECK_RENAME_FAILED_MESSAGE;
     return context.redirect(errorUrl(msg));
   }
   // RLS hid the deck or it does not exist → no row updated → 404, don't reveal it.

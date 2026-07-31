@@ -6,6 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/Modal";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { ServerError } from "@/components/auth/ServerError";
+// Bound AND copy come from the endpoint's own module (`api/decks/index.ts` imports the same
+// three), so the client guard and the server guard cannot drift — test-plan §2 Risk #6. Never
+// import `redirect-errors.ts` here: it is server-side and would drag a query layer into this
+// bundle; the island receives its server message as the `serverError` prop instead.
+import { NAME_MIN, NAME_MAX, DECK_NAME_MESSAGE } from "@/lib/deck-limits";
 
 interface Props {
   // Re-open the modal after a server round-trip error (?open=create).
@@ -40,9 +45,9 @@ export default function CreateDeckModal({ defaultOpen = false, serverError = nul
 
   function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     const trimmed = name.trim();
-    if (trimmed.length < 1 || trimmed.length > 100) {
+    if (trimmed.length < NAME_MIN || trimmed.length > NAME_MAX) {
       e.preventDefault();
-      setError("Nazwa talii musi mieć od 1 do 100 znaków");
+      setError(DECK_NAME_MESSAGE);
     }
   }
 

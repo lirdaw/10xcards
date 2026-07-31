@@ -7,6 +7,15 @@ import { deckIdByPublicId } from "@/lib/flashcards";
 import { generateCandidates, resolveModel, OpenRouterError } from "@/lib/openrouter";
 import { getActiveLanguage } from "@/lib/languages";
 import { SOURCE_MAX, COUNT_MIN, COUNT_MAX } from "@/lib/generation-limits";
+import { NAME_MIN, NAME_MAX } from "@/lib/deck-limits";
+// See api/study.ts: a JSON endpoint reusing strings from the redirect channel's closed set.
+// The copy is identical to what `api/decks/index.ts` redirects with and now has one
+// definition; this route still answers a JSON body and never redirects.
+import {
+  DECK_NAME_TAKEN_MESSAGE,
+  DECK_CREATE_FAILED_MESSAGE,
+  SUPABASE_UNCONFIGURED_MESSAGE,
+} from "@/lib/redirect-errors";
 import {
   createGenerationSession,
   failGenerationSession,
@@ -72,7 +81,7 @@ const LANGUAGE_AUTO = "auto";
 const bodySchema = z
   .object({
     deckPublicId: z.string().regex(UUID_RE).optional(),
-    newDeckName: z.string().trim().min(1).max(100).optional(),
+    newDeckName: z.string().trim().min(NAME_MIN).max(NAME_MAX).optional(),
     sourceText: z.string().min(1).max(SOURCE_MAX),
     language: z.string().regex(LANGUAGE_CODE_RE),
     count: z.number().int().min(COUNT_MIN).max(COUNT_MAX),
@@ -127,7 +136,7 @@ async function replaySession(
 export const POST: APIRoute = async (context) => {
   const supabase = createClient(context.request.headers, context.cookies);
   if (!supabase) {
-    return json(500, { error: "Supabase nie jest skonfigurowany" });
+    return json(500, { error: SUPABASE_UNCONFIGURED_MESSAGE });
   }
 
   const user = context.locals.user;
@@ -242,7 +251,7 @@ export const POST: APIRoute = async (context) => {
       return json(500, { error: "Nie udało się odczytać talii" });
     }
     if (existing) {
-      return json(409, { error: "Talia o tej nazwie już istnieje" });
+      return json(409, { error: DECK_NAME_TAKEN_MESSAGE });
     }
   } else {
     // Unreachable: the schema's refine guarantees exactly one of the two.
@@ -328,7 +337,7 @@ export const POST: APIRoute = async (context) => {
     if (error) {
       const taken = error.code === "23505";
       return json(taken ? 409 : 500, {
-        error: taken ? "Talia o tej nazwie już istnieje" : "Nie udało się utworzyć talii",
+        error: taken ? DECK_NAME_TAKEN_MESSAGE : DECK_CREATE_FAILED_MESSAGE,
       });
     }
     deckId = deck.id;

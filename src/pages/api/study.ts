@@ -3,6 +3,10 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase";
 import { deckIdByPublicId } from "@/lib/flashcards";
 import { rateCard, setSessionSize } from "@/lib/study";
+// A JSON endpoint reusing one string from the redirect channel's closed set — the copy is
+// identical and now has one definition. This does NOT put the route on that channel: it still
+// answers a JSON body, and `ownedRedirectMessage` guards `?error=` values only.
+import { SUPABASE_UNCONFIGURED_MESSAGE } from "@/lib/redirect-errors";
 
 // JSON endpoint for the study session, mirroring src/pages/api/generate.ts: a React
 // island fetches it and needs a structured body back plus clean status codes. It carries
@@ -46,7 +50,7 @@ function json(status: number, body: unknown) {
 export const POST: APIRoute = async (context) => {
   const supabase = createClient(context.request.headers, context.cookies);
   if (!supabase) {
-    return json(500, { error: "Supabase nie jest skonfigurowany" });
+    return json(500, { error: SUPABASE_UNCONFIGURED_MESSAGE });
   }
 
   const user = context.locals.user;

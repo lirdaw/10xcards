@@ -4,6 +4,14 @@ import { createFlashcard, deckIdByPublicId, FRONT_MAX, BACK_MAX } from "@/lib/fl
 // Only genuine strings are read: a `File` part survives an `as string` cast and makes
 // `.trim()` throw. See the helper's own comment for why it is not inlined here.
 import { formString } from "@/lib/forms";
+// See api/decks/index.ts: the `?error=` strings are the closed set's, not this file's. The two
+// length messages are built there from the same FRONT_MAX/BACK_MAX imported above.
+import {
+  SUPABASE_UNCONFIGURED_MESSAGE,
+  CARD_CREATE_FAILED_MESSAGE,
+  CARD_FRONT_MESSAGE,
+  CARD_BACK_MESSAGE,
+} from "@/lib/redirect-errors";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -23,7 +31,7 @@ export const POST: APIRoute = async (context) => {
 
   const supabase = createClient(context.request.headers, context.cookies);
   if (!supabase) {
-    return context.redirect(errorUrl("Supabase nie jest skonfigurowany"));
+    return context.redirect(errorUrl(SUPABASE_UNCONFIGURED_MESSAGE));
   }
 
   if (!context.locals.user) {
@@ -48,7 +56,7 @@ export const POST: APIRoute = async (context) => {
   try {
     form = await context.request.formData();
   } catch {
-    return context.redirect(errorUrl("Nie udało się utworzyć fiszki"));
+    return context.redirect(errorUrl(CARD_CREATE_FAILED_MESSAGE));
   }
   const front = formString(form.get("front")).trim();
   const back = formString(form.get("back")).trim();
@@ -61,22 +69,22 @@ export const POST: APIRoute = async (context) => {
   // real not-found → 404, so we never reveal that a foreign deck exists.
   const { data: deck, error: deckError } = await deckIdByPublicId(supabase, publicId);
   if (deckError) {
-    return context.redirect(errorUrl("Nie udało się utworzyć fiszki"));
+    return context.redirect(errorUrl(CARD_CREATE_FAILED_MESSAGE));
   }
   if (!deck) {
     return new Response(null, { status: 404 });
   }
 
   if (front.length < 1 || front.length > FRONT_MAX) {
-    return context.redirect(errorUrl(`Przód fiszki musi mieć od 1 do ${FRONT_MAX} znaków`));
+    return context.redirect(errorUrl(CARD_FRONT_MESSAGE));
   }
   if (back.length < 1 || back.length > BACK_MAX) {
-    return context.redirect(errorUrl(`Tył fiszki musi mieć od 1 do ${BACK_MAX} znaków`));
+    return context.redirect(errorUrl(CARD_BACK_MESSAGE));
   }
 
   const { error } = await createFlashcard(supabase, deck.id, front, back);
   if (error) {
-    return context.redirect(errorUrl("Nie udało się utworzyć fiszki"));
+    return context.redirect(errorUrl(CARD_CREATE_FAILED_MESSAGE));
   }
 
   return context.redirect(`/decks/${publicId}`);
