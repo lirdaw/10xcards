@@ -794,15 +794,15 @@ it in the cloud after the push, as a recorded observation.
 
 #### Automated
 
-- [x] 5.1 Suite green: `npm test`
-- [x] 5.2 `npm run eval` exits 0 after the re-run-once rule, or its residual failure set is recorded and is a strict subset of the C10X-31 baseline
-- [x] 5.3 `forced/de` and `forced/fr` report 5/5 language fidelity
-- [x] 5.4 `forced/fr-on-en` reports 5/5
-- [x] 5.5 No case regresses below its C10X-31 baseline
-- [x] 5.6 Lint and build pass
+- [x] 5.1 Suite green: `npm test` — ec0959f
+- [x] 5.2 `npm run eval` exits 0 after the re-run-once rule, or its residual failure set is recorded and is a strict subset of the C10X-31 baseline — ec0959f
+- [x] 5.3 `forced/de` and `forced/fr` report 5/5 language fidelity — ec0959f
+- [x] 5.4 `forced/fr-on-en` reports 5/5 — ec0959f
+- [x] 5.5 No case regresses below its C10X-31 baseline — ec0959f
+- [x] 5.6 Lint and build pass — ec0959f
 
 #### Manual
 
-- [x] 5.7 `verification.md` carries the run table, old→new case-name mapping, cost and wall-clock
-- [x] 5.8 test-plan and lessons.md entries read correctly against the code
-- [x] 5.9 Admin-panel follow-up file written for `/jira-backlog-sync`
+- [x] 5.7 `verification.md` carries the run table, old→new case-name mapping, cost and wall-clock — ec0959f
+- [x] 5.8 test-plan and lessons.md entries read correctly against the code — ec0959f
+- [x] 5.9 Admin-panel follow-up file written for `/jira-backlog-sync` — ec0959f
