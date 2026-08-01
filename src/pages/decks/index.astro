@@ -4,6 +4,7 @@ import CreateDeckModal from "@/components/decks/CreateDeckModal";
 import { createClient } from "@/lib/supabase";
 import { listDecks } from "@/lib/decks";
 import { countCandidatesByDeck } from "@/lib/flashcards";
+import { ownedRedirectMessage } from "@/lib/redirect-errors";
 
 const supabase = createClient(Astro.request.headers, Astro.cookies);
 // Branch on BOTH query errors, never on data alone (lessons: SSR error-vs-empty) — the
@@ -19,7 +20,11 @@ const { data: candidateCounts } = supabase ? await countCandidatesByDeck(supabas
 // yields an empty map — both land on the same "render no chip" branch.
 const counts: Record<string, number> = candidateCounts ?? {};
 
-const error = Astro.url.searchParams.get("error");
+// Vouch for the parameter AT THE READ, never later: `CreateDeckModal` seeds
+// `useState(serverError)` at first render, so its `history.replaceState` cleanup runs long
+// after the value has been captured and shown. Anything the app cannot vouch for becomes
+// `null` here, which `ServerError` renders as no banner at all (see redirect-errors.ts).
+const error = ownedRedirectMessage(Astro.url.searchParams.get("error"));
 const openCreate = Astro.url.searchParams.get("open") === "create";
 ---
 

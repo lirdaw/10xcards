@@ -1,6 +1,8 @@
 import type { APIRoute } from "astro";
 import { createClient } from "@/lib/supabase";
 import { deleteFlashcard, deckIdByPublicId } from "@/lib/flashcards";
+// See api/decks/index.ts: the `?error=` strings are the closed set's, not this file's.
+import { SUPABASE_UNCONFIGURED_MESSAGE, CARD_DELETE_FAILED_MESSAGE } from "@/lib/redirect-errors";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -20,7 +22,7 @@ export const POST: APIRoute = async (context) => {
 
   const supabase = createClient(context.request.headers, context.cookies);
   if (!supabase) {
-    return context.redirect(errorUrl("Supabase nie jest skonfigurowany"));
+    return context.redirect(errorUrl(SUPABASE_UNCONFIGURED_MESSAGE));
   }
 
   if (!context.locals.user) {
@@ -31,7 +33,7 @@ export const POST: APIRoute = async (context) => {
   // transient DB failure isn't masked as a 404 (lessons: SSR error-vs-empty).
   const { data: deck, error: deckError } = await deckIdByPublicId(supabase, publicId);
   if (deckError) {
-    return context.redirect(errorUrl("Nie udało się usunąć fiszki"));
+    return context.redirect(errorUrl(CARD_DELETE_FAILED_MESSAGE));
   }
   if (!deck) {
     return new Response(null, { status: 404 });
@@ -41,7 +43,7 @@ export const POST: APIRoute = async (context) => {
   // rather than removing a card that belongs to a different deck.
   const { data: deleted, error } = await deleteFlashcard(supabase, deck.id, cardPublicId);
   if (error) {
-    return context.redirect(errorUrl("Nie udało się usunąć fiszki"));
+    return context.redirect(errorUrl(CARD_DELETE_FAILED_MESSAGE));
   }
   if (!deleted) {
     return new Response(null, { status: 404 });

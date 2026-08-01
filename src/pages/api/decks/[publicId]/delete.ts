@@ -1,6 +1,8 @@
 import type { APIRoute } from "astro";
 import { createClient } from "@/lib/supabase";
 import { deleteDeck } from "@/lib/decks";
+// See api/decks/index.ts: the `?error=` strings are the closed set's, not this file's.
+import { SUPABASE_UNCONFIGURED_MESSAGE, DECK_DELETE_FAILED_MESSAGE } from "@/lib/redirect-errors";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -20,8 +22,7 @@ export const POST: APIRoute = async (context) => {
 
   const supabase = createClient(context.request.headers, context.cookies);
   if (!supabase) {
-    const msg = "Supabase nie jest skonfigurowany";
-    return context.redirect(`/decks/${publicId}?error=${encodeURIComponent(msg)}`);
+    return context.redirect(`/decks/${publicId}?error=${encodeURIComponent(SUPABASE_UNCONFIGURED_MESSAGE)}`);
   }
 
   if (!context.locals.user) {
@@ -30,8 +31,7 @@ export const POST: APIRoute = async (context) => {
 
   const { data: deleted, error } = await deleteDeck(supabase, publicId);
   if (error) {
-    const msg = "Nie udało się usunąć talii";
-    return context.redirect(`/decks/${publicId}?error=${encodeURIComponent(msg)}`);
+    return context.redirect(`/decks/${publicId}?error=${encodeURIComponent(DECK_DELETE_FAILED_MESSAGE)}`);
   }
   // RLS hid the deck or it does not exist → no row deleted → 404, don't reveal it.
   if (!deleted) {

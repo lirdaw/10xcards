@@ -1,8 +1,16 @@
 import type { APIRoute } from "astro";
 import { createClient } from "@/lib/supabase";
 import { deckNameExists, renameDeck } from "@/lib/decks";
-
-const NAME_TAKEN = "Talia o tej nazwie już istnieje";
+import { NAME_MIN, NAME_MAX } from "@/lib/deck-limits";
+// See api/decks/index.ts: a `File` part survives an `as string` cast and makes `.trim()` throw.
+import { formString } from "@/lib/forms";
+// See api/decks/index.ts: the `?error=` strings are the closed set's, not this file's.
+import {
+  SUPABASE_UNCONFIGURED_MESSAGE,
+  DECK_NAME_MESSAGE,
+  DECK_NAME_TAKEN_MESSAGE,
+  DECK_RENAME_FAILED_MESSAGE,
+} from "@/lib/redirect-errors";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -21,31 +29,50 @@ export const POST: APIRoute = async (context) => {
 
   const supabase = createClient(context.request.headers, context.cookies);
   if (!supabase) {
-    return context.redirect(errorUrl("Supabase nie jest skonfigurowany"));
+    return context.redirect(errorUrl(SUPABASE_UNCONFIGURED_MESSAGE));
   }
 
   if (!context.locals.user) {
     return context.redirect("/auth/signin");
   }
 
-  const form = await context.request.formData();
-  const name = ((form.get("name") as string | null) ?? "").trim();
+  // Same guard as create, same one-message decision, for the reasons recorded at
+  // api/decks/index.ts and in full at cards/index.ts:41-54. `errorUrl` is already in scope
+  // here — it is built from the route param at :28, well above this read and already UUID-gated —
+  // so unlike cards/[cardPublicId].ts the catch has no ordering constraint to work around.
+  let form: FormData;
+  try {
+    form = await context.request.formData();
+  } catch {
+    return context.redirect(errorUrl(DECK_RENAME_FAILED_MESSAGE));
+  }
+  const name = formString(form.get("name")).trim();
 
-  if (name.length < 1 || name.length > 100) {
-    return context.redirect(errorUrl("Nazwa talii musi mieć od 1 do 100 znaków"));
+  if (name.length < NAME_MIN || name.length > NAME_MAX) {
+    return context.redirect(errorUrl(DECK_NAME_MESSAGE));
   }
 
   // Friendly pre-check; the UNIQUE constraint remains the real backstop. Renaming
   // to the same name (same deck) is a no-op, not a collision.
-  const { data: existing } = await deckNameExists(supabase, name);
+  //
+  // Branch on the query error rather than reading it as "no match" — this project's recorded
+  // lesson ("Loadery SSR rozróżniają błąd zapytania od braku danych"), which cards/index.ts and
+  // review.astro follow and this line did not until 2026-08-01 (C10X-37 impl-review F8). The old
+  // shape was not a wrong SUCCESS — a dropped error left `existing` null, fell through to
+  // renameDeck, and surfaced this same literal from there — so the gain is that a transient DB
+  // failure is now named where it happens instead of arriving as a second-order symptom.
+  const { data: existing, error: lookupError } = await deckNameExists(supabase, name);
+  if (lookupError) {
+    return context.redirect(errorUrl(DECK_RENAME_FAILED_MESSAGE));
+  }
   if (existing && existing.public_id !== publicId) {
-    return context.redirect(errorUrl(NAME_TAKEN));
+    return context.redirect(errorUrl(DECK_NAME_TAKEN_MESSAGE));
   }
 
   const { data: updated, error } = await renameDeck(supabase, publicId, name);
   if (error) {
     // 23505 = unique_violation: the pre-check lost a TOCTOU race.
-    const msg = error.code === "23505" ? NAME_TAKEN : "Nie udało się zmienić nazwy talii";
+    const msg = error.code === "23505" ? DECK_NAME_TAKEN_MESSAGE : DECK_RENAME_FAILED_MESSAGE;
     return context.redirect(errorUrl(msg));
   }
   // RLS hid the deck or it does not exist → no row updated → 404, don't reveal it.

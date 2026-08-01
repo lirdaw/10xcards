@@ -6,6 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/Modal";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { ServerError } from "@/components/auth/ServerError";
+// See CreateDeckModal: the bound and the copy come from the same module the rename endpoint
+// (`api/decks/[publicId].ts`) imports, and this island never imports `redirect-errors.ts`.
+import { NAME_MIN, NAME_MAX, DECK_NAME_MESSAGE } from "@/lib/deck-limits";
 
 interface Props {
   publicId: string;
@@ -45,9 +48,9 @@ export default function DeckActions({ publicId, name, defaultOpenRename = false,
 
   function handleRenameSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     const trimmed = value.trim();
-    if (trimmed.length < 1 || trimmed.length > 100) {
+    if (trimmed.length < NAME_MIN || trimmed.length > NAME_MAX) {
       e.preventDefault();
-      setError("Nazwa talii musi mieć od 1 do 100 znaków");
+      setError(DECK_NAME_MESSAGE);
     }
   }
 

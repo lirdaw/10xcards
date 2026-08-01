@@ -133,6 +133,15 @@ correction.
   which is precisely the gap. Restored, `md5` `0e0221b42845c63a2130bcb7cfd7266a` identical to
   pristine, `git diff -- src/` empty. Suite now **257/257, 22 files**; lint 0 errors.
   test-plan §6.6's "leaves the suite green" sentence and §8's ledger corrected accordingly.
+  > **Correction line, 2026-07-31 (C10X-37), appended rather than rewritten — an archived artifact
+  > records what was true when it was written.** The file named above is
+  > `tests/lib/error-param-guard.test.ts` since C10X-37 `git mv`'d it: the deck surface got the
+  > same guard, and the two surfaces vouch against **different** closed sets (`AUTH_MESSAGES` vs
+  > `REDIRECT_MESSAGES`), so the pattern is now built per surface from ITS helper's name. A shared
+  > "is it wrapped in something?" regex would have accepted a deck page wrapped in
+  > `ownedAuthMessage` — lexically a wrap, semantically the wrong vocabulary. The file went 3 → 8
+  > cases. Nothing above is otherwise superseded; F1's deferred read-side vector also shipped under
+  > C10X-37 (see `context/changes/deck-form-hardening/`).
 
 ### F3 — Unplanned permanent guard: `tests/lib/no-env-access.test.ts`
 

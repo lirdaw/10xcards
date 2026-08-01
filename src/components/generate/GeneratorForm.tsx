@@ -7,6 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { ServerError } from "@/components/auth/ServerError";
 import { cn } from "@/lib/utils";
 import { SOURCE_MAX, COUNT_MIN, COUNT_MAX } from "@/lib/generation-limits";
+// Only the NUMBERS, not the copy: this surface names a different thing ("Nazwa NOWEJ talii …",
+// with a trailing period) and keeps its own wording, which is why it takes NAME_MIN/NAME_MAX
+// and not DECK_NAME_MESSAGE. `api/generate.ts` bounds `newDeckName` from the same module.
+import { NAME_MIN, NAME_MAX } from "@/lib/deck-limits";
 
 // SOURCE_MAX / COUNT_MIN / COUNT_MAX are IMPORTED, not redeclared: this file used to
 // carry its own copies against src/pages/api/generate.ts, so the client guard and the
@@ -141,7 +145,8 @@ export function GeneratorForm({ decks, languages }: Props) {
     const base = { sourceText: text, language, count, idempotencyKey: crypto.randomUUID() };
     if (isNewDeck) {
       const name = newDeckName.trim();
-      if (name.length < 1 || name.length > 100) return "Nazwa nowej talii musi mieć od 1 do 100 znaków.";
+      if (name.length < NAME_MIN || name.length > NAME_MAX)
+        return `Nazwa nowej talii musi mieć od ${NAME_MIN} do ${NAME_MAX} znaków.`;
       return { ...base, newDeckName: name };
     }
     if (!deckChoice) return "Wybierz talię docelową.";
@@ -279,7 +284,7 @@ export function GeneratorForm({ decks, languages }: Props) {
               }}
               placeholder="np. Biologia — fotosynteza"
               autoComplete="off"
-              maxLength={100}
+              maxLength={NAME_MAX}
               disabled={pending}
               className={fieldClass}
             />

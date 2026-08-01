@@ -13,16 +13,22 @@
  * uncontrolled framework `500` on a crafted body, with no project-owned response. That is a
  * "server trusts the client" defect (test-plan §2 Risk #6).
  *
- * **It is not gone from this repo, and this paragraph used to say it was** ("it existed on
- * every form endpoint in this repo until C10X-30"; corrected 2026-07-31 by C10X-34). C10X-30
- * swept FOUR of the six `formData()` readers under `src/pages/api/` — the two card endpoints
- * and the two auth routes, which are the four callers of this helper. The deck pair was
- * missed: `decks/index.ts:23` and `decks/[publicId].ts:32` still read `formData()` unguarded
- * and still carry `((form.get("name") as string | null) ?? "").trim()` verbatim, so a crafted
- * non-form body answers an uncontrolled `500` there and a `File` `name` part crashes the
- * handler. Known, deferred by decision at that change's impl-review (F1), and owned by
- * **C10X-37**. This file is what a contributor reads when they meet the helper, so it must
- * not tell them the class is closed.
+ * **All six `formData()` readers under `src/pages/api/` are guarded as of 2026-07-31**, and
+ * this paragraph has now said three different things — read the history, because it is the
+ * point. It first claimed the class "existed on every form endpoint in this repo until
+ * C10X-30", which was false: C10X-30 swept FOUR of the six (the two card endpoints and the two
+ * auth routes) and its own impl-review (F1) found the deck pair still unguarded. C10X-34
+ * corrected the claim to name that gap and its owner. **C10X-37 closed it**: `decks/index.ts`
+ * and `decks/[publicId].ts` now read `formData()` inside a `try` and narrow the part through
+ * `formString`, so the helper has six callers rather than four. Evidence, including the run
+ * where neutering one of them back to a cast turns exactly one case red on the production
+ * `TypeError` itself: `context/changes/deck-form-hardening/verification.md` (after archiving,
+ * `context/archive/<date>-deck-form-hardening/verification.md`).
+ *
+ * What is still NOT closed, so the next reader does not over-read the line above: this is a
+ * claim about `src/pages/api/`. Nothing here says a future endpoint will be written with the
+ * guard, and no test enumerates the readers — the sweep was found incomplete twice by reading,
+ * not by a red run.
  *
  * `formString` is the runtime check the cast pretended to be. It only ever **narrows**: for a
  * genuine string it is the identity function, so no valid request changes behaviour. Anything

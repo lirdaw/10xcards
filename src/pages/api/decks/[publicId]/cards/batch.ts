@@ -2,6 +2,9 @@ import type { APIRoute } from "astro";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase";
 import { deckIdByPublicId, setFlashcardState, STATE_ACCEPTED, STATE_REJECTED } from "@/lib/flashcards";
+// See api/study.ts: a JSON endpoint reusing one string from the closed set, not joining the
+// `?error=` channel.
+import { SUPABASE_UNCONFIGURED_MESSAGE } from "@/lib/redirect-errors";
 
 // JSON endpoint for every multi-card mutation the review screen makes, modelled on
 // src/pages/api/study.ts: a React island fetches it and needs a STRUCTURED body back —
@@ -53,7 +56,7 @@ export const POST: APIRoute = async (context) => {
 
   const supabase = createClient(context.request.headers, context.cookies);
   if (!supabase) {
-    return json(500, { error: "Supabase nie jest skonfigurowany" });
+    return json(500, { error: SUPABASE_UNCONFIGURED_MESSAGE });
   }
 
   if (!context.locals.user) {

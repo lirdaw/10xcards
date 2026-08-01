@@ -3,6 +3,13 @@ import { createClient } from "@/lib/supabase";
 import { updateFlashcard, deckIdByPublicId, FRONT_MAX, BACK_MAX } from "@/lib/flashcards";
 // See cards/index.ts: only genuine strings are read, so a `File` part cannot crash `.trim()`.
 import { formString } from "@/lib/forms";
+// See api/decks/index.ts: the `?error=` strings are the closed set's, not this file's.
+import {
+  SUPABASE_UNCONFIGURED_MESSAGE,
+  CARD_SAVE_FAILED_MESSAGE,
+  CARD_FRONT_MESSAGE,
+  CARD_BACK_MESSAGE,
+} from "@/lib/redirect-errors";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -40,7 +47,7 @@ export const POST: APIRoute = async (context) => {
   try {
     form = await context.request.formData();
   } catch {
-    const message = encodeURIComponent("Nie udało się zapisać zmian");
+    const message = encodeURIComponent(CARD_SAVE_FAILED_MESSAGE);
     return context.redirect(`/decks/${publicId}?error=${message}&edit=${cardPublicId}`);
   }
   const front = formString(form.get("front")).trim();
@@ -58,7 +65,7 @@ export const POST: APIRoute = async (context) => {
 
   const supabase = createClient(context.request.headers, context.cookies);
   if (!supabase) {
-    return context.redirect(errorUrl("Supabase nie jest skonfigurowany"));
+    return context.redirect(errorUrl(SUPABASE_UNCONFIGURED_MESSAGE));
   }
 
   if (!context.locals.user) {
@@ -73,24 +80,24 @@ export const POST: APIRoute = async (context) => {
   // real not-found → 404.
   const { data: deck, error: deckError } = await deckIdByPublicId(supabase, publicId);
   if (deckError) {
-    return context.redirect(errorUrl("Nie udało się zapisać zmian"));
+    return context.redirect(errorUrl(CARD_SAVE_FAILED_MESSAGE));
   }
   if (!deck) {
     return new Response(null, { status: 404 });
   }
 
   if (front.length < 1 || front.length > FRONT_MAX) {
-    return context.redirect(errorUrl(`Przód fiszki musi mieć od 1 do ${FRONT_MAX} znaków`));
+    return context.redirect(errorUrl(CARD_FRONT_MESSAGE));
   }
   if (back.length < 1 || back.length > BACK_MAX) {
-    return context.redirect(errorUrl(`Tył fiszki musi mieć od 1 do ${BACK_MAX} znaków`));
+    return context.redirect(errorUrl(CARD_BACK_MESSAGE));
   }
 
   // Scoped by deck_id so a card from a different (even owned) deck can't be hit;
   // a 0-row update (missing/foreign card) resolves to a clean 404.
   const { data: updated, error } = await updateFlashcard(supabase, deck.id, cardPublicId, front, back);
   if (error) {
-    return context.redirect(errorUrl("Nie udało się zapisać zmian"));
+    return context.redirect(errorUrl(CARD_SAVE_FAILED_MESSAGE));
   }
   if (!updated) {
     return new Response(null, { status: 404 });

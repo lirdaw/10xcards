@@ -16,8 +16,12 @@
 // habit and single-sourcing is the exception. This changes a convention; it does not
 // repair a lapse.
 //
-// Deliberately NOT here: the deck-name 1..100 bound, which lives in six places. Out of
-// scope for this change, and named so the next reader knows it was left, not missed.
+// Deliberately not here, and no longer a leftover: the deck-name 1..100 bound. It lived in
+// six places when this comment was written and was named so the next reader knew it was left
+// rather than missed; C10X-37 (2026-07-31) ended that duplication in `src/lib/deck-limits.ts`,
+// which mirrors this module's shape and its no-imports rule for the same reason. This file
+// keeps only the GENERATION concern — `GeneratorForm.tsx` and `api/generate.ts` bound
+// `newDeckName` by importing NAME_MIN/NAME_MAX from there, not from here.
 
 /**
  * Hard cap on the pasted source text, applied to the RAW string.

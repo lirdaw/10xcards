@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { formString, isFormContentType } from "@/lib/forms";
 
-// The narrowing half of the malformed-input handling on the FOUR endpoints that call this
-// helper, tested once here instead of four times over HTTP.
+// The narrowing half of the malformed-input handling on the SIX endpoints that call this
+// helper, tested once here instead of six times over HTTP.
 //
-// "Four" is the number of CALLERS, not the number of form endpoints in this repo — there are
-// six `formData()` readers under `src/pages/api/`. `decks/index.ts:23` and
-// `decks/[publicId].ts:32` still carry the raw `as string | null` cast and an unguarded
-// `formData()`; that is known, deferred, and owned by **C10X-37**. Corrected 2026-07-31
-// (C10X-34): this comment used to say "the four form endpoints", which read as a sweep that
-// had covered them all.
+// The count is worth a line of history, because it was wrong twice in the direction that reads
+// as reassurance. It first said "the four form endpoints", which sounded like a completed
+// sweep; C10X-34 corrected it to "four CALLERS out of six `formData()` readers" and named the
+// deck pair — `decks/index.ts` and `decks/[publicId].ts`, still on the raw `as string | null`
+// cast — as deferred and owned by C10X-37. **C10X-37 closed that gap on 2026-07-31**: both deck
+// endpoints now guard `formData()` and narrow through `formString`, so callers and readers are
+// the same six. Their endpoint-level evidence is `tests/validation/decks.test.ts`.
 //
 // Why this file exists at all: `formString` was inlined verbatim in all four handlers, so the
 // only way to observe it was to drive an endpoint, and only two of the eight branches ever

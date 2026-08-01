@@ -4,6 +4,7 @@ import CandidateReviewWorkspace from "@/components/review/CandidateReviewWorkspa
 import { createClient } from "@/lib/supabase";
 import { getDeckByPublicId } from "@/lib/decks";
 import { getGenerationSessionByPublicId, generationStateCounts } from "@/lib/generations";
+import { ownedRedirectMessage } from "@/lib/redirect-errors";
 import {
   listFlashcardsByState,
   formatCardDate,
@@ -112,7 +113,10 @@ if (session && supabase) {
 // never redirects). `edit=<cardPublicId>` re-enters that card's edit form with the
 // message inside it; `saved=<cardPublicId>` plays the settle animation. The island
 // strips all three on mount.
-const error = Astro.url.searchParams.get("error");
+// Vouch for the parameter AT THE READ — `CandidateReviewWorkspace` seeds its edit-error
+// state at first render, so the island's own cleanup is too late to be a guard. Anything
+// the app cannot vouch for becomes `null`, i.e. no banner (see redirect-errors.ts).
+const error = ownedRedirectMessage(Astro.url.searchParams.get("error"));
 const editId = Astro.url.searchParams.get("edit");
 const savedId = Astro.url.searchParams.get("saved");
 
