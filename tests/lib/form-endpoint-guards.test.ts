@@ -42,6 +42,31 @@ const FORM_STRING = /\bformString\s*\(/;
 /** A `?error=` value interpolated straight from a quoted literal — the drift the closed set cannot see. */
 const INLINE_ERROR_LITERAL = /error=\$\{\s*encodeURIComponent\s*\(\s*["'`]|[?&]error=["'`]/;
 
+/** `const errorUrl = (msg: string) => …` — the local helper four of the six endpoints build the URL with. */
+const ERROR_URL_HELPER = /const\s+(\w+)\s*=\s*\(\s*(\w+)\s*:\s*string\s*\)\s*=>/;
+/** Whatever is interpolated into `error=` on a line that builds the URL directly. */
+const ERROR_INTERPOLATION = /error=\$\{([^}]*)\}/g;
+/** `encodeURIComponent(X)` — stripped so the check lands on X rather than on the encoder. */
+const ENCODE_WRAPPER = /^encodeURIComponent\s*\(\s*(.*?)\s*\)$/;
+/** A bare identifier. A literal, a member access (`err.message`) and a call are all NOT this. */
+const BARE_IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
+/** A quoted string, in any of the three spellings. */
+const STRING_LITERAL = /(["'`])(?:\\.|(?!\1)[^\\])*\1/g;
+
+/**
+ * String literals sitting in a VALUE position of an expression.
+ *
+ * `const msg = error.code === "23505" ? A : B` is legitimate — `"23505"` is a discriminator that
+ * is compared and discarded, never assigned. `const msg = "Nowy komunikat"` is the drift. The
+ * distinction a text scan can actually draw is the operator in front: a literal preceded by
+ * `===`/`!==`/`==`/`!=` is being compared, anything else is being used.
+ */
+function valuePositionLiterals(expression: string): string[] {
+  return [...expression.matchAll(STRING_LITERAL)]
+    .filter((match) => !/[=!]==?$/.test(expression.slice(0, match.index).trimEnd()))
+    .map((match) => match[0]);
+}
+
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = join(dir, entry.name);
@@ -170,5 +195,187 @@ describe("no deck route puts an inline literal into ?error=", () => {
       .map((file) => relative(DECKS_API_DIR, file).split(sep).join("/"));
 
     expect(withoutTheSet).toEqual([]);
+  });
+});
+
+// THE GAP THE TWO CASES ABOVE LEAVE, and it is most of the channel (C10X-40, 2026-08-01).
+//
+// `INLINE_ERROR_LITERAL` fires only on a quoted literal sitting syntactically NEXT TO the text
+// `error=`. But four of the six endpoints build their URL through a local helper —
+// `const errorUrl = (msg: string) => \`…?error=${encodeURIComponent(msg)}…\`` — and its call sites
+// contain no `error=` text at all. Measured: **20 of the 29 emissions** go through such a helper,
+// so the detector never even inspects them. `return context.redirect(errorUrl("Nowy komunikat"))`
+// passed the whole suite. So did `errorUrl(err.message)`.
+//
+// And the companion case above is weaker than its name: it asserts the file IMPORTS the module
+// somewhere. All seven do. It stays green while a file emits a brand-new local literal.
+//
+// WHY IT MATTERS MORE THAN "a message drifted out of the set". The failure is silent and it lands
+// on the USER, not on a developer: `ownedRedirectMessage` cannot vouch for a non-member, so
+// `ServerError.tsx:8` renders nothing. The person who genuinely hit that refusal watches the form
+// reload with no explanation. No error, no log, no red test — the one failure shape that is
+// indistinguishable from success in a form flow.
+//
+// It also closes the WRITE half (`test-plan.md` Risk #4), which until now was carried by a grep
+// quoted in prose: "no `.message`, `String(err)` or `JSON.stringify` on any redirect branch". The
+// rule below enforces that without naming those spellings — it demands POSITIVE evidence (the
+// value is a set member, or is built from one) rather than blacklisting the ways to leak, so a
+// spelling nobody thought of is refused by default.
+//
+// WHY THE COUNT IS A FLOOR HERE, unlike the `toHaveLength(6)` above and the `toHaveLength(11)` in
+// `redirect-errors.test.ts`. Those pin populations where a new member is a DECISION worth stopping
+// on: a seventh form endpoint, a twelfth vouched string. A new emission of an ALREADY-vouched
+// message is ordinary refactoring — a new refusal branch reusing existing copy — and pinning it
+// exactly would spend a red run on something that needs no thought. The vocabulary is pinned; its
+// number of call sites deliberately is not.
+describe("every ?error= value is a member of the closed set", () => {
+  const files = sourceFiles(DECKS_API_DIR);
+
+  /** The names this file imported from the closed set — the only ones it may emit. */
+  function ownedNames(source: string): Set<string> {
+    // `[^}]*` cannot cross a brace, so a multi-line import list is captured and a NEIGHBOURING
+    // import's names cannot be swept in by a lazy match that ran too far.
+    const match = /import\s*\{([^}]*)\}\s*from\s*["']@\/lib\/redirect-errors["']/.exec(source);
+    return new Set(match ? match[1].split(",").map((name) => name.trim().split(/\s+as\s+/)[0]) : []);
+  }
+
+  /** The right-hand side of `const <name> = …;` in the same file, or null if it is not declared there. */
+  function localDeclaration(source: string, name: string): string | null {
+    const match = new RegExp(`const\\s+${name}\\s*=\\s*([^;]*);`).exec(source);
+    return match ? match[1] : null;
+  }
+
+  /** Why this expression may not reach `?error=`, or null when it may. */
+  function rejection(expression: string, owned: Set<string>, source: string): string | null {
+    const encoded = ENCODE_WRAPPER.exec(expression.trim());
+    const value = (encoded ? encoded[1] : expression).trim();
+
+    // A literal, `err.message`, `String(err)`, a template — none of them is a bare identifier, so
+    // the whole leak class is refused here without the guard having to enumerate it.
+    if (!BARE_IDENTIFIER.test(value)) return `not an identifier: ${value}`;
+    if (owned.has(value)) return null;
+
+    const declaration = localDeclaration(source, value);
+    if (declaration === null) return `\`${value}\` is neither imported from the closed set nor declared here`;
+
+    const literals = valuePositionLiterals(declaration);
+    if (literals.length > 0) return `local \`${value}\` assigns a literal: ${literals.join(", ")}`;
+    if (![...owned].some((name) => new RegExp(`\\b${name}\\b`).test(declaration))) {
+      return `local \`${value}\` is not built from the closed set: ${declaration.trim()}`;
+    }
+    return null;
+  }
+
+  /** Every place a value enters the `?error=` channel in one file, with the reason it may not. */
+  function rejectionsIn(file: string): string[] {
+    const source = readFileSync(file, "utf8");
+    const owned = ownedNames(source);
+    const lines = codeLines(file);
+
+    const helpers = new Map<number, { name: string; param: string }>();
+    for (const { text, index } of lines) {
+      const declared = ERROR_URL_HELPER.exec(text);
+      if (declared && text.includes("error=")) helpers.set(index, { name: declared[1], param: declared[2] });
+    }
+    const helperNames = [...helpers.values()].map((helper) => helper.name);
+
+    return lines.flatMap(({ text, index }) => {
+      const found: string[] = [];
+      const declared = helpers.get(index);
+
+      if (declared) {
+        // The declaration itself is covered rather than skipped: its body must interpolate its OWN
+        // parameter and nothing else, or a helper could smuggle a literal past every call site.
+        for (const [, expression] of text.matchAll(ERROR_INTERPOLATION)) {
+          const encoded = ENCODE_WRAPPER.exec(expression.trim());
+          const value = (encoded ? encoded[1] : expression).trim();
+          if (value !== declared.param) found.push(label(file, DECKS_API_DIR, index, `helper body: ${value}`));
+        }
+      } else {
+        for (const [, expression] of text.matchAll(ERROR_INTERPOLATION)) {
+          const reason = rejection(expression, owned, source);
+          if (reason) found.push(label(file, DECKS_API_DIR, index, reason));
+        }
+      }
+
+      for (const name of helperNames) {
+        if (index === [...helpers.entries()].find(([, h]) => h.name === name)?.[0]) continue;
+        for (const [, argument] of text.matchAll(new RegExp(`\\b${name}\\s*\\(([^)]*)\\)`, "g"))) {
+          const reason = rejection(argument, owned, source);
+          if (reason) found.push(label(file, DECKS_API_DIR, index, reason));
+        }
+      }
+      return found;
+    });
+  }
+
+  /** Every emission site, whatever its verdict — the walker's own reach. */
+  function emissionCount(file: string): number {
+    const source = readFileSync(file, "utf8");
+    const lines = codeLines(file);
+    const helperNames = lines
+      .filter(({ text }) => ERROR_URL_HELPER.test(text) && text.includes("error="))
+      .map(({ text }) => ERROR_URL_HELPER.exec(text)?.[1] ?? "");
+    void source;
+    return lines.reduce((total, { text }) => {
+      const isDeclaration = ERROR_URL_HELPER.test(text) && text.includes("error=");
+      const interpolations = isDeclaration ? 0 : [...text.matchAll(ERROR_INTERPOLATION)].length;
+      const calls = helperNames.reduce(
+        (sum, name) =>
+          sum + (isDeclaration ? 0 : [...text.matchAll(new RegExp(`\\b${name}\\s*\\(([^)]*)\\)`, "g"))].length),
+        0,
+      );
+      return total + interpolations + calls;
+    }, 0);
+  }
+
+  // Positive control, in both halves. Without the floor, a walker that found nothing would make
+  // the claim below pass while inspecting zero emissions — the shape this whole file exists to
+  // stop. The named files pin that BOTH idioms are reached: `decks/index.ts` interpolates inline,
+  // `[publicId]/cards/index.ts` goes through the helper.
+  it("reaches every emission site, through both idioms", () => {
+    const perFile = files
+      .map((file) => [relative(file, DECKS_API_DIR).split(sep).join("/"), emissionCount(file)] as const)
+      .filter(([, count]) => count > 0);
+    const total = files.reduce((sum, file) => sum + emissionCount(file), 0);
+
+    expect(total).toBeGreaterThanOrEqual(25);
+    expect(perFile.length).toBeGreaterThanOrEqual(6);
+    expect(emissionCount(join(DECKS_API_DIR, "index.ts"))).toBeGreaterThan(0);
+    expect(emissionCount(join(DECKS_API_DIR, "[publicId]", "cards", "index.ts"))).toBeGreaterThan(0);
+  });
+
+  // The other half: the detector fires on each regression it claims to detect, and stays silent on
+  // every shape that ships today. The four rejections are the four ways a value can enter the
+  // channel without the set vouching for it.
+  it("rejects a literal, an upstream string, an unknown name and a literal-bearing local", () => {
+    const owned = new Set(["CARD_SAVE_FAILED_MESSAGE", "DECK_NAME_TAKEN_MESSAGE"]);
+    const source = [
+      'const msg = error.code === "23505" ? DECK_NAME_TAKEN_MESSAGE : CARD_SAVE_FAILED_MESSAGE;',
+      "const encoded = encodeURIComponent(CARD_SAVE_FAILED_MESSAGE);",
+      'const drifted = "Nowy komunikat";',
+      "const relayed = err.message;",
+    ].join("\n");
+
+    // Shipped shapes — all four must be accepted, or the guard gets weakened by the next person it
+    // annoys. `msg` is the real ternary from `decks/index.ts:73`, discriminator literal included.
+    expect(rejection("CARD_SAVE_FAILED_MESSAGE", owned, source)).toBeNull();
+    expect(rejection("encodeURIComponent(CARD_SAVE_FAILED_MESSAGE)", owned, source)).toBeNull();
+    expect(rejection("msg", owned, source)).toBeNull();
+    expect(rejection("encoded", owned, source)).toBeNull();
+
+    // Regressions.
+    expect(rejection('"Nowy komunikat"', owned, source)).toContain("not an identifier");
+    expect(rejection("err.message", owned, source)).toContain("not an identifier");
+    expect(rejection("String(err)", owned, source)).toContain("not an identifier");
+    expect(rejection("unknownName", owned, source)).toContain("neither imported");
+    expect(rejection("drifted", owned, source)).toContain("assigns a literal");
+    expect(rejection("relayed", owned, source)).toContain("not built from the closed set");
+  });
+
+  // THE CLAIM. Every value that can reach `?error=` on a deck route is a member of the closed set
+  // the three deck pages vouch against — by import, or by a local built from one.
+  it("emits only values the deck pages can vouch for", () => {
+    expect(files.flatMap(rejectionsIn)).toEqual([]);
   });
 });
