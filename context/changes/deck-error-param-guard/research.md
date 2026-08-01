@@ -322,19 +322,51 @@ Jiry"), and honouring that boundary is worth more than closing two fields early.
 
 ## Open Questions
 
-1. **Is `?q=` in scope for this ticket or its own?** It is the same class (unvouched attacker text
-   reflected on an authenticated page) on a lower-trust surface, and it is the only remaining one.
-   A cheap answer is a length cap plus moving the phrase out of a full sentence; the expensive one
-   is treating search input like the error channel.
-2. **Should the producer side be enforced rather than grepped?** G1 + G2 are the two claims
-   `test-plan.md` carries as evidence-by-grep. Making them falsifiable means resolving
-   `errorUrl(X)` arguments to identifiers imported from the closed set.
-3. **How far should the textual guards' scope widen** — re-root at `src/` (G4), fix the separator
-   (G5), key on the receiver instead of the token/name (G3, G6)? Each is small; together they are
-   the difference between "the sweep is complete" and "the sweep is complete where it looks".
-4. **Does the `test-plan.md` correction belong to this ticket?** Four sentences there actively tell
-   a reader C10X-40 was never ticketed. The precedent in this repo is that an archived artifact
-   takes a dated correction line and a live document is corrected in place — but nobody owns the
-   live document's correction yet.
-5. **Roadmap rows for two archived changes** (`deck-form-hardening`, `local-stack-transport-flake`)
-   are missing entirely. Backfill, or accept that not every change gets a roadmap slice?
+The five questions this section opened were all answered by the work recorded above — `?q=`
+scoped out with a measured reason, the producer side enforced, the guards widened, the
+`test-plan.md` sentences corrected, the roadmap backfilled. They are kept, resolved, in the
+Outcome table rather than restated here. What follows is what is genuinely still open.
+
+### Left undone by decision, with the reason
+
+1. **A refusal that renders nowhere** — `cards/[cardPublicId].ts:49-52` catches a `formData()`
+   failure before it reads `from`, so a broken body posted from the review screen lands on the
+   deck view with `edit=<id>`; there `bannerError` is suppressed and, for a non-accepted card,
+   no `FlashcardItem` matches. The message is a valid set member, so no guard is at fault, and
+   the ordering is documented as deliberate at `:41-45` — but that consequence is not. Reachable
+   only by a crafted or aborted multipart body. **UX, not security; needs its own decision about
+   which page the catch should target.**
+2. **`batch.ts:101` inlines `"Nie udało się zapisać zmian"`**, a verbatim copy of
+   `CARD_SAVE_FAILED_MESSAGE`, and `CandidateReviewWorkspace.tsx:117` already carries a diverged
+   copy with a trailing period. JSON channel, so the closed set is untouched — but the string now
+   has three definitions and `redirect-errors.ts:86-88`'s accounting of the JSON reuse is
+   incomplete. Left alone because widening `REDIRECT_MESSAGES` for it would be exactly the
+   mistake that module's docblock forbids.
+3. **`decks/[publicId]/index.astro:17` does not UUID-gate `publicId`**, unlike its two siblings,
+   so a malformed id gives a 500 where the page's own comment says 404. Never rendered, so no
+   injection surface.
+4. **Three narrower guard bypasses, named rather than chased**: the `formData()` enumeration is
+   scoped to `src/pages/api`, so a read hidden in a `src/lib/` helper escapes it; the client-import
+   guard does not match a `…/redirect-errors.ts` specifier; and the page guard matches its helper
+   by NAME, so `import { ownedAuthMessage as ownedRedirectMessage }` would pass. Each is a smaller
+   bypass than the three that were fixed, and each costs more to close than it removes.
+
+### Needs a human decision
+
+5. **Two Jira writes**, deliberately not made here: `customfield_10041` on **C10X-37** is map-side
+   only, and **C10X-40** is not transitioned. Owned by `/jira-finish-work` by this repo's own
+   convention.
+6. **This change has no `plan.md` and no impl-review.** It was executed straight from research on
+   an explicit instruction, which is a deviation from the `/10x-plan → /10x-implement →
+   /10x-impl-review` loop every other change here followed. Worth naming before it is archived, so
+   the deviation is a recorded decision rather than something a later reader discovers.
+7. **A `lessons.md` entry is earned and not yet written.** The reusable rule this change produced:
+   *a guard keyed on a SPELLING — a token, a variable name, a string adjacent to the construct —
+   expires silently under ordinary refactoring, and the suite stays green while the protection is
+   gone. Key it on the construct, derive its inputs from the code, and prove it by performing the
+   refactor.* Three independent instances in one file (`searchParams`, `form`, `error=`), which is
+   what makes it a class rather than three bugs.
+8. **No §6.6 entry for this change.** The content went into the header block and §8; every other
+   non-phase change here (C10X-34, C10X-37, C10X-39, C10X-41) also carries a §6.6 entry with a
+   claims table and a does-NOT-prove list. Either add one, or record that the header + §8 pair is
+   sufficient for a change that moves no risk row.
