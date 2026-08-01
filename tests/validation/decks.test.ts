@@ -37,18 +37,26 @@ import { clientFor } from "../fixtures/session";
 //   - CREATE with a usable name (over-length, the boundary controls, trailing whitespace,
 //     duplicate): a raw count scoped by a per-case name MARKER, which works because the name
 //     under test *is* the marker.
-//   - CREATE with NO usable name (missing / empty / whitespace-only, the non-form body, the
-//     broken-form body, the File part): these have NO row oracle and this file says so rather
-//     than faking one. There is no name to carry a marker, so a marker-scoped count reads 0
-//     before and after whatever the endpoint does — an assertion that cannot go red, the
-//     `listDueCounts` false-pass class one table over. A delta over account A's own decks is
-//     not the escape either: A is shared across FILES, and generate.test.ts (`newDeckName`)
-//     and isolation/decks.test.ts both create decks as A in parallel workers, so the delta
-//     races. They rest on the 302 plus the decoded `error` EQUALITY — honest for a second
-//     reason: deck_name_check refuses a '' name independently (asserted in the last describe),
-//     so at the endpoint layer there is nothing a row oracle could distinguish. Consequence to
-//     carry forward: under breakage run 1 these particular cases attribute nothing to either
-//     enforcement layer.
+//   - CREATE carrying a name the endpoint must never LOOK AT (the non-form JSON body, the File
+//     part): these DO get a marker-scoped count, and the distinction was got wrong here first
+//     (corrected 2026-08-01, C10X-40). The paragraph below used to sweep them in with the
+//     nameless cases on the grounds that "there is no name to carry a marker" — but both submit
+//     a perfectly usable name, merely somewhere the endpoint has no business reading, so the
+//     count is falsifiable exactly as it is for an over-length name: a regression that parsed
+//     the JSON body leniently, or read the File's text rather than narrowing it to "", writes a
+//     deck named precisely the marker. The over-broad claim was the expensive half — it told a
+//     future contributor not to look.
+//   - CREATE with NO usable name (missing / empty / whitespace-only, the broken-form body):
+//     these have NO row oracle and this file says so rather than faking one. There is no name to
+//     carry a marker, so a marker-scoped count reads 0 before and after whatever the endpoint
+//     does — an assertion that cannot go red, the `listDueCounts` false-pass class one table
+//     over. A delta over account A's own decks is not the escape either: A is shared across
+//     FILES, and generate.test.ts (`newDeckName`) and isolation/decks.test.ts both create decks
+//     as A in parallel workers, so the delta races. They rest on the 302 plus the decoded
+//     `error` EQUALITY — honest for a second reason: deck_name_check refuses a '' name
+//     independently (asserted in the last describe), so at the endpoint layer there is nothing a
+//     row oracle could distinguish. Consequence to carry forward: under breakage run 1 these
+//     particular cases attribute nothing to either enforcement layer.
 
 const a = accountA();
 const suffix = Date.now().toString(36);
@@ -252,12 +260,21 @@ describe("POST /api/decks enforces the name rules server-side", () => {
   // the two JSON endpoints (batch.ts, generate.ts) and the four endpoints C10X-30 swept
   // already refuse to produce. The convention reached four of the six readers.
   it("answers with an owned redirect when the body is not a form at all", async () => {
+    // THIS CASE DOES HAVE A ROW ORACLE, unlike its four nameless siblings (C10X-40, 2026-08-01).
+    // The body carries a usable name — it is simply somewhere the endpoint must never look — so
+    // the count CAN go red: a regression that parsed the JSON body leniently would write a deck
+    // named exactly this. Counting is free here and the header used to claim, over-broadly, that
+    // it was impossible.
+    const marker = mark("json-body");
+    const before = await countDecksNamed(marker);
+
     const response = await postDeck(
       // A string body makes callEndpoint set `Content-Type: application/json`, which is what a
       // crafted request outside the form looks like (fixtures/endpoint.ts).
-      JSON.stringify({ name: `json-body-${suffix}` }),
+      JSON.stringify({ name: `${marker}name` }),
     );
 
+    expect(await countDecksNamed(marker)).toBe(before);
     expect(response.status).toBe(302);
     const location = response.headers.get("Location") ?? "";
     expect(location.startsWith("/decks?")).toBe(true);
@@ -285,11 +302,18 @@ describe("POST /api/decks enforces the name rules server-side", () => {
   // called on a File and throws a TypeError → 500. It must read as empty instead and fall into
   // the length guard the endpoint already owns — no new message enters the closed set.
   it("reads a File name part as empty rather than crashing on it", async () => {
+    // Same as the non-form case above: the File's CONTENT is a usable name, so a regression that
+    // read the part's text instead of narrowing it to "" would write a deck named exactly this.
+    // A real oracle, not a vacuous one.
+    const marker = mark("file-part");
+    const before = await countDecksNamed(marker);
+
     const body = new FormData();
-    body.set("name", new File([`file-part-${suffix}`], "name.txt", { type: "text/plain" }));
+    body.set("name", new File([`${marker}name`], "name.txt", { type: "text/plain" }));
 
     const response = await postDeck(body);
 
+    expect(await countDecksNamed(marker)).toBe(before);
     expect(response.status).toBe(302);
     const location = response.headers.get("Location") ?? "";
     expect(location).toContain("open=create");

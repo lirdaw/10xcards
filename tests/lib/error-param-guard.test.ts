@@ -43,12 +43,29 @@ import { describe, expect, it } from "vitest";
 // wiring and keep it on one line, or widen the pattern deliberately with a recorded reason. Do
 // not weaken it because a reformat annoyed you.
 
-/** Reading the untrusted parameter at all. Surface-independent — the parameter has one name. */
-const RAW_READ = /searchParams\s*\.\s*get\s*\(\s*["'`]error["'`]\s*\)/;
+/**
+ * Reading the untrusted parameter at all. Surface-independent — the parameter has one name.
+ *
+ * Keyed on `.get("error")` with ANY receiver, deliberately (C10X-40, 2026-08-01). This used to
+ * require the literal token `searchParams` immediately before `.get`, which made the guard
+ * bypassable by the most ordinary tidy-up on these very pages: `[publicId]/index.astro` reads
+ * FIVE parameters and `review.astro` five, so hoisting `const params = Astro.url.searchParams`
+ * and calling `params.get("error")` is the natural refactor — and it produced zero findings,
+ * disarming the guard on both pages at once while every test stayed green. A receiver-agnostic
+ * pattern costs nothing here (no `.astro` page in this repo calls `.get("error")` on anything
+ * else) and removes a bypass that would pass code review unremarked.
+ */
+const RAW_READ = /\.\s*get\s*\(\s*["'`]error["'`]\s*\)/;
 
-/** …and the only acceptable way to do it: wrapped in THIS surface's helper, on the spot. */
+/**
+ * …and the only acceptable way to do it: wrapped in THIS surface's helper, on the spot.
+ *
+ * Receiver-agnostic for the same reason `RAW_READ` is, and it has to move in step with it: if the
+ * detector widened alone, a CORRECTLY wrapped hoisted read would be reported as a violation and
+ * the guard would be turned off by the next person it annoyed.
+ */
 function wrappedRead(helper: string): RegExp {
-  return new RegExp(`${helper}\\s*\\(\\s*[^)]*searchParams\\s*\\.\\s*get\\s*\\(\\s*["'\`]error["'\`]\\s*\\)`);
+  return new RegExp(`${helper}\\s*\\(\\s*[^)]*\\.\\s*get\\s*\\(\\s*["'\`]error["'\`]\\s*\\)`);
 }
 
 interface Surface {
@@ -120,9 +137,16 @@ describe.each(SURFACES)("$dir reads ?error= only through $helper", ({ dir, helpe
       expect(wrapped.test(sample)).toBe(false);
     }
 
+    // The hoisted-receiver bypass, which is why `RAW_READ` no longer names `searchParams`: on a
+    // page reading five parameters this is the tidy-up a reviewer waves through, and it used to
+    // produce zero findings.
+    expect(RAW_READ.test('const error = params.get("error");')).toBe(true);
+    expect(RAW_READ.test('const error = new URLSearchParams(Astro.url.search).get("error");')).toBe(true);
+
     // The shipped shape, plus the near-miss that a co-presence check would wave through: a page
     // that imports the helper and still reads the parameter raw.
     expect(wrapped.test(`const error = ${helper}(Astro.url.searchParams.get("error"));`)).toBe(true);
+    expect(wrapped.test(`const error = ${helper}(params.get("error"));`)).toBe(true);
     expect(wrapped.test(`import { ${helper} } from "@/lib/x"; const e = Astro.url.searchParams.get("error");`)).toBe(
       false,
     );
@@ -165,22 +189,50 @@ describe.each(SURFACES)("$dir reads ?error= only through $helper", ({ dir, helpe
 // that needs one has two honest options, and no third — register a surface above (declaring
 // which closed set it vouches against), or do not read the parameter. It cannot drift in
 // unnoticed.
-describe("no unregistered page reads ?error= at all", () => {
-  const pagesRoot = fileURLToPath(new URL("../../src/pages", import.meta.url));
-  const registered = SURFACES.map((s) => fileURLToPath(new URL(`../../${s.dir}`, import.meta.url)));
-  const unregistered = astroPages(pagesRoot).filter((file) => !registered.some((dir) => file.startsWith(dir)));
+// TWO WAYS THIS BLOCK USED TO NOT LOOK, both closed by C10X-40 (2026-08-01), and both are the
+// very class the paragraph above says the block exists to close.
+//
+//   1. It was rooted at `src/pages`. But `Astro.url` works in ANY `.astro` file, and seven live
+//      outside that tree — `src/layouts/Layout.astro`, `AuthenticatedLayout.astro`, and five
+//      components. A raw read added to `Layout.astro` would render an attacker-controlled banner
+//      on EVERY page of the app — the largest blast radius available — with no guard looking.
+//      Now rooted at `src/`.
+//   2. The registered-surface exclusion was a bare prefix match with no separator, so
+//      `src/pages/decks-archive/x.astro` was EXCLUDED here (it starts with `…/src/pages/decks`)
+//      while the per-surface walk never descended into it either. Neither scanned nor reported —
+//      the exact "not looked at" state, produced by the filter meant to prevent it. Now the
+//      prefix carries a trailing separator.
+describe("no unregistered .astro file reads ?error= at all", () => {
+  const srcRoot = fileURLToPath(new URL("../../src", import.meta.url));
+  // Trailing separator is load-bearing — see note 2 above.
+  const registered = SURFACES.map((s) => fileURLToPath(new URL(`../../${s.dir}`, import.meta.url)) + sep);
+  const unregistered = astroPages(srcRoot).filter((file) => !registered.some((dir) => file.startsWith(dir)));
+  const named = unregistered.map((f) => relative(srcRoot, f).split(sep).join("/"));
 
   // Positive control: without it, a walker that returned nothing — or a `registered` filter that
   // swallowed the whole tree — would make the assertion below pass while scanning zero files.
-  // The named pages are ones that exist today and belong to no surface.
-  it("scans the pages outside the registered surfaces", () => {
-    expect(unregistered.length).toBeGreaterThanOrEqual(3);
-    expect(unregistered.map((f) => relative(pagesRoot, f).split(sep).join("/"))).toEqual(
-      expect.arrayContaining(["index.astro", "generate.astro"]),
+  // The named files are ones that exist today and belong to no surface, and they now span BOTH
+  // trees: a page, and the layout every page renders inside.
+  it("scans every .astro file outside the registered surfaces", () => {
+    expect(unregistered.length).toBeGreaterThanOrEqual(8);
+    expect(named).toEqual(
+      expect.arrayContaining(["pages/index.astro", "pages/generate.astro", "layouts/Layout.astro"]),
     );
     // …and it must genuinely EXCLUDE the registered ones, or this block would silently duplicate
     // the per-surface assertions and go red on their (correct, wrapped) reads.
-    expect(unregistered.map((f) => relative(pagesRoot, f).split(sep).join("/"))).not.toContain("decks/index.astro");
+    expect(named).not.toContain("pages/decks/index.astro");
+  });
+
+  // The separator's own control. A directory sharing a registered surface's prefix must land in
+  // `unregistered` — it cannot be asserted against the real tree, because no such directory exists
+  // today, and the whole point is that the day one appears nobody will remember to check.
+  it("does not mistake a shared-prefix sibling directory for a registered surface", () => {
+    const excluded = (file: string) => registered.some((dir) => file.startsWith(dir));
+    const surface = registered[0];
+    const sibling = surface.slice(0, -sep.length) + "-archive" + sep + "x.astro";
+
+    expect(excluded(surface + "index.astro")).toBe(true);
+    expect(excluded(sibling)).toBe(false);
   });
 
   it("finds no ?error= read outside src/pages/auth and src/pages/decks", () => {
@@ -188,7 +240,7 @@ describe("no unregistered page reads ?error= at all", () => {
       readFileSync(file, "utf8")
         .split(/\r?\n/)
         .flatMap((line, index) =>
-          RAW_READ.test(line) ? [`${relative(pagesRoot, file).split(sep).join("/")}:${index + 1}: ${line.trim()}`] : [],
+          RAW_READ.test(line) ? [`${relative(srcRoot, file).split(sep).join("/")}:${index + 1}: ${line.trim()}`] : [],
         ),
     );
     expect(reads).toEqual([]);

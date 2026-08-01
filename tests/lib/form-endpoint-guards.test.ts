@@ -35,8 +35,20 @@ const DECKS_API_DIR = join(API_DIR, "decks");
 
 /** The body read itself. Matched on the assignment, not on the bare call, so prose about it is ignored. */
 const FORM_DATA_READ = /=\s*await\s+[\w.]*\.formData\s*\(\s*\)/;
-/** Reading a part off the parsed form. */
-const FORM_GET = /\bform\s*\.\s*get\s*\(/;
+/** …and the name the parsed body was bound to, which is what the part reads are checked against. */
+const FORM_RECEIVER = /(?:const|let|var)?\s*(\w+)\s*=\s*await\s+[\w.]*\.formData\s*\(\s*\)/;
+/**
+ * Reading a part off the parsed form, on the receiver THIS file bound it to.
+ *
+ * Derived per file rather than hardcoded to the name `form` (C10X-40, 2026-08-01). Keyed on the
+ * literal name, a rename of the local to `fd` or `body` exempted the whole endpoint from the
+ * narrowing check below — while the reader count and the `try {` check both stayed green, because
+ * they match the ASSIGNMENT. So the `File`-part `.trim()` crash this file was written for could
+ * come back under a rename with the suite fully green.
+ */
+function formGet(receiver: string): RegExp {
+  return new RegExp(`\\b${receiver}\\s*\\.\\s*get\\s*\\(`);
+}
 /** …and the only acceptable way to do it: narrowed, so a `File` part becomes `""` instead of crashing `.trim()`. */
 const FORM_STRING = /\bformString\s*\(/;
 /** A `?error=` value interpolated straight from a quoted literal — the drift the closed set cannot see. */
@@ -116,9 +128,16 @@ describe("every form endpoint guards its body read", () => {
   it("detects an unguarded read and an un-narrowed part", () => {
     expect(FORM_DATA_READ.test("  const form = await context.request.formData();")).toBe(true);
     expect(FORM_DATA_READ.test("    form = await context.request.formData();")).toBe(true);
-    expect(FORM_GET.test('const name = ((form.get("name") as string | null) ?? "").trim();')).toBe(true);
+    expect(formGet("form").test('const name = ((form.get("name") as string | null) ?? "").trim();')).toBe(true);
     expect(FORM_STRING.test('const name = ((form.get("name") as string | null) ?? "").trim();')).toBe(false);
     expect(FORM_STRING.test('const name = formString(form.get("name")).trim();')).toBe(true);
+
+    // The receiver is DERIVED, so a renamed local is still checked — the bypass that used to
+    // exempt an endpoint wholesale while every other case here stayed green.
+    expect(FORM_RECEIVER.exec("  const fd = await context.request.formData();")?.[1]).toBe("fd");
+    expect(FORM_RECEIVER.exec("    form = await context.request.formData();")?.[1]).toBe("form");
+    expect(formGet("fd").test('const name = ((fd.get("name") as string | null) ?? "").trim();')).toBe(true);
+    expect(formGet("form").test('const name = ((fd.get("name") as string | null) ?? "").trim();')).toBe(false);
     // Must not fire on prose about the read, or this guard gets weakened by the next person it annoys.
     expect(FORM_DATA_READ.test("// formData() rejects for TWO causes: a body that was never a form")).toBe(false);
   });
@@ -143,11 +162,19 @@ describe("every form endpoint guards its body read", () => {
   // `as string | null` cast and throws at `.trim()` — the second half of the same defect, and the
   // one the cast makes invisible to the type checker.
   it("narrows every part through formString", () => {
-    const raw = files.flatMap((file) =>
-      codeLines(file)
-        .filter(({ text }) => FORM_GET.test(text) && !FORM_STRING.test(text))
-        .map(({ text, index }) => label(file, API_DIR, index, text)),
-    );
+    const raw = files.flatMap((file) => {
+      const lines = codeLines(file);
+      const receivers = lines
+        .filter(({ text }) => FORM_DATA_READ.test(text))
+        .map(({ text }) => FORM_RECEIVER.exec(text)?.[1])
+        .filter((name): name is string => Boolean(name));
+
+      return lines.flatMap(({ text, index }) =>
+        receivers.some((receiver) => formGet(receiver).test(text)) && !FORM_STRING.test(text)
+          ? [label(file, API_DIR, index, text)]
+          : [],
+      );
+    });
 
     expect(raw).toEqual([]);
   });
