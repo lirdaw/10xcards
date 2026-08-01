@@ -1,7 +1,7 @@
 ---
 change_id: deck-form-hardening
 title: Harden formData() on the two deck endpoints C10X-30 missed
-status: implementing
+status: implemented
 created: 2026-07-31
 updated: 2026-08-01
 archived_at: null

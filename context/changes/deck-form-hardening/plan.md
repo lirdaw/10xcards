@@ -828,15 +828,15 @@ procedure above — the suite will have written rows the constraint forbids in t
 
 #### Automated
 
-- [x] 6.1 Full suite green after every restore: `npm test`
-- [x] 6.2 `git diff -- src/ supabase/` empty after every breakage restore
-- [x] 6.3 Constraint definition identical before/after (`pg_get_constraintdef` diff)
-- [x] 6.4 Linting passes: `npm run lint`
-- [x] 6.5 Build passes: `npm run build`
-- [x] 6.6 Type checking passes: `npx tsc --noEmit`
+- [x] 6.1 Full suite green after every restore: `npm test` — 2432923
+- [x] 6.2 `git diff -- src/ supabase/` empty after every breakage restore — 2432923
+- [x] 6.3 Constraint definition identical before/after (`pg_get_constraintdef` diff) — 2432923
+- [x] 6.4 Linting passes: `npm run lint` — 2432923
+- [x] 6.5 Build passes: `npm run build` — 2432923
+- [x] 6.6 Type checking passes: `npx tsc --noEmit` — 2432923
 
 #### Manual
 
-- [x] 6.7 Every breakage split and failure string recorded with its denominator
-- [x] 6.8 Restored `deck_name_check` probed behaviourally in a rolled-back transaction
-- [x] 6.9 test-plan's new §6.6 entry read back against the code it describes
+- [x] 6.7 Every breakage split and failure string recorded with its denominator — 2432923
+- [x] 6.8 Restored `deck_name_check` probed behaviourally in a rolled-back transaction — 2432923
+- [x] 6.9 test-plan's new §6.6 entry read back against the code it describes — 2432923
