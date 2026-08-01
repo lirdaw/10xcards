@@ -3429,12 +3429,23 @@ contributors should respect these unless the underlying assumption changes.
   step passed — read the step's own conclusion; and the census proves silence only for the seams
   that existed on the day it ran, with no automatic guard over the class. §6.6's C10X-39 entry
   carries each with its reason.
-- **Still open after this change, deliberately.** Criteria **2.3** and **2.5** — the pushed CI run
-  and its log — are unmet by decision, not by omission: `ci.yml` triggers only on push to `main`
-  and on `pull_request` to `main`, so a feature-branch push runs nothing at all. Deferred to
-  `/ship`, to be read off the PR's `ci` job. Two `createCard` twins remain loud only by accident
-  (§6.6), and `jira-map.md`'s `Change ID` for **C10X-39** is filled on the map side only —
-  `/jira-finish-work` owns the Jira end.
+- **Criteria 2.3 and 2.5 were open by decision and are CLOSED at ship time, 2026-08-01** — CI run
+  `30710530839` on PR #22, head `69b82db`. They were unmet at phase completion by decision, not by
+  omission: `ci.yml` triggers only on push to `main` and on `pull_request` to `main`, so a
+  feature-branch push runs nothing at all, and the PR is the first thing that runs the step in CI.
+  **The correction worth carrying is what the oracle is not.** Both this file and the change's own
+  `verification.md` said to read "the step's own conclusion, not the job's colour" — and the step's
+  conclusion is **not falsifiable**: with `continue-on-error: true` GitHub reports a failed step's
+  `conclusion` as `success` (the pre-tolerance result lives in `outcome`, which the run API does not
+  return alongside it), so it is precisely the reassuring value the criterion was written to guard
+  against. What closes both criteria is the **log** — `pool_size = 60` before, `0` after, on the
+  container `supabase_kong_10x-astro-starter` that the preceding step started, with `npm test`
+  (which carries no `continue-on-error`) passing afterwards against it. Everything the previous
+  wording said about the step being **parity rather than necessity** stands unchanged: the step is
+  still advisory, and a green `ci` job still does not imply it passed. Two `createCard` twins remain
+  loud only by accident (§6.6). `jira-map.md`'s `Change ID` note for **C10X-39** is also stale in
+  the reassuring direction — `customfield_10041` was already set on the Jira side when
+  `/jira-finish-work` RUN 1 read it, and the ticket summary already carried the retitled wording.
 
 Refresh (`/10x-test-plan --refresh`) when:
 

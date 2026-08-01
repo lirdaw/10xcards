@@ -736,15 +736,29 @@ wiped by `supabase stop` — it is not state anything else depends on. Rollback 
 
 - [x] 2.1 `npm run db:stop && npm run db:start` leaves `.kong_env` at `pool_size = 0` — b6ce30c
 - [x] 2.2 `npm test` passes after that cycle — b6ce30c
-- [ ] 2.3 A pushed CI run is green, the step's own conclusion is `success` (not merely tolerated by `continue-on-error`), and its log shows 60 → 0
-      <!-- DEFERRED to /ship, by decision 2026-08-01: ci.yml triggers only on push to `main`
-           and on `pull_request` to `main`, so a feature-branch push runs nothing. The branch is
-           pushed; 2.3 and 2.5 are read off the PR's `ci` job when /ship opens it. -->
+- [x] 2.3 A pushed CI run is green, the step's own conclusion is `success` (not merely tolerated by `continue-on-error`), and its log shows 60 → 0 — CI run 30710530839 (PR #22)
+      <!-- Deferred at implementation time, by decision 2026-08-01: ci.yml triggers only on push
+           to `main` and on `pull_request` to `main`, so a feature-branch push runs nothing. Read
+           off the PR's `ci` job at /ship, 2026-08-01, on head 69b82db.
+           The step CONCLUSION is not the oracle and must not be quoted as one: with
+           `continue-on-error: true` GitHub reports a failed step's `conclusion` as `success`
+           (the pre-tolerance result lives in `outcome`, which the run API does not return here),
+           i.e. it is exactly the value this criterion warns against reading naively. What closes
+           it is the log:
+             kong-keepalive: before — pool_size = 60, max_requests = 100, idle_timeout = 60
+             kong-keepalive: after  — pool_size = 0,  max_requests = 100, idle_timeout = 60
+             kong-keepalive: OK — upstream keep-alive pooling is disabled.
+           `drift` and `deploy` were `skipped` on this run — correct, both are push-to-main. -->
 - [x] 2.4 `npm run lint` exits 0 — b6ce30c
 
 #### Manual
 
-- [ ] 2.5 The CI job log confirms the step ran against the real stack
+- [x] 2.5 The CI job log confirms the step ran against the real stack — CI run 30710530839 (PR #22)
+      <!-- The container it recreated is `supabase_kong_10x-astro-starter`, i.e. the one the
+           preceding "Start local Supabase stack" step brought up — not a fabricated name — and
+           `npm test` (step 12, which carries NO `continue-on-error`) passed afterwards against
+           it. Both halves are needed: the name alone would not show the stack survived the
+           recreation. -->
 - [x] 2.6 The CI comment states the parity decision, not a necessity claim
 
 ### Phase 3: Census — enumerate the silent write seams by experiment

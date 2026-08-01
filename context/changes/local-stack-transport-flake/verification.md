@@ -71,10 +71,14 @@ the stack mid-review would have cost the running database for a claim the label 
 covers indirectly (both labels verified present on the rebuilt container). Stated rather than
 folded into the table, because "re-derived" must not be read as "all of it".
 
-Criteria **2.3** and **2.5** remain open by the decision recorded in `plan.md` and `change.md`:
+Criteria **2.3** and **2.5** remained open by the decision recorded in `plan.md` and `change.md`:
 `.github/workflows/ci.yml` triggers only on `push: branches: [main]` and
 `pull_request: branches: [main]` — verified by reading the file during the review — so a
-feature-branch push runs nothing at all. They are read off the PR's `ci` job at `/ship`.
+feature-branch push runs nothing at all. They were read off the PR's `ci` job at `/ship`.
+
+> **Closed 2026-08-01 at `/ship`** — CI run `30710530839` on PR #22, head `69b82db`. The evidence
+> and the correction it forced (the step's *conclusion* is not the oracle) are recorded in §6.5's
+> bullet below and in `plan.md`'s Progress comments on 2.3 and 2.5.
 
 ## Phase 3 — Census: enumerate the silent write seams by experiment
 
@@ -809,12 +813,23 @@ genuinely cold reader would add is not claimed here.
 - **Nothing here is a measurement.** Every number in the new entries comes from Phases 1–5; this
   phase moved them into the documents and corrected what contradicted them. The one thing it
   measured is its own criteria.
-- **Criteria 2.3 and 2.5 stay open**, by decision recorded in Progress: `ci.yml` triggers only on
-  push to `main` and on `pull_request` to `main`, so a feature-branch push runs nothing. They are
-  read off the PR's `ci` job at `/ship` — and the step carries `continue-on-error: true`, so what
-  must be read is the **step's own conclusion**, not the job's colour.
-- **The Jira side is untouched.** The ticket summary still says "usunąć przyczynę", which the
-  research findings contradict; `customfield_10041` is unset. Both belong to
-  `/jira-finish-work`, and `jira-map.md` records that rather than pre-empting it.
+- **Criteria 2.3 and 2.5 stayed open at this phase**, by decision recorded in Progress: `ci.yml`
+  triggers only on push to `main` and on `pull_request` to `main`, so a feature-branch push runs
+  nothing. They were read off the PR's `ci` job at `/ship`.
+  > **Closed 2026-08-01 (CI run `30710530839`, PR #22, head `69b82db`) — and this bullet's own
+  > instruction was WRONG.** It said the step carries `continue-on-error: true`, "so what must be
+  > read is the **step's own conclusion**, not the job's colour". The conclusion is the one value
+  > that cannot fail here: `continue-on-error` makes GitHub report a failed step's `conclusion` as
+  > `success`, and the pre-tolerance result (`outcome`) is not returned beside it by
+  > `gh run view --json jobs`. Reading it would have produced a green for any outcome. The oracle
+  > is the step's **log**: `pool_size = 60` before, `0` after, on `supabase_kong_10x-astro-starter`
+  > — the container the preceding step started — with `npm test` (no `continue-on-error`) passing
+  > afterwards against it. `drift` and `deploy` were `skipped` on that run, correctly: both are
+  > push-to-`main`.
+- **The Jira side is untouched** *by this phase* — and by the time `/jira-finish-work` RUN 1 read
+  it (2026-08-01) it needed neither of the two edits predicted here: the summary already carried
+  the retitled wording rather than "usunąć przyczynę", and `customfield_10041` was already set to
+  `local-stack-transport-flake`. `jira-map.md`'s "map side only" note is stale in the same
+  reassuring direction. Recorded as measured, not as expected.
 - **`jira-map.md` is gitignored**, so its edits are real on disk and appear in no commit — checked
   (`git check-ignore -v` → `.gitignore:70`) rather than noticed later as a missing file.

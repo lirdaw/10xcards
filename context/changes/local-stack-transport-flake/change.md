@@ -138,10 +138,17 @@ nothing. All six now carry a case-scoped count of one, each proved falsifiable b
 and the re-run census reports **zero**. The suite count does not move — the oracles sit inside
 existing helpers.
 
-**Two criteria are open by decision, not by omission**: 2.3 and 2.5 (a pushed CI run and its log).
+**Two criteria were open by decision, not by omission**: 2.3 and 2.5 (a pushed CI run and its log).
 `ci.yml` triggers only on push to `main` and on `pull_request` to `main`, so a feature-branch push
-runs nothing; they are read off the PR's `ci` job at `/ship`. The Jira summary still says "usunąć
-przyczynę" and is corrected at `/jira-finish-work`, along with `Change ID` on the Jira side —
-`jira-map.md` carries the map half.
+runs nothing; they were read off the PR's `ci` job at `/ship`. **Both closed 2026-08-01** — CI run
+`30710530839`, PR #22, head `69b82db`: the log shows `pool_size` 60 → 0 on the container the
+preceding step started, and `npm test` passed afterwards against it. The step's own **conclusion**
+is not the oracle and the earlier wording here was wrong to imply it could be: `continue-on-error:
+true` makes GitHub report a failed step's `conclusion` as `success`.
+
+The Jira side turned out to be **already done** when `/jira-finish-work` RUN 1 read it, against
+what this file and `verification.md` predicted: the summary carries the retitled wording, not
+"usunąć przyczynę", and `Change ID` (`customfield_10041`) is set. `jira-map.md`'s "map side only"
+note is stale in the same direction.
 
 Full evidence: `verification.md` in this folder.
