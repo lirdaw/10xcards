@@ -819,24 +819,24 @@ procedure above — the suite will have written rows the constraint forbids in t
 
 #### Automated
 
-- [x] 5.1 New and renamed guard files pass
-- [x] 5.2 Full suite green: `npm test`
-- [x] 5.3 Linting passes: `npm run lint`
-- [x] 5.4 Type checking passes: `npx tsc --noEmit`
+- [x] 5.1 New and renamed guard files pass — 036357c
+- [x] 5.2 Full suite green: `npm test` — 036357c
+- [x] 5.3 Linting passes: `npm run lint` — 036357c
+- [x] 5.4 Type checking passes: `npx tsc --noEmit` — 036357c
 
 ### Phase 6: Deliberate breakage, and the documents that still say this is open
 
 #### Automated
 
-- [ ] 6.1 Full suite green after every restore: `npm test`
-- [ ] 6.2 `git diff -- src/ supabase/` empty after every breakage restore
-- [ ] 6.3 Constraint definition identical before/after (`pg_get_constraintdef` diff)
-- [ ] 6.4 Linting passes: `npm run lint`
-- [ ] 6.5 Build passes: `npm run build`
-- [ ] 6.6 Type checking passes: `npx tsc --noEmit`
+- [x] 6.1 Full suite green after every restore: `npm test`
+- [x] 6.2 `git diff -- src/ supabase/` empty after every breakage restore
+- [x] 6.3 Constraint definition identical before/after (`pg_get_constraintdef` diff)
+- [x] 6.4 Linting passes: `npm run lint`
+- [x] 6.5 Build passes: `npm run build`
+- [x] 6.6 Type checking passes: `npx tsc --noEmit`
 
 #### Manual
 
-- [ ] 6.7 Every breakage split and failure string recorded with its denominator
-- [ ] 6.8 Restored `deck_name_check` probed behaviourally in a rolled-back transaction
-- [ ] 6.9 test-plan's new §6.6 entry read back against the code it describes
+- [x] 6.7 Every breakage split and failure string recorded with its denominator
+- [x] 6.8 Restored `deck_name_check` probed behaviourally in a rolled-back transaction
+- [x] 6.9 test-plan's new §6.6 entry read back against the code it describes

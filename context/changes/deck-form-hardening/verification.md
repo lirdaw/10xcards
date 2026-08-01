@@ -299,9 +299,18 @@ evidence about the **guard**, not about pointer handling.
 
 **The count movement, measured rather than derived.** Phase 4 recorded **278/278, 24 files**.
 `redirect-errors.test.ts` adds **6**, `signed-out.test.ts` adds **9**, and the page guard went
-**3 → 8** (`+5`) — 278 + 20 = **298**, which is what ran. Files move by **2**, not 3:
-`error-param-guard.test.ts` is a `git mv` of `auth-error-param-guard.test.ts`, not a new file.
+**3 → 8** (`+5`) — 278 + 20 = **298**, which is what ran. Files move by **2**, not 3, because the
+page guard replaced an existing file rather than adding one: `error-param-guard.test.ts` was
+produced by `git mv`-ing `auth-error-param-guard.test.ts` and then rewriting it.
 No other file's case count moved.
+
+> **Corrected in Phase 6's read-back, 2026-07-31.** This paragraph first ended "…is a `git mv` of
+> `auth-error-param-guard.test.ts`, **not a new file**", which invites a check that fails: the
+> move came with a rewrite, so at git's default similarity threshold the commit records **`D` +
+> `A`**, not `R`, and `git log --follow` shows nothing before `036357c`. Rename detection needs
+> `-M30%` or lower, where it reports **`R031`** — 31% survived. The **+2 file count is
+> independently verifiable and unchanged**; only the provenance was overstated as something git
+> would confirm.
 
 ### What each file claims, and what it deliberately does not
 
@@ -363,3 +372,217 @@ All three files are order-independent **by construction**: none opens a database
 provisions an account, and none shares a fixture — the two guard files read the source tree, and
 `signed-out.test.ts` builds a fresh container and a fresh `Request` per row. The three green
 un-pinned seeds above are the evidence rather than the argument.
+
+---
+
+## Phase 6 — Deliberate breakage, and the documents that still say this is open (2026-07-31)
+
+Everything above is a claim about today. This phase is what those claims are worth.
+
+### Baseline, taken before the first edit
+
+| Check | Result |
+| --- | --- |
+| `npm test` | **298 passed / 298, 26 files**, seed `1785534827060` — unchanged from Phase 5 |
+| `pg_get_constraintdef` on `public.deck` | `deck_name_check :: CHECK (((char_length(name) >= 1) AND (char_length(name) <= 100))) :: convalidated=true` (+ `deck_session_size_check`) |
+| Pristine MD5s of the four files any run touches | `index.ts e8266ff5…`, `[publicId].ts a5d613f9…`, `redirect-errors.ts 8b0dc6b7…`, `decks/index.astro 0ae897e9…` |
+| Rows the CHECK would forbid, before run 2 | `0` — measured, so the four that appear later are attributable to the run |
+
+### The pair — endpoint vs database
+
+Run 1 replaced `> NAME_MAX` with the literal `> 100000` on **both** deck endpoints. Never raising
+`NAME_MAX` is the load-bearing half of that instruction: after Phase 1 six sites **and the test**
+import it, so raising it moves every side together and the suite stays green while proving
+nothing.
+
+| Run | Edit | Split | Where they failed |
+| --- | --- | --- | --- |
+| 1 | endpoint comparison decoupled | **3 of 16 red** | all on the **message equality**, with every count/row oracle **passing** |
+| 2 | run 1's edit **plus** `deck_name_check` dropped | **4 of 16 red** | the same three now on their **oracles**, plus the DB-layer independence case |
+
+Observed strings, which are the evidence rather than the counts:
+
+| Case | Run 1 | Run 2 |
+| --- | --- | --- |
+| create, one over the limit | `expected 'Nie udało się utworzyć talii' to be 'Nazwa talii musi mieć od 1 do 100 znaków'` (`:189`) | `expected 1 to be +0` (`:185`, the count) |
+| create, no-echo | same string (`:313`) | `expected 1 to be +0` (`:307`, the count) |
+| rename, one over the limit | `expected 'Nie udało się zmienić nazwy talii' to be 'Nazwa talii musi mieć od 1 do 100 znaków'` (`:355`) | the row: `name` and `updated_at` diverge from `before` (`:351`) |
+| DB-layer independence | green | `expected undefined to be '23514'` (`:449`) |
+
+**Run 1's PASSES are half the evidence.** The count and row oracles passing there is what shows
+`deck_name_check` absorbed the write the decoupled endpoint let through — i.e. the two layers are
+genuinely independent, which is the only thing that lets run 2 attribute anything. And the two
+runs fail the **same** cases with **different** strings, which is what §6.10's count-first
+assertion order exists to produce; message-first would have printed run 1's string in both runs
+and the pair would have separated nothing.
+
+One consequence worth restating because a reader could infer the opposite from the headline: the
+**nameless CREATE** refusals (missing / empty / whitespace-only, the non-form body, the
+broken-form body, the `File` part) are green in both runs and attribute nothing to either layer.
+They have no row oracle — there is no name to mark — as Phase 4 recorded rather than faked. Their
+rename twins are where those refusals get a real oracle.
+
+### Restoring the CHECK — the asymmetry, and this time it worked
+
+While the constraint was absent the suite persisted **four** rows it forbids. Inspected before
+deletion rather than deleted blind:
+
+| `public_id` | len | head | what it is |
+| --- | --- | --- | --- |
+| `8a69030a…` | 101 | `over-rename-ms9hd0qj-xxx…` | the shared rename fixture, renamed by the run |
+| `ee858615…` | 101 | `db-over-ms9hd0qj-xxx…` | the DB-layer case's own insert |
+| `e16238d2…` | 101 | `echo-create-ms9hd0qj-xxx…` | the no-echo case |
+| `d7b81bc5…` | 101 | `over-create-ms9hd0qj-xxx…` | the over-limit create |
+
+All four carry the run's own suffix `ms9hd0qj`; `delete … returning` reported **DELETE 4**, then
+`add constraint` succeeded. That ordering is what C10X-27's `deck_session_size_check` restore
+discovered the hard way — it failed with `violated by some row` *after* its evidence was
+collected.
+
+Then both checks, because the cheap one is not sufficient:
+
+- **Textual**: `pg_get_constraintdef` before/after `diff` — **empty**, and `convalidated=true`.
+- **Behavioural**, in a rolled-back transaction, because a text match reads identical for a
+  constraint that came back `NOT VALID`:
+
+  | Insert | Result |
+  | --- | --- |
+  | `'probe-in-range-' || repeat('x', 85)` → 100 chars (**positive control**) | `INSERT 0 1`, `inserted_len = 100` |
+  | `repeat('x', 101)` | `ERROR: … violates check constraint "deck_name_check"` |
+  | `''` (own transaction — the first had already aborted) | `ERROR: … violates check constraint "deck_name_check"` |
+
+  The control is what separates "the bound is back" from "the table rejects everything".
+
+### Three more falsifiability runs
+
+| Neuter | Split | Observed |
+| --- | --- | --- |
+| `formString(form.get("name"))` → `((form.get("name") as string \| null) ?? "")`, on **`decks/index.ts` only** | **1 of 16 red** | exactly the create-side `File` case, failing with the production defect itself: `TypeError: (form.get(...) ?? "").trim is not a function` at `src/pages/api/decks/index.ts:49`, escaping the handler through `renderEndpoint`. Its **rename twin stayed green** — the control that attributes the red to the neutered endpoint rather than to the case |
+| `ownedRedirectMessage` → `return raw` | **2 of 6 red** in `redirect-errors.test.ts` | the crafted-value case (`expected 'Twoje konto zostało zablokowane…' to be null`) and the empty-parameter case (`expected '' to be null`). `error-param-guard.test.ts` stayed **8/8 green** |
+| unwrap `src/pages/decks/index.astro:27` | **1 of 8 red** in `error-param-guard.test.ts` | names file and line: `index.astro:27: const error = Astro.url.searchParams.get("error");`. `redirect-errors.test.ts` stayed **6/6 green** |
+
+**What stays green is the point in two of the three.** For the identity neuter: the member case,
+the non-emptiness scan, the template case and — the load-bearing one — the **whole-set positive
+control**. Without it `() => null` satisfies every rejection case and reads as perfect protection.
+For the unwrap: both of that surface's positive controls, the whole auth surface, and
+`redirect-errors.test.ts` in full — a behaviourally perfect helper nothing calls is exactly the
+regression the page guard exists to catch, and the two neuters demonstrate the complement of each
+other.
+
+**One prediction was rounder than the run, recorded as observed.** The plan expected the identity
+neuter to turn "the rejection cases" red and it turns **two**, the second being the `""` half of
+the empty-parameter case — under `return raw`, `null` still maps to `null`, so only the
+empty-string and whitespace inputs move. Same shape as C10X-29's `missingLocal` neuter, C10X-30's
+case 8 and C10X-34's check E.
+
+### Restores, verified rather than assumed
+
+| Check | Result |
+| --- | --- |
+| `md5sum -c` against the four pristine copies | **4/4 OK**, run after the pair and again after run 5 |
+| `git diff --stat -- src/ supabase/` | **empty** |
+| `npm test` after the last restore | **298 passed / 298, 26 files**, seed `1785535019998` |
+| `npm test` after the first document-sync pass | **298 passed / 298, 26 files**, seed `1785535690662` |
+| `npm test` after the read-back corrections — the shipping state | **298 passed / 298, 26 files**, seed `1785563577358`, with `tsc`/`lint`/`build` all exit 0 and the four pristine MD5s re-checked **4/4 OK** |
+| `npx tsc --noEmit` | exit 0 |
+| `npm run lint` | exit 0 — the same 6 pre-existing `no-console` warnings in `evals/generation-quality.eval.ts`, unchanged |
+| `npm run build` | exit 0 |
+
+### The documents
+
+Three live comments told a contributor this class was still open, and after this change they
+would have been false in the way this project keeps paying for:
+
+| File | Was | Now |
+| --- | --- | --- |
+| `src/lib/forms.ts` | "the deck pair was missed … owned by **C10X-37**" | a dated statement that all six `formData()` readers are guarded and the helper has six callers — with the paragraph's own three-version history kept, because every correction so far was in the direction that reads as reassurance |
+| `src/lib/generation-limits.ts` | "Deliberately NOT here: the deck-name 1..100 bound, which lives in six places" | a pointer to `deck-limits.ts`, and the reason the generation module keeps only the generation concern |
+| `tests/lib/forms.test.ts` | "the FOUR endpoints that call this helper … C10X-37 outstanding" | six, with the count's two previous wrong values kept as history |
+
+Plus the pointer rot the rename would otherwise have caused — the failure this ledger has already
+recorded twice (C10X-28's evidence paths, C10X-34's denominators). Three live references to
+`tests/lib/auth-error-param-guard.test.ts` in `test-plan.md` (§6.6's C10X-34 bullet and two §8
+entries) are repointed to `error-param-guard.test.ts` **without rewriting the historical claims**;
+the archived `2026-07-30-auth-error-copy/reviews/impl-review.md:128` reference keeps its wording
+and takes an appended **dated correction line** instead, per this project's own precedent
+(C10X-30's "4xx" wording).
+
+`test-plan.md` also gains: §2's Risk #6 row (a **third** dated half, with the no-row-oracle
+boundary stated in the row itself), a full §6.6 C10X-37 entry with the claims table, both breakage
+splits and a does-NOT-prove list, §6.10 extended for a second worked example and the extracted
+`tests/fixtures/redirect-cases.ts`, §7's third-instance note extended with a **fourth** (the deck
+islands side with the card islands, not with `GeneratorForm` — measured: neither input carries
+`maxLength`), and a §8 ledger entry with the counts above.
+
+### The finding this phase produced, which is a bookkeeping one and belongs in the record
+
+The plan's Phase 6 contract asked `change.md` to record that the read-side half was "previously
+unticketed". **It is not.** `follow-ups/review-fixes.md:8` says "to be ticketed via
+`/jira-backlog-sync`. No key yet" — true when the review wrote it, stale the same day, because
+that sync created **C10X-40** for exactly that finding (`jira-map.md:65`, `:243-262`, DoR fields
+set, Priority Medium). The plan and `change.md` were both written from the stale line, and neither
+the planning pass nor the plan review caught it, because both read the follow-up rather than the
+map.
+
+Writing "previously unticketed" would have put a fresh falsehood into the record during the phase
+whose job is removing them — and worse, left C10X-40 open in the backlog as a ticket whose fix had
+already landed under another key, which is the *exact* confusion this change's scope decision was
+written down to prevent, one level up. So:
+
+- `change.md` carries a dated correction section stating the accurate position: the read-side work
+  shipped here under C10X-37, and C10X-40 is a key whose work is done.
+- `jira-map.md` records it on both rows, and C10X-37's `Change ID` cell is filled with
+  `deck-form-hardening` **explicitly flagged as map-side only** — the Jira field
+  `customfield_10041` is still unset, and that file's own rule against a one-sided mapping is
+  respected rather than quietly broken.
+- **Closing C10X-40 and setting C10X-37's `Change ID` in Jira are deferred to
+  `/jira-finish-work`**, by decision: `/10x-implement` writes no Jira, and the skill that owns
+  those writes is the one that carries the artifact fields with them.
+
+The transferable rule, now in `jira-map.md`: **for a deferred finding, the map is the source of
+truth about its key — not the review note, which could not have known the key yet.**
+
+### 6.9 — the new §6.6 entry read back against the code, and one claim it caught
+
+Not a re-read of the prose: each factual claim was re-derived from the tree.
+
+| Claim in the entry | Re-derived | Verdict |
+| --- | --- | --- |
+| `REDIRECT_MESSAGES` has eleven members | 11 | ✓ |
+| Six `formData()` readers under `src/pages/api/`, both deck endpoints among them | 6, enumerated by path | ✓ |
+| `decks.test.ts` 16 cases, `redirect-errors.test.ts` 6, `signed-out.test.ts` 9, page guard 8 | as recorded | ✓ |
+| `tests/fixtures/redirect-cases.ts` exists and holds `sized()`/`errorParam()` | present | ✓ |
+| The deck islands carry no `maxLength` | `grep -rn "maxLength" src/components/` → **only `GeneratorForm.tsx`**, twice | ✓ — and **stronger than the browser measurement**: confirmed at the source, and it surfaces an asymmetry worth recording (the generate surface's own new-deck field IS input-stopped at `NAME_MAX` while the two deck forms' are not) |
+| `decks.test.ts` 16 / `redirect-errors` 6 / page guard 8 / `signed-out` 9 | re-run per file: **16 / 6 / 8 / 9**, 39 together | ✓ — and see the oracle note below |
+| The eleven literals are a closed set: no `.message`, `String(err)` or `JSON.stringify` "on any deck-route branch" | `.message` **none**, `String(err)` **none**, `catch` binding a variable **none**, `error.code` **2 sites, both `=== "23505"`** — but `JSON.stringify` **does** appear, at `cards/batch.ts:45` | ✗ **wording too loose** — that call serialises a JSON endpoint's response **body**, on one of the three endpoints this channel excludes. Rescoped to "the redirect branches" |
+| "a thirteenth hand-rolled banner became the **twelfth** call site" | `grep -rn "<ServerError" src/` → **13 JSX usages across 12 files** (excluding two comment lines inside `ServerError.tsx`) | ✗ **wrong, and corrected before the entry shipped** |
+| "`error-param-guard.test.ts` is a **`git mv`** of `auth-error-param-guard.test.ts`" (Phase 5's note, repeated into the §8 ledger) | at the default threshold git records **`D` + `A`**, and `git log --follow` shows nothing earlier; rename detection needs **`-M30%`**, where it reports **`R031`** | ✗ **does not survive a check** — the move came with a rewrite, so only 31% survived. The substantive claim (**files +2, not +3**) is independently true; the provenance is not readable from git |
+
+The last three rows are what justifies the read-back, and two of them are corrections to claims
+this change had already written down.
+
+**A methodology note that falls out of the count row.** `grep -c '\bit('` returns **21** on
+`decks.test.ts` against the runner's **16**, because this repo's test files carry heavy commentary
+and several comments contain the literal `it()` ("inside its own `it()`"). Phase 4's narrower
+`grep -c '  it('` — two-space indent, i.e. describe-body depth — returns **16**, matching the
+runner exactly, and **0** of its matches are comment lines; the same grep against `c9cc103`
+returns the **4** Phase 4 recorded. So Phase 4's oracle was sound and the loose one used during
+this read-back was not. Counting cases in this repo needs either the runner or the indented form. C10X-34 enumerated **12 call sites across
+11 components**; this change adds one, so it is the **thirteenth** call site, not the twelfth —
+the sentence had conflated "thirteenth render" (12 component sites plus the raw markup, which is
+what the plan said) with the call-site index after the swap. Recomputed by running the grep rather
+than by adding one to the remembered figure, which is exactly how C10X-34's own version of this
+count went wrong and was recorded as having gone wrong.
+
+### Not claimed by this phase
+
+- **The five runs falsify five specific assertions, not the suite.** Nothing here says an
+  unfalsified assertion is wrong; it says nobody has shown it can go red.
+- **No mutation run.** Stryker was not pointed at `redirect-errors.ts` or either endpoint. The
+  closed-set helper is four lines and its `includes` is exercised in both directions by the
+  whole-set control and the containment case, so the project's selective-mutation rule
+  (`CLAUDE.md`: risk-critical modules covered by the change) would have bought classification
+  work rather than signal — recorded as a decision, not an oversight.
+- **Nothing about the cloud.** No migration, no `db push`, no drift gate: `deck_name_check` ships
+  in `20260705180246_init_core_schema.sql` and long predates this change.
+- **The island half**, as everywhere in this change — carried by the Phase 1–4 browser matrices.

@@ -6,7 +6,40 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-07-31, second entry of the day (C10X-41 `forced-language-prompt-fix`
+> Last updated: 2026-07-31, third entry of the day (C10X-37 `deck-form-hardening` shipped — not
+> a §3 rollout phase). **No risk row moves, and Risk #6 gains a third dated half.** What makes
+> this entry worth reading is not the coverage but the bookkeeping it closes: it is the first
+> change in this file whose entire scope was **two items other changes' impl-reviews had
+> deferred**, one of which had an owner (C10X-30 F1 → C10X-37) and one of which had **no ticket
+> at all** (C10X-34 F1, "to be ticketed, no key yet"). The second shipped under the first's key by
+> an explicit, written-down scope decision — because "a fix that landed under a foreign key" is
+> the confusion C10X-34 was itself written to untangle, and repeating it silently would have been
+> the same defect one surface over.
+>
+> The two halves are one mechanism, which is why they are one change: a closed set of
+> project-owned messages (`src/lib/redirect-errors.ts`, eleven members) that the producers emit
+> and the consumers vouch for. The enumeration behind it is the step C10X-34's review named as
+> the prerequisite and did not take — **no `.message`, `String(err)` or `JSON.stringify` on any
+> deck-route branch** — so the set is closed by construction and the fix is `ownedAuthMessage`'s
+> shape rather than a redesign. One sink turned out to be worse than the review recorded: the
+> deck page rendered the raw value in **`.astro` markup**, needing no companion parameter and
+> carrying no `role="alert"`, so a bare `/decks/<id>?error=X` reached it and no change to
+> `ServerError.tsx` could ever have covered it.
+>
+> Two things about the evidence rather than the coverage. **The breakage pair separated the
+> layers in both directions** — run 1 (endpoint comparison decoupled) turns 3 of 16 red **on the
+> message**, with the count and row oracles *passing*, and that pass is the evidence that the DB
+> CHECK absorbed the write; run 2 (same edit plus the CHECK dropped) turns the same three red **on
+> their oracles**, plus the DB-layer case. Different failure strings for the same cases is what
+> §6.10's assertion order exists to produce. And **one gap is stated rather than hidden**: the
+> nameless CREATE refusals carry no row oracle at all — `deck` has no containing column and there
+> is no name to mark — so under run 1 those cases attribute nothing to either layer. Their rename
+> twins are where the same refusals get a real oracle, which is why every nameless case runs
+> through both endpoints. Suite **298/298, 26 files**; five breakage runs, five verified restores,
+> the constraint probed **behaviourally** as well as by `diff`. Evidence:
+> `context/changes/deck-form-hardening/verification.md`.
+>
+> Previously: 2026-07-31, second entry of the day (C10X-41 `forced-language-prompt-fix`
 > shipped — not a §3 rollout phase). **No risk row moves, and that is the point worth reading:
 > the AI-native layer this file added at §3 Phase 5 has now completed its loop.** C10X-31's first
 > calibrated run found a real generation defect and recorded it; C10X-41 fixed it and used the
@@ -261,7 +294,7 @@ research's job, see §1 principle #3).
 | 3   | The study session loses a card or writes the wrong next-review date, and cards that were never accepted enter review — the schedule stops being trustworthy.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | High   | Medium     | PRD §Guardrails (spaced-repetition scheduling correctness), PRD §NFR (schedule survives across sessions), PRD US-02 acceptance criteria, PRD FR-006; roadmap S-03 (north star, next in sequence)                                       |
 | 4   | Private source text or the LLM API key escapes into a log line or an error response body. **Covered 2026-07-26 (C10X-28), with a named boundary: the response-body half is pinned on both failure branches, the log half only for what `src/` itself writes. Read §6.6's C10X-28 entry before citing this as closed.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | High   | Medium     | PRD §Guardrails (privacy of pasted source text), PRD §NFR (privacy); `context/foundation/lessons.md` (prod secret is separate from `.env`; missing secret silently degraded to mock mode); abuse lens (secret/PII leakage)             |
 | 5   | The production schema drifts from the migration history — the deployed app writes against an un-migrated database. **Covered 2026-07-28 (C10X-29) per drift CLASS, not as one range — writing "classes 4-9 are uncovered" would be false for four of them. Gated in CI and deploy-blocking: a migration committed but never pushed; a history desync from `migration repair`; an out-of-order version skipped by `db push`. Gated in the `ci` job: a stale generated `src/db/database.types.ts`. Detectable only off the deploy path, by an on-demand DDL diff nobody is scheduled to run: a migration file amended after it was pushed; production changed by hand in Studio; `repair --status applied` on something never applied. Not covered at all: `config.toml` vs dashboard config, and seed/dictionary row drift. Read §6.6's C10X-29 entry before citing this as closed.** | High   | Medium     | interview Q2 (real incident during M2L5); `context/foundation/lessons.md` ×2 (cloud migration is a step distinct from app deploy; blind `migration repair` desynced prod history); hot-spot dir `supabase/migrations/` (6 commits/30d) |
-| 6   | The server trusts the client — a crafted request bypasses the source-text length limit and the card content rules that the UI enforces. **Covered on the server side, in two dated halves: source text 2026-07-26 (C10X-28), card content 2026-07-28 (C10X-30). Both LENGTH limits have exactly one definition (`SOURCE_MAX`; `FRONT_MAX`/`BACK_MAX`), and the card pair now carries a second enforcer independent of the endpoints — a DB CHECK. `/cards/batch`'s `IDS_MAX` is the exception and is asserted rather than single-sourced: the review island mirrors it as a commented copy, so the server is its only enforcer. The boundary: only the SERVER half is asserted. The three card islands mirror the constants by import but their enforcement is not tested (§7), and unlike `GeneratorForm` they carry no `maxLength`, so their over-length branch IS reachable through the browser and rests on a manual check. Read §6.6's C10X-30 entry before citing this as closed — on the card endpoints the refusal is a `302`, not a `4xx`.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Medium | Medium     | PRD FR-003 (maximum source-text length), PRD FR-007; abuse lens (untrusted input, server-side validation parity); hot-spot dir `src/lib/` (18 commits/30d)                                                                             |
+| 6   | The server trusts the client — a crafted request bypasses the source-text length limit and the card content rules that the UI enforces. **Covered on the server side, in two dated halves: source text 2026-07-26 (C10X-28), card content 2026-07-28 (C10X-30). Both LENGTH limits have exactly one definition (`SOURCE_MAX`; `FRONT_MAX`/`BACK_MAX`), and the card pair now carries a second enforcer independent of the endpoints — a DB CHECK. `/cards/batch`'s `IDS_MAX` is the exception and is asserted rather than single-sourced: the review island mirrors it as a commented copy, so the server is its only enforcer. The boundary: only the SERVER half is asserted. The three card islands mirror the constants by import but their enforcement is not tested (§7), and unlike `GeneratorForm` they carry no `maxLength`, so their over-length branch IS reachable through the browser and rests on a manual check. Read §6.6's C10X-30 entry before citing this as closed — on the card endpoints the refusal is a `302`, not a `4xx`.** **A THIRD dated half, 2026-07-31 (C10X-37): the deck-name rule on the two endpoints C10X-30's sweep missed. Same shape as the card half — one definition (`deck-limits.ts`), a second enforcer independent of the endpoints (`deck_name_check`), and a breakage PAIR that attributes a refusal to one layer or the other by making the two runs fail the SAME cases on DIFFERENT assertions. It also closes the malformed-body class on the last two of the six `formData()` readers, so `formString` now has six callers rather than four. Two boundaries stated rather than implied: the two deck islands' own 1..100 guard is untested like every other island (§7), and the CREATE side's nameless refusals (missing / empty / whitespace-only / non-form / broken-form / `File` part) carry NO row oracle at all — `deck` has no containing column to count by and there is no name to mark, so those cases rest on the `302` plus message equality and attribute nothing to either layer. Their rename twins are where the same refusals get a real oracle. Read §6.6's C10X-37 entry before citing this as closed.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Medium | Medium     | PRD FR-003 (maximum source-text length), PRD FR-007; abuse lens (untrusted input, server-side validation parity); hot-spot dir `src/lib/` (18 commits/30d)                                                                             |
 | 7   | Generation returns cards in the wrong language or cards that are unusable, so the acceptance rate falls below 75% and the product thesis fails. **Covered 2026-07-29 (C10X-31), as far as a proxy can cover it: a local, human-triggered LLM-as-judge eval (`npm run eval` — never part of `npm test`) proves language fidelity and usability across all six selector values against the real provider, and its first calibrated run found a real defect — the forced-language prompt path answers in Polish for `niemiecki`/`francuski` while `auto` is flawless; recorded and raised as a follow-up, not fixed here. The judge does NOT measure the 75% acceptance rate — only real users produce that. Read §6.6's C10X-31 entry before citing this as closed.** **The defect that first run found is FIXED and re-measured, 2026-07-31 (C10X-41): the prompt now interpolates a model-facing English name resolved from a `language` dictionary table instead of the Polish exonym that doubled as the API enum and the audit-column value, and the matrix — now ELEVEN cases, with `forced/fr-on-en` added so one target is neither the source language nor Polish — runs 11/11 at 5/5 language fidelity, twice. Two things do NOT move: the judge still does not measure the 75% acceptance rate, and the eval is still local and human-triggered, so this row means "exercised on that date", never "a signal is being watched". Read §6.6's C10X-41 entry, whose does-NOT-prove list includes a gap this change measured rather than closed — `tsc` is in no gate, so the acceptance instrument itself sat uncompilable for two green phases.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | High   | Medium     | PRD §Success Criteria (≥75% of generated cards accepted; ≥75% of cards created via generation), PRD §NFR (cards follow the source-text language: PL/EN/ES); roadmap S-05                                                               |
 
 ### Risk Response Guidance
@@ -1862,7 +1895,11 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
     the sentence that used to end this bullet is no longer true** (corrected 2026-07-31 by this
     change's impl-review, F2). It read: "A regression deleting the `ownedAuthMessage(...)` call from
     `signin.astro` leaves the suite green." It did, and it no longer does —
-    `tests/lib/auth-error-param-guard.test.ts` is a textual guard over `src/pages/auth/**/*.astro`
+    `tests/lib/auth-error-param-guard.test.ts` (**renamed 2026-07-31 by C10X-37 to
+    `tests/lib/error-param-guard.test.ts`**, a `git mv`: it now drives a table of two surfaces,
+    auth and decks, each against its OWN helper — the path in this paragraph and in the two §8
+    entries below is repointed, the historical claims are not rewritten) is a textual guard over
+    `src/pages/auth/**/*.astro`
     asserting **per line** that a read of the parameter is the same line that wraps it, so
     co-presence of an unused import cannot satisfy it. Proved falsifiable rather than argued:
     unwrapping `signin.astro:8` turns **1 of 3** red, naming file and line
@@ -1906,10 +1943,23 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
     `null` on anything else. The first step of that ticket is the thing this review did **not**
     establish: enumerate what the six deck endpoints actually put in `?error=` and confirm it is a
     closed set of literals.
+    > **Closed 2026-07-31 by C10X-37**, and it never received a key — it shipped under C10X-37's,
+    > which is exactly the "fix landed under a foreign key" confusion this file keeps recording, so
+    > the decision is written down in `deck-form-hardening/change.md` rather than left to be
+    > inferred. Two things this bullet got right and one it got wrong. Right: the enumeration was
+    > the first step, and it returned **eleven literals, a closed set**. Wrong: "the helper does not
+    > apply as written" understates the sink count — there are **six**, not three, because
+    > `[publicId]/index.astro` derives four from one read, and one of those six rendered the value
+    > in raw `.astro` markup with **no** `role="alert"` and no companion parameter, so a bare
+    > `/decks/<id>?error=X` reached it and no change to `ServerError.tsx` could ever have covered
+    > it. See §6.6's C10X-37 entry.
   - **The two deck endpoints still carry the defects C10X-30 swept elsewhere** — unguarded
     `formData()` and the `as string | null` cast (`decks/index.ts:22-23`,
     `decks/[publicId].ts:31-32`). Owned by **C10X-37**; only the false *comment* about them, in
     `src/lib/forms.ts`, is corrected here.
+    > **Closed 2026-07-31 by C10X-37.** Both now guard `formData()` in a `try` and narrow through
+    > `formString`, so the helper has six callers rather than four, and the comment corrected here
+    > was corrected again to say so.
   - **Auth INPUT validation is still absent** (presence, format, length before the GoTrue call) —
     **C10X-36**. What exists on these routes is malformed-body handling only, and the test file
     says so in a comment so a green `describe` cannot be read as "auth input is validated".
@@ -2004,6 +2054,126 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
   `usable=false` card that appeared in both runs:
   `context/changes/forced-language-prompt-fix/verification.md` (after archiving:
   `context/archive/<date>-forced-language-prompt-fix/verification.md`).
+
+- **Roadmap C10X-37 (`deck-form-hardening`, 2026-07-31)** — not a §3 rollout phase. It is
+  recorded here because it closes **two** items this file had carried as open with named owners:
+  Risk #6's deck half (the two `formData()` readers C10X-30's sweep missed, that change's
+  impl-review F1) and the **read** end of the `?error=` channel on the deck surface (C10X-34's
+  impl-review F1, which had no ticket at all). The second shipped under the first's key by an
+  explicit scope decision, recorded in the change's `change.md` — because "a fix that landed
+  under a foreign key" is the confusion C10X-34 was itself written to untangle, and repeating it
+  silently would have been the same defect one surface over.
+
+  **Read the two halves as one mechanism, because that is why they are one change.** Both turn
+  on a closed set of project-owned messages that the producers emit and the consumers vouch for.
+  Building that set (`src/lib/redirect-errors.ts`, eleven members) is what made both halves
+  assertable, and the enumeration behind it is the step C10X-34's review named as the
+  prerequisite and did not do — re-derived at doc-sync rather than carried over from the plan:
+  **no `.message` and no `String(err)` anywhere under `src/pages/api/decks/`**, `error.code` is
+  read at exactly two sites and only as a `23505` discriminator, and **no `catch` block in that
+  tree binds an exception variable at all**, so there is no upstream string in scope to
+  interpolate. One `JSON.stringify` does exist there (`cards/batch.ts:45`) and is **not** a
+  counter-example: it serialises that endpoint's JSON response **body**, and `batch.ts` is one of
+  the three JSON endpoints this channel deliberately excludes. Scope the claim to **the redirect
+  branches**, not to "any deck-route branch" — the looser wording was written here first and
+  corrected by running the grep. The set is closed **by construction, not by a
+  test** — which is exactly why the guard had to sit beside it.
+
+  | Claim | What proves it |
+  | --- | --- |
+  | An over-`NAME_MAX` create is refused and writes nothing | `tests/validation/decks.test.ts`: a raw count scoped by a per-case name **marker** with `.like()` asserted **first**, then `302`, then the decoded `error` by **equality**. The count-first order is what makes the breakage pair separable |
+  | …and an over-`NAME_MAX` rename likewise, where a count would prove nothing | the **row**, `toEqual(before)` column for column — an UPDATE leaves any count untouched however badly it goes |
+  | …and the refusals are not an endpoint refusing everything | **two** boundary controls (create and rename at exactly `NAME_MAX`), each asserting the stored string's length **and** its equality with what was submitted — a silent truncation to the bound satisfies a length check alone |
+  | The trim direction is the **mirror** of `/api/generate`, not a copy of it | a `NAME_MAX`-character name padded with trailing whitespace is **accepted** and stored at exactly `NAME_MAX`. These endpoints `.trim()` before measuring; C10X-28's "trims back under it → still refused" does not transfer |
+  | Missing, empty and whitespace-only are one indistinguishable refusal | both endpoints, three sub-cases each. They measure 0 after the trim, so telling them apart from outside is not a property the endpoint has |
+  | A body that was never a form answers an owned redirect, not a framework `500` | one case per endpoint; on rename the `Location` keeps the deck-scoped `open=rename` target, because `errorUrl` is built from the route param eleven lines above the read and is already UUID-gated |
+  | …and so does a body announced as a form that does not parse | same, plus `not.toBe(NAME_MESSAGE)` — which pins that the **catch** answered rather than the length guard reading an unparsed body as an empty name |
+  | A `File` part reads as empty rather than crashing the handler | `formString` narrows it to `""` and it falls into the length guard the endpoint already owns, so **no new message entered the closed set** |
+  | A refusal echoes nothing back | the **raw** `Location`, before decoding, carries neither the case marker nor the run suffix |
+  | A duplicate name is refused and the existing deck is untouched | count **and** row, on a deck the case creates inside its own `it()` (§6.2) |
+  | The database refuses the same names **independently of the endpoints** | direct RLS-scoped inserts → `23514`, asserted by **code and by constraint name `deck_name_check`** — the name read off the live stack with `pg_get_constraintdef`, never inferred from the `flashcard_front_check` precedent — with an in-range insert as the positive control |
+  | A crafted `?error=` value renders **no banner** rather than attacker-chosen text | `ownedRedirectMessage` — membership by **equality**, `null` on anything else, and `null` is a decision about what the user sees: `ServerError.tsx:8` renders nothing for a falsy message. `tests/lib/redirect-errors.test.ts` (6 cases) pins a containment attack, a one-character truncation, `null`/`""`, and — the load-bearing one — a positive control over the **whole set** |
+  | …and the three deck pages still call it, per LINE | `tests/lib/error-param-guard.test.ts`, now a table over **two** surfaces with **different** helpers |
+  | All six redirect-style endpoints answer a signed-out caller themselves | `tests/validation/signed-out.test.ts` (9 cases, **no database**), closing a gap §6.6 had carried since C10X-27 — and for all six rather than the two this ticket names, because a partial sweep left unstated is precisely what created C10X-37 |
+
+  **The breakage PAIR, and this one separated the layers exactly as designed.** Run 1 decoupled
+  both endpoints' comparison (`> NAME_MAX` → a literal `> 100000`; **never raise the constant**,
+  which after Phase 1 six sites and the test all import, so raising it moves every side together
+  and the suite stays green while proving nothing): **3 of 16 red**, all on the message equality
+  (`expected 'Nie udało się utworzyć talii' to be 'Nazwa talii musi mieć od 1 do 100 znaków'`,
+  and its rename twin), **with their count and row oracles passing** — and that pass is the
+  evidence, because it is what shows `deck_name_check` absorbed the write. Run 2 kept that edit
+  and additionally dropped the CHECK: **4 of 16 red**, the same three now failing on their
+  **oracles** (`expected 1 to be +0`; the rename row diffing on `name` and `updated_at`) plus the
+  DB-layer independence case (`expected undefined to be '23514'`). Same cases, different failure
+  strings, in both directions — which is the whole reason §6.10 insists on the ordering.
+
+  Three further falsifiability runs, each restored:
+
+  | Neuter | Result |
+  | --- | --- |
+  | `formString` → the `as string \| null` cast, on the **create** endpoint only | **1 of 16 red** — exactly the create-side `File` case, and it fails with the production defect itself: `TypeError: (form.get(...) ?? "").trim is not a function` escaping the handler. Its **rename twin stayed green**, which attributes the red to the neutered endpoint rather than to the case |
+  | `ownedRedirectMessage` → the identity function | **2 of 6 red** in `redirect-errors.test.ts` — the crafted-value case and the empty-parameter case. **What stayed green is the evidence**: the member case, the non-emptiness scan, the template case and the whole-set positive control, without which `() => null` satisfies every rejection case and reads as perfect protection. The plan predicted one red; the second is the `""` half, recorded as observed |
+  | Unwrap `decks/index.astro`'s read | **1 of 8 red**, naming file and line (`index.astro:27: const error = Astro.url.searchParams.get("error");`), both that surface's positive controls green, the auth surface untouched — and `redirect-errors.test.ts` **fully green through the same neuter**, which is the whole reason the page guard exists as a separate file |
+
+  Two things about the restores rather than the runs. Dropping the CHECK let the suite persist
+  **four** rows it forbids (three create-side names and the shared rename fixture, renamed to 101
+  characters); all four carried the run's own suffix, were inspected before deletion, and were
+  deleted before the `add constraint` — which is why that restore succeeded where C10X-27's
+  `deck_session_size_check` restore failed with `violated by some row`. And the
+  `pg_get_constraintdef` before/after `diff` came back **empty**, which is necessary and not
+  sufficient: it reads identical for a constraint that came back `NOT VALID`, so the bound was
+  also probed **behaviourally** in a rolled-back transaction — 101 characters and `''` both
+  refused **by name**, an in-range insert accepted as the positive control.
+
+  **What this does NOT prove — read this before citing Risk #6 or Risk #4's read half as closed.**
+  - **The nameless CREATE refusals carry no row oracle at all, and the file says so rather than
+    faking one.** Missing / empty / whitespace-only, the non-form body, the broken-form body and
+    the `File` part submit no usable name, so there is nothing to mark and a marker-scoped count
+    reads `0` before and after whatever the endpoint does — an assertion that cannot go red, the
+    `listDueCounts` false-pass class one table over. A delta over account A's own decks is not the
+    escape either: A is shared across **files**, and `generate.test.ts` and
+    `isolation/decks.test.ts` both create decks as A in parallel workers, so the delta races.
+    Consequence, and it is the one a reader would otherwise infer wrongly from the phase's
+    headline: **under breakage run 1 these particular cases attribute nothing to either
+    enforcement layer.** Their rename twins are where the same refusals get a real oracle, which
+    is why every nameless case is routed through both endpoints.
+  - **The island half**, as always (§7), and it sides with the card islands rather than
+    `GeneratorForm`: neither deck input carries `maxLength` (measured), so their over-length
+    branch is the branch a user meets. Carried by the browser matrix in the change's
+    `verification.md`.
+  - **`SUPABASE_UNCONFIGURED_MESSAGE`'s branch is asserted nowhere**, deliberately — reaching it
+    needs `createClient() === null`, i.e. an `astro:env/server` double, and §6.9 admits one only
+    for a claim unreachable otherwise. It is a set member and is covered as such by the whole-set
+    control.
+  - **`role="alert"` on the page-level banner buys the WEAKER half.** `ServerError.tsx:12-19`
+    records the distinction and this surface is the weak case: the banner arrives by a full-page
+    redirect, so the live region is present at MOUNT. The claim taken is that the node is
+    **exposed as an alert in the accessibility tree** — verified — and **announcement is not
+    claimed**. The real gain is that a hand-rolled thirteenth *render* became the thirteenth
+    *call site* of one component: `grep -rn "<ServerError" src/` now returns **13 JSX usages
+    across 12 files** (up from C10X-34's enumerated 12 across 11), and
+    `decks/[publicId]/index.astro:170` is the first of them in an `.astro` file rather than an
+    island. Counted by enumeration, not by adding one to the previous figure — this file has
+    already recorded that exact count being wrong once.
+  - **Nothing observes the URL cleanup automatically.** No assertion reads `window.location`; the
+    islands' `replaceState` strip is browser-checked only.
+  - **The page guard proves the read is lexically WRAPPED**, not that the wrapped value reaches
+    `serverError`. Three files, three claims — helper, wiring, producers — and a green run of any
+    one says nothing about the other two.
+  - **`?error=` producers outside this surface are untouched.** The set and its guard cover the
+    six redirect-style deck/card routes and the three deck pages. `AUTH_MESSAGES` stays a
+    **separate** set on purpose (a mapper with its own reachability record and mutation run;
+    merging would give each surface the other's vocabulary), and the JSON endpoints keep their
+    JSON bodies.
+  - **The cloud's data and schema.** Every assertion runs against the local stack, and there is
+    **no migration**: `deck_name_check` ships in `20260705180246_init_core_schema.sql` and long
+    predates this change, so the drift gate is not involved and nothing was pushed.
+
+  Full evidence — every breakage edit, its observed failure string, its red/green split with the
+  denominator, the constraint-definition diff, the behavioural probe and each verified restore:
+  `context/changes/deck-form-hardening/verification.md` (after archiving:
+  `context/archive/<date>-deck-form-hardening/verification.md`).
 
 ### 6.7 Adding a test for the SRS / study path
 
@@ -2306,14 +2476,20 @@ that are native `<form method="POST">` targets — deck rename/delete, card crea
 like. This subsection is the difference; everything §6.3 and §6.4 say still applies on top
 of it.
 
-- **Location**: `tests/validation/cards.test.ts` for a **content rule**;
+- **Location**: `tests/validation/<resource>.test.ts` for a **content rule** — `cards.test.ts`,
+  and since C10X-37 `decks.test.ts`;
   `tests/isolation/*.test.ts` stays the **ownership** file (§6.2's one-file-per-resource
   rule is about the resource, and these two concerns are deliberately not mixed).
-- **Reference**: `tests/validation/cards.test.ts` — copy this one.
+- **Reference**: `tests/validation/cards.test.ts` — copy this one. `decks.test.ts` is the
+  second worked example and the one to read when your resource has no containing column.
 - **Run**: `npm test`, or one file with `npx vitest run tests/validation/cards.test.ts`.
   Local stack up (`npm run db:start`).
-- **Check §6.6 first**, as §6.2 requires: the C10X-30 entry tabulates what each claim
-  already rests on.
+- **Check §6.6 first**, as §6.2 requires: the C10X-30 and C10X-37 entries tabulate what each
+  claim already rests on.
+- **Shared helpers live in `tests/fixtures/redirect-cases.ts`** — `sized()` and `errorParam()`.
+  They were authored inline in `cards.test.ts` and extracted by C10X-37 when a second file
+  needed them verbatim; do not re-declare them, that is the drift `tests/fixtures/scoping.ts`
+  was extracted to end.
 
 Six facts that are invisible from the test file and will cost you an afternoon:
 
@@ -2508,6 +2684,27 @@ contributors should respect these unless the underlying assumption changes.
   > branch is the one a user actually meets. The server half is asserted
   > (`tests/validation/cards.test.ts`) and backed by a DB CHECK; the client half rests on the
   > manual browser checks in `context/changes/server-side-validation-test/verification.md`.
+  >
+  > **A fourth instance, and it belongs with the third rather than the second (C10X-37,
+  > 2026-07-31).** `CreateDeckModal` and `DeckActions` import `NAME_MIN`/`NAME_MAX`/
+  > `DECK_NAME_MESSAGE` from `src/lib/deck-limits.ts`, the same module `api/decks/index.ts` and
+  > `api/decks/[publicId].ts` import — so, as always, the two ends cannot disagree about the
+  > **value**, and that each end still enforces it is a separate claim of which only the server
+  > half is asserted (`tests/validation/decks.test.ts`). They side with the card islands, not with
+  > `GeneratorForm`, and this was **measured rather than assumed, at two layers**: in the browser
+  > neither `#deck-name` nor `#deck-rename` carries a `maxLength` attribute
+  > (`hasAttribute('maxlength')` → `false` on both), and in the source `maxLength` appears in
+  > `src/components/` **only in `GeneratorForm.tsx`** — twice, on its own new-deck name input and
+  > its textarea (`grep -rn "maxLength" src/components/`, the other two hits being comment lines).
+  > So nothing truncates the deck inputs first and the islands' over-length branch is the branch a
+  > user actually meets. Note the asymmetry inside one bound: the generate surface's new-deck field
+  > IS input-stopped at `NAME_MAX` while the two deck forms' are not, so the same rule is reachable
+  > through one form and sealed behind another. Their guard runs `.trim()` then 1..100 and `preventDefault()`s, which is why
+  > the server's over-length branch is unreachable through the hydrated UI — Risk #6's premise,
+  > not an argument against testing the server. The client half rests on the browser matrix in
+  > `context/changes/deck-form-hardening/verification.md`, where the trap worth carrying is that
+  > the deck page renders a SECOND `[role="alert"]` (the OpenRouter config banner), so an unscoped
+  > `querySelector('[role="alert"]')` reads the wrong node and the case passes on it.
 
 ## 8. Freshness Ledger
 
@@ -2751,7 +2948,8 @@ contributors should respect these unless the underlying assumption changes.
 - **Roadmap H-03 / the auth `?error=` channel last proven by execution: 2026-07-31** (C10X-34,
   change folder `auth-error-copy`). Suite **257/257, 22 files after this change's impl-review**
   (254/254, 21 at phase completion; the review added `tests/lib/auth-error-param-guard.test.ts`, 3
-  cases, closing the one gap the entry above had disclosed rather than closed — see F2). At phase
+  cases, closing the one gap the entry above had disclosed rather than closed — see F2; the file
+  is `tests/lib/error-param-guard.test.ts` since C10X-37 renamed it, 2026-07-31). At phase
   completion it was 228/228, 19 at the Phase 0
   baseline; +17 in `tests/auth/errors.test.ts` — which went 38 → 55 — plus two new files,
   `tests/lib/config-status.test.ts` (6) and `tests/lib/no-env-access.test.ts` (3). Local stack
@@ -2782,10 +2980,13 @@ contributors should respect these unless the underlying assumption changes.
 - **What is NOT closed by this entry, and is named rather than left to be inferred**: the island
   and `.astro` halves of every claim above (§7 — **with one exception added by this change's
   impl-review**: a page that stops calling `ownedAuthMessage` now fails
-  `tests/lib/auth-error-param-guard.test.ts`, so that one sentence in the parenthesis no longer
+  `tests/lib/error-param-guard.test.ts` — the file this review added as
+  `auth-error-param-guard.test.ts`, renamed by C10X-37 on 2026-07-31 when the deck surface got
+  the same guard — so that one sentence in the parenthesis no longer
   holds; the `replaceState` strip and `Layout.astro`'s call are unchanged),
   `AUTH_UNAVAILABLE_MESSAGE`, the five inference-only GoTrue codes,
-  the two deck endpoints (**C10X-37**), auth input validation (**C10X-36**) and the English auth
+  the two deck endpoints (**closed 2026-07-31 by C10X-37**; they were open when this entry was
+  written), auth input validation (**C10X-36**) and the English auth
   UI (**C10X-19**). §6.6's C10X-34 entry carries each with its reason.
 - **The impl-review left one live vector with an owner rather than a fix** (F1): the three deck
   pages still read `?error=` unconstrained into the same `ServerError` banner — the class this
@@ -2793,6 +2994,13 @@ contributors should respect these unless the underlying assumption changes.
   `follow-ups/review-fixes.md` and named in §6.6's does-NOT-prove list; **to be ticketed via
   `/jira-backlog-sync`**. Its first step is the enumeration this review did not do: confirm the
   six deck endpoints' `?error=` values are a closed set of literals.
+  > **Closed 2026-07-31 by C10X-37** (`deck-form-hardening`), and it never got a key of its own —
+  > it shipped under C10X-37's by an explicit scope decision recorded in that change's
+  > `change.md`, so a future reader looking for a follow-up whose key never existed finds this
+  > line instead. The enumeration named as "the first step" was done and came back **eleven
+  > literals, a closed set** — no `.message`, `String(err)` or `JSON.stringify` on any deck-route
+  > branch — which is why the fix is `ownedAuthMessage`'s shape rather than a redesign. See §6.6's
+  > C10X-37 entry.
 
 - **Risk #7's known live defect closed and re-measured: 2026-07-31** (C10X-41, change folder
   `forced-language-prompt-fix`). Ordinary suite **262/262, 23 files**, seed `1785502719409`
@@ -2835,6 +3043,65 @@ contributors should respect these unless the underlying assumption changes.
   to hold — is recorded in
   `context/changes/forced-language-prompt-fix/follow-ups/admin-panel.md`. **To be ticketed via
   `/jira-backlog-sync`.**
+
+- **Risk #6's deck half and Risk #4's read half on the deck surface last proven by execution:
+  2026-07-31** (C10X-37, change folder `deck-form-hardening`; the documents were synced the
+  following day, the measurements are all from the 31st). Suite **298/298, 26 files**, seed
+  `1785534827060` at the baseline and `1785535019998` after the last restore — 266/266, 24 at the
+  Phase 3 baseline; **+12** in the new `tests/validation/decks.test.ts` (16 cases, of which 4 were
+  Phase 2's own malformed-body evidence), **+6** in `tests/lib/redirect-errors.test.ts`, **+9** in
+  `tests/validation/signed-out.test.ts`, and **+5** in the page guard, which went 3 → 8. Files
+  move by **2**, not 3, because the page guard replaced an existing file rather than adding one —
+  and the wording matters, because "it is a `git mv`" (which both this entry and the change's
+  Phase 5 note first said) does not survive a check: the move came with a rewrite, so at the
+  default similarity threshold **git records `D` + `A`, not `R`**, and `git log --follow` shows
+  nothing before the commit. Rename detection needs `-M30%` or lower, where it reports
+  **`R031`** — 31% of the file survived. The +2 is verifiable on its own; the provenance is not,
+  from git alone. Local stack up, `OPENROUTER_API_KEY` unset, `npx tsc --noEmit`
+  exit 0, `npm run lint` exit 0 (the same 6 pre-existing `no-console` warnings in
+  `evals/generation-quality.eval.ts`, unchanged), `npm run build` exit 0, and
+  `git diff -- src/ supabase/` **empty** after every one of the five breakage restores, each
+  additionally verified by per-file **MD5** against a pristine copy taken before the first edit.
+- **The pair separated the layers in both directions, and the passing assertions are half the
+  evidence.** Run 1: **3 of 16 red on the message**, oracles passing. Run 2: **4 of 16 red on the
+  oracles**, message never reached. Recorded with their observed strings in §6.6's C10X-37 entry
+  rather than summarised, because a split is a claim about a run.
+- **One prediction was rounder than the run, as usual here.** The `ownedRedirectMessage` identity
+  neuter was predicted to turn "the rejection cases" red and turns **2 of 6** — the second being
+  the `""` half of the empty-parameter case, since `null` still maps to `null` under the identity.
+  Same discipline as C10X-29's `missingLocal` neuter, C10X-30's case 8 and C10X-34's check E.
+- **Restoring the CHECK needed the forbidden rows deleted first, and this time it worked.** The
+  suite persisted **four** rows `deck_name_check` forbids while it was absent — three create-side
+  names and the shared rename fixture, renamed to 101 characters — all carrying the run's own
+  suffix, all inspected before deletion. That is the procedure C10X-27's
+  `deck_session_size_check` restore discovered the hard way (`violated by some row`, *after* the
+  evidence was collected). The `pg_get_constraintdef` before/after `diff` came back empty **and**
+  the bound was probed behaviourally in a rolled-back transaction, because a text match reads
+  identical for a constraint that came back `NOT VALID`.
+- **Three live comments that told a contributor this class was open are now dated statements that
+  it is closed**: `src/lib/forms.ts` (four callers → six), `src/lib/generation-limits.ts` (the
+  "deliberately NOT here: the deck-name bound, which lives in six places" leftover now points at
+  `deck-limits.ts`), and `tests/lib/forms.test.ts`'s header. The `forms.ts` paragraph has now said
+  three different things and the history is kept in place, because each correction was in the
+  direction that reads as reassurance.
+- **The rename's three pointers were repointed, which is the failure this ledger has recorded
+  twice** (C10X-28's evidence paths, C10X-34's denominators): §6.6's C10X-34 bullet and two §8
+  entries pointed at `tests/lib/auth-error-param-guard.test.ts`. The archived
+  `2026-07-30-auth-error-copy/reviews/impl-review.md:128` reference is **left as written** — an
+  archived artifact takes a dated correction, never a rewrite, and this file now carries that
+  correction.
+- **What is NOT closed by this entry, and is named rather than left to be inferred**: the two deck
+  islands' own 1..100 guard (§7's fourth instance — and they carry **no** `maxLength`, measured,
+  so that branch is the one a user meets), `SUPABASE_UNCONFIGURED_MESSAGE`'s branch, announcement
+  of the page-level banner (exposure in the accessibility tree is the claim; announcement is
+  not), the URL cleanup (browser-checked only), `?error=` producers outside the deck/card
+  surface, and — the one a reader would otherwise infer wrongly from the headline — **the nameless
+  CREATE refusals, which have no row oracle and therefore attribute nothing to either enforcement
+  layer**. §6.6's C10X-37 entry carries each with its reason.
+- **No migration, and that is a fact rather than an omission.** `deck_name_check` ships in
+  `20260705180246_init_core_schema.sql` and long predates this change, so nothing is pushed to
+  the cloud and the C10X-29 drift gate is not involved. The only cloud-facing residue is the
+  usual one: every assertion here ran against the local stack.
 
 Refresh (`/10x-test-plan --refresh`) when:
 
