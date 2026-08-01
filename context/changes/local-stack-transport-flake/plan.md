@@ -716,19 +716,19 @@ wiped by `supabase stop` — it is not state anything else depends on. Rollback 
 
 #### Automated
 
-- [ ] 1.1 `npx vitest run tests/lib/kong-keepalive.test.ts` passes
-- [ ] 1.2 `disable-kong-keepalive.ts` exits 0 and prints the before/after keepalive triple
-- [ ] 1.3 `.kong_env` shows `upstream_keepalive_pool_size = 0` (read with `MSYS_NO_PATHCONV=1 docker exec …`)
-- [ ] 1.4 Re-running the script exits 0, reports "already applied", `StartedAt` unchanged
-- [ ] 1.5 `npm test` passes in full against the recreated Kong
-- [ ] 1.6 `npm run lint` exits 0
-- [ ] 1.7 The restore path is exercised: a bogus `docker run` argument fails the recreation after `docker rm -f`, the script restores lever-less, prints the recovery, and still exits non-zero
+- [x] 1.1 `npx vitest run tests/lib/kong-keepalive.test.ts` passes
+- [x] 1.2 `disable-kong-keepalive.ts` exits 0 and prints the before/after keepalive triple
+- [x] 1.3 `.kong_env` shows `upstream_keepalive_pool_size = 0` (read with `MSYS_NO_PATHCONV=1 docker exec …`)
+- [x] 1.4 Re-running the script exits 0, reports "already applied", `StartedAt` unchanged
+- [x] 1.5 `npm test` passes in full against the recreated Kong
+- [x] 1.6 `npm run lint` exits 0
+- [x] 1.7 The restore path is exercised: a bogus `docker run` argument fails the recreation after `docker rm -f`, the script restores lever-less, prints the recovery, and still exits non-zero
 
 #### Manual
 
-- [ ] 1.8 `npx supabase status` reports the stack healthy and the API reachable on 54321
-- [ ] 1.9 `npx supabase stop` leaves no orphaned `supabase_kong_*` container
-- [ ] 1.10 `npx supabase start` plus the script returns the stack to `pool_size = 0`
+- [x] 1.8 `npx supabase status` reports the stack healthy and the API reachable on 54321
+- [x] 1.9 `npx supabase stop` leaves no orphaned `supabase_kong_*` container
+- [x] 1.10 `npx supabase start` plus the script returns the stack to `pool_size = 0`
 
 ### Phase 2: Wire it into `db:start` and CI
 

@@ -1,7 +1,7 @@
 ---
 change_id: local-stack-transport-flake
 title: Make the retried-write seams loud
-status: plan_reviewed
+status: implementing
 created: 2026-08-01
 updated: 2026-08-01
 archived_at: null
