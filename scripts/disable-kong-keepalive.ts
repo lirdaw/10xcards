@@ -122,6 +122,24 @@ function inspectSpec(container: string, network: string, image: string): KongCon
     );
   }
 
+  // This function is an ALLOWLIST, and an allowlist silently drops whatever it does not name.
+  // Measured on the live container: `Binds` is null and `Mounts` is empty, so there is no
+  // defect today — but the module's contract is a faithful replacement, and NEITHER of the
+  // runner's two oracles could see this gap. `kong health` is process-local and `.kong_env`
+  // reports settings, not storage, so a CLI upgrade that added a bind mount would produce a
+  // container that is up, healthy, verified and subtly wrong. Fail closed instead, and do it
+  // HERE — before the `docker commit`/`docker rm -f` below, so the refusal costs nothing and
+  // the stack is untouched. Added by C10X-39's impl-review, F4.
+  const binds = (inspectJson(container, "{{json .HostConfig.Binds}}") as string[] | null) ?? [];
+  const mounts = (inspectJson(container, "{{json .Mounts}}") as unknown[] | null) ?? [];
+  if (binds.length > 0 || mounts.length > 0) {
+    throw new Error(
+      `container ${container} carries ${binds.length} bind(s) and ${mounts.length} mount(s), which this ` +
+        `recreation does not reproduce. Refusing before anything is changed — the replacement would come ` +
+        `up healthy and be missing them. Re-derive inspectSpec() in scripts/disable-kong-keepalive.ts.`,
+    );
+  }
+
   return {
     name: container,
     image,
@@ -151,6 +169,16 @@ function waitForHealthy(container: string): void {
     };
 
     if (state.Health?.Status === "healthy") return;
+    // A container with NO healthcheck at all is running-and-done, not unhealthy — and this
+    // branch mirrors `buildRunArgs`, which already tolerates `spec.healthcheck` being absent
+    // or `NONE`. Without the mirror the two halves disagree: a Kong created without one could
+    // never satisfy the line above, so the poll would burn its full timeout, throw, and fire
+    // `attemptRestore` — which recreates it the same way and burns the timeout again. Net
+    // effect: a WORKING proxy destroyed, rebuilt, and the script exiting non-zero two minutes
+    // later. Unreachable today (the CLI sets `["CMD-SHELL","kong health"]`, verified on the
+    // live container), and this exists so it stays unreachable rather than latent. Added by
+    // C10X-39's impl-review, F3.
+    if (state.Health === undefined && state.Running) return;
     if (!state.Running) throw new Error(`container ${container} is ${state.Status}, not running`);
     if (Date.now() > deadline) {
       throw new Error(
@@ -239,16 +267,25 @@ function main(): number {
   docker(["rm", "-f", container]);
 
   // Past this point the stack has no proxy on 54321, so every failure restores.
+  //
+  // The verification READ is inside this window too, and that placement is deliberate rather
+  // than incidental (C10X-39 impl-review, F2). Left outside, a throwing `docker exec` — a
+  // daemon hiccup, or a race just after `healthy` — escaped to the top-level catch, which
+  // announces "The local stack must be running before this step" and "Nothing was changed":
+  // both false here, since Kong has just been recreated, and both aimed at a developer who
+  // arrived through `npm run db:start`. No restore was attempted either. It exits non-zero
+  // either way, so this was a red with the wrong explanation, not a false green.
+  let after;
   try {
     docker(buildRunArgs(spec));
     waitForHealthy(container);
+    after = readKeepAlive(container);
   } catch (err) {
     console.error(`kong-keepalive: recreation failed — ${String(err)}`);
     attemptRestore(spec);
     return 1;
   }
 
-  const after = readKeepAlive(container);
   console.log(`kong-keepalive: after  — ${describe(after)}`);
 
   // The one assertion that matters. Kong silently ignores an env var it does not recognise,

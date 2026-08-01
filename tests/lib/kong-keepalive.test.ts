@@ -171,6 +171,46 @@ const REAL_SPEC = {
   },
 };
 
+/**
+ * A SECOND container spec, wholly fabricated — no value here appears on this machine's stack.
+ *
+ * It exists because every case below that reads `REAL_SPEC` is blind to the one property the
+ * module's contract names first: that `buildRunArgs` reproduces the container **from the
+ * inspected spec rather than from literals**. `REAL_SPEC`'s values ARE the literals a
+ * hardcoding implementation would reach for, so an assertion against it passes either way.
+ * Measured, not argued (C10X-39 impl-review F1): replacing the `Object.entries(spec.labels)`
+ * loop in `buildRunArgs` with three hardcoded `--label` pushes left the file **0 of 18 red**.
+ *
+ * The concrete cost of that blindness is the failure the label case below says it exists to
+ * prevent, one clone over: a developer whose `supabase/config.toml` carries a different
+ * `project_id` gets a container missing THEIR `com.supabase.cli.project`, which `supabase
+ * stop` then orphans — and it collides on the name at the next `supabase start`.
+ *
+ * Same shape as tests/lib/config-status.test.ts, where the real env-derived constant appears
+ * in no assertion for the same reason: a fixture you fabricate is the only one that can tell
+ * "read from the input" apart from "happens to match this machine".
+ */
+const OTHER_SPEC = {
+  name: "supabase_kong_other-project",
+  image: "supabase-kong-keepalive-other-project:latest",
+  user: "nobody",
+  labels: {
+    "com.docker.compose.project": "other-project",
+    "com.supabase.cli.project": "other-project",
+  },
+  env: ["KONG_DATABASE=off", "ASSET=oss"],
+  restartPolicy: "always",
+  portBindings: { "8000/tcp": [{ HostIp: "", HostPort: "64321" }] },
+  network: "supabase_network_other-project",
+  aliases: ["kong", "gateway.internal"],
+  healthcheck: {
+    Test: ["CMD-SHELL", "kong health"],
+    Interval: 5_000_000_000,
+    Timeout: 2_000_000_000,
+    Retries: 3,
+  },
+};
+
 describe("buildRunArgs", () => {
   // Both labels carry `project_id`, and both are load-bearing rather than cosmetic: a
   // recreated container missing them is orphaned by `supabase stop` — it survives, keeps
@@ -242,11 +282,41 @@ describe("buildRunArgs", () => {
     expect(args).not.toContain("--entrypoint");
   });
 
-  // THE POSITIVE CONTROL, and it is load-bearing rather than decorative: without it a
-  // `buildRunArgs` returning one fixed vector satisfies every assertion above. Re-running
-  // the script inspects a container that ALREADY carries the lever, so the pass-through must
-  // strip it and the single appended copy must leave the vector byte-identical — otherwise
-  // re-application would accumulate a second `-e` on every run.
+  // THE POSITIVE CONTROL for the module's first contract — "reproduce from the INSPECTED
+  // spec, not from literals" — and it is the only case here that can tell those two apart.
+  // Every assertion above reads `REAL_SPEC`, whose values are exactly the literals a
+  // hardcoding implementation would use, so all of them pass over one. Measured rather than
+  // reasoned about (C10X-39 impl-review F1): hardcoding the three `--label` pushes in
+  // `buildRunArgs` left the file 0 of 18 red. This case fabricates every value instead, so a
+  // vector built from anything other than its argument fails it.
+  it("builds from the inspected spec, not from this machine's literals", () => {
+    const args = buildRunArgs(OTHER_SPEC);
+    const joined = args.join(" ");
+
+    // Nothing from REAL_SPEC may survive into a vector built from a different container.
+    expect(joined).not.toContain("10x-astro-starter");
+
+    expect(args).toContain("com.supabase.cli.project=other-project");
+    expect(args).toContain("com.docker.compose.project=other-project");
+    expect(args).toContain("supabase_network_other-project");
+    expect(args).toContain("gateway.internal");
+    expect(joined).toContain("-p 64321:8000");
+    expect(joined).toContain("--user nobody");
+    expect(joined).toContain("--restart always");
+    // The nanosecond→duration conversion has to track the spec too, not emit `10s` by rote.
+    expect(joined).toContain("--health-interval 5s");
+    expect(joined).toContain("--health-timeout 2s");
+    expect(joined).toContain("--health-retries 3");
+    expect(args.at(-1)).toBe("supabase-kong-keepalive-other-project:latest");
+  });
+
+  // NOT a positive control, despite what this comment used to claim (corrected by C10X-39's
+  // impl-review, F1): `toEqual` between two calls of the same function is trivially satisfied
+  // by a `buildRunArgs` returning one fixed vector, since both sides are then that same
+  // vector. What it genuinely pins is idempotency, which is its own claim worth keeping —
+  // re-running the script inspects a container that ALREADY carries the lever, so the
+  // pass-through must strip it and the single appended copy must leave the vector
+  // byte-identical, or re-application would accumulate a second `-e` on every run.
   it("is idempotent: a spec that already carries the lever produces the identical vector", () => {
     const alreadyApplied = {
       ...REAL_SPEC,

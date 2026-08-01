@@ -1,8 +1,80 @@
 # Verification — local-stack-transport-flake (C10X-39)
 
-> Evidence for Phases 1–2 is carried by their Progress SHAs (`0823bb8`, `b6ce30c`) and by the
-> criteria they were checked against in `plan.md`. This file starts at Phase 3, which is the
-> first phase whose deliverable IS a measurement rather than code.
+> Phases 1–2 originally recorded nothing here — their evidence was carried by the Progress SHAs
+> (`0823bb8`, `b6ce30c`) alone. The impl-review (F5) named that as a gap, because criterion **1.7**
+> is a deliberate-breakage run for the most destructive code in the change and this project
+> records every such run with its observed output. The section below closes it by **re-running**
+> the criteria rather than by writing down what was believed.
+
+## Phase 1–2 — re-derived during the impl-review (2026-08-01)
+
+Added by the impl-review, not by Phase 1. Every row was executed against the files as they stand
+after the review's own fixes (F1–F4), so this doubles as the regression check for those edits —
+they touch `inspectSpec`, `waitForHealthy` and the placement of the verification read, i.e. the
+destructive path itself.
+
+| Criterion | Re-run result |
+| --- | --- |
+| 1.1 `npx vitest run tests/lib/kong-keepalive.test.ts` | **19 passed (19)** (18 before F1 added the spec-derivation control) |
+| 1.2 script exits 0 and prints the before/after triple | exercised on the FULL path, not the short-circuit: Kong was first put back to stock through the shipped `buildRunArgs(spec, KONG_KEEPALIVE_STOCK)`, then `npm run db:kong` printed `before — pool_size = 60 …` → `after — pool_size = 0 …` → `OK`, exit **0** |
+| 1.3 `.kong_env` | `upstream_keepalive_pool_size = 0` (`MSYS_NO_PATHCONV=1 docker exec …`) |
+| 1.4 re-run is idempotent | `already applied — nothing to do.`, exit 0; `StartedAt` byte-identical across the run (`2026-08-01T15:14:23.818514965Z` before and after) |
+| 1.5 `npm test` against the recreated Kong | **333 passed (333), 29 files** |
+| 1.6 / 2.4 `npm run lint` | exit 0 (the 6 pre-existing `no-console` warnings in `evals/`, unchanged) |
+| 2.1 `db:start` chaining | `"db:start": "supabase start && npm run db:kong"` — `&&` verified to gate on `supabase start`'s exit code, and `supabase start` on an already-running stack exits 0, so the chain reaches `db:kong` |
+
+### 1.7 — the restore path, with its observed output
+
+The criterion the review flagged. A bogus argument (`--impl-review-bogus-flag`) was pushed into
+`buildRunArgs` immediately before the image reference, so `docker run` fails **after**
+`docker rm -f` has already removed the proxy. Observed:
+
+```
+unknown flag: --impl-review-bogus-flag
+Usage:  docker run [OPTIONS] IMAGE [COMMAND] [ARG...]
+
+kong-keepalive: attempting to restore the stock container so the stack keeps working…
+unknown flag: --impl-review-bogus-flag
+kong-keepalive: the restore also failed (Error: Command failed: docker run -d --name supabase_kong_10x-astro-starter …).
+kong-keepalive: recover with `npx supabase stop && npx supabase start`.
+EXIT=1
+```
+
+Three things this shows, and one it shows by accident that is worth more than the rest:
+
+- the failure is caught past `docker rm -f`, the restore **is** attempted, the recovery command
+  **is** printed, and the script still exits **non-zero** — the contract in plan Phase 1 §2;
+- the restore's own failure is reported honestly (`the restore also failed (…)`) rather than
+  swallowed, and does not turn the exit code green;
+- **the restore failed for a reason the injection guarantees**, and that is the accident worth
+  recording: the bogus flag lives inside `buildRunArgs`, which the restore path also calls, so
+  this injection cannot ever produce a *successful* restore. It therefore exercises the worst
+  branch — run fails **and** restore fails — which is exactly the double failure the CI step's
+  comment names as the case `continue-on-error` lets through. A future re-run wanting to see a
+  *succeeding* restore must inject the fault somewhere the restore does not share (e.g. a bad
+  image reference passed only to the first `docker run`).
+
+Restored afterwards: the injection reverted (`git checkout --`, `git diff --stat -- scripts/`
+empty, tree-wide `grep -rn "impl-review-bogus" scripts/ tests/` returns nothing), the container
+rebuilt from the committed image through the same shipped `buildRunArgs` at
+`KONG_KEEPALIVE_ENV`, and the end state re-verified: `Up (healthy)`,
+`upstream_keepalive_pool_size = 0`, both project labels present
+(`com.supabase.cli.project` / `com.docker.compose.project` = `10x-astro-starter`), suite
+**333/333**.
+
+### What this section still does NOT cover
+
+**1.9 — `npx supabase stop` leaves no orphaned `supabase_kong_*` container — was NOT re-run
+here**, and is the one Phase 1 criterion still resting on its SHA alone. It is the check that
+proves the labels were replicated correctly, and the review did not repeat it because stopping
+the stack mid-review would have cost the running database for a claim the label assertion above
+covers indirectly (both labels verified present on the rebuilt container). Stated rather than
+folded into the table, because "re-derived" must not be read as "all of it".
+
+Criteria **2.3** and **2.5** remain open by the decision recorded in `plan.md` and `change.md`:
+`.github/workflows/ci.yml` triggers only on `push: branches: [main]` and
+`pull_request: branches: [main]` — verified by reading the file during the review — so a
+feature-branch push runs nothing at all. They are read off the PR's `ci` job at `/ship`.
 
 ## Phase 3 — Census: enumerate the silent write seams by experiment
 
