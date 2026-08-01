@@ -40,3 +40,38 @@ export const NAME_MAX = 100;
  * the banner does not change wording, it disappears.
  */
 export const DECK_NAME_MESSAGE = `Nazwa talii musi mieć od ${NAME_MIN} do ${NAME_MAX} znaków`;
+
+/**
+ * The keyword-search box's bound (FR-015).
+ *
+ * WHY IT EXISTS, recorded because the audit that added it also concluded the scarier reading was
+ * WRONG and the next reader deserves both halves (C10X-40, 2026-08-01).
+ *
+ * `?q=` is the only query parameter in this app whose raw value is rendered as TEXT —
+ * `FlashcardWorkspace.tsx` puts it inside `Brak fiszek pasujących do „…"` and
+ * `DeckContentToolbar.tsx` seeds the input with it. That is the same content-injection SHAPE that
+ * `ownedRedirectMessage` closes on `?error=`, so it was audited as a candidate for the same
+ * treatment. It is not one, for a reason that is structural rather than a judgement call: the
+ * reflection lives ONLY on `/decks/<publicId>`, and that page answers a hard 404 for a deck the
+ * caller does not own (`[publicId]/index.astro:20-34`). **An attacker would need the UUID of the
+ * victim's own deck**, which they do not have and cannot guess — where the `?error=` vector needed
+ * only `/decks`, an address everyone knows. The text also lands in neutral copy rather than in the
+ * red banner that reads as the app speaking. So: no vouching set, no equality guard, deliberately.
+ *
+ * What DID survive the audit is unremarkable and is what this constant fixes: the value was
+ * unbounded, so it was reflected at unbounded length and passed at unbounded length to the search
+ * RPC. Clamping is hygiene, not a security control — do not add one here believing it is.
+ */
+export const QUERY_MAX = 200;
+
+/**
+ * The `?q=` value as every consumer must see it: trimmed, then clamped.
+ *
+ * A function rather than two inline operations in the page frontmatter, for §6.1's reason: an
+ * `.astro` frontmatter is unreachable by every layer in this suite, so a decision left there
+ * cannot be asserted at all. Extracted, it costs one import and gains `tests/lib/deck-limits.test.ts`.
+ * Trim BEFORE the clamp, so 200 characters of padding cannot push real text past the cap.
+ */
+export function searchQuery(raw: string | null): string {
+  return (raw ?? "").trim().slice(0, QUERY_MAX);
+}

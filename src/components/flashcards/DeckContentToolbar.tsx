@@ -1,6 +1,7 @@
 import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { QUERY_MAX } from "@/lib/deck-limits";
 
 interface Props {
   // Opens the create-card modal, whose state lives in the parent workspace.
@@ -40,6 +41,9 @@ export function DeckContentToolbar({ onAddCard, deckPublicId, query }: Props) {
               type="search"
               name="q"
               defaultValue={query}
+              // Mirrors the server's clamp (`searchQuery`) so the two ends agree on the number.
+              // The server is the enforcer — this only stops the box accepting what it would cut.
+              maxLength={QUERY_MAX}
               placeholder="Szukaj w fiszkach…"
               aria-label="Szukaj w fiszkach"
               className="w-48 border-white/15 pl-8 text-white placeholder:text-blue-100/40 sm:w-64"
