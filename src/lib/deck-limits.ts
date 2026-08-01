@@ -40,3 +40,58 @@ export const NAME_MAX = 100;
  * the banner does not change wording, it disappears.
  */
 export const DECK_NAME_MESSAGE = `Nazwa talii musi mieć od ${NAME_MIN} do ${NAME_MAX} znaków`;
+
+/**
+ * The keyword-search box's bound (FR-015).
+ *
+ * WHY IT EXISTS, recorded because the audit that added it also concluded the scarier reading was
+ * WRONG and the next reader deserves both halves (C10X-40, 2026-08-01).
+ *
+ * `?q=` is the only query parameter in this app whose raw value is rendered as TEXT —
+ * `FlashcardWorkspace.tsx` puts it inside `Brak fiszek pasujących do „…"` and
+ * `DeckContentToolbar.tsx` seeds the input with it. That is the same content-injection SHAPE that
+ * `ownedRedirectMessage` closes on `?error=`, so it was audited as a candidate for the same
+ * treatment. It is not one, for a reason that is structural rather than a judgement call: the
+ * reflection lives ONLY on `/decks/<publicId>`, and that page answers a hard 404 for a deck the
+ * caller does not own (`[publicId]/index.astro:20-34`). **An attacker would need the UUID of the
+ * victim's own deck**, which they do not have and cannot guess — where the `?error=` vector needed
+ * only `/decks`, an address everyone knows. The text also lands in neutral copy rather than in the
+ * red banner that reads as the app speaking. So: no vouching set, no equality guard, deliberately.
+ *
+ * What DID survive the audit is unremarkable and is what this constant fixes: the value was
+ * unbounded, so it was reflected at unbounded length and passed at unbounded length to the search
+ * RPC. Clamping is hygiene, not a security control — do not add one here believing it is.
+ */
+export const QUERY_MAX = 200;
+
+/**
+ * The `?q=` value as every consumer must see it: trimmed, then clamped.
+ *
+ * A function rather than two inline operations in the page frontmatter, for §6.1's reason: an
+ * `.astro` frontmatter is unreachable by every layer in this suite, so a decision left there
+ * cannot be asserted at all. Extracted, it costs one import and gains `tests/lib/deck-limits.test.ts`.
+ * Trim BEFORE the clamp, so 200 characters of padding cannot push real text past the cap.
+ *
+ * The cap is in UTF-16 code units — the same unit HTML gives `maxlength`, so the input stop and
+ * this clamp agree exactly — and the trailing half-character is DROPPED (C10X-40 impl-review F4).
+ * `.slice` alone cut by code unit with no regard for pairs, so 199 ASCII characters followed by an
+ * astral character (an emoji) produced a 200-unit string ending in a **lone high surrogate**: an
+ * ill-formed string, which supabase-js serialises into the `search_flashcards_in_deck` request body
+ * and which the page renders into `Brak fiszek pasujących do „…"`. A character that does not fit is
+ * now removed rather than halved; one that fits is untouched.
+ *
+ * Deliberately NOT `[...str]` or `Intl.Segmenter`. Spreading counts code points, which still splits
+ * a ZWJ sequence (a family emoji, a flag) into components — half a fix plus an `eslint-disable` for
+ * `@typescript-eslint/no-misused-spread`, whose warning about exactly that is correct. Segmenting
+ * by grapheme would be the textually right answer and is out of proportion to a search box whose
+ * clamp this very module declares to be hygiene rather than a control. Well-formedness is the
+ * property worth having here; grapheme integrity is not.
+ *
+ * §6.10's `char_length`-vs-`.length` warning does not apply: it is about a second ENFORCER
+ * disagreeing, and `?q=` has none — it is an RPC argument, not a stored column.
+ */
+export function searchQuery(raw: string | null): string {
+  const clamped = (raw ?? "").trim().slice(0, QUERY_MAX);
+  // A high surrogate in last position lost its pair to the cut; nothing else can be unpaired here.
+  return /[\uD800-\uDBFF]$/.test(clamped) ? clamped.slice(0, -1) : clamped;
+}
