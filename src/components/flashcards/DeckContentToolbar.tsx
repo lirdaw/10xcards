@@ -41,8 +41,11 @@ export function DeckContentToolbar({ onAddCard, deckPublicId, query }: Props) {
               type="search"
               name="q"
               defaultValue={query}
-              // Mirrors the server's clamp (`searchQuery`) so the two ends agree on the number.
-              // The server is the enforcer — this only stops the box accepting what it would cut.
+              // Mirrors the server's clamp (`searchQuery`) so the two ends agree on the number AND
+              // on the unit — HTML counts `maxlength` in UTF-16 units and so does the clamp, which
+              // is why it drops a half-cut character rather than counting code points
+              // (C10X-40 impl-review F4). The server is the enforcer; this only stops the box
+              // accepting what it would cut.
               maxLength={QUERY_MAX}
               placeholder="Szukaj w fiszkach…"
               aria-label="Szukaj w fiszkach"

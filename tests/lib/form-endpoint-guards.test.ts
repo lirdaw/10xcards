@@ -79,6 +79,31 @@ function valuePositionLiterals(expression: string): string[] {
     .map((match) => match[0]);
 }
 
+/** `x.y === "z"` — a discriminator: compared and discarded, never the value that gets emitted. */
+const COMPARISON = /[\w$.[\]]+\s*[=!]==?\s*(?:"[^"]*"|'[^']*'|`[^`]*`|[\w$.[\]]+)/g;
+/** The one wrapper that is inert by construction — it encodes a value, it does not reach for one. */
+const INERT_WRAPPER = /\bencodeURIComponent\b/g;
+
+/**
+ * What is LEFT of a local's declaration once the closed set and the inert scaffolding are struck out.
+ *
+ * MENTIONING an owned name is not evidence, which is the hole this closes (C10X-40 impl-review F1):
+ * `error.code === "23505" ? DECK_NAME_TAKEN_MESSAGE : err.message` mentions one, carries no literal
+ * in value position, and still relays an upstream string past every other check in `rejection`.
+ * Measured at the time: that shape, `OWNED || err.message` and `OWNED + String(err)` were all
+ * accepted, so `err.message` could reach `?error=` with the whole suite green — the leak half of
+ * Risk #4, and the very "correct on what it looks at" shape this file was written against.
+ *
+ * The comparison is stripped FIRST and that ordering is load-bearing: a discriminator's own operand
+ * is a member access (`error.code`), so a residue test that ran before it would reject both locals
+ * this repo actually ships and the fix would have been reverted as a false positive.
+ */
+function computedResidue(declaration: string, owned: Set<string>): string {
+  let rest = declaration.replace(COMPARISON, " ");
+  for (const name of owned) rest = rest.replace(new RegExp(`\\b${name}\\b`, "g"), " ");
+  return rest.replace(INERT_WRAPPER, " ").replace(/\(\s*\)/g, " ");
+}
+
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = join(dir, entry.name);
@@ -246,8 +271,14 @@ describe("no deck route puts an inline literal into ?error=", () => {
 // It also closes the WRITE half (`test-plan.md` Risk #4), which until now was carried by a grep
 // quoted in prose: "no `.message`, `String(err)` or `JSON.stringify` on any redirect branch". The
 // rule below enforces that without naming those spellings — it demands POSITIVE evidence (the
-// value is a set member, or is built from one) rather than blacklisting the ways to leak, so a
-// spelling nobody thought of is refused by default.
+// value is a set member, or a local built from set members AND NOTHING ELSE) rather than
+// blacklisting the ways to leak, so a spelling nobody thought of is refused by default.
+//
+// The words "and nothing else" were an overstatement until 2026-08-01 (C10X-40 impl-review F1).
+// "Built from one" was checked by asking whether the declaration MENTIONED an owned name — which a
+// ternary, a `||` fallback and a `+` concatenation all satisfy while still relaying `err.message`.
+// The residue check in `computedResidue` is what makes this sentence true; read it before trusting
+// this one, because the gap it closed was invisible for exactly as long as this comment overpromised.
 //
 // WHY THE COUNT IS A FLOOR HERE, unlike the `toHaveLength(6)` above and the `toHaveLength(11)` in
 // `redirect-errors.test.ts`. Those pin populations where a new member is a DECISION worth stopping
@@ -266,10 +297,21 @@ describe("every ?error= value is a member of the closed set", () => {
     return new Set(match ? match[1].split(",").map((name) => name.trim().split(/\s+as\s+/)[0]) : []);
   }
 
-  /** The right-hand side of `const <name> = …;` in the same file, or null if it is not declared there. */
-  function localDeclaration(source: string, name: string): string | null {
-    const match = new RegExp(`const\\s+${name}\\s*=\\s*([^;]*);`).exec(source);
-    return match ? match[1] : null;
+  /**
+   * EVERY right-hand side of `const <name> = …;` in this file — all of them, not the first.
+   *
+   * First-match-wins was the defect (C10X-40 impl-review F2): a second local of the same name in a
+   * second exported handler was never inspected, so a clean `const msg = OWNED;` at the top vouched
+   * for a `const msg = err.message;` further down. These endpoints already export more than one
+   * handler, so a same-named local is an ordinary edit rather than a contrivance. Comment lines are
+   * dropped first, or a `const msg = "…"` written in prose becomes a candidate declaration.
+   */
+  function localDeclarations(source: string, name: string): string[] {
+    const code = source
+      .split(/\r?\n/)
+      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+      .join("\n");
+    return [...code.matchAll(new RegExp(`const\\s+${name}\\s*=\\s*([^;]*);`, "g"))].map((match) => match[1]);
   }
 
   /** Why this expression may not reach `?error=`, or null when it may. */
@@ -282,13 +324,21 @@ describe("every ?error= value is a member of the closed set", () => {
     if (!BARE_IDENTIFIER.test(value)) return `not an identifier: ${value}`;
     if (owned.has(value)) return null;
 
-    const declaration = localDeclaration(source, value);
-    if (declaration === null) return `\`${value}\` is neither imported from the closed set nor declared here`;
+    const declarations = localDeclarations(source, value);
+    if (declarations.length === 0) return `\`${value}\` is neither imported from the closed set nor declared here`;
 
-    const literals = valuePositionLiterals(declaration);
-    if (literals.length > 0) return `local \`${value}\` assigns a literal: ${literals.join(", ")}`;
-    if (![...owned].some((name) => new RegExp(`\\b${name}\\b`).test(declaration))) {
-      return `local \`${value}\` is not built from the closed set: ${declaration.trim()}`;
+    // EVERY declaration of the name must hold. One clean one does not vouch for a bad one further
+    // down the file — that is the shadowing hole, and "the first one is fine" is how it hid.
+    for (const declaration of declarations) {
+      const literals = valuePositionLiterals(declaration);
+      if (literals.length > 0) return `local \`${value}\` assigns a literal: ${literals.join(", ")}`;
+      if (![...owned].some((name) => new RegExp(`\\b${name}\\b`).test(declaration))) {
+        return `local \`${value}\` is not built from the closed set: ${declaration.trim()}`;
+      }
+      // …and the rest of it must be inert, or a set member is just a chaperone for a computed value.
+      if (/[.(]/.test(computedResidue(declaration, owned))) {
+        return `local \`${value}\` mixes the closed set with a computed value: ${declaration.trim()}`;
+      }
     }
     return null;
   }
@@ -338,12 +388,10 @@ describe("every ?error= value is a member of the closed set", () => {
 
   /** Every emission site, whatever its verdict — the walker's own reach. */
   function emissionCount(file: string): number {
-    const source = readFileSync(file, "utf8");
     const lines = codeLines(file);
     const helperNames = lines
       .filter(({ text }) => ERROR_URL_HELPER.test(text) && text.includes("error="))
       .map(({ text }) => ERROR_URL_HELPER.exec(text)?.[1] ?? "");
-    void source;
     return lines.reduce((total, { text }) => {
       const isDeclaration = ERROR_URL_HELPER.test(text) && text.includes("error=");
       const interpolations = isDeclaration ? 0 : [...text.matchAll(ERROR_INTERPOLATION)].length;
@@ -360,13 +408,25 @@ describe("every ?error= value is a member of the closed set", () => {
   // the claim below pass while inspecting zero emissions — the shape this whole file exists to
   // stop. The named files pin that BOTH idioms are reached: `decks/index.ts` interpolates inline,
   // `[publicId]/cards/index.ts` goes through the helper.
+  //
+  // THE FLOOR IS THE MEASURED VALUE, not a round number below it (C10X-40 impl-review F3). It sat
+  // at 25 against a measured 29, so up to four emissions could drop out of the walker's reach —
+  // by a reformat, or by a helper renamed so its declaration line no longer carries `error=` —
+  // with this control still green and the claim below inspecting less than it says. A floor is
+  // right for GROWTH (a new emission of already-vouched copy needs no thought); slack below the
+  // measured value gives away the shrink direction too, and shrink is the silent one.
+  //
+  // KNOWN LIMITATION, deliberately not closed here: the call-site regex runs per LINE, so a call
+  // Prettier has broken across lines (printWidth 120) matches nothing and is never inspected —
+  // not rejected, unexamined. Every other bypass in this file fails loud; this one does not. No
+  // call site is wrapped today, and this floor is what would notice if one became so.
   it("reaches every emission site, through both idioms", () => {
     const perFile = files
-      .map((file) => [relative(file, DECKS_API_DIR).split(sep).join("/"), emissionCount(file)] as const)
+      .map((file) => [relative(DECKS_API_DIR, file).split(sep).join("/"), emissionCount(file)] as const)
       .filter(([, count]) => count > 0);
     const total = files.reduce((sum, file) => sum + emissionCount(file), 0);
 
-    expect(total).toBeGreaterThanOrEqual(25);
+    expect(total).toBeGreaterThanOrEqual(29);
     expect(perFile.length).toBeGreaterThanOrEqual(6);
     expect(emissionCount(join(DECKS_API_DIR, "index.ts"))).toBeGreaterThan(0);
     expect(emissionCount(join(DECKS_API_DIR, "[publicId]", "cards", "index.ts"))).toBeGreaterThan(0);
@@ -375,13 +435,23 @@ describe("every ?error= value is a member of the closed set", () => {
   // The other half: the detector fires on each regression it claims to detect, and stays silent on
   // every shape that ships today. The four rejections are the four ways a value can enter the
   // channel without the set vouching for it.
-  it("rejects a literal, an upstream string, an unknown name and a literal-bearing local", () => {
+  it("rejects a literal, an upstream string, an unknown name, and a local that hides either one", () => {
     const owned = new Set(["CARD_SAVE_FAILED_MESSAGE", "DECK_NAME_TAKEN_MESSAGE"]);
     const source = [
       'const msg = error.code === "23505" ? DECK_NAME_TAKEN_MESSAGE : CARD_SAVE_FAILED_MESSAGE;',
       "const encoded = encodeURIComponent(CARD_SAVE_FAILED_MESSAGE);",
       'const drifted = "Nowy komunikat";',
       "const relayed = err.message;",
+      // The three shapes that USED to pass: each mentions an owned name, none carries a literal in
+      // value position, and all three still put an upstream string in the URL (impl-review F1).
+      'const smuggledTernary = error.code === "23505" ? DECK_NAME_TAKEN_MESSAGE : err.message;',
+      "const smuggledFallback = err.message || CARD_SAVE_FAILED_MESSAGE;",
+      "const smuggledConcat = CARD_SAVE_FAILED_MESSAGE + String(err);",
+      // A clean first declaration shadowed by a leaking second one in another handler (F2).
+      "const shadowed = CARD_SAVE_FAILED_MESSAGE;",
+      "export const PATCH = async () => {",
+      "  const shadowed = err.message;",
+      "};",
     ].join("\n");
 
     // Shipped shapes — all four must be accepted, or the guard gets weakened by the next person it
@@ -398,6 +468,12 @@ describe("every ?error= value is a member of the closed set", () => {
     expect(rejection("unknownName", owned, source)).toContain("neither imported");
     expect(rejection("drifted", owned, source)).toContain("assigns a literal");
     expect(rejection("relayed", owned, source)).toContain("not built from the closed set");
+    // …and the three that a set member alone used to chaperone through.
+    expect(rejection("smuggledTernary", owned, source)).toContain("mixes the closed set");
+    expect(rejection("smuggledFallback", owned, source)).toContain("mixes the closed set");
+    expect(rejection("smuggledConcat", owned, source)).toContain("mixes the closed set");
+    // …and a clean declaration must not vouch for a leaking redeclaration further down.
+    expect(rejection("shadowed", owned, source)).toContain("not built from the closed set");
   });
 
   // THE CLAIM. Every value that can reach `?error=` on a deck route is a member of the closed set

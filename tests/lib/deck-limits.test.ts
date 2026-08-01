@@ -36,6 +36,32 @@ describe("searchQuery — the ?q= clamp", () => {
     expect(searchQuery(atCap).length).toBe(QUERY_MAX);
     expect(searchQuery(`${atCap}b`).length).toBe(QUERY_MAX);
     expect(searchQuery("a".repeat(QUERY_MAX * 10)).length).toBe(QUERY_MAX);
+
+    // …and it keeps the HEAD, not the tail. Every assertion above uses one repeated character, so
+    // all four are satisfied by `slice(-QUERY_MAX)` — a clamp that silently returns the END of a
+    // long query (verified: that mutant survived the whole file). One heterogeneous string is what
+    // separates the two (C10X-40 impl-review F8).
+    expect(searchQuery(`x${"a".repeat(QUERY_MAX)}`)).toBe(`x${"a".repeat(QUERY_MAX - 1)}`);
+  });
+
+  it("never leaves half a character at the cut", () => {
+    // `.slice(0, QUERY_MAX)` counts UTF-16 units, so 199 ASCII plus one emoji produced a 200-unit
+    // string ending in a LONE HIGH SURROGATE — ill-formed, and that is what supabase-js serialises
+    // into the search RPC's request body and what the page renders into its own copy. Every other
+    // case in this file uses `"a".repeat(...)`, which is exactly why the clamp's own boundary
+    // assertions could not see it (C10X-40 impl-review F4).
+    const halved = searchQuery(`${"a".repeat(QUERY_MAX - 1)}😀tail`);
+
+    // The load-bearing assertion: no unpaired surrogate survives, whatever the length says.
+    expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(halved)).toBe(false);
+    // The character that did not fit is dropped whole, not halved.
+    expect(halved).toBe("a".repeat(QUERY_MAX - 1));
+
+    // The control, without which "always drop the last unit" passes everything above: a pair that
+    // DOES fit is kept, and the cap is still reached exactly.
+    const fits = searchQuery(`${"a".repeat(QUERY_MAX - 2)}😀tail`);
+    expect(fits.endsWith("😀")).toBe(true);
+    expect(fits.length).toBe(QUERY_MAX);
   });
 
   it("trims before it clamps, so padding cannot push real text past the cap", () => {

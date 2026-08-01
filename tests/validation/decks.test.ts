@@ -304,7 +304,13 @@ describe("POST /api/decks enforces the name rules server-side", () => {
   it("reads a File name part as empty rather than crashing on it", async () => {
     // Same as the non-form case above: the File's CONTENT is a usable name, so a regression that
     // read the part's text instead of narrowing it to "" would write a deck named exactly this.
-    // A real oracle, not a vacuous one.
+    // A real oracle, not a vacuous one — but a NARROWER one than its JSON-body twin, and the two
+    // should not be read as equivalent (C10X-40 impl-review F10). It is red only for a regression
+    // that AWAITS the part's text. The two regressions that actually happen here write nothing and
+    // so are caught by the status and message assertions alone, not by this count: the bare
+    // `as string | null` cast throws a TypeError at `.trim()` (→ 500), and a `String(value)`
+    // coercion yields the literal "[object File]". The count covers the third, quieter class —
+    // a handler that "helpfully" reads the upload.
     const marker = mark("file-part");
     const before = await countDecksNamed(marker);
 

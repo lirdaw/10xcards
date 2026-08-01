@@ -71,7 +71,27 @@ export const QUERY_MAX = 200;
  * `.astro` frontmatter is unreachable by every layer in this suite, so a decision left there
  * cannot be asserted at all. Extracted, it costs one import and gains `tests/lib/deck-limits.test.ts`.
  * Trim BEFORE the clamp, so 200 characters of padding cannot push real text past the cap.
+ *
+ * The cap is in UTF-16 code units — the same unit HTML gives `maxlength`, so the input stop and
+ * this clamp agree exactly — and the trailing half-character is DROPPED (C10X-40 impl-review F4).
+ * `.slice` alone cut by code unit with no regard for pairs, so 199 ASCII characters followed by an
+ * astral character (an emoji) produced a 200-unit string ending in a **lone high surrogate**: an
+ * ill-formed string, which supabase-js serialises into the `search_flashcards_in_deck` request body
+ * and which the page renders into `Brak fiszek pasujących do „…"`. A character that does not fit is
+ * now removed rather than halved; one that fits is untouched.
+ *
+ * Deliberately NOT `[...str]` or `Intl.Segmenter`. Spreading counts code points, which still splits
+ * a ZWJ sequence (a family emoji, a flag) into components — half a fix plus an `eslint-disable` for
+ * `@typescript-eslint/no-misused-spread`, whose warning about exactly that is correct. Segmenting
+ * by grapheme would be the textually right answer and is out of proportion to a search box whose
+ * clamp this very module declares to be hygiene rather than a control. Well-formedness is the
+ * property worth having here; grapheme integrity is not.
+ *
+ * §6.10's `char_length`-vs-`.length` warning does not apply: it is about a second ENFORCER
+ * disagreeing, and `?q=` has none — it is an RPC argument, not a stored column.
  */
 export function searchQuery(raw: string | null): string {
-  return (raw ?? "").trim().slice(0, QUERY_MAX);
+  const clamped = (raw ?? "").trim().slice(0, QUERY_MAX);
+  // A high surrogate in last position lost its pair to the cut; nothing else can be unpaired here.
+  return /[\uD800-\uDBFF]$/.test(clamped) ? clamped.slice(0, -1) : clamped;
 }

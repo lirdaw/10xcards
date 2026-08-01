@@ -1,11 +1,26 @@
 ---
 change_id: deck-error-param-guard
 title: Audit and close the ?error= injection vector on the deck pages
-status: implementing
+status: impl_reviewed
 created: 2026-08-01
 updated: 2026-08-01
 archived_at: null
 ---
+
+## Process deviation (recorded 2026-08-01, impl-review F7)
+
+This change has **no `plan.md` and no `verification.md`**. It ran straight from `research.md` on an
+explicit instruction, which is a deliberate departure from the `/10x-plan → /10x-implement →
+/10x-impl-review` loop every other change in this repo followed — written down here so it is a dated
+decision rather than something a later reader discovers from an empty folder. `research.md`'s
+`## Outcome` table is the de-facto Changes Required and its `## Open Questions` the de-facto "What
+We're NOT Doing"; `/10x-impl-review` was run against those.
+
+The cost is specific and is not the missing plan: the Outcome table asserts "six breakage runs, six
+verified restores" and gives one line each, so the observed failure strings, denominators and
+restore hashes that this project's own test-plan §6.6 discipline calls for ("a split is a claim
+about a run") exist nowhere in this folder. `reviews/impl-review.md` carries that level of evidence
+for the review's own eight runs, and `test-plan.md`'s header entry now says so.
 
 ## Notes
 

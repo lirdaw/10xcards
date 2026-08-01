@@ -33,7 +33,16 @@
 > attack needs the victim's deck UUID — where `?error=` needed only `/decks`. It got a length clamp
 > as hygiene and a written decision so it stops being rediscovered. Suite **342/342, 30 files**
 > (+9/+1); six breakage runs, six verified restores. Evidence:
-> `context/changes/deck-error-param-guard/research.md`.
+> `context/changes/deck-error-param-guard/research.md` (after archiving:
+> `context/archive/<date>-deck-error-param-guard/research.md`) and, for the review's own runs,
+> `reviews/impl-review.md` in the same folder. **The pointer is to `research.md` rather than to a
+> `verification.md` because this change has neither that file nor a `plan.md`** — it ran straight
+> from research on an explicit instruction, which is a deliberate deviation from the
+> `/10x-plan → /10x-implement → /10x-impl-review` loop and is recorded as such in its `change.md`.
+> Consequence a reader should not have to infer: the six breakage runs are summarised one line each
+> rather than carried with their observed failure strings, denominators and restore hashes, so this
+> file's usual "re-run it before citing the split" applies with more than usual force.
+> Suite **343/343** after the impl-review's fixes (+1: the `?q=` clamp's surrogate case).
 >
 > Previously: 2026-08-01 (C10X-39 `local-stack-transport-flake` shipped — not a §3 rollout
 > phase). **No risk row moves and no coverage claim changes: the subject is the HARNESS's own
@@ -95,7 +104,17 @@
 > this set deliberately excludes) — so the set is closed by construction and the fix is
 > `ownedAuthMessage`'s shape rather than a redesign. **Closed by construction is not closed by a
 > test**, and as of 2026-08-01 (C10X-40) it is the latter too: `tests/lib/form-endpoint-guards.test.ts`
-> resolves every value entering the channel and demands POSITIVE evidence that it is a set member. One sink turned out to be worse than the review recorded: the
+> resolves every value entering the channel and demands POSITIVE evidence that it is a set member.
+> **That sentence overstated the guard for one day and is corrected here rather than rewritten**
+> (C10X-40 impl-review F1, 2026-08-01): "is a set member" was checked, for a local, by asking
+> whether its declaration MENTIONED one — so `error.code === "23505" ? OWNED : error.message`, an
+> `|| OWNED` fallback and an `OWNED + String(err)` concatenation were all accepted, and an upstream
+> string could reach `?error=` with the suite green. Proved a PAIR rather than argued: relaying
+> `error.message` through the shipped ternary at `decks/[publicId].ts:75` leaves the guard as it
+> stood **10/10 green**, and turns the tightened one **1 of 10 red** naming file and line. The
+> residue check (`computedResidue`) now requires what is left after the set members are struck out
+> to be inert; the comparison is stripped first, because a discriminator's own operand is a member
+> access and testing before that would reject both locals this repo actually ships. One sink turned out to be worse than the review recorded: the
 > deck page rendered the raw value in **`.astro` markup**, needing no companion parameter and
 > carrying no `role="alert"`, so a bare `/decks/<id>?error=X` reached it and no change to
 > `ServerError.tsx` could ever have covered it.
@@ -2399,7 +2418,10 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
     log with it. Only the per-run counts survive, which is the oracle the plan specified; the
     line's text is on record from C10X-32 and from this change's research.
   - **No test in this suite touches Kong's configuration**, and none ever will. `npm test` covers
-    the pure half (18 cases, no Docker, no stack); `scripts/disable-kong-keepalive.ts` gets no
+    the pure half (**19** cases, no Docker, no stack — this read `18` until 2026-08-01, the fourth
+    and last site of that count, missed by C10X-40 because it spells the number out in prose while
+    the three literal `18`/`332` figures were corrected; found by C10X-40's own impl-review, F6);
+    `scripts/disable-kong-keepalive.ts` gets no
     unit test, because every branch in it is I/O against the local Docker daemon. The wiring is
     carried by the recorded runs, not by an assertion — the same boundary §6.6's C10X-29 entry
     draws for the drift runner.
@@ -3252,8 +3274,11 @@ contributors should respect these unless the underlying assumption changes.
   > the key it got, minted by `/jira-backlog-sync` on the same day the follow-up note said it had
   > none. The enumeration named as "the first step" was done and came back **eleven
   > literals, a closed set** — no `.message`, `String(err)` or `JSON.stringify` on any deck-route
-  > branch — which is why the fix is `ownedAuthMessage`'s shape rather than a redesign. See §6.6's
-  > C10X-37 entry.
+  > **REDIRECT** branch — which is why the fix is `ownedAuthMessage`'s shape rather than a redesign.
+  > See §6.6's C10X-37 entry. (The looser "any deck-route branch" was measured false by C10X-37's
+  > own read-back — `cards/batch.ts:45` does serialise a JSON response body, on a channel this set
+  > deliberately excludes. C10X-40 was scoped to rescope exactly this sentence and rescoped the
+  > header instead; corrected here 2026-08-01 by its impl-review, F6.)
 
 - **Risk #7's known live defect closed and re-measured: 2026-07-31** (C10X-41, change folder
   `forced-language-prompt-fix`). Ordinary suite **262/262, 23 files**, seed `1785502719409`

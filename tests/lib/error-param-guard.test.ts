@@ -97,6 +97,40 @@ function astroPages(dir: string): string[] {
   });
 }
 
+/**
+ * What the catch-all inspects: `.astro` AND the TypeScript sources beside them.
+ *
+ * `.astro`-only was the remaining gap (C10X-40 impl-review F5). The two sibling guards this file
+ * cites as its precedent — `no-logging.test.ts`, `no-env-access.test.ts` — walk EVERY file under
+ * `src/`, which is why their controls name `middleware.ts` next to a page. An island that swapped
+ * its `searchParams.has("error")` for a `.get("error")` and rendered the value is the same
+ * content-injection vector, and a WORSE one: `no-client-redirect-errors.test.ts` forbids a
+ * component importing the vouching set, so such an island could only ever render the value raw.
+ * Measured when this widened: four islands touch the parameter and all four use `.has`/`.delete`,
+ * which `RAW_READ` does not match — so the widening costs no allowance list.
+ */
+function scannableFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) return scannableFiles(full);
+    return /\.(astro|ts|tsx)$/i.test(entry.name) ? [full] : [];
+  });
+}
+
+/**
+ * Lines with comment-only lines dropped.
+ *
+ * Needed the moment the scan reached `.ts`: `auth-errors.ts` and `redirect-errors.ts` both QUOTE
+ * `searchParams.get("error")` in their docblocks to explain the rule, so a textual scan that did
+ * not skip comments would report the two files that document the guard as violating it.
+ */
+function codeLinesOf(file: string): { text: string; index: number }[] {
+  return readFileSync(file, "utf8")
+    .split(/\r?\n/)
+    .map((text, index) => ({ text, index }))
+    .filter(({ text }) => !/^\s*(\/\/|\*|\/\*)/.test(text));
+}
+
 function uncheckedReadsIn(file: string, root: string, wrapped: RegExp): string[] {
   return readFileSync(file, "utf8")
     .split(/\r?\n/)
@@ -202,21 +236,35 @@ describe.each(SURFACES)("$dir reads ?error= only through $helper", ({ dir, helpe
 //      while the per-surface walk never descended into it either. Neither scanned nor reported —
 //      the exact "not looked at" state, produced by the filter meant to prevent it. Now the
 //      prefix carries a trailing separator.
-describe("no unregistered .astro file reads ?error= at all", () => {
+//   3. It looked at `.astro` files only, while the two guards it names as its precedent walk the
+//      whole tree. An island rendering a raw `.get("error")` is the same vector and cannot even
+//      vouch, since components may not import the closed set. Now `.astro`, `.ts` and `.tsx`.
+describe("no unregistered file under src/ reads ?error= at all", () => {
   const srcRoot = fileURLToPath(new URL("../../src", import.meta.url));
   // Trailing separator is load-bearing — see note 2 above.
   const registered = SURFACES.map((s) => fileURLToPath(new URL(`../../${s.dir}`, import.meta.url)) + sep);
-  const unregistered = astroPages(srcRoot).filter((file) => !registered.some((dir) => file.startsWith(dir)));
+  const unregistered = scannableFiles(srcRoot).filter((file) => !registered.some((dir) => file.startsWith(dir)));
   const named = unregistered.map((f) => relative(srcRoot, f).split(sep).join("/"));
 
   // Positive control: without it, a walker that returned nothing — or a `registered` filter that
   // swallowed the whole tree — would make the assertion below pass while scanning zero files.
   // The named files are ones that exist today and belong to no surface, and they now span BOTH
   // trees: a page, and the layout every page renders inside.
-  it("scans every .astro file outside the registered surfaces", () => {
-    expect(unregistered.length).toBeGreaterThanOrEqual(8);
+  it("scans every file outside the registered surfaces", () => {
+    // Floor AT the measured value (69 = 12 `.astro` + 57 `.ts`/`.tsx`), not a round number below
+    // it — slack here gives away the shrink direction, and shrink is the silent one. Same rule as
+    // the emission floor in `form-endpoint-guards.test.ts`.
+    expect(unregistered.length).toBeGreaterThanOrEqual(69);
     expect(named).toEqual(
-      expect.arrayContaining(["pages/index.astro", "pages/generate.astro", "layouts/Layout.astro"]),
+      expect.arrayContaining([
+        "pages/index.astro",
+        "pages/generate.astro",
+        "layouts/Layout.astro",
+        // …and the non-`.astro` half, which is the point of the widening: a component, and the
+        // middleware, exactly as `no-logging.test.ts`'s control names them.
+        "middleware.ts",
+        "components/flashcards/FlashcardWorkspace.tsx",
+      ]),
     );
     // …and it must genuinely EXCLUDE the registered ones, or this block would silently duplicate
     // the per-surface assertions and go red on their (correct, wrapped) reads.
@@ -237,12 +285,42 @@ describe("no unregistered .astro file reads ?error= at all", () => {
 
   it("finds no ?error= read outside src/pages/auth and src/pages/decks", () => {
     const reads = unregistered.flatMap((file) =>
-      readFileSync(file, "utf8")
-        .split(/\r?\n/)
-        .flatMap((line, index) =>
-          RAW_READ.test(line) ? [`${relative(srcRoot, file).split(sep).join("/")}:${index + 1}: ${line.trim()}`] : [],
-        ),
+      codeLinesOf(file).flatMap(({ text, index }) =>
+        RAW_READ.test(text) ? [`${relative(srcRoot, file).split(sep).join("/")}:${index + 1}: ${text.trim()}`] : [],
+      ),
     );
     expect(reads).toEqual([]);
+  });
+});
+
+// `?q=` is NOT the `?error=` class and deliberately has no vouching set — `deck-limits.ts` records
+// why at length (the reflection sits behind a deck UUID an attacker would have to already know).
+// What it does share is the shape this whole file exists for: the decision lives in an `.astro`
+// frontmatter, so `tests/lib/deck-limits.test.ts` can prove `searchQuery` is CORRECT while nothing
+// proves the page still CALLS it. Measured: reverting the read to an inline `.trim()` left the
+// entire suite green (C10X-40 impl-review F10). Three lines close that, and the clamp being hygiene
+// rather than a control is a reason to keep the guard cheap, not a reason to skip it.
+describe("the ?q= read on the deck page goes through searchQuery", () => {
+  const page = fileURLToPath(new URL("../../src/pages/decks/[publicId]/index.astro", import.meta.url));
+  const RAW_Q = /\.\s*get\s*\(\s*["'`]q["'`]\s*\)/;
+  const WRAPPED_Q = /searchQuery\s*\(\s*[^)]*\.\s*get\s*\(\s*["'`]q["'`]\s*\)/;
+
+  // Both halves of the control, as everywhere else here: the detector fires on the regression and
+  // stays silent on the shipped shape.
+  it("detects an unwrapped read and accepts the wrapped one", () => {
+    const inlined = 'const query = (Astro.url.searchParams.get("q") ?? "").trim();';
+    const shipped = 'const query = searchQuery(Astro.url.searchParams.get("q"));';
+
+    expect(RAW_Q.test(inlined)).toBe(true);
+    expect(WRAPPED_Q.test(inlined)).toBe(false);
+    expect(RAW_Q.test(shipped)).toBe(true);
+    expect(WRAPPED_Q.test(shipped)).toBe(true);
+  });
+
+  it("has exactly one read, and it is wrapped", () => {
+    const reads = codeLinesOf(page).filter(({ text }) => RAW_Q.test(text));
+
+    expect(reads).toHaveLength(1);
+    expect(WRAPPED_Q.test(reads[0].text)).toBe(true);
   });
 });
