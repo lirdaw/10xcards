@@ -734,10 +734,13 @@ wiped by `supabase stop` — it is not state anything else depends on. Rollback 
 
 #### Automated
 
-- [x] 2.1 `npm run db:stop && npm run db:start` leaves `.kong_env` at `pool_size = 0`
-- [x] 2.2 `npm test` passes after that cycle
+- [x] 2.1 `npm run db:stop && npm run db:start` leaves `.kong_env` at `pool_size = 0` — b6ce30c
+- [x] 2.2 `npm test` passes after that cycle — b6ce30c
 - [ ] 2.3 A pushed CI run is green, the step's own conclusion is `success` (not merely tolerated by `continue-on-error`), and its log shows 60 → 0
-- [x] 2.4 `npm run lint` exits 0
+      <!-- DEFERRED to /ship, by decision 2026-08-01: ci.yml triggers only on push to `main`
+           and on `pull_request` to `main`, so a feature-branch push runs nothing. The branch is
+           pushed; 2.3 and 2.5 are read off the PR's `ci` job when /ship opens it. -->
+- [x] 2.4 `npm run lint` exits 0 — b6ce30c
 
 #### Manual
 
@@ -748,15 +751,15 @@ wiped by `supabase stop` — it is not state anything else depends on. Rollback 
 
 #### Automated
 
-- [ ] 3.1 The census run's full red set is recorded verbatim with its denominator
-- [ ] 3.2 The duplicate scan output is recorded, every group attributed to a call site
-- [ ] 3.3 After reverting, `git diff -- tests/` is empty and the `md5` matches the pristine copy
-- [ ] 3.4 `npm test` passes in full after the revert
+- [x] 3.1 The census run's full red set is recorded verbatim with its denominator
+- [x] 3.2 The duplicate scan output is recorded, every group attributed to a call site
+- [x] 3.3 After reverting, `git diff -- tests/` is empty and the `md5` matches the pristine copy
+- [x] 3.4 `npm test` passes in full after the revert
 
 #### Manual
 
-- [ ] 3.5 The measured silent-seam list is compared against research's four, additions named explicitly
-- [ ] 3.6 Duplicated rows are cleaned up before Phase 4
+- [x] 3.5 The measured silent-seam list is compared against research's four, additions named explicitly
+- [x] 3.6 Duplicated rows are cleaned up before Phase 4
 
 ### Phase 4: Make every silent seam loud, and prove each one red
 
