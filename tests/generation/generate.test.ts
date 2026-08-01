@@ -363,6 +363,15 @@ describe("/api/generate deduplicates a retry by its idempotency key", () => {
     });
     expect(seedError).toBeNull();
 
+    // The seed itself is a retried-write seam, and it is the one row in this case that
+    // nothing else can see: `succeededSessions` below filters `status = 'succeeded'`, so a
+    // duplicated `failed` row is invisible to it BY CONSTRUCTION — measured in C10X-39's
+    // Phase 3 census, where this row sat duplicated while the case's own oracles were
+    // untroubled by it. The partial unique index does not cover it either: it is scoped to
+    // `status = 'succeeded'`, which is the very predicate this case exists to pin.
+    // `allSessions` is the status-agnostic reader, scoped by the same marker.
+    expect((await allSessions(FAILED_KEY_TEXT)).filter((session) => session.status === "failed")).toHaveLength(1);
+
     const response = await generate({
       deckPublicId: ownDeck,
       sourceText: FAILED_KEY_TEXT,

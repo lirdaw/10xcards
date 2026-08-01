@@ -751,30 +751,34 @@ wiped by `supabase stop` — it is not state anything else depends on. Rollback 
 
 #### Automated
 
-- [x] 3.1 The census run's full red set is recorded verbatim with its denominator
-- [x] 3.2 The duplicate scan output is recorded, every group attributed to a call site
-- [x] 3.3 After reverting, `git diff -- tests/` is empty and the `md5` matches the pristine copy
-- [x] 3.4 `npm test` passes in full after the revert
+- [x] 3.1 The census run's full red set is recorded verbatim with its denominator — 4bb1fe3
+- [x] 3.2 The duplicate scan output is recorded, every group attributed to a call site — 4bb1fe3
+- [x] 3.3 After reverting, `git diff -- tests/` is empty and the `md5` matches the pristine copy — 4bb1fe3
+- [x] 3.4 `npm test` passes in full after the revert — 4bb1fe3
 
 #### Manual
 
-- [x] 3.5 The measured silent-seam list is compared against research's four, additions named explicitly
-- [x] 3.6 Duplicated rows are cleaned up before Phase 4
+- [x] 3.5 The measured silent-seam list is compared against research's four, additions named explicitly — 4bb1fe3
+- [x] 3.6 Duplicated rows are cleaned up before Phase 4 — 4bb1fe3
 
 ### Phase 4: Make every silent seam loud, and prove each one red
 
 #### Automated
 
-- [ ] 4.1 `npm test` passes in full, suite count unchanged from the Phase 3 baseline
-- [ ] 4.2 One targeted breakage run per seam turns exactly that seam's assertion red, failure strings recorded
-- [ ] 4.3 Each targeted edit reverted, verified by `md5`; `git diff -- tests/` empty
-- [ ] 4.4 The census re-run reports zero silent seams
-- [ ] 4.5 `npm run lint` exits 0
+- [x] 4.1 `npm test` passes in full, suite count unchanged from the Phase 3 baseline
+- [x] 4.2 One targeted breakage run per seam turns exactly that seam's assertion red, failure strings recorded
+- [x] 4.3 Each targeted edit reverted, verified by `md5`; `git diff -- tests/` empty
+      <!-- md5 matches literally for retry-transport.ts (57ee187e…). For the four test files the
+           breakage was interleaved with authoring (test-first), so no byte-identical earlier
+           state exists to hash; verified instead by reading every deletion in the diff and by a
+           residue grep. Deviation stated in verification.md §4.3. -->
+- [x] 4.4 The census re-run reports zero silent seams
+- [x] 4.5 `npm run lint` exits 0
 
 #### Manual
 
-- [ ] 4.6 The re-run census's red set is compared case by case against Phase 3's silent list
-- [ ] 4.7 Duplicated rows from the re-run census are cleaned up
+- [x] 4.6 The re-run census's red set is compared case by case against Phase 3's silent list
+- [x] 4.7 Duplicated rows from the re-run census are cleaned up
 
 ### Phase 5: Before/after flake measurement
 

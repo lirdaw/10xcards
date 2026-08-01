@@ -199,3 +199,218 @@ cases that POST twice into one deck with no key / two different keys while `mock
 identical fronts. So every ordinary suite run adds exactly 6 + 2 legitimate duplicate groups,
 which is the plan's Key Discovery ("a `unique (deck_id, front)` index on `flashcard` is
 impossible") observed from the other side. Nothing the census wrote survives.
+
+## Phase 4 — Make every silent seam loud, and prove each one red
+
+Ran 2026-08-01, immediately after Phase 3 and against the same stack (Kong
+`upstream_keepalive_pool_size = 0`, `OPENROUTER_API_KEY` unset). Driven test-first
+(`/10x-tdd`): for each seam the duplicate was made to happen **before** the assertion existed,
+so every oracle was proven falsifiable at the moment it was written rather than afterwards.
+
+### 4.0 Baseline
+
+| | |
+| --- | --- |
+| Suite | **332 passed / 332, 29 files**, seed `1785592120563` — identical to the Phase 3 baseline |
+| Pristine `study.test.ts` | md5 `b77217c2f87d467794524b5abe747a3d` |
+| Pristine `candidates.test.ts` | md5 `269a8e8a7631afe165076f83422f43c8` |
+| Pristine `generate.test.ts` | md5 `d2cd79a7c28a7c6694b15b2713371e90` |
+| Pristine `cards.test.ts` | md5 `0db574d9580cee1f1ed3745d1a8136d7` |
+| Pristine `retry-transport.ts` | md5 `57ee187e9448ea376961ee243320c822` — unchanged since Phase 3 |
+
+### 4.1 The six oracles
+
+One per seam the Phase 3 census **measured** as silent — six, not research's four. No new
+`it()`, no schema change, no product rule, so the suite count does not move; an unchanged
+number here is correct rather than suspicious.
+
+| # | Seam | File | Oracle | Scope |
+| --- | --- | --- | --- | --- |
+| 8 | `createNonAcceptedCard` | `study.test.ts` | `countCardsWithFront(...) === 1` | `(deck_id, front)` |
+| 13 | `createCard` | `study.test.ts` | same helper | `(deck_id, front)` |
+| 9 | `seedCard` | `candidates.test.ts` | `countCardsWithFront(...) === 1` | `(deck_id, front)` |
+| 12 | `seedGenerationSession` | `candidates.test.ts` | inline `count: "exact"` === 1 | `(user_id, source_text, status)` |
+| 10 | seeded `failed` session | `generate.test.ts` | `allSessions(...)` filtered to `failed`, length 1 | file marker + `status` |
+| 11 | `insertDirect` / `inRange` | `cards.test.ts` | `countCards(deckId) === 1` | `deck_id` |
+
+Two helpers were reused rather than multiplied, as the plan directs: `allSessions` in
+`generate.test.ts` (status-agnostic, already scoped by the same marker) and `countCards` in
+`cards.test.ts` (already the raw, state-agnostic counter §6.10 calls for). The two new
+`countCardsWithFront` helpers are per-file rather than shared, matching how `deckIdOf` and
+`createDeck` are already duplicated across these files.
+
+Three one-line restructurings were needed and are the whole of the diff's `-3`: hoisting
+`deck_id` out of the `insert({...})` in `seedCard`, hoisting `status` out of it in
+`seedGenerationSession`, and hoisting the client into a `const` in the latter. **No assertion
+was removed or weakened** — verified by reading every deletion in `git diff -- tests/`.
+
+### 4.2 Test-first, seam by seam — silence demonstrated, then made loud
+
+For each seam: (1) a scratch case (or a duplicated inline insert) writes the row **twice** with
+no oracle present — the run stays green, which reproduces that seam's Phase 3 census verdict at
+authoring time; (2) the oracle lands — the run goes red, **on that case alone**; (3) the scratch
+is removed — green again.
+
+| # | Seam | (1) silence, no oracle | (2) RED, oracle added | (3) scratch removed |
+| --- | --- | --- | --- | --- |
+| 8 | `createNonAcceptedCard` | 23/23 green | **1 of 23** — `AssertionError: expected 2 to be 1` | 22/22 green |
+| 13 | `createCard` (study) | 23/23 green | **1 of 23** — `expected 2 to be 1` | 22/22 green |
+| 9 | `seedCard` | 23/23 green | **1 of 23** — `expected 2 to be 1` | 22/22 green |
+| 12 | `seedGenerationSession` | 23/23 green | **1 of 23** — `expected 2 to be 1` | 22/22 green |
+| 10 | seeded `failed` session | 22/22 green | **1 of 22** — `expected [ …(2) ] to have a length of 1 but got 2` | 22/22 green |
+| 11 | `insertDirect` / `inRange` | 13/13 green | **1 of 13** — `expected 2 to be 1` | 13/13 green |
+
+The column that carries the evidence is not the red — it is the **green beside it**. Exactly
+one case moves in each run, so the assertion observes the duplicate its own seam wrote and
+nothing else; and column (1) is what rules out "the scratch never duplicated", which would
+make column (2) a red for the wrong reason.
+
+Seam 10's failure string differs from the other five because its oracle is a length assertion
+on a filtered list rather than a scalar count — the same distinction §6.10 records for row
+oracles vs count oracles.
+
+### 4.3 Revert of the targeted edits
+
+`retry-transport.ts` matches the criterion literally: md5 `57ee187e9448ea376961ee243320c822`
+after `git checkout --`, identical to the pristine copy, and `git diff -- tests/setup/` empty.
+
+**For the four test files the criterion's md5 form does not apply, and that is stated rather
+than fudged.** The breakage was interleaved with authoring (that is what makes it test-first),
+so no byte-identical earlier state exists to hash against — the file legitimately ends
+different from its pristine copy, because the oracle is the deliverable. What was verified
+instead, and is the criterion's actual purpose:
+
+- `git diff -- tests/` is **121 insertions / 3 deletions across exactly 4 files**; every
+  deletion read individually and confirmed to be one of the three hoists in §4.1.
+- A residue grep for `SCRATCH`, `inRange2` and `seedError2` over all of `tests/` returns
+  **nothing**.
+- The full suite is green at the unchanged count, which no leftover scratch case could be.
+
+### 4.4 The census re-run — zero silent seams
+
+The Phase 3 neuter was re-applied verbatim (non-`GET` local replayable requests issued twice,
+first response returned, one log line per replay), window opened at
+`2026-08-01 13:57:31.353255+00`.
+
+| | Phase 3 census | Phase 4 re-run |
+| --- | --- | --- |
+| Red blocks | 27 (26 tests + 1 suite) | **54** (51 tests + 3 suites/hooks) |
+| Files red | 6 of 29 | 6 of 29 |
+| Silent seams | **6** | **0** |
+
+**The replay control.** 669 replays logged, of which **156 × `POST /rest/v1/flashcard`** and
+**60 × `POST /rest/v1/generation_session`** — so the duplicates genuinely landed and a green
+case would have been genuinely silent. Without this the zero would be equally consistent with
+"the replay never happened".
+
+**Seam by seam against Phase 3's silent list** (criterion 4.6), read by failure string and
+owning `it()`, never by case colour alone:
+
+| # | Seam | Phase 3 owning cases | Now red? |
+| --- | --- | --- | --- |
+| 8 | `createNonAcceptedCard` | "never returns a generated or rejected card from a session build"; "writes no schedule when a non-accepted card is rated" | **both red** |
+| 13 | `createCard` (study) | twelve cases at `:251 :271 :379 :418 :447 :501 :532 :597 :740 :788 :820 :876` | **all twelve red** |
+| 9 | `seedCard` | `Illegal target`, `Mixed already`, `Batch already`, `Batch guard`, `Batch cap` | **all five red** |
+| 12 | `seedGenerationSession` | the four C10X-28 audit-column cases | **red** — the describe now fails at its seeding hook (`candidates.test.ts:212`) |
+| 10 | seeded `failed` session | "still generates when the only prior session for that key is `failed`" | **red on its OWN oracle** — in Phase 3 it was red on seam 5's card count at `:377`, a different seam |
+| 11 | `insertDirect` / `inRange` | "rejects an over-limit front and an over-limit back with 23514" | **red** |
+
+**Nothing that was loud went quiet**: all 27 of Phase 3's red blocks are present in the 54,
+checked by set comparison rather than by eye. The growth 27 → 54 is the six seams, not a
+regression — the suite is green at 332/332 with the neuter removed.
+
+**Duplicate-scan attribution.** 130 duplicated `flashcard` groups and 30 duplicated
+`generation_session` groups in the window, spread over 42 deck families, **every one of them
+inside one of the six red files**. No duplicated group sits under a file that passed.
+
+### 4.5 Cleanup and final state
+
+| Check | Result |
+| --- | --- |
+| Rows deleted | 528 decks (`ON DELETE CASCADE`) and 228 generation sessions, scoped to Phase 4's window |
+| In-window residue | **0 decks, 0 flashcards, 0 sessions** |
+| Duplicate groups in window | **0** on both tables |
+| Orphaned `flashcard_schedule` | **0** — the cascade did its job |
+| `npm test` | **332 passed / 332, 29 files** — unchanged from the Phase 3 baseline |
+| `npm run lint` | exit **0** (6 pre-existing `no-console` warnings in `evals/`, unchanged) |
+| `npx tsc --noEmit` | exit **0** |
+| Kong | `upstream_keepalive_pool_size = 0`, unchanged by any of this |
+
+**Wall clock did not regress**: 2.86 s at the baseline, 2.74 s at the end — the plan asked for
+this to be recorded if it moved, and it did not.
+
+### 4.6 What this does NOT prove
+
+- **The seams are guarded, the wrapper is not narrowed.** `tests/setup/retry-transport.ts`
+  still replays non-idempotent requests, deliberately (Kong absorbs every idempotent drop
+  itself, so the POST/PATCH category is the wrapper's entire marginal value). These oracles
+  turn a silent double-write into a loud one; they do not stop it happening.
+- **Silence is proven only for the seams that existed on the day the census ran.** A helper
+  added tomorrow with no count after its insert is a new silent seam, and nothing here detects
+  that class automatically — there is no guard test over "every insert in `tests/` is followed
+  by a count".
+- **Two `createCard` twins are loud only by ACCIDENT, and were deliberately left alone.** The
+  census classified `createCard` in `cards.test.ts` (row 6) and `isolation/flashcards.test.ts`
+  (row 7) as loud — but row 6 only because `findCardByFront`'s `.maybeSingle()` happens to
+  answer `PGRST116 … Results contain 2 rows`, i.e. an error rather than an assertion. The
+  helper is blind by construction in all three files; two of them are covered by what the file
+  re-reads afterwards. Closing "the list the experiment produced" is the plan's instruction, so
+  these are named here rather than folded in — a cheap follow-up, not a gap this phase claims.
+- **`flashcard` still carries no uniqueness constraint**, and cannot: `generate.test.ts` POSTs
+  twice with no key into one deck while `mockCards` returns identical fronts, so duplicate
+  `(deck_id, front)` rows are legitimate there. The oracle is per-seam precisely because the
+  database cannot hold this rule.
+- **Nothing here is evidence about the flake itself.** Whether Phase 1's Kong recreation
+  removed the cause is Phase 5's measurement, untouched by this phase.
+
+### 4.7 Manual verification (criteria 4.6 and 4.7)
+
+**4.6 — the re-run's red set against Phase 3's silent list, case by case.** Attribution was
+*checked*, not inferred, and the method matters: Phase 3 recorded its owning cases by LINE
+NUMBER, and this phase shifted every one of them (+46 lines in `study.test.ts`, +62 in
+`candidates.test.ts`). The line numbers were therefore resolved against the **pristine copies
+taken before the first edit**, so the comparison is against what Phase 3 actually measured
+rather than against whatever now sits at that line.
+
+That resolved 23 owning `it()` titles across the four previously-silent helpers. Matched
+against the re-run's 54 red blocks: **19 red by name, 4 not by name, 0 still passing.**
+
+The four are `seedGenerationSession`'s, and the reason they carry no leaf name is the strongest
+form of loud rather than a gap — **the oracle fires inside the `beforeAll`**, so the suite is
+reported failed and its cases never run. Verified rather than asserted:
+
+- the failing frame is `seedGenerationSession tests/review/candidates.test.ts:212:17`, which is
+  `expect(count).toBe(1)` — the assertion added by this phase, not a pre-existing one;
+- `describe("account B is denied account A's generation-session audit columns")` seeds through
+  that helper in its `beforeAll` and holds exactly **4** `it()`s — the same four Phase 3 named
+  at `:682 :703 :726 :740`;
+- and the **skipped arithmetic closes exactly**, which is what rules out "they passed quietly":
+
+  | Failed hook | its behind it |
+  | --- | --- |
+  | `cards.test.ts` edit-rules describe (already failing in Phase 3) | 4 |
+  | `candidates.test.ts` "editing a card from the review screen…" (newly red, `seedCard`) | 3 |
+  | `candidates.test.ts` "account B is denied … audit columns" (newly red, `seedGenerationSession`) | 4 |
+
+  4 + 3 + 4 = **11 skipped**, exactly the re-run's `51 failed | 270 passed | 11 skipped (332)`.
+  Phase 3 reported **4** skipped — the cards describe alone. So the +7 is fully accounted for by
+  the two hooks this phase made loud, and no previously-silent case is hiding in the `passed`
+  column.
+
+**Nothing that was loud went quiet.** All **27** of Phase 3's red blocks were matched against
+the re-run's 54 by set comparison: **0 went quiet**.
+
+**4.7 — cleanup.** Census residue in the window: **0 decks, 0 flashcards, 0 sessions, 0
+duplicate groups** on either table, and **0 orphaned `flashcard_schedule` rows** in the whole
+table, so the `ON DELETE CASCADE` did its job.
+
+One residual delta is explained rather than waved past, exactly as in Phase 3 §3.8. The single
+ordinary suite run made after the cleanup left **6** duplicated `flashcard` groups (3 ×
+`Different keys deck`, 3 × `No key deck`) and **2** duplicated `generation_session` groups —
+the 6 + 2 signature Phase 3 measured for every ordinary run. They are `generate.test.ts`'s
+keyless / two-key cases, which POST twice into one deck while `mockCards` returns identical
+fronts: legitimate rows, and the plan's Key Discovery ("a `unique (deck_id, front)` index on
+`flashcard` is impossible") seen from the other side. Nothing the census wrote survives.
+
+**Stack unchanged by any of this**: `npx supabase status` reports the stack running, Kong
+`Up (healthy)`, `upstream_keepalive_pool_size = 0` (idle timeout still 60, untouched).
