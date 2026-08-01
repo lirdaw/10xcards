@@ -92,6 +92,8 @@ npx supabase init
 npx supabase start
 ```
 
+Then run `npm run db:kong` once — it disables Kong's upstream keep-alive pooling, without which the local stack answers an occasional `502 upstream prematurely closed connection` on the first requests after an idle gap. `npm run db:start` does both steps for you; either way it is wiped by every `npx supabase stop`, so re-apply it after each start.
+
 4. Copy the credentials printed by the CLI into your `.env` file:
 
 ```

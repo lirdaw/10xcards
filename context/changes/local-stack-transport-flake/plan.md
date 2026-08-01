@@ -734,15 +734,15 @@ wiped by `supabase stop` — it is not state anything else depends on. Rollback 
 
 #### Automated
 
-- [ ] 2.1 `npm run db:stop && npm run db:start` leaves `.kong_env` at `pool_size = 0`
-- [ ] 2.2 `npm test` passes after that cycle
+- [x] 2.1 `npm run db:stop && npm run db:start` leaves `.kong_env` at `pool_size = 0`
+- [x] 2.2 `npm test` passes after that cycle
 - [ ] 2.3 A pushed CI run is green, the step's own conclusion is `success` (not merely tolerated by `continue-on-error`), and its log shows 60 → 0
-- [ ] 2.4 `npm run lint` exits 0
+- [x] 2.4 `npm run lint` exits 0
 
 #### Manual
 
 - [ ] 2.5 The CI job log confirms the step ran against the real stack
-- [ ] 2.6 The CI comment states the parity decision, not a necessity claim
+- [x] 2.6 The CI comment states the parity decision, not a necessity claim
 
 ### Phase 3: Census — enumerate the silent write seams by experiment
 
