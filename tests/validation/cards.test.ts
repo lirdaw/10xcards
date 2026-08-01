@@ -454,5 +454,12 @@ describe("the database enforces the content bounds independently of the endpoint
     const inRange = await insertDirect(sized(`db-ok-${suffix}-`, FRONT_MAX), sized(`db-ok-back-${suffix}-`, BACK_MAX));
     expect(inRange.error).toBeNull();
     expect(inRange.data?.public_id).toBeTruthy();
+    // The in-range insert is the only one of the three that WRITES, and until C10X-39
+    // nothing counted after it — so a replayed insert (tests/setup/retry-transport.ts) left
+    // two rows here and this case stayed green, measured in the Phase 3 census.
+    // `.maybeSingle()` in insertDirect cannot stand in for this: it reads ONE response,
+    // while the duplicate arrives in another. This describe owns its deck and only this
+    // line writes to it, so the count is exactly one.
+    expect(await countCards(deckId)).toBe(1);
   });
 });

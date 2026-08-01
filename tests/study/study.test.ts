@@ -87,6 +87,38 @@ async function createDeck(as: typeof a, name: string): Promise<string> {
   return created.public_id;
 }
 
+/**
+ * A raw count of one deck's cards carrying exactly this front — the retried-write oracle
+ * every card-writing helper in this file ends with.
+ *
+ * The class it exists for: tests/setup/retry-transport.ts replays a POST that Kong dropped
+ * AFTER PostgREST had already committed it, so a seam can write its row twice. Measured, not
+ * hypothetical — C10X-39's Phase 3 census forced the replay and found both helpers below
+ * duplicating while every owning case stayed green.
+ *
+ * Deliberately NOT `listFlashcards` / `countFlashcards` (src/lib/flashcards.ts), the two
+ * helpers this need points straight at: both filter `state_id = STATE_ACCEPTED`, so a
+ * generated or rejected duplicate is invisible to them and the count reads green over a real
+ * write (test-plan §6.10). Scoped by `front` as well as `deck_id` because every call site's
+ * front is distinct within this file and carries the run suffix — so a count of one is also
+ * an authorship guard: two sites colliding on a front fail here rather than silently sharing
+ * an oracle.
+ */
+async function countCardsWithFront(
+  client: ReturnType<typeof clientFor>,
+  deckId: number,
+  front: string,
+): Promise<number> {
+  const { count, error } = await client
+    .from("flashcard")
+    .select("id", { count: "exact", head: true })
+    .eq("deck_id", deckId)
+    .eq("front", front);
+  expect(error).toBeNull();
+  if (count === null) throw new Error(`Count for front "${front}" in deck ${deckId} came back null.`);
+  return count;
+}
+
 /** Creates an accepted card in a deck through the real endpoint and returns its public_id. */
 async function createCard(as: typeof a, deckPublicId: string, front: string, back: string): Promise<string> {
   const response = await callEndpoint(CreateCard, {
@@ -109,6 +141,14 @@ async function createCard(as: typeof a, deckPublicId: string, front: string, bac
   expect(error).toBeNull();
   const created = cards?.find((card) => card.front === front);
   if (!created) throw new Error(`Setup failed: card "${front}" was never written to deck ${deckPublicId}.`);
+
+  // `find` returns the FIRST match and cannot count, so the read above is blind to a
+  // replayed create by construction — this helper duplicated at 13 call sites in the
+  // Phase 3 census with all twelve owning cases green. That the same helper reads as loud
+  // in two other files is an accident of what those files re-read afterwards, not a
+  // property of the helper.
+  expect(await countCardsWithFront(client, deck.id, front)).toBe(1);
+
   return created.public_id;
 }
 
@@ -149,6 +189,12 @@ async function createNonAcceptedCard(
     .single();
   expect(error).toBeNull();
   if (!data) throw new Error(`Setup failed: non-accepted card "${front}" was never written.`);
+
+  // `.single()` above is NOT this assertion. It sees exactly one HTTP response, while a
+  // replayed insert arrives in a DIFFERENT response carrying a different public_id — so it
+  // is a false oracle for this class, project-wide. Only a re-read can count.
+  expect(await countCardsWithFront(client, deck.id, front)).toBe(1);
+
   return data.public_id;
 }
 

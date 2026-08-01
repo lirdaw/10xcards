@@ -78,6 +78,34 @@ async function deckIdOf(as: typeof a, deckPublicId: string): Promise<number> {
 }
 
 /**
+ * A raw count of one deck's cards carrying exactly this front — the retried-write oracle
+ * the seeding helpers below end with.
+ *
+ * The class it exists for: tests/setup/retry-transport.ts replays a POST that Kong dropped
+ * AFTER PostgREST had already committed it, so a seam can write its row twice. Measured, not
+ * hypothetical — C10X-39's Phase 3 census forced the replay and found `seedCard` duplicating
+ * at five call sites while their owning cases stayed green.
+ *
+ * Deliberately NOT `listFlashcards` / `countFlashcards` (src/lib/flashcards.ts): both filter
+ * `state_id = STATE_ACCEPTED`, and this helper's whole purpose is seeding cards in the OTHER
+ * two states, which such a count cannot see (test-plan §6.10).
+ */
+async function countCardsWithFront(
+  client: ReturnType<typeof clientFor>,
+  deckId: number,
+  front: string,
+): Promise<number> {
+  const { count, error } = await client
+    .from("flashcard")
+    .select("id", { count: "exact", head: true })
+    .eq("deck_id", deckId)
+    .eq("front", front);
+  expect(error).toBeNull();
+  if (count === null) throw new Error(`Count for front "${front}" in deck ${deckId} came back null.`);
+  return count;
+}
+
+/**
  * Inserts a card in an arbitrary lifecycle state straight through the RLS-scoped client.
  *
  * No endpoint creates a non-accepted card — manual create always writes `accepted` and
@@ -94,10 +122,11 @@ async function seedCard(
   generationId?: number,
 ): Promise<string> {
   const client = clientFor(as.cookieHeader);
+  const deckId = await deckIdOf(as, deckPublicId);
   const { data, error } = await client
     .from("flashcard")
     .insert({
-      deck_id: await deckIdOf(as, deckPublicId),
+      deck_id: deckId,
       front,
       back: `${front} back`,
       state_id: stateId,
@@ -108,6 +137,12 @@ async function seedCard(
     .single();
   expect(error).toBeNull();
   if (!data) throw new Error(`Setup failed: card "${front}" (state ${stateId}) was never written.`);
+
+  // `.single()` above is NOT this assertion. It sees exactly one HTTP response, while a
+  // replayed insert arrives in a DIFFERENT response carrying a different public_id — so it
+  // is a false oracle for this class, project-wide. Only a re-read can count.
+  expect(await countCardsWithFront(client, deckId, front)).toBe(1);
+
   return data.public_id;
 }
 
@@ -136,7 +171,9 @@ async function seedGenerationSession(
     errorMessage?: string;
   } = {},
 ): Promise<{ id: number; publicId: string }> {
-  const { data, error } = await clientFor(as.cookieHeader)
+  const client = clientFor(as.cookieHeader);
+  const status = audit.status ?? "succeeded";
+  const { data, error } = await client
     .from("generation_session")
     .insert({
       user_id: as.userId,
@@ -146,7 +183,7 @@ async function seedGenerationSession(
       requested_count: counts.requested,
       generated_count: counts.generated,
       saved_count: counts.saved,
-      status: audit.status ?? "succeeded",
+      status,
       request_payload: audit.requestPayload ?? null,
       response_payload: audit.responsePayload ?? null,
       error_message: audit.errorMessage ?? null,
@@ -155,6 +192,25 @@ async function seedGenerationSession(
     .single();
   expect(error).toBeNull();
   if (!data) throw new Error(`Setup failed: generation session for "${sourceText}" was never written.`);
+
+  // Same retried-write class as seedCard above, on the parent table — and this seam has no
+  // constraint underneath it. The partial unique index that makes a keyed `succeeded`
+  // session loud covers only rows carrying an `idempotency_key`, which this helper never
+  // sets, so a replayed insert lands silently. Confirmed by the Phase 3 census: the C10X-28
+  // audit-column cases stayed green while their sessions sat duplicated.
+  //
+  // Scoped by (user_id, source_text, status): `source_text` carries the file suffix at every
+  // call site, and `status` keeps a `failed` seed from being counted against a `succeeded`
+  // one for the same text.
+  const { count, error: countError } = await client
+    .from("generation_session")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", as.userId)
+    .eq("source_text", sourceText)
+    .eq("status", status);
+  expect(countError).toBeNull();
+  expect(count).toBe(1);
+
   return { id: data.id, publicId: data.public_id };
 }
 

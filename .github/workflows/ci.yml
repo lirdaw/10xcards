@@ -34,6 +34,38 @@ jobs:
       - name: Start local Supabase stack
         run: npx supabase start
 
+      # Recreate the Kong container with `KONG_UPSTREAM_KEEPALIVE_POOL_SIZE=0` — the same step
+      # `npm run db:start` runs locally, invoked the same way so "identically configured" is a
+      # fact rather than a claim. It removes the local `502 upstream prematurely closed
+      # connection` flake at its cause: Kong 2.8.1 and PostgREST both idle out a keep-alive
+      # connection at exactly 60 s, so neither reliably closes first and the loser of that race
+      # answers a dead socket. No supported CLI surface exposes either timeout, hence a
+      # post-`supabase start` container recreation.
+      #
+      # **CI does not need this, and that was measured rather than assumed** (C10X-39 research):
+      # `npm test` is 10-13 s against a stack started ~3-7 s earlier with a cold Kong pool and
+      # exactly one invocation per run, so no socket here can reach the 60 s it needs — 52 runs,
+      # 0 unexplained reds, 0 re-runs, ~25 pre-wrapper runs all green. That research's own
+      # recommendation was to add NOTHING here; the step is present by an explicit decision
+      # taken AGAINST it, for configuration PARITY with the local stack — never because CI is
+      # exposed. Read that as: this is the first thing to drop if it ever goes red on a Supabase
+      # CLI upgrade.
+      #
+      # `continue-on-error: true` is what keeps that decision honest, and it is a deliberate
+      # asymmetry with the drift gate below. The script is fail-closed by contract, because
+      # locally its value is refusing to report success on what it did not verify — but this
+      # `ci` job is what `drift` and `deploy` both declare in `needs:`, so without the flag an
+      # unsupported `docker` operation breaking on a CLI upgrade would stop a release over a
+      # flake CI is structurally immune to. Fail-closed is right for evidence ABOUT PRODUCTION;
+      # it is wrong for a step whose own justification is cosmetic. So a red here is ADVISORY —
+      # a note about the local-parity experiment, never evidence about the code. The flip side:
+      # a green job no longer implies this step passed, so read the step's own conclusion. The
+      # script restores the stock container on any failure past its `docker rm -f`, which is
+      # what stops a tolerated failure leaving the steps below talking to a stack with no proxy.
+      - name: Disable Kong upstream keep-alive pooling (local parity, advisory)
+        continue-on-error: true
+        run: npm run db:kong
+
       # Drift class 8: `database.types.ts` is GENERATED from the schema, so a migration that
       # lands without a regeneration leaves the app type-checking against a database that no
       # longer matches. Regenerate and diff — a non-empty diff means the committed file is
