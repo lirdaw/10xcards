@@ -6,7 +6,36 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-08-01 (C10X-39 `local-stack-transport-flake` shipped — not a §3 rollout
+> Last updated: 2026-08-01, second entry of the day (C10X-40 `deck-error-param-guard` — not a §3
+> rollout phase). **No risk row moves.** It began as an AUDIT of a claim this file already made —
+> that C10X-37 had closed the `?error=` read side — and the audit's verdict is that the claim is
+> TRUE: 5/5 reads wrapped, an 11-against-11 producer diff with nothing missing in either
+> direction, 43 cases across the five guard files. What it also found is that the GUARDS holding
+> that claim were keyed on spellings rather than on constructs, so ordinary refactors disarmed
+> them while everything stayed green — the same "correct on what it looks at, silent about what it
+> never looks at" shape this file has now recorded four times.
+>
+> Three were measured, not argued. **The closed set was enforced at almost no producer**: the
+> detector fires only on a literal adjacent to the text `error=`, and 20 of the 29 emissions go
+> through an `errorUrl(msg)` helper whose call sites carry no such text — so
+> `errorUrl("Nowy komunikat")` and `errorUrl(err.message)` both passed the whole suite. **The page
+> guard was keyed on the token `searchParams`**, so hoisting `const params = Astro.url.searchParams`
+> — the natural tidy-up on pages that read five parameters — produced zero findings. **Its
+> catch-all was rooted at `src/pages`**, leaving seven `.astro` files unscanned including
+> `Layout.astro`, where a raw read would banner every page in the app. Each now goes red, proved by
+> a breakage run rather than by reading.
+>
+> Two smaller corrections of this file's own claims, both in the reassuring direction. Two "no row
+> oracle possible" CREATE cases DO have one (the JSON body and the `File` part each submit a usable
+> name), and the blanket claim was the expensive half because it told the next reader not to look.
+> And **`?q=` was audited as the same class and deliberately NOT given a vouching set**: the
+> reflection lives only on `/decks/<publicId>`, which 404s for a deck the caller does not own, so an
+> attack needs the victim's deck UUID — where `?error=` needed only `/decks`. It got a length clamp
+> as hygiene and a written decision so it stops being rediscovered. Suite **342/342, 30 files**
+> (+9/+1); six breakage runs, six verified restores. Evidence:
+> `context/changes/deck-error-param-guard/research.md`.
+>
+> Previously: 2026-08-01 (C10X-39 `local-stack-transport-flake` shipped — not a §3 rollout
 > phase). **No risk row moves and no coverage claim changes: the subject is the HARNESS's own
 > trustworthiness.** Two things make it worth reading. A mechanism this file asserted in two
 > places was measured and found **false** — Kong does not hold keep-alive sockets longer than
@@ -33,25 +62,40 @@
 > `npx supabase stop`, and CI carries it as parity, not necessity (`continue-on-error`, so a
 > green job no longer implies the step passed). So the wrapper stays. Two controls an hour apart
 > differ by **sevenfold**, which is recorded as a finding rather than averaged away. Suite
-> **332/332, 29 files** (+18/+1, all of it the new pure-half test). Evidence:
-> `context/changes/local-stack-transport-flake/verification.md`.
+> **333/333, 29 files** (+19/+1, all of it the new pure-half test; recorded as 332/+18 until
+> 2026-08-01, when C10X-40 measured the file at **19** cases — the impl-review's own additions were
+> counted at the pre-review figure). Evidence:
+> `context/archive/2026-08-01-local-stack-transport-flake/verification.md`.
 >
 > Previously: 2026-07-31, third entry of the day (C10X-37 `deck-form-hardening` shipped — not
 > a §3 rollout phase). **No risk row moves, and Risk #6 gains a third dated half.** What makes
 > this entry worth reading is not the coverage but the bookkeeping it closes: it is the first
 > change in this file whose entire scope was **two items other changes' impl-reviews had
-> deferred**, one of which had an owner (C10X-30 F1 → C10X-37) and one of which had **no ticket
-> at all** (C10X-34 F1, "to be ticketed, no key yet"). The second shipped under the first's key by
-> an explicit, written-down scope decision — because "a fix that landed under a foreign key" is
-> the confusion C10X-34 was itself written to untangle, and repeating it silently would have been
-> the same defect one surface over.
+> deferred**, one of which had an owner (C10X-30 F1 → C10X-37) and one of which was believed to
+> have **no ticket at all** (C10X-34 F1, whose follow-up note said "to be ticketed, no key yet").
+> The second shipped under the first's key by an explicit, written-down scope decision — because
+> "a fix that landed under a foreign key" is the confusion C10X-34 was itself written to untangle,
+> and repeating it silently would have been the same defect one surface over.
+>
+> > **Corrected 2026-08-01 (C10X-40).** The belief was already false when this entry was written,
+> > and the correction reached `change.md` and `jira-map.md` but not this file, in four places (see
+> > also the C10X-37 §6.6 entry and the two §8 entries). C10X-34 F1 **does** have a key —
+> > **C10X-40** — minted by `/jira-backlog-sync` on 2026-07-31, the same day the follow-up note
+> > claiming otherwise was written. What was true is narrower and is the durable lesson: the
+> > *review's own note* is not the source of truth about a deferred finding's key; `jira-map.md` is
+> > (`jira-map.md:204-219`). A reader of this file would otherwise conclude C10X-40 does not
+> > exist — which is exactly how a closed finding gets rediscovered and re-implemented.
 >
 > The two halves are one mechanism, which is why they are one change: a closed set of
 > project-owned messages (`src/lib/redirect-errors.ts`, eleven members) that the producers emit
 > and the consumers vouch for. The enumeration behind it is the step C10X-34's review named as
 > the prerequisite and did not take — **no `.message`, `String(err)` or `JSON.stringify` on any
-> deck-route branch** — so the set is closed by construction and the fix is `ownedAuthMessage`'s
-> shape rather than a redesign. One sink turned out to be worse than the review recorded: the
+> deck-route REDIRECT branch** (the looser "any deck-route branch" was measured false by the same
+> change's own read-back: `cards/batch.ts:45` does serialise a JSON response body, on a channel
+> this set deliberately excludes) — so the set is closed by construction and the fix is
+> `ownedAuthMessage`'s shape rather than a redesign. **Closed by construction is not closed by a
+> test**, and as of 2026-08-01 (C10X-40) it is the latter too: `tests/lib/form-endpoint-guards.test.ts`
+> resolves every value entering the channel and demands POSITIVE evidence that it is a set member. One sink turned out to be worse than the review recorded: the
 > deck page rendered the raw value in **`.astro` markup**, needing no companion parameter and
 > carrying no `role="alert"`, so a bare `/decks/<id>?error=X` reached it and no change to
 > `ServerError.tsx` could ever have covered it.
@@ -67,7 +111,17 @@
 > twins are where the same refusals get a real oracle, which is why every nameless case runs
 > through both endpoints. Suite **298/298, 26 files**; five breakage runs, five verified restores,
 > the constraint probed **behaviourally** as well as by `diff`. Evidence:
-> `context/changes/deck-form-hardening/verification.md`.
+> `context/archive/2026-07-31-deck-form-hardening/verification.md` (the path here read
+> `context/changes/…` until 2026-08-01 and no longer resolved — the pointer rot this file's §8
+> keeps recording in other people's documents).
+>
+> > **Two of the nameless CREATE refusals above got a row oracle on 2026-08-01 (C10X-40), and the
+> > sentence claiming they could not is corrected at the site** (`tests/validation/decks.test.ts`).
+> > The non-form JSON body and the `File` part each submit a perfectly usable name — merely
+> > somewhere the endpoint must never look — so a marker-scoped count IS falsifiable there, and a
+> > breakage that reads the `File`'s text turns it red on `expected 1 to be +0`. Four cases remain
+> > genuinely oracle-less (missing / empty / whitespace-only / broken-form), and for those the
+> > paragraph above stands unchanged.
 >
 > Previously: 2026-07-31, second entry of the day (C10X-41 `forced-language-prompt-fix`
 > shipped — not a §3 rollout phase). **No risk row moves, and that is the point worth reading:
@@ -96,7 +150,7 @@
 > uncompilable for two phases behind a fully green `lint` + `build` + `npm test`, because none of
 > the three is a type-check over `evals/`. Recorded, not fixed. Suite **262/262, 23 files**; eval
 > **11/11 twice**, both exit 0. Evidence:
-> `context/changes/forced-language-prompt-fix/verification.md`.
+> `context/archive/2026-07-31-forced-language-prompt-fix/verification.md`.
 >
 > Previously: 2026-07-31 (C10X-34 `auth-error-copy` shipped — roadmap H-03, not a §3 rollout
 > phase). **No risk row moves.** What it adds is the READ end of a channel this file only ever
@@ -125,7 +179,7 @@
 > branch proves the non-emptiness scan cannot kill a `→ ""` mutant — the closed-set assertion is
 > what does. Suite **254/254, 21 files**; Stryker on the mapper **92.98%**, four survivors, all
 > confirmed equivalent **by execution**, no assertion added. Evidence:
-> `context/changes/auth-error-copy/verification.md`.
+> `context/archive/2026-07-30-auth-error-copy/verification.md`.
 >
 > Previously: 2026-07-30 (C10X-32 `flashcards-test-order` shipped). **The suite is now
 > order-independent and shuffled by default** — `sequence: { shuffle: true }` is on
@@ -174,7 +228,7 @@
 > only real users produce that — and the CI/workflow leg is deliberately deferred
 > (local-only, human-triggered; §5). The ordinary suite gained the success-path
 > audit-columns case C10X-28's hand-off named. Suite: **220/220, 18 files**.
-> Evidence: `context/changes/ai-candidate-generation-test-3/verification.md`.
+> Evidence: `context/archive/2026-07-29-ai-candidate-generation-test-3/verification.md`.
 >
 > Previously: 2026-07-28, second entry of the day (C10X-30 `server-side-validation-test`
 > shipped). **§3 Phase 2 is `complete` and Risk #6 is covered on the server side** — the
@@ -198,7 +252,7 @@
 > archive. Auth input validation is deliberately **out**, owned by C10X-36; what landed on the
 > auth routes is malformed-body handling only. Suite: **207/207, 17 files** (193/193, 16 at
 > phase completion; the impl-review added 14 across 5 findings — see §8).
-> Evidence: `context/changes/server-side-validation-test/verification.md`.
+> Evidence: `context/archive/2026-07-28-server-side-validation-test/verification.md`.
 >
 > Previously: 2026-07-28 (C10X-29 `schema-drift-test` shipped). **§3 Phase 3 is
 > `complete`, and Risk #5 is covered per drift CLASS rather than wholesale** — the row
@@ -226,7 +280,7 @@
 > **Ship-time verification is complete, not deferred**: the gate ran green on a real push to
 > `main`, and the DDL workflow — dispatchable only once it reached the default branch — was
 > exercised three times, two green and one deliberately red.
-> Evidence: `context/changes/schema-drift-test/verification.md`.
+> Evidence: `context/archive/2026-07-27-schema-drift-test/verification.md`.
 >
 > Previously: 2026-07-26, third entry of the day (C10X-28 shipped, with C10X-34 and
 > C10X-30's source-text half riding along). **Risk #4 is covered; Risk #6 is half covered;
@@ -246,7 +300,7 @@
 > scope but unowned (§7). Three pointer-level falsehoods in this file are corrected —
 > every archived-change evidence path (each verified to resolve), the S-05 Stryker range,
 > and a stale anchor in a live test comment. Suite at completion: **166/166, 14 files**.
-> Evidence: `context/changes/ai-candidate-generation-test-2/verification.md`.
+> Evidence: `context/archive/2026-07-26-ai-candidate-generation-test-2/verification.md`.
 >
 > Previously: 2026-07-26, second entry of the day (C10X-27 shipped — the change the
 > morning's audit opened). **Phase 4 `reopened` → `complete`**: "the session loses a
@@ -1989,7 +2043,10 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
     `null` on anything else. The first step of that ticket is the thing this review did **not**
     establish: enumerate what the six deck endpoints actually put in `?error=` and confirm it is a
     closed set of literals.
-    > **Closed 2026-07-31 by C10X-37**, and it never received a key — it shipped under C10X-37's,
+    > **Closed 2026-07-31 by C10X-37**, and it shipped under C10X-37's key rather than its own —
+    > **not** for lack of a key, as this line claimed until 2026-08-01 (C10X-40): the finding is
+    > **C10X-40**, minted the same day the follow-up note said it had none. It shipped under a
+    > foreign key
     > which is exactly the "fix landed under a foreign key" confusion this file keeps recording, so
     > the decision is written down in `deck-form-hardening/change.md` rather than left to be
     > inferred. Two things this bullet got right and one it got wrong. Right: the enumeration was
@@ -2105,7 +2162,8 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
   recorded here because it closes **two** items this file had carried as open with named owners:
   Risk #6's deck half (the two `formData()` readers C10X-30's sweep missed, that change's
   impl-review F1) and the **read** end of the `?error=` channel on the deck surface (C10X-34's
-  impl-review F1, which had no ticket at all). The second shipped under the first's key by an
+  impl-review F1, believed at the time to have no ticket at all — it has one, **C10X-40**, minted
+  the same day; corrected 2026-08-01). The second shipped under the first's key by an
   explicit scope decision, recorded in the change's `change.md` — because "a fix that landed
   under a foreign key" is the confusion C10X-34 was itself written to untangle, and repeating it
   silently would have been the same defect one surface over.
@@ -2262,7 +2320,7 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
   | The before/after is the same experiment run twice | the census re-run: **0 silent seams**, against Phase 3's 6, with **669** replays behind it (156 × `POST /rest/v1/flashcard`, 60 × `POST /rest/v1/generation_session`) so the zero is not "the replay never happened". Red blocks 27 → **54**; all 27 of Phase 3's were matched into the 54 by set comparison, so **nothing that was loud went quiet** |
   | The local cause is removed, and the measurement is fixed-vs-control on one day | Phase 1 recreates the Kong container after `supabase start` with `KONG_UPSTREAM_KEEPALIVE_POOL_SIZE=0`. Phase 5: **0 drops across 40 spaced full-suite runs** (0/40 red) with pooling off, against **20 drops across 23 spaced runs** over two independent stock-pool controls — same day, same machine, same suite, same oracle (`docker logs … \| grep -c "prematurely closed"`), same 35 s spacing |
   | …and the quiet log is not the log of a dead proxy | three controls, all required and all met: the fixed matrix is **green** (0/40 red, 332 passed each run); `.kong_env` still reads `pool_size = 0` after the last run, so the setting did not revert mid-matrix; and the stock-pool control reproduced on its first attempt, **twice** |
-  | The unsupported step is falsifiable rather than a shell incantation | the `scripts/` split this repo already uses for the drift gate — a pure half (`scripts/kong-keepalive.ts`: the lever constant, `containerNames`, `buildRunArgs`, `parseKongEnv`) asserted by `tests/lib/kong-keepalive.test.ts` (**18 cases**, the +18 that moves the suite 314 → 332), plus an I/O half that refuses to report success on anything it did not verify. Its adoption oracle is Kong's own dump of every resolved setting, `/usr/local/kong/.kong_env` |
+  | The unsupported step is falsifiable rather than a shell incantation | the `scripts/` split this repo already uses for the drift gate — a pure half (`scripts/kong-keepalive.ts`: the lever constant, `containerNames`, `buildRunArgs`, `parseKongEnv`) asserted by `tests/lib/kong-keepalive.test.ts` (**19 cases**, the +19 that moves the suite 314 → 333 — recorded as 18/332 until C10X-40 counted them by running the file, 2026-08-01), plus an I/O half that refuses to report success on anything it did not verify. Its adoption oracle is Kong's own dump of every resolved setting, `/usr/local/kong/.kong_env` |
 
   **The one decision the census turns on, stated because it is not obvious and it was measured.**
   The neuter returns the **first** response and discards the replay's. Returning the second
@@ -2860,7 +2918,7 @@ contributors should respect these unless the underlying assumption changes.
   > `GeneratorForm` note above says an untested branch is unreachable anyway, here an untested
   > branch is the one a user actually meets. The server half is asserted
   > (`tests/validation/cards.test.ts`) and backed by a DB CHECK; the client half rests on the
-  > manual browser checks in `context/changes/server-side-validation-test/verification.md`.
+  > manual browser checks in `context/archive/2026-07-28-server-side-validation-test/verification.md`.
   >
   > **A fourth instance, and it belongs with the third rather than the second (C10X-37,
   > 2026-07-31).** `CreateDeckModal` and `DeckActions` import `NAME_MIN`/`NAME_MAX`/
@@ -2879,7 +2937,7 @@ contributors should respect these unless the underlying assumption changes.
   > through one form and sealed behind another. Their guard runs `.trim()` then 1..100 and `preventDefault()`s, which is why
   > the server's over-length branch is unreachable through the hydrated UI — Risk #6's premise,
   > not an argument against testing the server. The client half rests on the browser matrix in
-  > `context/changes/deck-form-hardening/verification.md`, where the trap worth carrying is that
+  > `context/archive/2026-07-31-deck-form-hardening/verification.md`, where the trap worth carrying is that
   > the deck page renders a SECOND `[role="alert"]` (the OpenRouter config banner), so an unscoped
   > `querySelector('[role="alert"]')` reads the wrong node and the case passes on it.
 
@@ -3188,10 +3246,11 @@ contributors should respect these unless the underlying assumption changes.
   `follow-ups/review-fixes.md` and named in §6.6's does-NOT-prove list; **to be ticketed via
   `/jira-backlog-sync`**. Its first step is the enumeration this review did not do: confirm the
   six deck endpoints' `?error=` values are a closed set of literals.
-  > **Closed 2026-07-31 by C10X-37** (`deck-form-hardening`), and it never got a key of its own —
-  > it shipped under C10X-37's by an explicit scope decision recorded in that change's
-  > `change.md`, so a future reader looking for a follow-up whose key never existed finds this
-  > line instead. The enumeration named as "the first step" was done and came back **eleven
+  > **Closed 2026-07-31 by C10X-37** (`deck-form-hardening`) — it shipped under C10X-37's key by an
+  > explicit scope decision recorded in that change's `change.md`. This line used to add "and it
+  > never got a key of its own"; **that was false and is corrected 2026-08-01 (C10X-40)**, which is
+  > the key it got, minted by `/jira-backlog-sync` on the same day the follow-up note said it had
+  > none. The enumeration named as "the first step" was done and came back **eleven
   > literals, a closed set** — no `.message`, `String(err)` or `JSON.stringify` on any deck-route
   > branch — which is why the fix is `ownedAuthMessage`'s shape rather than a redesign. See §6.6's
   > C10X-37 entry.
@@ -3235,7 +3294,7 @@ contributors should respect these unless the underlying assumption changes.
   and the constraint that must travel with it — whatever writes `prompt_name` has to open one of
   the table's two read-only enforcers and inherits the prompt-injection guard the Zod enum used
   to hold — is recorded in
-  `context/changes/forced-language-prompt-fix/follow-ups/admin-panel.md`. **To be ticketed via
+  `context/archive/2026-07-31-forced-language-prompt-fix/follow-ups/admin-panel.md`. **To be ticketed via
   `/jira-backlog-sync`.**
 
 - **Risk #6's deck half and Risk #4's read half on the deck surface last proven by execution:
@@ -3304,8 +3363,13 @@ contributors should respect these unless the underlying assumption changes.
   Eight fixed, one accepted, none skipped. Suite 298 → **314** (`+3` in the new
   `tests/lib/no-client-redirect-errors.test.ts`, `+7` in the new
   `tests/lib/form-endpoint-guards.test.ts`, `+2` in the page guard, `+1` in
-  `redirect-errors.test.ts`, `+1` in `signed-out.test.ts`); files 26 → **28**; green on three fresh
+  `redirect-errors.test.ts`, `+3` in `signed-out.test.ts`); files 26 → **28**; green on three fresh
   un-pinned seeds (1357 / 2468 / 8642); `tsc` / `lint` / `build` all exit 0.
+  > **The `signed-out.test.ts` figure read `+1` until 2026-08-01 (C10X-40), and the entry's own
+  > arithmetic is what gave it away**: 3+7+2+1+1 = 14, against a declared delta of 16. Measured by
+  > running the file — **12** cases, because the review's addition was an `it()` plus an `it.each`
+  > over the two delete rows, not one case. The lesson is this file's own: a total and its
+  > breakdown are two claims, and only one of them was checked.
 - **A stated rationale was measured and found FALSE, which is why three of the fixes are guards
   rather than edits.** Four sites justified `redirect-errors.ts`'s server-only rule with "it imports
   `flashcards.ts`, which drags a query layer into the bundle". Neither half survives: `flashcards.ts`
@@ -3372,9 +3436,12 @@ contributors should respect these unless the underlying assumption changes.
 - **The HARNESS's own silent-write class last proven closed by execution: 2026-08-01** (C10X-39,
   change folder `local-stack-transport-flake`). A different axis again — like C10X-32's
   order-independence entry, it says the existing claims are *trustworthy*, not that anything new
-  is covered. Suite **332/332, 29 files** (314/314, 28 at the C10X-37 baseline; the **+18 / +1**
+  is covered. Suite **333/333, 29 files** (314/314, 28 at the C10X-37 baseline; the **+19 / +1**
   is `tests/lib/kong-keepalive.test.ts` alone, and the seam work adds **zero** cases by design —
-  six oracles inside existing helpers, no new `it()`). The count is identical at the Phase 3
+  six oracles inside existing helpers, no new `it()`). Recorded as **332 / +18** until 2026-08-01,
+  when C10X-40 ran the file and counted **19**: the entry was written from the phase-completion
+  figure and the change's own impl-review had since widened that file. Nothing else moves — the
+  seam work still adds zero. The count is identical at the Phase 3
   baseline, after Phase 4 and after Phase 5's 40-run matrix. Local stack up,
   `OPENROUTER_API_KEY` unset, `npx tsc --noEmit` exit 0, `npm run lint` exit 0 (the same 6
   pre-existing `no-console` warnings in `evals/generation-quality.eval.ts`, unchanged),
@@ -3446,6 +3513,50 @@ contributors should respect these unless the underlying assumption changes.
   loud only by accident (§6.6). `jira-map.md`'s `Change ID` note for **C10X-39** is also stale in
   the reassuring direction — `customfield_10041` was already set on the Jira side when
   `/jira-finish-work` RUN 1 read it, and the ticket summary already carried the retitled wording.
+
+- **The guards holding the `?error=` claim last proven falsifiable by execution: 2026-08-01**
+  (C10X-40, change folder `deck-error-param-guard`). A third axis, after C10X-32's
+  order-independence and C10X-39's silent-write census: it asks whether the guards can still go
+  red, not whether the claims are covered. Suite **342/342, 30 files** (333/333, 29 at the C10X-39
+  baseline). The breakdown, counted by running each file rather than by adding up intentions:
+  **+3** in `tests/lib/form-endpoint-guards.test.ts` (7 → 10), **+1** in
+  `tests/lib/error-param-guard.test.ts` (10 → 11), **+5** in the new
+  `tests/lib/deck-limits.test.ts`; `tests/validation/decks.test.ts` stays at **16** — the two count
+  oracles went into existing cases, so an unchanged number there is correct rather than suspicious.
+  Local stack up, `OPENROUTER_API_KEY` unset, `npx tsc --noEmit` exit 0, `npm run lint` exit 0 (the
+  same 6 pre-existing `no-console` warnings in `evals/`), `npm run build` exit 0, and
+  `git diff -- src/` **empty** after every breakage restore, each verified by `md5sum`.
+- **Six breakage runs, each turning exactly ONE case red, and in two of them the evidence is what
+  stayed green.** `errorUrl("Talia jest zablokowana")` and `errorUrl(String(err))` each turn the
+  new producer claim red **while the pre-existing `INLINE_ERROR_LITERAL` case stays green** — which
+  is the measurement proving the gap was real rather than theoretical. A hoisted
+  `params.get("error")` on a deck page and a raw read planted in `src/layouts/Layout.astro` each go
+  red naming file and line; a full rename of a `formData()` receiver plus an un-narrowed part goes
+  red on the derived-receiver check; and making the create endpoint read a `File` part's text turns
+  the new count oracle red on `expected 1 to be +0`.
+- **One breakage attempt failed and the failure was mine, not the guard's** — recorded because this
+  file's own discipline is that a green breakage run is a finding until explained. The first
+  receiver-rename run stayed green because the `sed` targeted `const form = await …` while the file
+  actually reads `form = await …` under a `let` declaration, so the rename never happened. Re-run
+  correctly, it goes red. A breakage run that does not go red is a claim about the EDIT before it is
+  a claim about the guard.
+- **`?q=` was audited and deliberately left outside the vouching mechanism**, which is a decision
+  rather than an omission and is written into `src/lib/deck-limits.ts` where the next reader meets
+  it. It is the only query parameter in the app whose raw value is rendered as text
+  (`FlashcardWorkspace.tsx`, plus the search input's `defaultValue`), so it was a genuine candidate
+  for `ownedRedirectMessage`'s treatment. It is not one for a structural reason: the reflection
+  exists only on `/decks/<publicId>`, which answers a hard 404 for a deck the caller does not own,
+  so exploitation needs the victim's own deck UUID — where the `?error=` vector needed only
+  `/decks`. What survived is hygiene: the value was unbounded in both the reflection and the search
+  RPC argument, and now clamps at `QUERY_MAX`. **Do not read the clamp as a security control.**
+- **Two roadmap rows were backfilled** (`roadmap.md` H-07 `deck-form-hardening`, H-08
+  `local-stack-transport-flake`), following the H-04 precedent and annotated as backfilled: both
+  changes archived with no roadmap row, so `/10x-archive` had nothing to close and the work
+  vanished from `## Done` without trace. H-09 exists for this change so the same does not happen
+  again.
+- **Still open after this entry, deliberately**: `customfield_10041` on **C10X-37** is set on the
+  map side only, and **C10X-40** is closed against this change by `/jira-finish-work`, not here.
+  The island half of every claim (§7) is untouched, as are the cloud rows and banner announcement.
 
 Refresh (`/10x-test-plan --refresh`) when:
 

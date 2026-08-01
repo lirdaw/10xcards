@@ -58,6 +58,9 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 | H-04 | ai-candidate-generation-test-2 | mieć pewność, że wklejony tekst i klucz API nie wyciekają do odpowiedzi błędu ani do logu, a serwer odrzuca żądanie omijające limity z UI | MVP (S-01…S-06)  | Guardrails: prywatność tekstu źródłowego, NFR: prywatność, FR-003 | done        |
 | H-05 | schema-drift-test              | ufać, że wdrożona aplikacja nigdy nie działa przeciw bazie bez swojej migracji — CI zatrzymuje deploy, zanim Worker wyjdzie               | MVP (S-01…S-06)  | NFR: dane i harmonogram przeżywają między sesjami, Guardrails     | done        |
 | H-06 | ai-candidate-generation-test-3 | mieć zmierzony dowód (lokalny eval LLM-as-judge na realnym modelu), że generacja oddaje fiszki w języku źródła i nadające się do nauki    | MVP (S-01…S-06)  | §Success Criteria (75% akceptacji — proxy), NFR: język kart       | done        |
+| H-07 | deck-form-hardening            | ufać, że serwer odrzuca spreparowaną nazwę talii, a cudzy link nie wyświetli dowolnego tekstu w czerwonym pasku błędu na ekranach talii   | MVP (S-01…S-06)  | FR-017, Guardrails, NFR: UI po polsku                             | done        |
+| H-08 | local-stack-transport-flake    | (harness) ufać, że zielony przebieg testów nie ukrywa podwójnego zapisu — lokalny flake transportowy przestaje być cichym duplikatem      | MVP (S-01…S-06)  | Guardrails: trwałość danych (pośrednio — wiarygodność harnessu)   | done        |
+| H-09 | deck-error-param-guard         | mieć bramki, które nie wygasają po cichu przy zwykłym refaktorze — zbiór `?error=` egzekwowany u producentów, skan odczytu na całym `src/` | MVP (S-01…S-06) | Guardrails, FR-015                                                | in progress |
 
 Prefiks **`H-` (hardening)** oznacza pracę PO zamknięciu zakresu MVP: `F-01…F-03` i
 `S-01…S-06` są `done` i ta granica zostaje nienaruszona. Elementy `H-` nie są vertical
@@ -295,6 +298,44 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **Risk:** Sędzia mierzy wierność językową i użyteczność, nigdy wskaźnika 75% akceptacji — ten produkują wyłącznie realni użytkownicy na ekranie przeglądu. Dwa jawnie nazwane follow-upy do zaticketowania (`/jira-backlog-sync`): (1) naprawa promptu wymuszonego języka — kandydat: nazwać język docelowy po angielsku lub natywnie (`German`/`Deutsch`), z tym evalem jako testem odbioru; (2) odroczona noga `workflow_dispatch` (idiom `schema-diff.yml`, sekrety per-step, OSOBNY klucz OpenRouter z niskim limitem kredytów jako ogranicznik szkód) — eval zostaje świadomie lokalny i uruchamiany ręcznie, bez harmonogramu, bo alarm, którego nikt nie słyszy, to nie pokrycie (ta sama reguła co diff DDL w §5 test-planu). Uwaga operacyjna: `npm run eval` kończy się dziś kodem **1** — to bramka świecąca na czerwono na realnym defekcie, nie awaria evala.
 - **Status:** done
 
+### H-07: Utwardzenie formularzy talii + bramka `?error=` na ekranach talii (post-MVP)
+
+- **Outcome:** (hardening) użytkownik nie może spreparowanym żądaniem ominąć reguły nazwy talii, którą wymusza UI, a spreparowany link nie wyświetli mu dowolnego tekstu wewnątrz czerwonego paska błędu tej aplikacji — komunikat, za który aplikacja nie ręczy, degraduje się do braku paska zamiast do paska z cudzą treścią.
+  **Dostarczone (2026-07-31):** dwa endpointy talii, które przeoczył sweep C10X-30, czytają teraz `formData()` w `try` i zwężają części przez `formString`; zamknięty zbiór jedenastu komunikatów (`src/lib/redirect-errors.ts`) plus `ownedRedirectMessage` — przynależność przez RÓWNOŚĆ, `null` na czymkolwiek innym; sześć ujść na trzech stronach talii przepiętych na helper, w tym jedno renderujące wartość w surowym znaczniku `.astro`, którego żadna zmiana w `ServerError.tsx` nigdy by nie pokryła. Para przebiegów zepsucia rozdzieliła warstwę endpointu od `deck_name_check` w obie strony. Suite 298/298 → 314/314 po impl-review.
+- **Change ID:** deck-form-hardening
+- **PRD refs:** FR-017 (talie), §Guardrails (izolacja i zaufanie do komunikatów), §NFR (UI po polsku)
+- **Prerequisites:** — (praca po zamknięciu MVP, poza grafem zależności)
+- **Parallel with:** —
+- **Blockers:** —
+- **Unknowns:** —
+- **Risk:** Zakres C10X-40 (strona ODCZYTU) dostarczono pod tym kluczem świadomą decyzją zakresową — jeden mechanizm, jeden folder zmiany. Połowa wyspowa (guard 1..100 w `CreateDeckModal`/`DeckActions`) pozostaje nieasertowana jak każda wyspa (§7 test-planu), a bezimienne odmowy CREATE nie mają orakla wierszowego i nic nie przypisują żadnej warstwie.
+- **Status:** done
+
+### H-08: Cichy podwójny zapis pod lokalnym flakiem transportowym (post-MVP)
+
+- **Outcome:** (hardening) zespół przestaje czytać zielony przebieg testów jako dowód, że nic się nie zdublowało: powtórzone żądanie zapisu, które lokalny wrapper transportowy absorbuje, przestaje przechodzić niezauważone przez asercje.
+  **Dostarczone (2026-08-01):** eksperyment wymuszający po jednym replayu na każde lokalne żądanie nie-`GET` wykazał **sześć** cichych szwów (nie dwa, jak zakładał odczyt kodu) przy 23 z 29 plików niczego nie zauważających; każdy dostał licznik zawężony do przypadku, pisany test-first, a powtórzony census raportuje **zero**. Zmierzono też mechanizm samego flake'a: oba timeouty keep-alive to 60 s (RÓWNE — przypadek patologiczny, nie zła kolejność), a spadki klastrują się w pierwszych 1-2 s serii. Lokalnie przyczyna usunięta przez odtworzenie kontenera Kong bez puli — niewspierane, per-maszyna, ścierane każdym `supabase stop`.
+- **Change ID:** local-stack-transport-flake
+- **PRD refs:** §Guardrails (trwałość danych) — pośrednio: przedmiotem jest wiarygodność harnessu, nie zachowanie produktu
+- **Prerequisites:** — (praca po zamknięciu MVP, poza grafem zależności)
+- **Parallel with:** —
+- **Blockers:** —
+- **Unknowns:** —
+- **Risk:** Cisza jest dowiedziona wyłącznie dla szwów istniejących w dniu censusu — helper dopisany jutro bez licznika to nowy cichy szew i **nic tego nie wykrywa automatycznie**. Krok w CI jest parytetem, nie koniecznością (`continue-on-error`), więc zielony job `ci` nie implikuje, że przeszedł.
+- **Status:** done
+
+### H-09: Bramki `?error=`, które nie wygasają po cichu (post-MVP)
+
+- **Outcome:** (hardening) reguły chroniące kanał `?error=` przestają być zaczepione o pisownię, a stają się zaczepione o konstrukcję: zbiór komunikatów jest egzekwowany w miejscu, gdzie wartości do niego wchodzą (a nie tylko tam, gdzie stoi literał obok napisu `error=`), a skan strony odczytu obejmuje każdy plik `.astro` w `src/`, nie tylko `src/pages/`.
+- **Change ID:** deck-error-param-guard
+- **PRD refs:** §Guardrails (zaufanie do komunikatów aplikacji), FR-015 (limit długości frazy wyszukiwania)
+- **Prerequisites:** — (praca po zamknięciu MVP, poza grafem zależności)
+- **Parallel with:** —
+- **Blockers:** —
+- **Unknowns:** —
+- **Risk:** Audyt otwierający tę pozycję potwierdził, że merytoryczny zakres C10X-40 był już dostarczony pod H-07 — więc jej zawartością jest trwałość bramek i księgowość, nie ponowna naprawa luki. `?q=` zbadano i **świadomie nie objęto** zbiorem wouchującym: odbicie żyje wyłącznie na `/decks/<publicId>`, która zwraca twarde 404 dla cudzej talii, więc atak wymagałby UUID-a talii ofiary; został sam limit długości jako higiena.
+- **Status:** in progress
+
 ## Backlog Handoff
 
 | Roadmap ID | Change ID               | Suggested issue title                              | Ready for `/10x-plan` | Notes                                                    |
@@ -346,6 +387,8 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **H-04: (hardening) użytkownik, któremu generacja padła, dostaje komunikat bez swojego wklejonego tekstu, bez odpowiedzi dostawcy LLM i bez klucza API — a serwer odrzuca żądanie omijające limity wymuszane przez UI, zamiast je zapisać.** — Archived 2026-07-26 → `context/archive/2026-07-26-ai-candidate-generation-test-2/`. Lesson: —. **Wpis uzupełniony wstecz 2026-07-28** — w chwili archiwizacji ten element nie miał wiersza w roadmapie, więc `/10x-archive` nie miał czego domknąć.
 - **H-03: (hardening) użytkownik, któremu nie udało się zalogować lub zarejestrować, dowiaduje się po polsku, co poszło nie tak i co z tym zrobić — a to, co odpowiedział serwer uwierzytelniania, nie trafia do jego paska adresu, historii przeglądarki ani do logu dostępowego. Do tego anonimowy odwiedzający przestaje być informowany, czy generacja AI działa naprawdę, czy w trybie mock.** — Archived 2026-07-31 → `context/archive/2026-07-30-auth-error-copy/`. Lesson: —.
 - **H-05: (hardening) użytkownik nigdy nie trafia na aplikację działającą przeciw bazie, której brakuje migracji z wdrożonego kodu — CI zatrzymuje deploy, zanim Worker wyjdzie, zamiast pozwolić mu wystartować i wywalić się na pierwszym zapisie.** — Archived 2026-07-28 → `context/archive/2026-07-27-schema-drift-test/`. Lesson: —.
+- **H-07: (hardening) użytkownik nie może spreparowanym żądaniem ominąć reguły nazwy talii wymuszanej przez UI, a spreparowany link nie wyświetli mu dowolnego tekstu wewnątrz czerwonego paska błędu tej aplikacji — komunikat, za który aplikacja nie ręczy, degraduje się do BRAKU paska. Zamknięty zbiór jedenastu komunikatów plus `ownedRedirectMessage` (przynależność przez równość), sześć ujść na trzech stronach talii, oraz dwa endpointy `formData()`, które przeoczył sweep C10X-30.** — Archived 2026-08-01 → `context/archive/2026-07-31-deck-form-hardening/`. Lesson: —. **Wpis uzupełniony wstecz 2026-08-01 (C10X-40)** — w chwili archiwizacji ten element nie miał wiersza w roadmapie, więc `/10x-archive` nie miał czego domknąć; ta sama sytuacja co przy H-04.
+- **H-08: (hardening) zespół przestaje czytać zielony przebieg testów jako dowód, że nic się nie zdublowało — sześć cichych szwów zapisu (nie dwa, jak zakładał odczyt kodu) dostało liczniki zawężone do przypadku, a powtórzony census raportuje zero. Przy okazji zmierzono mechanizm samego flake'a: oba timeouty keep-alive to 60 s, czyli przypadek patologiczny, a nie zła kolejność.** — Archived 2026-08-01 → `context/archive/2026-08-01-local-stack-transport-flake/`. Lesson: —. **Wpis uzupełniony wstecz 2026-08-01 (C10X-40)** — jak wyżej: brak wiersza w chwili archiwizacji.
 - **H-06: (hardening) zespół ma zmierzony, powtarzalny dowód, że wygenerowane fiszki wychodzą w języku tekstu źródłowego i nadają się do nauki: lokalny eval LLM-as-judge (`npm run eval`, osobna ścieżka uruchomienia — nigdy część `npm test`) przepuszcza 10-przypadkową macierz językową przez produkcyjne `generateCandidates()` na realnym modelu i ocenia każdą kartę sędzią z INNEJ rodziny modeli (`google/gemini-2.5-flash` vs `openai/gpt-4o-mini`).** — Archived 2026-07-29 → `context/archive/2026-07-29-ai-candidate-generation-test-3/`. Lesson: —.
 
 ## Parked ideas (post-MVP → Jira "Pomysł")
