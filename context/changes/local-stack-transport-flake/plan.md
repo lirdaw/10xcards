@@ -765,33 +765,36 @@ wiped by `supabase stop` — it is not state anything else depends on. Rollback 
 
 #### Automated
 
-- [x] 4.1 `npm test` passes in full, suite count unchanged from the Phase 3 baseline
-- [x] 4.2 One targeted breakage run per seam turns exactly that seam's assertion red, failure strings recorded
-- [x] 4.3 Each targeted edit reverted, verified by `md5`; `git diff -- tests/` empty
+- [x] 4.1 `npm test` passes in full, suite count unchanged from the Phase 3 baseline — 35e0162
+- [x] 4.2 One targeted breakage run per seam turns exactly that seam's assertion red, failure strings recorded — 35e0162
+- [x] 4.3 Each targeted edit reverted, verified by `md5`; `git diff -- tests/` empty — 35e0162
       <!-- md5 matches literally for retry-transport.ts (57ee187e…). For the four test files the
            breakage was interleaved with authoring (test-first), so no byte-identical earlier
            state exists to hash; verified instead by reading every deletion in the diff and by a
            residue grep. Deviation stated in verification.md §4.3. -->
-- [x] 4.4 The census re-run reports zero silent seams
-- [x] 4.5 `npm run lint` exits 0
+- [x] 4.4 The census re-run reports zero silent seams — 35e0162
+- [x] 4.5 `npm run lint` exits 0 — 35e0162
 
 #### Manual
 
-- [x] 4.6 The re-run census's red set is compared case by case against Phase 3's silent list
-- [x] 4.7 Duplicated rows from the re-run census are cleaned up
+- [x] 4.6 The re-run census's red set is compared case by case against Phase 3's silent list — 35e0162
+- [x] 4.7 Duplicated rows from the re-run census are cleaned up — 35e0162
 
 ### Phase 5: Before/after flake measurement
 
 #### Automated
 
-- [ ] 5.1 40-run matrix completes with 0 red
-- [ ] 5.2 `.kong_env` reads `pool_size = 0` before and after the matrix
-- [ ] 5.3 The Kong "prematurely closed" delta is recorded against C10X-32's 22
+- [x] 5.1 40-run matrix completes with 0 red
+- [x] 5.2 `.kong_env` reads `pool_size = 0` before and after the matrix
+- [x] 5.3 The Kong "prematurely closed" delta is recorded against C10X-32's 22
 
 #### Manual
 
-- [ ] 5.4 The stock-pool control (≥10 spaced runs) reproduces at least one drop and its count is recorded, or the verdict is recorded as inconclusive
-- [ ] 5.5 The stack is left in the fixed state, not the control's
+- [x] 5.4 The stock-pool control (≥10 spaced runs) reproduces at least one drop and its count is recorded, or the verdict is recorded as inconclusive
+      <!-- Executed TWICE: 13 valid runs / 18 drops (§5.2) and, as an independent repeat at the
+           plan's ≥10 floor, 10 runs / 2 drops (§5.2b). The sevenfold rate spread between them is
+           recorded as a finding, not averaged away. -->
+- [x] 5.5 The stack is left in the fixed state, not the control's
 
 ### Phase 6: Documentation sync
 
