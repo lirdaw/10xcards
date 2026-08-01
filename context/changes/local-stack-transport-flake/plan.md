@@ -800,26 +800,26 @@ wiped by `supabase stop` — it is not state anything else depends on. Rollback 
 
 #### Automated
 
-- [x] 6.1 `grep -rn "longer than PostgREST" tests/ src/ context/foundation/` AND `grep -rn "holds them idle longer" tests/ src/ context/foundation/` both return nothing
+- [x] 6.1 `grep -rn "longer than PostgREST" tests/ src/ context/foundation/` AND `grep -rn "holds them idle longer" tests/ src/ context/foundation/` both return nothing — 1b12958
       <!-- Satisfying this changed HOW the corrections are written: they paraphrase the
            superseded sentence instead of quoting it, against this project's usual habit of
            keeping wrong wording verbatim. A correction block quoting the phrase — or an entry
            quoting the grep COMMAND, which the first draft of the §8 bullet did — keeps the check
            permanently non-empty, i.e. a gate that can never pass. Verbatim record kept where the
            grep does not reach: change.md (×2), research.md (×2), plan.md (×4). -->
-- [x] 6.2 `grep -rn "context/changes/flashcards-test-order" tests/ src/ context/foundation/` returns nothing
-- [x] 6.3 `npm test` passes in full
-- [x] 6.4 `npm run lint` and `npm run build` exit 0
-- [x] 6.5 `npx tsc --noEmit` exits 0
+- [x] 6.2 `grep -rn "context/changes/flashcards-test-order" tests/ src/ context/foundation/` returns nothing — 1b12958
+- [x] 6.3 `npm test` passes in full — 1b12958
+- [x] 6.4 `npm run lint` and `npm run build` exit 0 — 1b12958
+- [x] 6.5 `npx tsc --noEmit` exits 0 — 1b12958
 
 #### Manual
 
-- [x] 6.6 The §6.6 does-NOT-prove list matches Phase 5's actual verdict
+- [x] 6.6 The §6.6 does-NOT-prove list matches Phase 5's actual verdict — 1b12958
       <!-- Run as an audit against the numbers, and it FAILED first: three errors in the
            freshly-written entry (four card seams → three; "each attributed by line number" →
            only the green ones; a missing per-file denominator) plus two missing does-NOT-prove
            items. All corrected in §6.6 and §8; recorded in verification.md §6.4. -->
-- [x] 6.7 The wrapper header is re-read cold and its mechanism matches the measurements
+- [x] 6.7 The wrapper header is re-read cold and its mechanism matches the measurements — 1b12958
       <!-- Every claim matched to verification.md; three matched to CODE instead of prose
            (db:start chains db:kong; all six oracles present at the insert site; `method` is
            inspected nowhere, i.e. the census neuter is fully reverted). Limit stated: the
