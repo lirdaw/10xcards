@@ -1,10 +1,10 @@
 ---
 change_id: deck-error-param-guard
 title: Audit and close the ?error= injection vector on the deck pages
-status: impl_reviewed
+status: archived
 created: 2026-08-01
 updated: 2026-08-01
-archived_at: null
+archived_at: 2026-08-01T20:51:23Z
 ---
 
 ## Process deviation (recorded 2026-08-01, impl-review F7)

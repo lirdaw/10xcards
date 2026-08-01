@@ -3,7 +3,7 @@ project: 10xcards
 version: 1
 status: draft
 created: 2026-07-04
-updated: 2026-07-31
+updated: 2026-08-01
 prd_version: 1
 main_goal: quality
 top_blocker: capacity
@@ -60,7 +60,7 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 | H-06 | ai-candidate-generation-test-3 | mieć zmierzony dowód (lokalny eval LLM-as-judge na realnym modelu), że generacja oddaje fiszki w języku źródła i nadające się do nauki    | MVP (S-01…S-06)  | §Success Criteria (75% akceptacji — proxy), NFR: język kart       | done        |
 | H-07 | deck-form-hardening            | ufać, że serwer odrzuca spreparowaną nazwę talii, a cudzy link nie wyświetli dowolnego tekstu w czerwonym pasku błędu na ekranach talii   | MVP (S-01…S-06)  | FR-017, Guardrails, NFR: UI po polsku                             | done        |
 | H-08 | local-stack-transport-flake    | (harness) ufać, że zielony przebieg testów nie ukrywa podwójnego zapisu — lokalny flake transportowy przestaje być cichym duplikatem      | MVP (S-01…S-06)  | Guardrails: trwałość danych (pośrednio — wiarygodność harnessu)   | done        |
-| H-09 | deck-error-param-guard         | mieć bramki, które nie wygasają po cichu przy zwykłym refaktorze — zbiór `?error=` egzekwowany u producentów, skan odczytu na całym `src/` | MVP (S-01…S-06) | Guardrails, FR-015                                                | in progress |
+| H-09 | deck-error-param-guard         | mieć bramki, które nie wygasają po cichu przy zwykłym refaktorze — zbiór `?error=` egzekwowany u producentów, skan odczytu na całym `src/` | MVP (S-01…S-06) | Guardrails, FR-015                                                | done        |
 
 Prefiks **`H-` (hardening)** oznacza pracę PO zamknięciu zakresu MVP: `F-01…F-03` i
 `S-01…S-06` są `done` i ta granica zostaje nienaruszona. Elementy `H-` nie są vertical
@@ -334,7 +334,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Audyt otwierający tę pozycję potwierdził, że merytoryczny zakres C10X-40 był już dostarczony pod H-07 — więc jej zawartością jest trwałość bramek i księgowość, nie ponowna naprawa luki. `?q=` zbadano i **świadomie nie objęto** zbiorem wouchującym: odbicie żyje wyłącznie na `/decks/<publicId>`, która zwraca twarde 404 dla cudzej talii, więc atak wymagałby UUID-a talii ofiary; został sam limit długości jako higiena.
-- **Status:** in progress
+- **Status:** done
 
 ## Backlog Handoff
 
@@ -390,6 +390,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **H-07: (hardening) użytkownik nie może spreparowanym żądaniem ominąć reguły nazwy talii wymuszanej przez UI, a spreparowany link nie wyświetli mu dowolnego tekstu wewnątrz czerwonego paska błędu tej aplikacji — komunikat, za który aplikacja nie ręczy, degraduje się do BRAKU paska. Zamknięty zbiór jedenastu komunikatów plus `ownedRedirectMessage` (przynależność przez równość), sześć ujść na trzech stronach talii, oraz dwa endpointy `formData()`, które przeoczył sweep C10X-30.** — Archived 2026-08-01 → `context/archive/2026-07-31-deck-form-hardening/`. Lesson: —. **Wpis uzupełniony wstecz 2026-08-01 (C10X-40)** — w chwili archiwizacji ten element nie miał wiersza w roadmapie, więc `/10x-archive` nie miał czego domknąć; ta sama sytuacja co przy H-04.
 - **H-08: (hardening) zespół przestaje czytać zielony przebieg testów jako dowód, że nic się nie zdublowało — sześć cichych szwów zapisu (nie dwa, jak zakładał odczyt kodu) dostało liczniki zawężone do przypadku, a powtórzony census raportuje zero. Przy okazji zmierzono mechanizm samego flake'a: oba timeouty keep-alive to 60 s, czyli przypadek patologiczny, a nie zła kolejność.** — Archived 2026-08-01 → `context/archive/2026-08-01-local-stack-transport-flake/`. Lesson: —. **Wpis uzupełniony wstecz 2026-08-01 (C10X-40)** — jak wyżej: brak wiersza w chwili archiwizacji.
 - **H-06: (hardening) zespół ma zmierzony, powtarzalny dowód, że wygenerowane fiszki wychodzą w języku tekstu źródłowego i nadają się do nauki: lokalny eval LLM-as-judge (`npm run eval`, osobna ścieżka uruchomienia — nigdy część `npm test`) przepuszcza 10-przypadkową macierz językową przez produkcyjne `generateCandidates()` na realnym modelu i ocenia każdą kartę sędzią z INNEJ rodziny modeli (`google/gemini-2.5-flash` vs `openai/gpt-4o-mini`).** — Archived 2026-07-29 → `context/archive/2026-07-29-ai-candidate-generation-test-3/`. Lesson: —.
+- **H-09: (hardening) reguły chroniące kanał `?error=` przestają być zaczepione o pisownię, a stają się zaczepione o konstrukcję: zbiór komunikatów jest egzekwowany w miejscu, gdzie wartości do niego wchodzą (a nie tylko tam, gdzie stoi literał obok napisu `error=`), a skan strony odczytu obejmuje każdy plik `.astro` w `src/`, nie tylko `src/pages/`.** — Archived 2026-08-01 → `context/archive/2026-08-01-deck-error-param-guard/`. Lesson: —.
 
 ## Parked ideas (post-MVP → Jira "Pomysł")
 
