@@ -8,8 +8,11 @@ import { SubmitButton } from "@/components/auth/SubmitButton";
 import { ServerError } from "@/components/auth/ServerError";
 // Bound AND copy come from the endpoint's own module (`api/decks/index.ts` imports the same
 // three), so the client guard and the server guard cannot drift — test-plan §2 Risk #6. Never
-// import `redirect-errors.ts` here: it is server-side and would drag a query layer into this
-// bundle; the island receives its server message as the `serverError` prop instead.
+// import `redirect-errors.ts` here: it is server-side, and this island already receives its
+// server message as the `serverError` prop. Enforced, not just asked for —
+// `tests/lib/no-client-redirect-errors.test.ts` goes red on such an import. (The reason given
+// here until 2026-08-01 was "it would drag a query layer into this bundle", which was false;
+// C10X-37 impl-review F1.)
 import { NAME_MIN, NAME_MAX, DECK_NAME_MESSAGE } from "@/lib/deck-limits";
 
 interface Props {

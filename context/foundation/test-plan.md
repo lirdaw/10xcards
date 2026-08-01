@@ -2175,6 +2175,18 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
   `context/changes/deck-form-hardening/verification.md` (after archiving:
   `context/archive/<date>-deck-form-hardening/verification.md`).
 
+  > **Extended 2026-08-01 by this change's impl-review; suite 298 → 314, 26 → 28 files, and TWO
+  > items in the list above moved.** Nothing about the claims table changes — the review found no
+  > functional defect and re-verified every one of them — but two of the things this entry left
+  > resting on prose are now enforced by tests that were each proved able to go red:
+  > `tests/lib/form-endpoint-guards.test.ts` (7 cases) pins that all six `formData()` readers sit
+  > under a `try` and every part is narrowed through `formString`, **and** that no deck route
+  > interpolates a quoted literal into `?error=` — the two sweeps `src/lib/forms.ts` describes as
+  > "found incomplete twice by reading, not by a red run"; `tests/lib/no-client-redirect-errors.test.ts`
+  > (3 cases) enforces the server-only rule, whose stated reason turned out to be false (see §8).
+  > The page guard also went 8 → 10: it had a hardcoded two-directory allowlist, so a raw `?error=`
+  > read on any OTHER `.astro` page was never looked at. Read §8's 2026-08-01 entry with this one.
+
 ### 6.7 Adding a test for the SRS / study path
 
 (Added by §3 Phase 4. It sits after §6.6 so the existing §6.6 references in
@@ -3102,6 +3114,78 @@ contributors should respect these unless the underlying assumption changes.
   `20260705180246_init_core_schema.sql` and long predates this change, so nothing is pushed to
   the cloud and the C10X-29 drift gate is not involved. The only cloud-facing residue is the
   usual one: every assertion here ran against the local stack.
+- **The impl-review took the suite to 314/314, 28 files, and its theme was that this change's own
+  guarantees were carried by COMMENTS** (2026-08-01, `reviews/impl-review.md`). Nine findings, none
+  a functional defect — the shipped behaviour was re-verified green in every dimension, including
+  the closed set being closed by construction (12 direct redirects plus 19 `errorUrl()` call sites,
+  enumerated) and all four sinks on `[publicId]/index.astro` deriving from the one wrapped read.
+  Eight fixed, one accepted, none skipped. Suite 298 → **314** (`+3` in the new
+  `tests/lib/no-client-redirect-errors.test.ts`, `+7` in the new
+  `tests/lib/form-endpoint-guards.test.ts`, `+2` in the page guard, `+1` in
+  `redirect-errors.test.ts`, `+1` in `signed-out.test.ts`); files 26 → **28**; green on three fresh
+  un-pinned seeds (1357 / 2468 / 8642); `tsc` / `lint` / `build` all exit 0.
+- **A stated rationale was measured and found FALSE, which is why three of the fixes are guards
+  rather than edits.** Four sites justified `redirect-errors.ts`'s server-only rule with "it imports
+  `flashcards.ts`, which drags a query layer into the bundle". Neither half survives: `flashcards.ts`
+  has only `import type` (the client arrives as a parameter), and it is **already in the client
+  bundle** — `CreateFlashcardModal.tsx`, `FlashcardItem.tsx` and `CandidateItem.tsx` import
+  `FRONT_MAX`/`BACK_MAX` from it as VALUES. The rule is right and its reason was not, in the
+  direction that reads as reassurance; and nothing enforced it. Corrected at three sites (the fourth,
+  `DeckActions.tsx`, never carried the false reason — checked rather than assumed) and now enforced.
+- **The class this ledger kept re-recording is now falsifiable, and that is the entry's real
+  content.** `forms.ts` said it in its own words — "no test enumerates the readers — the sweep was
+  found incomplete twice by reading, not by a red run" — and the history is three reviews for one
+  class (C10X-30 swept four of six, its review caught it, C10X-34 re-recorded it, C10X-37 closed
+  it). Three guards now cover what prose covered:
+
+  | Guard | Cases | Falsification, each restored by per-file MD5 |
+  | --- | --- | --- |
+  | `tests/lib/form-endpoint-guards.test.ts` | 7 | three neuters on `decks/index.ts` — `formString` → cast, `try` removed, an inline `?error=` literal — **1 of 7** red each, naming file and line |
+  | `tests/lib/no-client-redirect-errors.test.ts` | 3 | importing `REDIRECT_MESSAGES` into `DeckActions.tsx` → **1 of 3** red |
+  | `tests/lib/error-param-guard.test.ts` (extended 8 → 10) | 10 | a raw read added to `generate.astro` → **1 of 10** red |
+
+  The page guard's extension is the one worth reading twice: it was scoped to a hardcoded
+  two-directory allowlist, so a future `.astro` page anywhere else reading `?error=` raw was not
+  merely unasserted — it was **never looked at**. `generate.astro`, the page used to falsify it, is
+  exactly such a page. An incomplete sweep left unstated is the shape that created C10X-37.
+- **One prediction in the review was wrong and was corrected by measurement, not by reading.** The
+  two delete endpoints' new signed-out controls were expected to answer **404** (RLS matches nothing
+  → empty `RETURNING`). They answer **302 with the endpoint's own delete-failure copy**, because
+  `init_core_schema` revokes table privileges from `anon`, so the delete errors rather than returning
+  zero rows. The assertion became equality on the decoded param, matching the three controls beside
+  it. Consequence recorded rather than smoothed over: those two controls issue one query each, so
+  `signed-out.test.ts`'s "NO DATABASE" header is now scoped to the six rows and their three inline
+  controls, with the exception named. Five of six endpoints are controlled;
+  `cards/[cardPublicId].ts` stays uncontrolled because its reachable-without-a-query branch runs
+  BEFORE the user check — the one class in this change still resting on reading, stated at the site.
+- **Three comment counts were wrong and one of them mattered.** `redirect-errors.ts` said "two"
+  constants are reused by the JSON endpoints (three are); `[publicId].ts` and its copy in
+  `decks.test.ts` said `errorUrl` is built ":26, eleven lines above" (`:28`, seventeen);
+  `signed-out.test.ts` said `!supabase` precedes `!user` on "four of the six" (six of six). The one
+  with a consequence is **`ServerError.tsx`**, whose "NINE other components … TEN call sites, every
+  one of them DYNAMICALLY" both undercounted (13 sites across 12 files) and **misclassified the site
+  this change added**: `[publicId]/index.astro:170` arrives at mount by full-page redirect, i.e. the
+  weak case Phase 3 §2 forbids overclaiming, while that sentence is the load-bearing argument for
+  `role="alert"` on the shared component. Corrected as a dated third correction — this file's counts
+  have now gone stale twice, and its own parenthetical calls that "the class C10X-34's Phase 6 exists
+  to end".
+- **`REDIRECT_MESSAGES` gained a size pin (exactly 11, all distinct), and the reason is the one
+  unplanned scope decision here.** Three JSON endpoints (`api/generate.ts`, `api/study.ts`,
+  `cards/batch.ts`) import constants from this module — outside Phase 1 §3's "six endpoints under
+  `src/pages/api/decks/`", and `study.ts` is named in "What We're NOT Doing". Deliberate, annotated
+  at each site, and the JSON convention is genuinely unchanged, so it is not drift. What it costs is
+  definitional: the module is now the home of strings that do not all travel the `?error=` channel.
+  Sharing a CONSTANT is fine; extending the ARRAY is not, because every member is a value the deck
+  pages will render from a URL. Written into the docblock and pinned by the count.
+- **`deckNameExists` now branches on its query error** on both endpoints (this project's recorded
+  "SSR error-vs-empty" lesson, which the adjacent rewritten lines did not follow). Never a wrong
+  SUCCESS — a dropped error fell through to `createDeck`/`renameDeck` and surfaced the same owned
+  copy from there — so the gain is naming the failure where it happens, with no new set member.
+- **Still open after the review, deliberately**: `jira-map.md`'s `Change ID` is filled on the map
+  side only (`customfield_10041` unset; `/10x-implement` writes no Jira), so `/jira-finish-work`
+  owns setting it and closing **C10X-40** against this change. Everything in the previous entry's
+  "What is NOT closed" list stands unchanged — the review added no coverage of the island half, the
+  cloud rows, or banner announcement.
 
 Refresh (`/10x-test-plan --refresh`) when:
 

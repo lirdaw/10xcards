@@ -75,4 +75,22 @@ describe("ownedRedirectMessage — the read side of the closed set", () => {
     expect(REDIRECT_MESSAGES).toContain(`Przód fiszki musi mieć od 1 do ${FRONT_MAX} znaków`);
     expect(REDIRECT_MESSAGES).toContain(`Tył fiszki musi mieć od 1 do ${BACK_MAX} znaków`);
   });
+
+  // The set's SIZE, and it is a deliberate speed bump rather than bookkeeping (C10X-37
+  // impl-review F5, 2026-08-01). Three of these constants are also imported by the three JSON
+  // endpoints (`api/generate.ts`, `api/study.ts`, `cards/batch.ts`), which answer a JSON body and
+  // never redirect — so this module is now the home of strings that do NOT all travel the
+  // `?error=` channel. Sharing a CONSTANT with them is fine; extending the ARRAY to match is not,
+  // because every member here is a value the deck pages will render from a URL. A message only a
+  // JSON endpoint emits would therefore become vouchable on a channel no producer emits it on,
+  // widening what a crafted link can surface for free.
+  //
+  // Eleven is the count of genuine redirect literals; the number is asserted, not derived, so
+  // adding one cannot pass unread. This going red is not a failure — it is the question "does a
+  // redirect-style endpoint actually emit this?" If yes, bump the number in the same commit. If
+  // no, share the constant and leave the array alone.
+  it("holds exactly the eleven values a redirect-style endpoint can emit", () => {
+    expect(REDIRECT_MESSAGES).toHaveLength(11);
+    expect(new Set(REDIRECT_MESSAGES).size).toBe(11);
+  });
 });

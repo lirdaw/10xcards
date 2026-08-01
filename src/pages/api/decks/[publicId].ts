@@ -38,7 +38,7 @@ export const POST: APIRoute = async (context) => {
 
   // Same guard as create, same one-message decision, for the reasons recorded at
   // api/decks/index.ts and in full at cards/index.ts:41-54. `errorUrl` is already in scope
-  // here — it is built from the route param at :26, eleven lines above and already UUID-gated —
+  // here — it is built from the route param at :28, well above this read and already UUID-gated —
   // so unlike cards/[cardPublicId].ts the catch has no ordering constraint to work around.
   let form: FormData;
   try {
@@ -54,7 +54,17 @@ export const POST: APIRoute = async (context) => {
 
   // Friendly pre-check; the UNIQUE constraint remains the real backstop. Renaming
   // to the same name (same deck) is a no-op, not a collision.
-  const { data: existing } = await deckNameExists(supabase, name);
+  //
+  // Branch on the query error rather than reading it as "no match" — this project's recorded
+  // lesson ("Loadery SSR rozróżniają błąd zapytania od braku danych"), which cards/index.ts and
+  // review.astro follow and this line did not until 2026-08-01 (C10X-37 impl-review F8). The old
+  // shape was not a wrong SUCCESS — a dropped error left `existing` null, fell through to
+  // renameDeck, and surfaced this same literal from there — so the gain is that a transient DB
+  // failure is now named where it happens instead of arriving as a second-order symptom.
+  const { data: existing, error: lookupError } = await deckNameExists(supabase, name);
+  if (lookupError) {
+    return context.redirect(errorUrl(DECK_RENAME_FAILED_MESSAGE));
+  }
   if (existing && existing.public_id !== publicId) {
     return context.redirect(errorUrl(DECK_NAME_TAKEN_MESSAGE));
   }

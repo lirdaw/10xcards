@@ -396,7 +396,7 @@ describe("POST /api/decks/[publicId] enforces the same rules on rename", () => {
     expect(await rowOf(deckPublicId)).toEqual(before);
     expect(response.status).toBe(302);
     const location = response.headers.get("Location") ?? "";
-    // `errorUrl` is built from the ROUTE PARAM eleven lines above the formData() read, and is
+    // `errorUrl` is built from the ROUTE PARAM well above the formData() read, and is
     // already UUID-gated, so unlike cards/[cardPublicId].ts this catch has no ordering
     // constraint to work around and keeps the deck-scoped rename target.
     expect(location.startsWith(`/decks/${deckPublicId}?`)).toBe(true);

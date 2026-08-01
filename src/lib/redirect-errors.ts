@@ -30,10 +30,22 @@
  * surface the other's vocabulary — a deck page would then accept "Nieprawidłowy e-mail lub
  * hasło" as one of its own. Two sets side by side is deliberate.
  *
- * **Server-side only.** It imports `flashcards.ts` for the two card-content bounds, which drags
- * a query layer with it, so no island may import this module — islands receive their message as
- * a `serverError` prop from the page, as they already do. The browser-safe half of the deck
- * vocabulary is `deck-limits.ts`, which imports nothing.
+ * **Server-side only** — and the reason is surface hygiene, not bundle weight. This paragraph
+ * used to say the module "imports `flashcards.ts`, which drags a query layer with it"; corrected
+ * 2026-08-01 (C10X-37 impl-review F1) because that does not survive a check, in the direction
+ * that reads as reassurance: `flashcards.ts:1-2` has only `import type` (the Supabase client
+ * arrives as a parameter), so there is no query layer below this module at all — and three
+ * islands already import `FRONT_MAX`/`BACK_MAX` from it as VALUES
+ * (`CreateFlashcardModal.tsx`, `FlashcardItem.tsx`, `CandidateItem.tsx`), so it is in the client
+ * bundle regardless.
+ *
+ * The rule still stands on its own terms: an eleven-string vouching set and the read-side guard
+ * that enforces it belong to the server surface, where the producers are. An island that needed
+ * one of these strings would be reaching around the `serverError` prop the page already passes
+ * it. Because the old reason was false, the rule is now ENFORCED rather than asserted —
+ * `tests/lib/no-client-redirect-errors.test.ts` fails if anything under `src/components/`
+ * imports this module. The browser-safe half of the deck vocabulary is `deck-limits.ts`, which
+ * imports nothing.
  */
 import { DECK_NAME_MESSAGE } from "@/lib/deck-limits";
 import { FRONT_MAX, BACK_MAX } from "@/lib/flashcards";
@@ -70,10 +82,17 @@ export const CARD_BACK_MESSAGE = `Tył fiszki musi mieć od 1 do ${BACK_MAX} zna
  * project-owned copy" checkable rather than argued case by case. Adding a message to an
  * endpoint means adding it here — otherwise the endpoint's own refusal renders as no banner.
  *
- * Two of these constants are also reused, verbatim, by the three JSON endpoints
- * (`api/generate.ts`, `api/study.ts`, `cards/batch.ts`), which answer with a JSON body and
- * never redirect. That is copy reuse, not a channel change: this module is the home of the
- * STRING, while the guard below is about the `?error=` channel specifically.
+ * THREE of these constants are also reused, verbatim, by the three JSON endpoints, which answer
+ * with a JSON body and never redirect: `api/generate.ts` takes `SUPABASE_UNCONFIGURED_MESSAGE`,
+ * `DECK_NAME_TAKEN_MESSAGE` and `DECK_CREATE_FAILED_MESSAGE`; `api/study.ts` and
+ * `cards/batch.ts` take the first. (Said "two" until 2026-08-01 — C10X-37 impl-review F4.)
+ * That is copy reuse, not a channel change: this module is the home of the STRING, while the
+ * guard below is about the `?error=` channel specifically.
+ *
+ * Which is why the ARRAY is not the place to follow that reuse. A message only a JSON endpoint
+ * emits must NOT be added here: every member is a value the deck pages will render from a URL,
+ * so adding one widens what a crafted link can surface without any producer needing it. Share
+ * the constant, not the membership.
  */
 export const REDIRECT_MESSAGES: readonly string[] = [
   SUPABASE_UNCONFIGURED_MESSAGE,

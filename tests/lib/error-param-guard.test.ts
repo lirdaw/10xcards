@@ -149,3 +149,48 @@ describe.each(SURFACES)("$dir reads ?error= only through $helper", ({ dir, helpe
     expect(pages.flatMap((file) => uncheckedReadsIn(file, root, wrapped))).toEqual([]);
   });
 });
+
+// THE CATCH-ALL, and it is what stops this file from being the very shape it guards against.
+//
+// Everything above is scoped to the two REGISTERED surfaces. That leaves the rest of
+// `src/pages/` — `study/`, `generate.astro`, `dashboard.astro`, and whatever is added next —
+// completely unscanned: a future page reading `?error=` raw into a banner would not fail here,
+// it would not be reported here, it simply would not be looked at. That is an incomplete sweep
+// left unstated, which is the exact class C10X-37 exists to close (its own ticket came from
+// C10X-30 sweeping four of six `formData()` readers), and both siblings in this folder —
+// `no-logging.test.ts` and `no-env-access.test.ts` — walk the WHOLE of `src/` for that reason.
+// Added by C10X-37's impl-review (F3, 2026-08-01).
+//
+// So: every `.astro` page outside the registered surfaces must carry NO read at all. A new page
+// that needs one has two honest options, and no third — register a surface above (declaring
+// which closed set it vouches against), or do not read the parameter. It cannot drift in
+// unnoticed.
+describe("no unregistered page reads ?error= at all", () => {
+  const pagesRoot = fileURLToPath(new URL("../../src/pages", import.meta.url));
+  const registered = SURFACES.map((s) => fileURLToPath(new URL(`../../${s.dir}`, import.meta.url)));
+  const unregistered = astroPages(pagesRoot).filter((file) => !registered.some((dir) => file.startsWith(dir)));
+
+  // Positive control: without it, a walker that returned nothing — or a `registered` filter that
+  // swallowed the whole tree — would make the assertion below pass while scanning zero files.
+  // The named pages are ones that exist today and belong to no surface.
+  it("scans the pages outside the registered surfaces", () => {
+    expect(unregistered.length).toBeGreaterThanOrEqual(3);
+    expect(unregistered.map((f) => relative(pagesRoot, f).split(sep).join("/"))).toEqual(
+      expect.arrayContaining(["index.astro", "generate.astro"]),
+    );
+    // …and it must genuinely EXCLUDE the registered ones, or this block would silently duplicate
+    // the per-surface assertions and go red on their (correct, wrapped) reads.
+    expect(unregistered.map((f) => relative(pagesRoot, f).split(sep).join("/"))).not.toContain("decks/index.astro");
+  });
+
+  it("finds no ?error= read outside src/pages/auth and src/pages/decks", () => {
+    const reads = unregistered.flatMap((file) =>
+      readFileSync(file, "utf8")
+        .split(/\r?\n/)
+        .flatMap((line, index) =>
+          RAW_READ.test(line) ? [`${relative(pagesRoot, file).split(sep).join("/")}:${index + 1}: ${line.trim()}`] : [],
+        ),
+    );
+    expect(reads).toEqual([]);
+  });
+});

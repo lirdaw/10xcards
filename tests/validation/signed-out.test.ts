@@ -29,17 +29,23 @@ import { errorParam } from "../fixtures/redirect-cases";
 // `isolation/flashcards.test.ts` would hide the one property worth reading — that the set is
 // complete.
 //
-// NO DATABASE. Every row returns before its first query, so this file starts no fixture, creates
-// no deck and provisions no account. (Preflight still runs — it is a `globalSetup` — so the local
-// stack must be up, as §6.1 records for the other DB-free files.)
+// NO DATABASE — for the six signed-out rows and their three inline controls, which is the claim
+// that matters: every one of them returns before its first query, so this file starts no fixture,
+// creates no deck and provisions no account. The ONE exception is the last describe, added
+// 2026-08-01 (C10X-37 impl-review F7): the two delete endpoints' controls each issue a single
+// anon, RLS-scoped query, because their branch after the user check IS a query. Still no fixture
+// and no cleanup — the ids below match nothing — but the property is "no fixture", not "no
+// request", and the two are kept apart so the distinction stays readable. (Preflight runs either
+// way — it is a `globalSetup` — so the local stack must be up, as §6.1 records for the DB-free
+// files.)
 //
 // TWO PRECONDITIONS, and a row that ignores either measures a different branch while still
 // looking like a signed-out case:
 //
 //   - `UUID_RE` runs FIRST on five of the six, so `params` must carry well-formed UUIDs or the
 //     case measures the 404 instead. The ids below are syntactically valid and match nothing —
-//     which is safe precisely because no row ever reaches a query.
-//   - `!supabase` is checked BEFORE `!user` on four of the six, so a row measures the branch it
+//     which is what keeps even the two querying controls fixture-free and idempotent.
+//   - `!supabase` is checked BEFORE `!user` on ALL SIX, so a row measures the branch it
 //     names only while `SUPABASE_URL`/`SUPABASE_KEY` are set. Preflight guarantees that
 //     (`tests/setup/preflight.ts` aborts the run otherwise), so it is a standing condition rather
 //     than something this file must arrange.
@@ -56,6 +62,8 @@ const SIGN_IN = "/auth/signin";
 const DECK_CREATE_FAILED = "Nie udało się utworzyć talii";
 const DECK_RENAME_FAILED = "Nie udało się zmienić nazwy talii";
 const CARD_CREATE_FAILED = "Nie udało się utworzyć fiszki";
+const DECK_DELETE_FAILED = "Nie udało się usunąć talii";
+const CARD_DELETE_FAILED = "Nie udało się usunąć fiszki";
 
 interface Row {
   name: string;
@@ -171,13 +179,13 @@ describe("the six redirect-style endpoints answer a signed-out caller themselves
   // answers `/auth/signin` unconditionally — or by a container that silently dropped `locals`.
   // The SAME request, the only difference being a user on `locals`, must reach a different branch.
   //
-  // Three of the six carry no row here, and the reason is worth stating rather than leaving to be
+  // Three of the six carry no row HERE, and the reason is worth stating rather than leaving to be
   // inferred from the count. On both delete endpoints the branch after the user check is a query,
-  // so a control for them would need the database this file deliberately does not touch. On
-  // `cards/[cardPublicId].ts` the reachable-without-a-query branch (its `formData()` catch) runs
-  // BEFORE the user check, so a control routed through it would prove nothing about the gate.
-  // Three controls over three endpoints is what can be had for free; the other three rows rest on
-  // the equality above plus these three.
+  // so their control cannot be free of the database — it lives in its own describe below, which
+  // is why this block can still promise "no database" and mean it. On `cards/[cardPublicId].ts`
+  // the reachable-without-a-query branch (its `formData()` catch) runs BEFORE the user check, so
+  // a control routed through it would prove nothing about the gate; that row is the one genuinely
+  // uncontrolled endpoint of the six.
   const controls = ROWS.filter((row): row is Row & { signedInError: string } => row.signedInError !== undefined);
 
   it.each(controls)("$name reaches its own error branch once a user is present", async (row) => {
@@ -193,5 +201,50 @@ describe("the six redirect-style endpoints answer a signed-out caller themselves
     // shown to have got PAST the user gate into its own owned copy, and only one branch produces
     // this string.
     expect(errorParam(location)).toBe(row.signedInError);
+  });
+});
+
+// The two delete endpoints' controls, split out because they are the ONLY thing in this file that
+// touches the database — keeping them here is what lets the block above keep its "no database"
+// promise literally (C10X-37 impl-review F7, 2026-08-01).
+//
+// Why they are worth the round-trip. Without a control, `decks/[publicId]/delete` and
+// `cards/[cardPublicId]/delete` would each still pass their signed-out row if the handler returned
+// `/auth/signin` UNCONDITIONALLY — the failure mode a positive control exists to exclude, and the
+// one this project has already been bitten by (test-plan §6.6's four-policy neuter, which passed
+// while the guard was fully disabled). Unlike the branches above, theirs is a query — but a query
+// needing NO fixture: with a fabricated user and no cookie the client is anon, RLS matches nothing,
+// `RETURNING` is empty, and the handler answers 404. No account, no seeded row, no cleanup.
+//
+// Which branch they land on was MEASURED, not predicted, and the first guess was wrong — worth
+// recording because it is the difference between a control and a coincidence. The expectation was
+// a 404 (RLS matches nothing → empty `RETURNING` → 404). What actually happens: `init_core_schema`
+// revokes table privileges from `anon`, so the delete comes back as an ERROR rather than as zero
+// rows, and the handler answers its own delete-failure copy.
+// Same shape as the three controls above, so the assertion is the same one: equality on the decoded
+// param, which is reached only past the user gate.
+//
+// So the control's claim is narrow and exact: presence of a user changes the answer from a 302 to
+// `/auth/signin` into a 302 carrying this endpoint's own owned copy. That is the gate being
+// observed, not the delete.
+describe("the two delete endpoints get past the gate once a user is present", () => {
+  const deleteRows = ROWS.filter((row) => row.url.endsWith("/delete"));
+
+  // Without this, a filter that matched nothing would leave the block below vacuous — `it.each([])`
+  // reports no failure at all.
+  it("covers both of them", () => {
+    expect(deleteRows.map((row) => row.name)).toEqual([
+      "POST /api/decks/[publicId]/delete",
+      "POST /api/decks/[publicId]/cards/[cardPublicId]/delete",
+    ]);
+  });
+
+  it.each(deleteRows)("$name reaches its own error branch once a user is present", async (row) => {
+    const response = await render(row, { id: "00000000-0000-4000-8000-00000000000a" } as unknown as User);
+
+    expect(response.status).toBe(302);
+    const location = response.headers.get("Location");
+    expect(location).not.toBe(SIGN_IN);
+    expect(errorParam(location)).toBe(row.name.includes("/cards/") ? CARD_DELETE_FAILED : DECK_DELETE_FAILED);
   });
 });

@@ -10,11 +10,13 @@
 // bounds `newDeckName` in Zod). Both ends of every request therefore move together, which is
 // the drift test-plan §2 Risk #6 describes.
 //
-// This file imports nothing, exactly as `generation-limits.ts` does and for the same reason:
-// the two deck islands are browser bundles, and sending a query layer to the browser to reach
-// two numbers and a string is the trade that module refused. Keep it that way — in particular,
-// do NOT import `redirect-errors.ts` here (it is server-side and pulls `flashcards.ts` in); the
-// dependency runs the other way.
+// This file imports nothing, exactly as `generation-limits.ts` does and for the same reason: the
+// two deck islands are browser bundles and should pay only for two numbers and a string. Keep it
+// that way — in particular, do NOT import `redirect-errors.ts` here; the dependency runs the
+// other way, and that module is server-side because the vouching guard and its message set
+// belong to the server surface. (This line used to justify the split by "it pulls a query layer
+// in via flashcards.ts"; corrected 2026-08-01, C10X-37 impl-review F1 — `flashcards.ts` has only
+// type imports and is already in the client bundle, so that reason was false.)
 //
 // The DB CHECK `deck_name_check` (`char_length(name) between 1 and 100`,
 // supabase/migrations/20260705180246_init_core_schema.sql) is the second enforcer and is NOT

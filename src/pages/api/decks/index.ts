@@ -53,7 +53,15 @@ export const POST: APIRoute = async (context) => {
   }
 
   // Friendly pre-check; the UNIQUE constraint remains the real backstop.
-  const { data: existing } = await deckNameExists(supabase, name);
+  //
+  // Branch on the query error rather than reading it as "no match" — see the same guard in
+  // [publicId].ts for why (C10X-37 impl-review F8, 2026-08-01): a dropped error was never a wrong
+  // success here either, it just arrived later as createDeck's failure instead of being named
+  // where it happened.
+  const { data: existing, error: lookupError } = await deckNameExists(supabase, name);
+  if (lookupError) {
+    return context.redirect(`/decks?error=${encodeURIComponent(DECK_CREATE_FAILED_MESSAGE)}&open=create`);
+  }
   if (existing) {
     return context.redirect(`/decks?error=${encodeURIComponent(DECK_NAME_TAKEN_MESSAGE)}&open=create`);
   }
