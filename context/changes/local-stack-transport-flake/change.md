@@ -85,3 +85,63 @@ from research's four seams to whatever the plan's Phase 3 census measures. See `
 and non-idempotent methods are never retried — Kong already absorbs every idempotent drop itself
 (no PostgREST `GET` drop reached a client in 23 h). The wrapper's entire marginal value is
 replaying the POST/PATCH category, which is precisely the one carrying the double-write risk.
+
+## Revised acceptance (2026-08-01, Phase 6)
+
+The charter's acceptance criterion — "cause established by a **configuration change** with a
+before/after measurement on the SAME 40-run matrix as C10X-32" — was recorded as unsatisfiable as
+written the moment research found no supported surface exposes either timeout. This is what was
+delivered against it instead, and where each half stops.
+
+**The lever taken, and its standing.** Not a configuration change: an **unsupported**
+post-`supabase start` recreation of the Kong container carrying one extra environment variable,
+`KONG_UPSTREAM_KEEPALIVE_POOL_SIZE=0` — Kong then keeps no idle upstream socket it can lose. It is
+written the way this repo writes gates (a pure half, `scripts/kong-keepalive.ts`, asserted by 18
+cases in `tests/lib/kong-keepalive.test.ts`; an I/O half, `scripts/disable-kong-keepalive.ts`, that
+refuses to report success on anything it did not verify and attempts one lever-less restore if it
+fails after `docker rm -f`). Adoption is read back from Kong's own settings dump,
+`/usr/local/kong/.kong_env`, so "did Kong take it?" is a one-line check rather than an argument.
+Wired into `npm run db:start`, available standalone as `npm run db:kong`.
+
+**Per-machine and wiped by every `npx supabase stop`.** A developer on a bare `npx supabase start`
+is back on the flaky configuration. That is why point (3) of the research findings above — "narrow
+or delete the wrapper" — is **not** delivered and must not be: `tests/setup/retry-transport.ts`
+stays, unchanged in predicate and in its 8 cases, as the belt that survives.
+
+**CI carries the step by an explicit parity decision, against research's own finding.** Research
+measured CI as structurally immune (10-13 s suite, cold pool, one invocation per run; 52 runs, 0
+unexplained reds) and concluded "nothing should be added to `.github/workflows/ci.yml` for this".
+The step was added anyway, for configuration parity, and made **advisory** rather than
+release-blocking (`continue-on-error: true`) precisely because the honest reason is cosmetic: the
+`ci` job is what `drift` and `deploy` declare in `needs:`, so an unsupported `docker` operation
+breaking on a CLI upgrade must not stop a release. Consequence to carry: a green `ci` job no longer
+implies this step passed — read the step's own conclusion. It is the first thing to drop if it goes
+red.
+
+**The Phase 5 verdict — the flake is removed on this machine.** The oracle is the one the charter
+demanded, Kong's own log rather than a green suite: `0` drops across **40** spaced full-suite runs
+with pooling disabled, against **20** drops across **23** spaced runs over two independent
+stock-pool controls, same day, same machine, same suite, same oracle, same 35 s spacing. The suite
+was green through all 20 control drops, which reproduces C10X-32's signature exactly and is why the
+colour was never the oracle. Not recorded as inconclusive: that branch was reserved for a control
+that failed to reproduce, and both controls reproduced on their first attempt. Three caveats are
+recorded rather than smoothed over — the 40-run matrix ran in four chunks (the extra gaps are
+*longer* than 35 s, i.e. they move toward the condition the flake needs), Docker Desktop died
+mid-control and voided three runs, and the two controls' rates differ by nearly **sevenfold**
+(1.38/run vs 0.20/run), so no single number here is *the* rate.
+
+**Point (2) widened from two seams to six, by experiment rather than by reading.** The census
+forced every local non-`GET` request to replay once and asked the suite which assertion notices:
+six silent seams (research's four confirmed, `seedGenerationSession` confirmed as plan-review F8
+predicted, `createCard` in `study.test.ts` a genuine addition), with 23 of 29 files noticing
+nothing. All six now carry a case-scoped count of one, each proved falsifiable before it existed,
+and the re-run census reports **zero**. The suite count does not move — the oracles sit inside
+existing helpers.
+
+**Two criteria are open by decision, not by omission**: 2.3 and 2.5 (a pushed CI run and its log).
+`ci.yml` triggers only on push to `main` and on `pull_request` to `main`, so a feature-branch push
+runs nothing; they are read off the PR's `ci` job at `/ship`. The Jira summary still says "usunąć
+przyczynę" and is corrected at `/jira-finish-work`, along with `Change ID` on the Jira side —
+`jira-map.md` carries the map half.
+
+Full evidence: `verification.md` in this folder.

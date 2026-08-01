@@ -6,7 +6,37 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-07-31, third entry of the day (C10X-37 `deck-form-hardening` shipped — not
+> Last updated: 2026-08-01 (C10X-39 `local-stack-transport-flake` shipped — not a §3 rollout
+> phase). **No risk row moves and no coverage claim changes: the subject is the HARNESS's own
+> trustworthiness.** Two things make it worth reading. A mechanism this file asserted in two
+> places was measured and found **false** — Kong does not hold keep-alive sockets longer than
+> PostgREST; **both idle out at 60 s**, which is the pathological case rather than a fixable
+> ordering, and the drops cluster in a burst's first 1-2 s rather than on the first request after
+> the gap. And the residual risk C10X-32's impl-review left open — a retried write that had in
+> fact committed passing **silently** — is closed by experiment rather than by reading.
+>
+> The experiment is the reusable part. Instead of re-reading the suite for unguarded inserts, the
+> `fetch` wrapper was temporarily neutered so **every local non-`GET` request replays once**, and
+> the suite was asked which assertion notices. Answer: **six** silent seams, not the two the
+> wrapper's header disclosed — with 23 of 29 files not noticing a thing — and three seams that
+> look silent are not, for reasons worth carrying (`deck` 64/64 `409` by constraint, a keyed
+> `succeeded` session 5/5 `409` by the idempotency index, `ensureSchedule` safe by upsert). Each
+> of the six now carries a case-scoped count of one, written **test-first** so the duplicate
+> existed before the oracle did; the re-run census reports **zero**. The suite count does not
+> move for any of it — six oracles inside existing helpers, no new `it()` — and an unchanged
+> number here is correct rather than suspicious.
+>
+> The cause is also removed locally, and the honest boundary is in the same sentence. An
+> **unsupported** post-`supabase start` recreation of the Kong container at
+> `KONG_UPSTREAM_KEEPALIVE_POOL_SIZE=0` measured **0 drops across 40 spaced runs** against **20
+> drops across 23 spaced runs** on two same-day controls — but it is per-machine, wiped by every
+> `npx supabase stop`, and CI carries it as parity, not necessity (`continue-on-error`, so a
+> green job no longer implies the step passed). So the wrapper stays. Two controls an hour apart
+> differ by **sevenfold**, which is recorded as a finding rather than averaged away. Suite
+> **332/332, 29 files** (+18/+1, all of it the new pure-half test). Evidence:
+> `context/changes/local-stack-transport-flake/verification.md`.
+>
+> Previously: 2026-07-31, third entry of the day (C10X-37 `deck-form-hardening` shipped — not
 > a §3 rollout phase). **No risk row moves, and Risk #6 gains a third dated half.** What makes
 > this entry worth reading is not the coverage but the bookkeeping it closes: it is the first
 > change in this file whose entire scope was **two items other changes' impl-reviews had
@@ -118,7 +148,7 @@
 > whose predicate the impl-review then made assertable rather than only argued.
 > Suite: **228/228, 19 files** (220/220, 18 at phase completion), green across 40 fresh permutations; the eval's failure set
 > under shuffle equals its C10X-31 baseline (forced `niemiecki`/`francuski`, still red, still
-> out of scope). Evidence: `context/changes/flashcards-test-order/verification.md`.
+> out of scope). Evidence: `context/archive/2026-07-29-flashcards-test-order/verification.md`.
 >
 > Previously: 2026-07-29 (C10X-31 `ai-candidate-generation-test-3` shipped). **§3 Phase 5
 > is `complete` and Risk #7 is covered as far as a proxy can cover it** — the project's
@@ -443,7 +473,7 @@ The classic test base for this project. AI-native tools (if any) carry a
 | unit + integration   | Vitest                                                  | 4.1.10                                                                      | Configured through `getViteConfig()` from `astro/config` (`vitest.config.ts`), which is what resolves the `@/*` alias and `astro:env/server`. The adapter's `@cloudflare/vite-plugin` is stripped there — it fights Astro over the `ssr` environment and tests target Node; checked: 2026-07-15                                                                 |
 | endpoint rendering   | Astro Container API                                     | ships with Astro 6                                                          | `renderToResponse` with `routeType: "endpoint"` renders an API route against a real `Request`; checked: 2026-07-15                                                                                                                                                                                                                                              |
 | API mocking          | one confined module double — **see §6.9**               | Vitest's own `vi.mock` / `vi.hoisted`; no mocking library                   | Only the external HTTP edge (the LLM provider) is ever doubled; the database is real via local Supabase. Exactly one file does it (`tests/generation/failure-path.test.ts`), doubling **`astro:env/server`** plus a pass-through `globalThis.fetch` to reach the 502/422 branches the harness otherwise seals. Read §6.9 before copying it; checked: 2026-07-26. Since 2026-07-30 a **second** `fetch` seam exists and is NOT a double — `tests/setup/retry-transport.ts`, a suite-wide `setupFiles` wrapper that replays Kong's keep-alive `502` and nothing else; it fabricates no response, so it is not precedent for a second double (§6.9) |
-| database under test  | Supabase CLI local stack                                | 2.98.2 (devDependency; `^2.23.4` in `package.json` is only the range floor) | Driven by `npm run db:start` / `db:stop` / `db:reset`; RLS is only meaningful against a real Postgres. CI starts the same stack and reads its URL + publishable key from `supabase status -o env`; checked: 2026-07-15                                                                                                                                          |
+| database under test  | Supabase CLI local stack                                | 2.98.2 (devDependency; `^2.23.4` in `package.json` is only the range floor) | Driven by `npm run db:start` / `db:stop` / `db:reset`; RLS is only meaningful against a real Postgres. CI starts the same stack and reads its URL + publishable key from `supabase status -o env`; checked: 2026-07-15. Since 2026-08-01 (C10X-39) `db:start` also chains `db:kong`, an **unsupported** post-`supabase start` recreation of the Kong container at `KONG_UPSTREAM_KEEPALIVE_POOL_SIZE=0`; it is per-machine, wiped by every `npx supabase stop`, and a bare `npx supabase start` does NOT get it — so never read a green run as evidence the stack was in that state, read `.kong_env` (§6.6's C10X-39 entry) |
 | e2e                  | none yet — deliberately deferred                        | —                                                                           | No rollout phase claims e2e; promote only if a risk survives cheaper layers                                                                                                                                                                                                                                                                                     |
 | accessibility        | `eslint-plugin-jsx-a11y`                                | 6.10.2                                                                      | Lint-level only; PRD names baseline a11y but no risk in §2 requires an axe run yet                                                                                                                                                                                                                                                                              |
 | AI-native            | LLM-as-judge over a reference set — shipped by §3 Phase 5 (C10X-31); judge `google/gemini-2.5-flash` via OpenRouter, `temperature: 0`, structured outputs, `EVAL_JUDGE_MODEL` override; checked: 2026-07-29 | judge pinned in `evals/lib/judge.ts` as a revisable constant                 | Invocation: `npm run eval` with `OPENROUTER_API_KEY` in the SHELL env — a `.env` key feeds only the generator's seam and the inverse preflight rejects it. NOT part of `npm test` (collection-level exclusion via `vitest.eval.config.ts`). **When NOT to use**: any assertion a deterministic check can make (JSON shape, card count, field presence, language tag) — those live in the ordinary suite (`tests/lib/eval-scoring.test.ts`). The judge is for usability and language fidelity only                                                                                                                                       |
@@ -651,13 +681,29 @@ extractions (§7), with one extra rule: extract the decision **and** its inputs.
   normally a real inter-`it()` dependence, and the fix is the owned-fixture rule
   above, not a pinned seed.
   - **If it does not reproduce at its own seed, it is not an ordering defect.**
-    The local stack has a pre-existing transport flake — Kong holds a keep-alive
-    socket to PostgREST longer than PostgREST does, so the first request after an
-    idle gap can answer `502 upstream prematurely closed connection` — measured at
-    the same rate with shuffle off. `tests/setup/retry-transport.ts` (a
-    `setupFiles` `fetch` wrapper) absorbs exactly that response, from a local URL,
-    at most twice, and nothing else. Read its header before widening what it
-    retries; every other status in this suite is a signal something asserts on.
+    The local stack has a pre-existing transport flake — Kong pools keep-alive
+    sockets to PostgREST and **both sides idle out at the same 60 s**, so neither
+    reliably closes first and the loser of that race sends the next request down a
+    socket the upstream has already closed, answering
+    `502 upstream prematurely closed connection`. It is measured at the same rate
+    with shuffle off. `tests/setup/retry-transport.ts` (a `setupFiles` `fetch`
+    wrapper) absorbs exactly that response, from a local URL, at most twice, and
+    nothing else. Read its header before widening what it retries; every other
+    status in this suite is a signal something asserts on.
+    > **Corrected 2026-08-01 (C10X-39), by measurement.** This bullet used to
+    > claim that Kong keeps a pooled socket idle for LONGER than the upstream
+    > does, and that the 502 lands on the first request after an idle gap. Both
+    > halves are wrong and both were wrong in the reassuring direction: the
+    > timeouts are **equal** (Kong's `upstream_keepalive_idle_timeout` 60 s,
+    > PostgREST/warp 60.0 s measured with Kong bypassed), which is the
+    > *pathological* case rather
+    > than a fixable ordering, and the drops **cluster in a burst's first 1-2 s**
+    > (43/43) after a median 27 s of quiet rather than landing on the single first
+    > request. Since C10X-39 the cause is also removed **locally** — `npm run
+    > db:start` recreates Kong with upstream keep-alive pooling disabled — but that
+    > is unsupported, per-machine and wiped by every `npx supabase stop`, so the
+    > wrapper stays and so does this bullet. §6.6's C10X-39 entry carries the
+    > before/after measurement and its controls.
 
 ### 6.3 Adding a test for a new API endpoint
 
@@ -2187,6 +2233,125 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
   > The page guard also went 8 → 10: it had a hardcoded two-directory allowlist, so a raw `?error=`
   > read on any OTHER `.astro` page was never looked at. Read §8's 2026-08-01 entry with this one.
 
+- **Roadmap C10X-39 (`local-stack-transport-flake`, 2026-08-01)** — not a §3 rollout phase, and
+  not a coverage change either: **no risk row moves and the suite's claims are unchanged**. It is
+  recorded here because it is the first entry in this file whose subject is the *harness's own*
+  trustworthiness rather than the product's — it corrects a mechanism this file stated twice and
+  had never measured, it replaces a reading with an experiment, and it closes the residual risk
+  C10X-32's impl-review (F3) left explicitly open: a retried write that had in fact committed
+  would have passed **silently** on `flashcard`.
+
+  **Read the mechanism correction first, because it is the reason the rest exists.** §6.2 and §8
+  both claimed Kong keeps its pooled connections idle for LONGER than the upstream does. Measured
+  on the live stack: Kong's `upstream_keepalive_idle_timeout` is **60 s** (the 2.8.1 default, no
+  override) and PostgREST/warp closes an idle keep-alive connection after **60.0 s** with Kong
+  bypassed. They are **equal**, which is the pathological configuration rather than an ordering
+  error — neither side reliably closes first, so whichever wins the race decides whether the next
+  request finds a live socket, and that is exactly why the flake is occasional instead of
+  deterministic. The idle half survives; the *shape* does not: drops cluster in a burst's first
+  1-2 s (43/43) after a median 27 s of quiet, not on the single first request after the gap. Both
+  original sentences were inference, and both were wrong in the direction that sounds fixable.
+
+  | Claim | What proves it |
+  | --- | --- |
+  | The silent-seam list is **six**, not the two the wrapper's header disclosed | the Phase 3 census: `tests/setup/retry-transport.ts` temporarily neutered so every **local non-`GET`** request is issued twice unconditionally (bypassing `isKongKeepAliveDrop`), then the suite read for which assertion notices. 316 replays and **27 red blocks** (26 tests + 1 failed suite) across a 332-case suite — and **23 of 29 files did not notice a thing** |
+  | …and every one of those six duplicates genuinely LANDED | the replay control, which is what separates "silent" from "the replay never happened": **81 × `POST /rest/v1/flashcard` and 18 × `POST /rest/v1/generation_session` answered `201 → 201`**, and the duplicate scan found 89 duplicated `(deck_id, front)` groups plus 18 duplicated `(source_text, status)` groups. Attribution is per **seam**, never per case colour, and every **green** duplicated group was traced to the helper that wrote it and the `it()` that owns it, by line number — which is how `generate.test.ts:352` escaped being filed as loud on a red belonging to a different seam |
+  | Three seams that look silent are not, and the reasons are worth carrying | `deck` is LOUD by `deck_user_name_unique` (**64/64** replays `409`); a keyed `succeeded` `generation_session` is LOUD by the partial unique index S-05 added for idempotency (**5/5** `409`) — a second constraint quietly doing this job; and `ensureSchedule` is SAFE by construction, writing through `upsert(onConflict: "flashcard_id", ignoreDuplicates: true)`, so its replay is a no-op rather than a duplicate |
+  | Each of the six is now loud | a case-scoped count of **one** immediately after the insert — `(deck_id, front)` for **three** of the four card seams (`createNonAcceptedCard`, `createCard`, `seedCard`), a raw `deck_id` count for the fourth (`insertDirect`'s `inRange` control, whose describe owns its deck and writes on one line only), `(user_id, source_text, status)` for `seedGenerationSession`, and the file marker + `status` for the seeded `failed` session. No new `it()`, no schema change, no product rule, so **the suite count does not move** — an unchanged number here is correct rather than suspicious |
+  | …and each was proved falsifiable **before** it existed | driven test-first: for every seam the duplicate was written with no oracle present (green — which reproduces that seam's census verdict at authoring time), then the oracle landed and turned **exactly one case** red, then the scratch was removed (green again). The denominators are **per-file** runs, not the full suite (1 of 23, 1 of 22, 1 of 13 depending on the file), and the column carrying the evidence is the green beside the red. Five reds read `expected 2 to be 1`; the sixth is a length assertion on a filtered list (`expected [ …(2) ] to have a length of 1 but got 2`), the count-vs-row distinction §6.10 records |
+  | The before/after is the same experiment run twice | the census re-run: **0 silent seams**, against Phase 3's 6, with **669** replays behind it (156 × `POST /rest/v1/flashcard`, 60 × `POST /rest/v1/generation_session`) so the zero is not "the replay never happened". Red blocks 27 → **54**; all 27 of Phase 3's were matched into the 54 by set comparison, so **nothing that was loud went quiet** |
+  | The local cause is removed, and the measurement is fixed-vs-control on one day | Phase 1 recreates the Kong container after `supabase start` with `KONG_UPSTREAM_KEEPALIVE_POOL_SIZE=0`. Phase 5: **0 drops across 40 spaced full-suite runs** (0/40 red) with pooling off, against **20 drops across 23 spaced runs** over two independent stock-pool controls — same day, same machine, same suite, same oracle (`docker logs … \| grep -c "prematurely closed"`), same 35 s spacing |
+  | …and the quiet log is not the log of a dead proxy | three controls, all required and all met: the fixed matrix is **green** (0/40 red, 332 passed each run); `.kong_env` still reads `pool_size = 0` after the last run, so the setting did not revert mid-matrix; and the stock-pool control reproduced on its first attempt, **twice** |
+  | The unsupported step is falsifiable rather than a shell incantation | the `scripts/` split this repo already uses for the drift gate — a pure half (`scripts/kong-keepalive.ts`: the lever constant, `containerNames`, `buildRunArgs`, `parseKongEnv`) asserted by `tests/lib/kong-keepalive.test.ts` (**18 cases**, the +18 that moves the suite 314 → 332), plus an I/O half that refuses to report success on anything it did not verify. Its adoption oracle is Kong's own dump of every resolved setting, `/usr/local/kong/.kong_env` |
+
+  **The one decision the census turns on, stated because it is not obvious and it was measured.**
+  The neuter returns the **first** response and discards the replay's. Returning the second
+  collapses the run: every describe block gets its deck from a `createDeck` that throws
+  `Setup failed: deck "…" was never written` unless it sees `Location === "/decks"`, and **64 of
+  64** replayed `POST /rest/v1/deck` answered `409` — so the `beforeAll` would have died and the
+  30-odd `seedCard` / `createNonAcceptedCard` sites behind those decks would never have run. The
+  census would then have reported a *shorter* silent list than the reading it exists to replace.
+  Returning the first costs no signal, because only a row that actually landed can be seen.
+
+  **Two additions to research's four, named rather than folded into a count** (§3's own
+  discipline). `seedGenerationSession` was **confirmed, not discovered** — plan-review F8 put it
+  in research's `.single()`-false-oracle trap list and in *neither* its silent nor its loud list,
+  and the census settled it. `createCard` in `study.test.ts` is a **genuine addition on no prior
+  list**: its oracle is `listFlashcards(…).find(card => card.front === front)`, and a `find`
+  returns the first match and cannot count, so the helper is blind by construction in all three
+  files that carry it. **No subtractions** — nothing research called silent turned out to be
+  already loud.
+
+  **What this does NOT prove — read this before citing the flake as fixed or the seams as safe.**
+  - **The fix is unsupported and per-machine, and every `npx supabase stop` wipes it.** It is a
+    post-`supabase start` container recreation, not a configuration surface: no supported lever
+    exists (verified against CLI v2.98.2 — Kong's container env is a hardcoded Go slice,
+    `kong.yml` is `//go:embed`-ed, the image is not settable from `config.toml`, `[api]` exposes
+    only PostgREST settings, and PostgREST has never had a keep-alive knob). A developer on a
+    bare `npx supabase start` is back on the flaky configuration. **This is why the wrapper stays
+    and must not be narrowed or deleted.**
+  - **CI's step is PARITY, not necessity, and it is advisory by design.** Research measured CI as
+    structurally immune — 10-13 s suite against a stack started 3-7 s earlier with a cold pool
+    and exactly one invocation per run, so no socket can reach the 60 s it needs; empirically 52
+    runs, 0 unexplained reds, 0 re-runs, ~25 pre-wrapper runs green. The step carries
+    `continue-on-error: true` **on purpose**: the `ci` job is what `drift` and `deploy` declare in
+    `needs:`, and an unsupported `docker` operation breaking on a CLI upgrade must not stop a
+    release over a flake CI cannot have. Consequence a reader must not miss: **a green `ci` job no
+    longer implies this step passed — read the step's own conclusion.** It is also the first thing
+    to drop if it ever goes red.
+  - **The wrapper still replays non-idempotent requests.** These oracles turn a silent double
+    write into a loud one; they do not stop it happening, and narrowing the wrapper to `GET` would
+    return the flake to full strength — Kong ships no `proxy_next_upstream`, so it never retries a
+    non-idempotent method and already absorbs every idempotent drop itself (not one PostgREST
+    `GET` drop reached a client in 23 h of one container).
+  - **Silence is proven only for the seams that existed on the day the census ran.** A helper
+    added tomorrow with no count after its insert is a new silent seam, and **nothing detects that
+    class automatically** — there is no guard test over "every insert in `tests/` is followed by a
+    count", unlike the sweeps §8's 2026-08-01 entry made falsifiable one surface over.
+  - **Two `createCard` twins are loud only by ACCIDENT** and were deliberately left alone. The
+    census classified `createCard` in `cards.test.ts` and in `isolation/flashcards.test.ts` as
+    loud — but the first only because `findCardByFront`'s `.maybeSingle()` happens to answer
+    `PGRST116 … Results contain 2 rows`, i.e. an error rather than an assertion. The helper is
+    blind in all three files; two are covered by what the file re-reads afterwards. Closing "the
+    list the experiment produced" was the instruction, so these are named rather than folded in.
+  - **`flashcard` still carries no uniqueness constraint, and cannot.** Verified rather than
+    assumed: `generate.test.ts` POSTs twice with no idempotency key into the **same** deck while
+    `mockCards` returns identical fronts, so duplicate `(deck_id, front)` rows are legitimate
+    there — every ordinary suite run leaves 6 + 2 such groups behind. The oracle is per-seam
+    precisely because the database cannot hold this rule.
+  - **One machine, one day, one Docker, one CLI** — and **the drop RATE is not a stable
+    quantity**. The two controls differ by nearly sevenfold (1.38/run and 0.20/run, bracketing
+    C10X-32's ≈0.55/run on both sides), and the phase did not isolate which of the two conditions
+    that changed — a much smaller deck table, or a 9-12 s run against a 5-6 s one — moved it. A
+    future contributor comparing against a single number quoted here is comparing against noise:
+    **run a control in your own session.** Zero over 40 runs bounds the rate; it does not prove
+    impossibility, and both idle timeouts are still 60 s and still untouchable.
+  - **The comparison carrying the weight is fixed-vs-control on the SAME DAY**, not
+    fixed-vs-C10X-32. The historical 22/40 was measured on a different day against a smaller
+    database with an unrecorded spacing; it appears here as context and as the figure the
+    original ticket named, never as the control. The two same-session controls bracket it on both
+    sides, which is why they and not it are the baseline.
+  - **The two halves of this change are independent, and neither is evidence for the other.**
+    Phase 5 measures how OFTEN the replay happens locally and says nothing about what happens when
+    it does; Phase 4 measures whether it is loud when it does and says nothing about the flake's
+    rate. That separation was deliberate from the plan onward — an inconclusive Phase 5 would not
+    have blocked the seam work — and it is the reason the seam oracles are not framed as
+    contingent on the Kong fix.
+  - **The drops' log LINES are gone** — the restore replaced the control container and took its
+    log with it. Only the per-run counts survive, which is the oracle the plan specified; the
+    line's text is on record from C10X-32 and from this change's research.
+  - **No test in this suite touches Kong's configuration**, and none ever will. `npm test` covers
+    the pure half (18 cases, no Docker, no stack); `scripts/disable-kong-keepalive.ts` gets no
+    unit test, because every branch in it is I/O against the local Docker daemon. The wiring is
+    carried by the recorded runs, not by an assertion — the same boundary §6.6's C10X-29 entry
+    draws for the drift runner.
+
+  Full evidence — the census's full red set verbatim with its denominator, the replay control,
+  the duplicate scan with per-call-site attribution, the six test-first breakage runs, the
+  re-run census, both stock-pool controls with their per-run drop counts, and every verified
+  cleanup: `context/changes/local-stack-transport-flake/verification.md` (after archiving:
+  `context/archive/<date>-local-stack-transport-flake/verification.md`).
+
 ### 6.7 Adding a test for the SRS / study path
 
 (Added by §3 Phase 4. It sits after §6.6 so the existing §6.6 references in
@@ -2925,10 +3090,18 @@ contributors should respect these unless the underlying assumption changes.
   is why the inventory came from reading rather than from re-rolling seeds.
 - **A pre-existing local-stack flake was diagnosed here and is NOT an ordering defect** —
   recorded because a future contributor will meet it and reach for the wrong hypothesis. Kong
-  pools keep-alive connections to PostgREST and holds them idle longer than PostgREST does,
-  so the first request after a gap can answer `502 upstream prematurely closed connection`;
-  it surfaced downstream as whatever assertion was in flight, and none of the reds reproduced
-  at their own seed. Measured, not assumed: **3/20 red with shuffle on, 3/20 with shuffle
+  pools keep-alive connections to PostgREST and **both sides idle out at the same 60 s**, so
+  neither reliably closes first and the loser of that race can answer
+  `502 upstream prematurely closed connection`; it surfaced downstream as whatever assertion
+  was in flight, and none of the reds reproduced at their own seed.
+  > **The mechanism in this bullet was corrected 2026-08-01 by C10X-39, and the original claim
+  > is worth knowing because it is the hypothesis a reader will form again.** It said Kong keeps
+  > its pooled connections idle for LONGER than the upstream does, so the 502 lands on the first
+  > request after a gap — inference, never measured, and wrong twice over in the direction that
+  > sounds fixable: the timeouts are equal (Kong's `upstream_keepalive_idle_timeout` 60 s;
+  > PostgREST/warp 60.0 s, measured with Kong bypassed), and the drops cluster in a burst's
+  > first 1-2 s (43/43) rather than on the single first request after the gap.
+  Measured, not assumed: **3/20 red with shuffle on, 3/20 with shuffle
   off** — equal, therefore independent of this change — and two candidate causes were
   **refuted** by measurement (restarting `rest` + `kong` did not clear it; cutting file
   parallelism to `--maxWorkers=4` did not either). `tests/setup/retry-transport.ts` replays
@@ -2947,6 +3120,15 @@ contributors should respect these unless the underlying assumption changes.
   followed by a count assertion — would be **silent**. Those seams rest on the
   never-committed argument in the wrapper's header, not on a loud failure. The retry is
   deliberately not method-gated: the measured flake was a POST.
+  > **Two of those three sentences are superseded 2026-08-01 by C10X-39, and only by
+  > measurement.** F3's narrowing was right in kind and short in count: a census that forced
+  > every local non-`GET` request to replay found **six** silent seams, not two, and each is
+  > now followed by a case-scoped count oracle proved falsifiable at the moment it was written.
+  > "Those seams rest on the argument in the header" no longer holds — they rest on an
+  > assertion. The method sentence gains the reason nobody had named: Kong ships no
+  > `proxy_next_upstream`, so the proxy never retries a non-idempotent method and absorbs every
+  > idempotent drop itself, which makes the POST/PATCH category the wrapper's entire marginal
+  > value rather than an incidental widening. See §6.6's C10X-39 entry.
 - **The eval path is shuffled too, and its failure set is unchanged.** Three runs
   (~$0.012 each), oracle = failure-set equality, never the exit code: run 3 reproduces the
   C10X-31 baseline exactly (`forced/niemiecki` + `forced/francuski`, 8 passed), the de/fr core
@@ -3186,6 +3368,73 @@ contributors should respect these unless the underlying assumption changes.
   owns setting it and closing **C10X-40** against this change. Everything in the previous entry's
   "What is NOT closed" list stands unchanged — the review added no coverage of the island half, the
   cloud rows, or banner announcement.
+
+- **The HARNESS's own silent-write class last proven closed by execution: 2026-08-01** (C10X-39,
+  change folder `local-stack-transport-flake`). A different axis again — like C10X-32's
+  order-independence entry, it says the existing claims are *trustworthy*, not that anything new
+  is covered. Suite **332/332, 29 files** (314/314, 28 at the C10X-37 baseline; the **+18 / +1**
+  is `tests/lib/kong-keepalive.test.ts` alone, and the seam work adds **zero** cases by design —
+  six oracles inside existing helpers, no new `it()`). The count is identical at the Phase 3
+  baseline, after Phase 4 and after Phase 5's 40-run matrix. Local stack up,
+  `OPENROUTER_API_KEY` unset, `npx tsc --noEmit` exit 0, `npm run lint` exit 0 (the same 6
+  pre-existing `no-console` warnings in `evals/generation-quality.eval.ts`, unchanged),
+  `npm run build` exit 0.
+- **The evidence is two censuses, not a reading, and the pair is the deliverable.** Phase 3
+  forced every local non-`GET` request to replay once: **6 silent seams**, 27 red blocks, 316
+  replays, 89 + 18 duplicated groups — every **green** one traced to the helper that wrote it and
+  the `it()` that owns it, by line number, because attribution by case colour would have filed
+  `generate.test.ts:352` as loud on a red belonging to a different seam. Phase 4's re-run of the
+  identical neuter: **0 silent seams**, 54 red blocks, 669 replays behind it — and all 27 of
+  Phase 3's reds matched into the 54 by set comparison, so nothing that was loud went quiet. Six
+  test-first breakage runs in between, each turning **exactly one** case red in a **per-file** run
+  (1 of 23 / 1 of 22 / 1 of 13, not full-suite denominators) — `expected 2 to be 1` five times, a
+  length assertion the sixth — with the green beside it as the evidence. Every duplicated row this produced was deleted, scoped to each phase's window, and
+  the residue verified at **0** on both tables including orphaned `flashcard_schedule`.
+- **A mechanism this file asserted twice was measured and found FALSE**, which is the entry's
+  reusable half. §6.2 and §8 both claimed Kong keeps its pooled connections idle for LONGER than
+  the upstream does. Both sides idle out at **60 s** — equal, i.e. the pathological case, not a
+  fixable ordering — and the drops cluster in a burst's first 1-2 s rather than on the first
+  request after the gap. Corrected in place at both sites, plus the third live site nobody had
+  listed: `tests/setup/retry-transport.ts`'s own header, which the obvious grep for the phrase
+  misses because it breaks across two comment lines — which is why the criterion for this phase
+  is a **pair** of patterns, not one. Same class as this ledger's recurring pointer rot: a claim
+  that reads as reassurance, carried by inference, in the file a contributor consults before
+  widening a guard.
+  > **And the corrections deliberately PARAPHRASE the old sentence rather than quoting it**,
+  > against this file's usual habit of keeping superseded wording verbatim. The reason is the
+  > criterion itself. The phase's two greps (spelled out in the change's `plan.md`, criterion
+  > 6.1, and deliberately not repeated here for the same reason) are a standing regression check
+  > that the wrong mechanism has not crept back over `tests/ src/ context/foundation/`. A
+  > correction block quoting the old phrase — or, as this bullet first did, an entry quoting the
+  > grep COMMAND — keeps the check permanently non-empty, i.e. an assertion that can never pass,
+  > which is this project's own definition of a useless gate. The verbatim record survives where
+  > it belongs and where the grep does not reach: the change folder's `change.md` (twice, the
+  > charter's own wording included), `research.md` (twice) and `plan.md` (four times).
+- **Phase 5's verdict, stated as measured rather than as hoped.** **The recreation removes the
+  flake on this machine**: 0 drops across 40 spaced runs with pooling disabled, against 20 drops
+  across 23 spaced runs over two independent stock-pool controls the same day, same machine, same
+  oracle, same 35 s spacing. Not recorded as inconclusive — the plan reserved that branch for a
+  control that failed to reproduce, and both controls reproduced on their first attempt. Three
+  things are recorded rather than smoothed over: the matrix ran in four chunks after the agent
+  harness reaped a background job (the three extra gaps are *longer* than 35 s, i.e. they move
+  toward the cold-pool condition the flake needs); Docker Desktop died mid-control, voiding runs
+  10-12, so the ≥10 floor is met by clean runs alone; and the two controls' rates differ by
+  nearly **sevenfold** (1.38/run vs 0.20/run), which is why no single number here should be
+  quoted as *the* rate. Performance was measured because the plan asked: 5-6 s per run both with
+  pooling on and off, no regression from the extra TCP handshake.
+- **What does NOT follow from that verdict, and is named here because the headline invites it**:
+  the fix is **unsupported and per-machine**, wiped by every `npx supabase stop`, so the `fetch`
+  wrapper stays and was deliberately not narrowed or deleted; CI's step is **parity, not
+  necessity** and carries `continue-on-error: true`, so a green `ci` job no longer implies the
+  step passed — read the step's own conclusion; and the census proves silence only for the seams
+  that existed on the day it ran, with no automatic guard over the class. §6.6's C10X-39 entry
+  carries each with its reason.
+- **Still open after this change, deliberately.** Criteria **2.3** and **2.5** — the pushed CI run
+  and its log — are unmet by decision, not by omission: `ci.yml` triggers only on push to `main`
+  and on `pull_request` to `main`, so a feature-branch push runs nothing at all. Deferred to
+  `/ship`, to be read off the PR's `ci` job. Two `createCard` twins remain loud only by accident
+  (§6.6), and `jira-map.md`'s `Change ID` for **C10X-39** is filled on the map side only —
+  `/jira-finish-work` owns the Jira end.
 
 Refresh (`/10x-test-plan --refresh`) when:
 

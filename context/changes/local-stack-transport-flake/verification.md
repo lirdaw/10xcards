@@ -611,3 +611,138 @@ therefore pre-existing.
 - **Nothing here is evidence about the seam work.** Whether a replayed write is now loud is
   Phase 4's measurement; this phase reduces how often the replay happens locally and says
   nothing about what happens when it does.
+
+## Phase 6 — Documentation sync
+
+Ran 2026-08-01, against the same stack (Kong `upstream_keepalive_pool_size = 0`,
+`max_requests = 100`, `idle_timeout = 60`; `npx supabase status` running), `OPENROUTER_API_KEY`
+unset. No file under `src/` was touched, and no test was added or changed — the only `tests/`
+edit is the wrapper's comment header.
+
+### 6.1 Surfaces changed
+
+| Surface | What changed |
+| --- | --- |
+| `tests/setup/retry-transport.ts` | Mechanism corrected (equal 60 s timeouts, drops clustering in a burst's first 1-2 s); the local fix recorded together with the reason it does **not** retire the wrapper; the `proxy_next_upstream` mechanism named for the first time; the "MOSTLY, NOT ALWAYS" paragraph rewritten from a disclosure of two unguarded seams into a statement of where the six oracles are, with the two things it does not become |
+| `context/foundation/test-plan.md` §6.2 | Mechanism corrected in the shuffle bullet, with a dated correction block |
+| `context/foundation/test-plan.md` §8 (C10X-32 entry) | Same correction; plus the F3 narrowing marked superseded — two seams → six, and "those seams rest on the argument in the header" replaced by "they rest on an assertion" |
+| `context/foundation/test-plan.md` §4 | Stack row for the local stack now records that `db:start` chains `db:kong`, that it is unsupported and wiped by `supabase stop`, and that a green run is not evidence the stack was in that state |
+| `context/foundation/test-plan.md` §6.6 | New C10X-39 entry: claims table, the census's one load-bearing decision, additions named rather than counted, and a nine-item does-NOT-prove list |
+| `context/foundation/test-plan.md` §8 | New ledger entry: counts, the two censuses, the false mechanism, Phase 5's verdict with its three caveats, and what does not follow from it |
+| `context/foundation/test-plan.md` header | New ledger entry; the C10X-37 entry demoted to `Previously:` |
+| `context/foundation/test-plan.md` §6.9 | **Checked, unchanged** — its second-fetch-seam note ("replays one transport failure … at most twice", "not precedent for a second module double", "never restored") is invalidated by nothing here |
+| `context/foundation/lessons.md` | Two rules appended (below) |
+| `context/foundation/jira-map.md` | Stale pointer `:63` repointed to the archive path; `Change ID` filled on the map side as `⚠ tylko po stronie mapy` (C10X-37 precedent) and the note that said "there is no change folder yet" dated and corrected |
+| `context/changes/local-stack-transport-flake/change.md` | Revised acceptance recorded under the research findings |
+
+The two lessons: **equal keep-alive timeouts on both sides of a pool are the pathological case**
+(measure both sides; a healthy configuration has the proxy closing well before the upstream; when
+neither side is yours to configure, the remedy belongs at the harness — and measure the effect as
+a same-session fixed-vs-control **pair**, never as a quiet log); and
+**`.insert(...).select(...).single()` is a false oracle for a duplicated write** (it sees one
+response; the duplicate arrives in another — use a case-scoped `count: "exact"` of one, check
+whether a duplicate is legitimate somewhere before reaching for a UNIQUE constraint, and prove the
+oracle falsifiable *before* writing it).
+
+### 6.2 Criteria
+
+| # | Criterion | Result |
+| --- | --- | --- |
+| 6.1 | both mechanism greps over `tests/ src/ context/foundation/` | **0 hits each** |
+| 6.2 | `context/changes/flashcards-test-order` over the same three trees | **0 hits** |
+| 6.3 | `npm test` | **332 passed / 332, 29 files** — seed `1785598433769` (7.41 s) before the §6.4 audit, re-run at seed `1785599254276` (7.42 s) after it |
+| 6.4 | `npm run lint` / `npm run build` | exit **0** / exit **0** (the same 6 pre-existing `no-console` warnings in `evals/generation-quality.eval.ts`, unchanged) |
+| 6.5 | `npx tsc --noEmit` | exit **0** |
+
+Every row was re-run against the **final** files after the audit in §6.4 changed them — a
+criterion is a claim about a run, and the first pass was made against files the audit then
+edited. The three greps are 0 / 0 / 0 in both passes; `tsc` and `lint` exit 0 in both. The build
+was not re-run after the audit, which touched no file it reads (`context/` and one comment block
+in `tests/`).
+
+The archive path used by 6.2's replacement was **verified to resolve on disk**
+(`context/archive/2026-07-29-flashcards-test-order/` — `change.md`, `plan.md`, `plan-brief.md`,
+`research.md`, `verification.md`, `reviews/`) rather than assumed from the plan; repointing a
+pointer to a second dead path is the failure this project's ledger has already recorded twice.
+
+### 6.3 One deviation, and it changed how the corrections are written
+
+Criterion 6.1 demands the greps return **nothing**, and this file's usual convention is to keep a
+superseded sentence **verbatim** so a reader recognises the hypothesis. The first draft did that
+— and left the grep with five hits, four of them inside correction blocks and one inside the §8
+bullet that *quoted the grep command itself*. That is precisely the shape `lessons.md` already
+names as a useless gate: a check that can never pass.
+
+Resolved in favour of the criterion, and the reasoning is recorded at the site (§8's new entry
+and the Progress row): every live surface now **paraphrases** the old claim — "Kong keeps its
+pooled sockets idle for LONGER than the upstream does" — while the verbatim wording survives
+where the grep does not reach and where the record belongs: `change.md` (twice, including the
+charter's own sentence, kept verbatim by design), `research.md` (twice) and `plan.md` (four
+times). Counted, not assumed. `tests/setup/retry-transport.ts` says so at the site, so the next
+contributor does not "restore" the quote and silently disarm the check.
+
+### 6.4 Manual verification (criteria 6.6 and 6.7)
+
+Both were run as an **audit against the numbers**, not as a re-reading of the prose: every
+quantity in the new entries was matched to the section of this file that produced it, and every
+claim about the code was matched to the code. That found three errors in the freshly-written
+§6.6 entry, which are recorded here rather than quietly fixed — the point of the criterion is
+that it can fail, and it did.
+
+| # | Error found | Correction |
+| --- | --- | --- |
+| 1 | "`(deck_id, front)` for the **four** card seams" | **Three**, not four (`createNonAcceptedCard`, `createCard`, `seedCard`). The fourth card seam — `insertDirect`'s `inRange` control — is scoped by `deck_id` alone, which §4.1's table says and the sentence contradicted while listing it separately two clauses later |
+| 2 | "89 + 18 duplicated groups **each** attributed to a call site by line number" | Overclaim. §3.8 attributes every **green** duplicated group by helper, line and owning `it()`; the 89 as a whole are attributed by deck family (§3.4). Reworded, and the reason kept: attribution by case colour would have filed `generate.test.ts:352` as loud |
+| 3 | "turned **exactly one case** red" with no denominator | The Phase 4 breakage runs are **per-file** (1 of 23 / 1 of 22 / 1 of 13), not full-suite. Stated, per this project's rule that a split is a claim about a run |
+
+Two items were also **missing** from the does-NOT-prove list against §5.5 and §4.6, and were
+added: that the load-bearing comparison is fixed-vs-control **on the same day** rather than
+fixed-vs-C10X-32 (whose 22/40 was a different day, a smaller database and an unrecorded spacing),
+and that the change's two halves are independent — Phase 5 measures how OFTEN the replay happens
+and Phase 4 whether it is LOUD when it does, and neither is evidence for the other. The same
+audit corrected the §8 entry, which carried errors 2 and 3 in the same words.
+
+**6.6 — the does-NOT-prove list against Phase 5's actual verdict.** After the corrections above,
+every item in §5.5 has a counterpart in §6.6, and no document claims more than was measured. Spot
+checks: the verdict is stated as "**on this machine**" and paired with "one machine, one day, one
+Docker, one CLI"; "0 drops across 40 spaced runs against 20 across 23" matches §5.1 + §5.3 (18 in
+13 valid runs, then 2 in 10); the sevenfold rate spread is carried as a **finding** in all four
+surfaces that mention a rate, never averaged; and nothing anywhere says the flake is impossible —
+the wording is that zero over 40 runs *bounds* the rate, with both idle timeouts still 60 s.
+
+**6.7 — the wrapper header re-read against the measurements.** Read end to end in the posture the
+criterion names (someone deciding whether to widen the predicate). Every factual claim checked:
+equal 60 s timeouts, the 1-2 s cluster (43/43) after a median 27 s of quiet, 3/20 red with shuffle
+on and off, the CLI v2.98.2 non-surfaces, 0 drops / 40 runs vs 20 / 23, `deck` 64/64 `409`, the
+keyed session 5/5 `409`, `ensureSchedule`'s upsert, the six named silent seams, and the re-run's
+zero — all match this file. Three claims were checked against the **code** rather than against
+prose: `npm run db:start` really does chain `db:kong` (`package.json:16-17`); all six oracles are
+present at the insert site with a comment naming the retried-write class (`study.test.ts:150,196`,
+`candidates.test.ts:144,212`, `generate.test.ts:373`, `cards.test.ts:463`); and the header's
+"`method` is never inspected" is true of the shipped file — a `grep` for `method` over
+`retry-policy.ts` and `retry-transport.ts` returns **no code reference**, i.e. the census neuter
+is fully reverted. `MAX_ATTEMPTS = 3` confirms "at most twice". The wrapper's own 8 cases stay
+green.
+
+Three edits followed from the cold read rather than from the audit: "NOT an ordering problem" now
+reads "NOT a **TEST-ORDERING** problem", because the same paragraph had just called equal timeouts
+"not an ordering error" and the two senses collided; and the census paragraph now states what the
+experiment **is** — a replay of a request that HAD executed, i.e. the pessimal case, not the
+flake's own — so nobody reads it as refuting the safety argument directly above it, which it does
+not. The honest limit of this criterion: the reader was not cold, having written the text. What a
+genuinely cold reader would add is not claimed here.
+
+### 6.5 What this phase does NOT prove
+
+- **Nothing here is a measurement.** Every number in the new entries comes from Phases 1–5; this
+  phase moved them into the documents and corrected what contradicted them. The one thing it
+  measured is its own criteria.
+- **Criteria 2.3 and 2.5 stay open**, by decision recorded in Progress: `ci.yml` triggers only on
+  push to `main` and on `pull_request` to `main`, so a feature-branch push runs nothing. They are
+  read off the PR's `ci` job at `/ship` — and the step carries `continue-on-error: true`, so what
+  must be read is the **step's own conclusion**, not the job's colour.
+- **The Jira side is untouched.** The ticket summary still says "usunąć przyczynę", which the
+  research findings contradict; `customfield_10041` is unset. Both belong to
+  `/jira-finish-work`, and `jira-map.md` records that rather than pre-empting it.
+- **`jira-map.md` is gitignored**, so its edits are real on disk and appear in no commit — checked
+  (`git check-ignore -v` → `.gitignore:70`) rather than noticed later as a missing file.
