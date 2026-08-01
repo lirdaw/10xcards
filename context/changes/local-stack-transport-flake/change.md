@@ -1,7 +1,7 @@
 ---
 change_id: local-stack-transport-flake
 title: Make the retried-write seams loud
-status: preparing
+status: plan_reviewed
 created: 2026-08-01
 updated: 2026-08-01
 archived_at: null
@@ -69,6 +69,17 @@ earlier with a cold Kong pool and exactly one invocation per run, so no socket c
 it needs; empirically 52 runs, 0 unexplained reds, 0 re-runs, and ~25 pre-wrapper runs all green.
 **Nothing should be added to `.github/workflows/ci.yml` for this** — it is a local
 developer-experience issue only.
+
+## Planning decision (2026-08-01)
+
+Point (3) above predicted the change would invert into a doc correction. It did **not**: planning
+took the **unsupported** lever research had ruled out of the supported surface — a post-`supabase
+start` recreation of the Kong container at `KONG_UPSTREAM_KEEPALIVE_POOL_SIZE=0`, wired into
+`npm run db:start` **and** into `.github/workflows/ci.yml`. The CI leg is an explicit parity
+decision taken **against** research's own finding that CI is structurally immune to this flake;
+the exposure is recorded in `plan-brief.md` §Open Risks. The wrapper still stays (the fix is
+per-machine and wiped by `supabase stop`), the seam work is still the deliverable, and it widens
+from research's four seams to whatever the plan's Phase 3 census measures. See `plan.md`.
 
 **Also worth carrying**: Kong ships no `proxy_next_upstream` directive, so nginx's default applies
 and non-idempotent methods are never retried — Kong already absorbs every idempotent drop itself
