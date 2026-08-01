@@ -405,3 +405,23 @@ If a slice touches one, note it and defer to its ticket. Detail lives in Jira; t
 - C10X-19 — Polish UI: finish copy translation (landing + sign-in/sign-up)
 - C10X-20 — Auth landing: inline sign-in/sign-up form below hero
 - C10X-21 — Full-height scrollbar + sticky header/footer (shell restructure) (relates → C10X-15)
+- C10X-23 — Deck search UX improvements (`deck-search-ux`)
+- C10X-24 — AI generator UX improvements (`ai-generator-ux`)
+- C10X-25 — Generation hardening: write idempotency + rate limit on `/api/generate` (`ai-generation-hardening`)
+- C10X-35 — Alerts + schedule for `schema-diff` — nobody watches the DDL diff result today
+- C10X-36 — Auth route input validation: server-side parity with the UI (`auth-input-validation`, second surface of test-plan Risk #6)
+- C10X-38 — Research: supplying secrets without pasting them into code and sessions (`OPENROUTER_API_KEY`)
+- C10X-44 — Admin panel: configure generation languages without touching the database
+
+> **Completed 2026-08-01 (during C10X-40's `/jira-finish-work`), and the gap is the point.** This
+> index claims to be the pointer index for every deferred idea in Jira, and it listed only
+> C10X-14…21 while **seven** more existed, so a reader consulting this file would have
+> re-proposed one of them as new — exactly what the heading forbids. Derived by enumerating every
+> `Pomysł`-status issue in project C10X against this list, not by reading the git history.
+>
+> Two things this note first got wrong, corrected here rather than quietly: all seven were
+> **already recorded in `jira-map.md`** — C10X-35/36/38/44 in its follow-up table, and
+> C10X-23/24/25 in its orphan line, written in the shorthand `C10X-14…21/23/24/25` that a
+> `C10X-2[345]` grep cannot match. So none of them was undocumented project-wide; the gap was
+> **this index only**. And the map's blanket "orphans are never written into the docs" does not
+> describe this section: it already carried eight idea pointers before this edit, by design.
