@@ -17,12 +17,15 @@
 > "human-triggered", and every one of them is still true — `workflow_dispatch` **is**
 > human-triggered. What went false is "local only" / "no CI leg", and the two are edited on
 > opposite rules: a live claim (§2's Risk #7 row, §4's Stack row, §5's gate row and the paragraph
-> under it, §3's Phase 5 note) is **edited**; a historical entry (§6.6's C10X-31 and C10X-41
-> does-NOT-prove bullets, §8's two ledger entries, this header's own C10X-31 summary below) takes
-> a **dated correction line and is not rewritten** — the C10X-30 "4xx" precedent this file states
-> four times. One of those eight was re-checked and left deliberately untouched, with the absence
-> of an edit recorded as its own note, because a reader working the doc-sync list would otherwise
-> hunt for a correction that should not exist.
+> under it, §3's Phase 5 note where it states the current situation) is **edited**; a historical
+> entry (§6.6's C10X-31 and C10X-41 does-NOT-prove bullets, §8's two ledger entries, this header's
+> own C10X-31 summary below, and §3's Phase 5 note _again_ where it narrates what C10X-31 and
+> C10X-41 did) takes a **dated correction line and is not rewritten** — the C10X-30 "4xx"
+> precedent this file states four times. That is **eleven** locations across ten places: the
+> Phase 5 note is counted in both classes because it carries both kinds of sentence. One of those
+> eleven was re-checked and left deliberately untouched, with the absence of an edit recorded as
+> its own note, because a reader working the doc-sync list would otherwise hunt for a correction
+> that should not exist.
 >
 > Three boundaries belong in the same breath as the headline. There is still **no `schedule:`** and
 > there must never be a `needs:` — a red run here is a real generation defect, not a hygiene
@@ -2602,13 +2605,24 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
     exits 1) and separable only from the output, so a reader must not take "a red dispatch was
     demonstrated" as "a red generation defect was demonstrated end to end". The one time this
     project has seen the latter is C10X-31's first calibrated run.
-  - **The eval step's no-report branch ships UNEXERCISED.** All three planned dispatches produce
-    both report files, because a bogus model throws _inside_ a test and `afterAll` still runs.
+  - **The eval step's no-report branch ships UNEXERCISED.** All **four** job executions produce
+    both report files — the three planned dispatches, because a bogus model throws _inside_ a
+    test and `afterAll` still runs, and the unplanned fourth, which is the datum worth carrying:
+    the BOM run (`30756346671`) threw **every one of its 11 cases** and `afterAll` still ran and
+    still wrote both files. That is stronger evidence that the branch is hard to reach than the
+    planned runs give on their own.
     Nothing in the plan reaches that state and nothing cheaply can — provoking it needs the
     secret removed or a broken commit on `main`. It is carried by reading, like the drift
-    runner's I/O branches (the C10X-29 entry above). It has **four** causes (preflight abort, a
-    collection-time error, the step timeout, any crash before `afterAll`), and because every
-    stream is redirected to a file, its output is the job log's only diagnostic in all four
+    runner's I/O branches (the C10X-29 entry above). It has **five** causes, and the fifth was
+    missed until this change's impl-review (2026-08-02): four kill the run before the hook
+    (preflight abort, a collection-time error, the step timeout, any crash before `afterAll`),
+    and the fifth is the report **write** failing after the hook ran — which matters because
+    `writeReports` is deliberately best-effort, so it is the only cause that can leave the exit
+    code **zero**. The branch as first shipped announced "the run never reached the eval's
+    afterAll hook" and "the exit code does not separate them" in exactly that state, both
+    provably false there; it now branches on `$STATUS`, and the non-zero side lists all five
+    because a red eval whose write also failed is a real state. Because every stream is
+    redirected to a file, this branch's output is the job log's only diagnostic in all five
     states — so it enumerates the causes and tails the last 40 lines rather than asserting the
     one the author happened to think of. The tradeoff is stated rather than hidden: a mid-run
     failure can put card text in those 40 lines, so "no card text in the job log" is a property
@@ -3834,9 +3848,13 @@ contributors should respect these unless the underlying assumption changes.
   README (two edits — the workflow inventory and the secrets table), roadmap **H-10** and
   `jira-map.md`'s C10X-42 row. That discipline is this file's own: a total and its breakdown are
   two claims, and §8 already records C10X-40 catching exactly that arithmetic against C10X-39.
-  Two of the eleven produced no edit and say so at the site — §8's C10X-41 bullet is re-checked
+  One of the eleven produced no edit and says so at the site — §8's C10X-41 bullet is re-checked
   and **deliberately untouched**, with the absence of an edit written down, because a reader
-  working the list would otherwise hunt for a correction that should not exist.
+  working the list would otherwise hunt for a correction that should not exist. (This sentence
+  read "Two" and the rolling header said "one of those eight" until this change's impl-review
+  recounted from the lists, 2026-08-02 — two numbers disagreeing with each other about one fact,
+  which is this file's own "a total and its breakdown are two claims" defect committed by the
+  entry that cites it.)
 - **The wording trap was the whole difficulty, and it is the reason nothing was mass-replaced.**
   Every one of five targets says "human-triggered", and every one stays **true** —
   `workflow_dispatch` IS human-triggered. Only "local only" / "no CI leg" went false. So a live

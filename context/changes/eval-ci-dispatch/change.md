@@ -1,7 +1,7 @@
 ---
 change_id: eval-ci-dispatch
 title: Run the generation-quality eval from CI on demand
-status: implemented
+status: impl_reviewed
 created: 2026-08-02
 updated: 2026-08-02
 archived_at: null
