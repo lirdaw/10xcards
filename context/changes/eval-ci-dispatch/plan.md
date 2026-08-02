@@ -767,18 +767,18 @@ out-of-repo state is the new repository secret, created in Phase 3 and proven wo
 
 #### Automated
 
-- [x] 3.1 `gh secret list` shows `OPENROUTER_EVAL_KEY`
-- [x] 3.2 Prettier clean on the edited markdown
-- [x] 3.3 Every surviving "local only" / "no CI leg" hit in test-plan.md is classified: unrelated, or historical with a dated correction beside it
-- [x] 3.4 Every pre-existing `human-triggered` site survives, checked per site against the pre-edit `grep -n` list
-- [x] 3.5 Roadmap row H-10 present
-- [x] 3.6 `npm test` still green
+- [x] 3.1 `gh secret list` shows `OPENROUTER_EVAL_KEY` — 39a50e4
+- [x] 3.2 Prettier clean on the edited markdown — 39a50e4
+- [x] 3.3 Every surviving "local only" / "no CI leg" hit in test-plan.md is classified: unrelated, or historical with a dated correction beside it — 39a50e4
+- [x] 3.4 Every pre-existing `human-triggered` site survives, checked per site against the pre-edit `grep -n` list — 39a50e4
+- [x] 3.5 Roadmap row H-10 present — 39a50e4
+- [x] 3.6 `npm test` still green — 39a50e4
 
 #### Manual
 
-- [x] 3.7 New §6.6 entry carries a does-NOT-prove list naming all four boundaries
-- [x] 3.8 README secrets row states separateness and the credit limit
-- [x] 3.9 Pending run-identifier fields visibly marked, none fabricated
+- [x] 3.7 New §6.6 entry carries a does-NOT-prove list naming all four boundaries — 39a50e4
+- [x] 3.8 README secrets row states separateness and the credit limit — 39a50e4
+- [x] 3.9 Pending run-identifier fields visibly marked, none fabricated — 39a50e4
 
 ### Phase 4: Ship-time evidence
 
