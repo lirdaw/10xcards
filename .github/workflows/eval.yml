@@ -1,0 +1,202 @@
+# The generation-quality eval, on demand — the project's only check that reaches the real AI
+# provider. It drives the production `generateCandidates()` through an 11-case language matrix
+# and grades every returned card with an LLM judge from a different model family, so the
+# generator never grades itself (test-plan.md §3 Phase 5, Risk #7).
+#
+# Until this file existed the eval ran only on a developer's machine, whenever someone
+# remembered to run it. That was a deliberate deferral by C10X-31, not an oversight, and the
+# reason it stayed deferred is the same one that keeps `schedule:` out of this file below.
+#
+# **Read a red run here as a FINDING, not as a hygiene failure.** `npm run eval` exits 1 on a
+# REAL generation defect by design: C10X-31's very first calibrated run was honestly red and
+# found the forced-language prompt bug that C10X-41 then fixed. So this workflow must never be
+# wired as a deploy-blocking gate — no `needs:`, no `workflow_run:`, no required status check,
+# no branch-protection entry. The contract is "run it and read the table", never "keep it
+# green".
+name: Generation quality eval
+
+# `workflow_dispatch` is the ONLY trigger, and its loneliness is load-bearing rather than an
+# omission — the same decision, for the same reason, as schema-diff.yml one file over. A
+# nightly `schedule:` would spend real OpenRouter credit every night to produce a signal with
+# no consumer: this project has no notification channel and this eval has no owner, so the
+# sole output would be a red run in a tab nobody is committed to reading. An alarm nobody
+# hears is not coverage. Adding `schedule:` is one line; do it the day a channel and an owner
+# exist, and not before.
+#
+# Both inputs are optional and NEITHER is validated — a typo costs one failed run, never a
+# wrong verdict, because an unknown model id is refused by OpenRouter rather than silently
+# substituted.
+on:
+  workflow_dispatch:
+    inputs:
+      judge_model:
+        description: "Judge model override (blank = google/gemini-2.5-flash). The documented cross-examination lever: re-grade a suspect verdict with a different judge."
+        required: false
+        default: ""
+      generator_model:
+        description: "Generator model override (blank = openai/gpt-4o-mini). Compares generation quality across models with no commit."
+        required: false
+        default: ""
+
+# Grouped on the workflow ALONE, deliberately not on the usual
+# `${{ github.workflow }}-${{ github.ref }}`: two dispatches from different branches would land
+# in different groups and then run AT THE SAME TIME against one OpenRouter account.
+#
+# State what this buys precisely, because the obvious reading is wrong: with
+# `cancel-in-progress: false` a second dispatch does not vanish, it QUEUES and then runs, so
+# both still pay. What the grouping buys is that they never run CONCURRENTLY — which matters
+# because a separate key gives spend isolation and *not* rate-limit isolation (OpenRouter
+# governs capacity per account, globally). This is serialisation, not deduplication.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    # The secret is declared PER STEP below, never at job level. The discriminator is the one
+    # schema-diff.yml states: does `npm ci` run in this job? It does, and `npm ci` executes
+    # install lifecycle scripts for the entire dependency tree on a PUBLIC repository. (The
+    # `drift` job in ci.yml uses a job-level `env:` and that is the same reasoning reaching the
+    # opposite answer — it runs no `npm ci` and only first-party steps.)
+    #
+    # A second, sharper reason applies to the eval step specifically. Astro's env loader calls
+    # Vite's `loadEnv(mode, envDir, "")` with an EMPTY prefix, which overlays the whole
+    # `process.env`; under Vitest the merged object is inlined into the `astro:env/server`
+    # virtual module as a JSON literal. So every variable visible to that step is serialised
+    # into a module in the build — which is exactly how one export can feed both key seams, and
+    # exactly why that step's environment is kept to what it needs.
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      # This does NOT close a seam the eval leaves open — `evals/setup/eval-preflight.ts`
+      # already refuses to run without the key, on both seams, and its message is better than
+      # anything here. The guard's whole value is placement: it fails in seconds instead of
+      # after a ~60 s `npm ci`, so a missing or rotated secret is obvious immediately.
+      #
+      # The store name is deliberately NOT the exported name. `OPENROUTER_EVAL_KEY` is a
+      # SEPARATE OpenRouter key with a low per-key credit limit — never the developer's own and
+      # never production's — and that limit is this change's actual blast-radius cap.
+      # `OPENROUTER_API_KEY` is what both preflight seams read; a workflow exporting it under
+      # the store name fails with a message confusingly about `.env`.
+      - name: Require the OpenRouter eval key
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_EVAL_KEY }}
+        run: |
+          test -n "$OPENROUTER_API_KEY" || {
+            echo "OPENROUTER_EVAL_KEY is not set as a repository secret."
+            echo "It must be a SEPARATE OpenRouter key with a low per-key credit limit —"
+            echo "not the developer's own key and not production's."
+            exit 1
+          }
+
+      - run: npm ci
+
+      # **The two model inputs travel DIFFERENT seams and must not be written alike.** Unifying
+      # them into one `env:` block is precisely the tidy-up that reintroduces the defect below.
+      #
+      # `generator_model` -> `OPENROUTER_MODEL`, read through `astro:env/server`, i.e. inlined
+      # when the Vitest config loads. It therefore has to be on THIS step's `env:`, and an empty
+      # value is CORRECT rather than something to guard: `astro/templates/env.mjs` maps
+      # `'' -> undefined` inside `_internalGetSecret`, so a blank input falls through to
+      # `DEFAULT_MODEL` (src/lib/openrouter.ts).
+      #
+      # `judge_model` has no such property. `EVAL_JUDGE_MODEL` is `process.env` only — it is not
+      # in the Astro schema — and GitHub resolves an unprovided input to the empty STRING, not
+      # to unset. Written as a bare `env:` key it would send `model: ""`, OpenRouter answers
+      # 400, and evals/lib/judge.ts classes 400 as neither 429 nor >= 500, so it throws on the
+      # first card of the first case with no retry: the DEFAULT dispatch would be the broken
+      # one. It is therefore passed in as an intermediate and exported only when non-empty,
+      # which is safe because the judge reads it at run time. `evals/lib/judge.ts` hardens its
+      # own end with `||` in the same change; neither guard is redundant — that one also covers
+      # a developer who exports the variable empty in a local shell.
+      #
+      # Both inputs reach the script as ENV VARS, never as `${{ }}` interpolated into the run
+      # body. That is not style: an input is caller-supplied text, and interpolation would splice
+      # it into the shell before bash ever sees a quote.
+      - name: Run the generation-quality eval
+        # STEP-level, never job-level. A job-level timeout leaves it UNDOCUMENTED whether an
+        # `if: always()` step still runs after it fires — i.e. the artifact upload might be
+        # skipped exactly when the record matters most. A step-level timeout is documented to
+        # kill the process and let the job continue. Sized against the worst case: 11 sequential
+        # cases x the eval config's 120 s testTimeout ~= 22 minutes, plus install.
+        timeout-minutes: 30
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_EVAL_KEY }}
+          OPENROUTER_MODEL: ${{ inputs.generator_model }}
+          JUDGE_MODEL_INPUT: ${{ inputs.judge_model }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        # A REDIRECT, never a pipe. `npm run eval | tee eval-console.log` was measured to exit
+        # **0 on a red run**: GitHub's default `run:` shell on Linux is `bash -e {0}` with no
+        # `pipefail`, so the pipeline reports tee's status and a real generation defect reads as
+        # green — verbatim the class lessons.md records as "a command that always exits 0 is not
+        # a gate". The status is captured with `|| STATUS=$?` so `-e` cannot abort the step
+        # before the summary is echoed and the upload step is reached, and the step ends on an
+        # explicit `exit`. Do not "simplify" any of this back to a bare command or a pipe.
+        run: |
+          STATUS=0
+
+          # An explicit `if`, not the shorter `[ -n "$X" ] && export …`. Measured on bash 5:
+          # the AND-list form is exempt from `-e` mid-script but exits 1 when it is the LAST
+          # line — so the short form is one reordering away from failing every default
+          # dispatch, which is the exact case this guard exists to protect.
+          if [ -n "$JUDGE_MODEL_INPUT" ]; then
+            export EVAL_JUDGE_MODEL="$JUDGE_MODEL_INPUT"
+          fi
+
+          npm run eval > eval-console.log 2>&1 || STATUS=$?
+
+          if [ -f eval-summary.log ]; then
+            cat eval-summary.log
+            echo
+            echo "Card-by-card record (every card, verdict and judge rationale) plus the raw"
+            echo "console stream: the 'eval-$RUN_ATTEMPT' artifact attached to this run."
+          else
+            # FOUR causes produce this state and none is distinguishable from the exit code —
+            # every stream is in the file, so this branch's output is the job log's only
+            # diagnostic. Enumerate them and show evidence; naming the one cause the author
+            # happened to think of is the reassurance-shaped inference this repo has already
+            # had to measure and retract once (C10X-39).
+            echo "No eval-summary.log was produced: the run never reached the eval's afterAll hook."
+            echo "Four causes produce this, and the exit code does not separate them:"
+            echo "  1. the eval preflight aborted — it prints 'Eval preflight failed:' below"
+            echo "  2. a collection-time error (evals/ sits under no type gate — C10X-43)"
+            echo "  3. the step timeout killed the process"
+            echo "  4. any crash before afterAll"
+            echo "Last 40 lines of eval-console.log — read them rather than guessing:"
+            echo "---"
+            tail -n 40 eval-console.log || echo "(eval-console.log is missing too)"
+          fi
+
+          exit $STATUS
+
+      # `always()`, and this is a DELIBERATE deviation from the repository's only artifact
+      # precedent (schema-diff.yml uses `if: failure()`). That precedent's justification does
+      # not transfer: there, a green run's `diff.sql` is a zero-byte file worth nothing. Here
+      # the green run's table IS the deliverable — the calibration record needs the raw
+      # card/verdict pairs from PASSING cases too, which is the whole reason the card log exists.
+      #
+      # The name carries the attempt because artifacts have been immutable since v4: a second
+      # attempt uploading the same name FAILS THE STEP. C10X-31's calibration rule ("a red case
+      # is re-run once by hand before being believed") makes re-runs a normal operation here, so
+      # a fixed name would break the standard procedure and lose the first attempt's evidence.
+      #
+      # Keeping the card text out of the world-readable job log falls out of this as a side
+      # effect rather than as the justification — and it is not privacy: an artifact on a public
+      # repository is downloadable by any signed-in user, and GitHub's secret masking applies to
+      # LOGS, not to artifacts.
+      - name: Upload the eval record
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: eval-${{ github.run_attempt }}
+          path: |
+            eval-summary.log
+            eval-report.log
+            eval-console.log
+          retention-days: 30

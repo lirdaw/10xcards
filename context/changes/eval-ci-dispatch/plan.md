@@ -729,39 +729,39 @@ out-of-repo state is the new repository secret, created in Phase 3 and proven wo
 
 #### Automated
 
-- [x] 1.1 `npm run lint` exits 0; no `no-console` warning outside `generation-quality.eval.ts`; new count recorded as observed
-- [x] 1.2 `npm run build` exits 0
-- [x] 1.3 `npx tsc --noEmit` exits 0
-- [x] 1.4 `npm test` green at its current count, zero eval files collected
-- [x] 1.5 `git diff --stat` touches only the two `evals/` files
+- [x] 1.1 `npm run lint` exits 0; no `no-console` warning outside `generation-quality.eval.ts`; new count recorded as observed — 73d8749
+- [x] 1.2 `npm run build` exits 0 — 73d8749
+- [x] 1.3 `npx tsc --noEmit` exits 0 — 73d8749
+- [x] 1.4 `npm test` green at its current count, zero eval files collected — 73d8749
+- [x] 1.5 `git diff --stat` touches only the two `evals/` files — 73d8749
 
 #### Manual
 
-- [x] 1.6 Local `npm run eval` produces `eval-report.log` and `eval-summary.log`
-- [x] 1.7 Hook emits the five groups in the pre-edit order, summary composed after `evaluateRun` (read-through)
-- [x] 1.8 `eval-summary.log` carries the table and no card text
-- [x] 1.9 Exit code unchanged for the same outcome
-- [x] 1.10 `git status --porcelain` shows neither file
-- [x] 1.11 With `EVAL_JUDGE_MODEL` exported empty, the summary header names the default judge model
+- [x] 1.6 Local `npm run eval` produces `eval-report.log` and `eval-summary.log` — 73d8749
+- [x] 1.7 Hook emits the five groups in the pre-edit order, summary composed after `evaluateRun` (read-through) — 73d8749
+- [x] 1.8 `eval-summary.log` carries the table and no card text — 73d8749
+- [x] 1.9 Exit code unchanged for the same outcome — 73d8749
+- [x] 1.10 `git status --porcelain` shows neither file — 73d8749
+- [x] 1.11 With `EVAL_JUDGE_MODEL` exported empty, the summary header names the default judge model — 73d8749
 
 ### Phase 2: The workflow file
 
 #### Automated
 
-- [ ] 2.1 `npx prettier --check .github/workflows/eval.yml` passes
-- [ ] 2.2 `npm run lint` exits 0
-- [ ] 2.3 File has LF line endings
-- [ ] 2.4 No `needs:`, `schedule:` or `workflow_run:` in the file
-- [ ] 2.5 `gh workflow list` does NOT yet show the workflow (registration "before")
+- [x] 2.1 `npx prettier --check .github/workflows/eval.yml` passes
+- [x] 2.2 `npm run lint` exits 0
+- [x] 2.3 File has LF line endings
+- [x] 2.4 No `needs:`, `schedule:` or `workflow_run:` in the file
+- [x] 2.5 `gh workflow list` does NOT yet show the workflow (registration "before")
 
 #### Manual
 
-- [ ] 2.6 No pipe; exit status captured and re-raised
-- [ ] 2.7 `timeout-minutes` on the step, not the job
-- [ ] 2.8 Upload is `if: always()` with `github.run_attempt` in the name
-- [ ] 2.9 Every secret on a step `env:`, none at job level
-- [ ] 2.10 `EVAL_JUDGE_MODEL` exported conditionally in the script; `OPENROUTER_MODEL` on the step `env:`
-- [ ] 2.11 Header states the never-a-gate contract; trigger comment states the deliberate absence of `schedule:`
+- [x] 2.6 No pipe; exit status captured and re-raised
+- [x] 2.7 `timeout-minutes` on the step, not the job
+- [x] 2.8 Upload is `if: always()` with `github.run_attempt` in the name
+- [x] 2.9 Every secret on a step `env:`, none at job level
+- [x] 2.10 `EVAL_JUDGE_MODEL` exported conditionally in the script; `OPENROUTER_MODEL` on the step `env:`
+- [x] 2.11 Header states the never-a-gate contract; trigger comment states the deliberate absence of `schedule:`
 
 ### Phase 3: The credential and the documentation
 
