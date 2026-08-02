@@ -9,7 +9,15 @@ import type { CardVerdict } from "./scoring";
 //
 // The judge model is pinned to a DIFFERENT family from the generator's openai/gpt-4o-mini
 // (self-grading bias), `temperature: 0` for verdict stability. Override for experiments
-// with EVAL_JUDGE_MODEL in the same shell env as the key.
+// with EVAL_JUDGE_MODEL in the same shell env as the key. An EMPTY EVAL_JUDGE_MODEL means
+// "unset" — resolveJudgeModel coerces with `||`, never `??`, and that is not a tidy-up
+// waiting to be reverted: `model: ""` is a guaranteed 400 from OpenRouter, which
+// postWithOneRetry classes as neither 429 nor >= 500, so it throws on the first card of
+// the first case with no retry. The reachable route is a workflow input — GitHub Actions
+// resolves an unprovided input to the empty STRING, not to unset — so the default dispatch
+// would hit exactly that. .github/workflows/eval.yml guards its own end by exporting the
+// variable only when non-empty; neither guard is redundant, because this one also covers a
+// developer who exports EVAL_JUDGE_MODEL= in a local shell.
 //
 // Failure contract (plan "Phase 2 / Judge client", widened by Phase 3 measurement): a
 // 429/5xx or transport error retries ONCE with a short backoff — a transient blip
@@ -29,7 +37,11 @@ const JUDGE_TIMEOUT_MS = 30_000;
 
 /** The judge model this run will use — also printed in the eval's summary header. */
 export function resolveJudgeModel(): string {
-  return process.env.EVAL_JUDGE_MODEL ?? JUDGE_MODEL_DEFAULT;
+  // `||`, never `??` — an empty override means "unset". See the header note. The rule
+  // disabled here calls `??` "safer", and on this one line that is exactly backwards: `??`
+  // passes `""` through as a chosen model and kills every judge call with an unretried 400.
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- "" must fall through to the default
+  return process.env.EVAL_JUDGE_MODEL || JUDGE_MODEL_DEFAULT;
 }
 
 export interface JudgeInput {
@@ -202,9 +214,14 @@ async function requestVerdict(input: JudgeInput): Promise<CardVerdict> {
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     // The excerpt can echo upstream request metadata (never the key — it travels only in
-    // the Authorization header). Fine while the eval is local-only and the output is read
-    // by whoever ran it; if the deferred workflow_dispatch leg ever lands, route this
-    // message to an artifact, not the world-readable job log (C10X-29 F3 precedent).
+    // the Authorization header). The deferred workflow_dispatch leg landed in C10X-42
+    // (2026-08-02) and the instruction this comment used to carry is MET: under
+    // .github/workflows/eval.yml the eval step redirects both streams into
+    // eval-console.log, which is uploaded as an artifact — only eval-summary.log is echoed
+    // into the job log, and this message never reaches it. The honest qualification,
+    // because "artifact" reads as private and is not: on a public repository an artifact is
+    // downloadable by any signed-in user, and GitHub's secret masking applies to LOGS, not
+    // to artifacts. So this narrows the exposure surface rather than removing it.
     throw new Error(`Judge HTTP ${response.status} from ${model}: ${text.slice(0, 300)}`);
   }
 
