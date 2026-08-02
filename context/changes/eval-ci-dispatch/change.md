@@ -1,7 +1,7 @@
 ---
 change_id: eval-ci-dispatch
 title: Run the generation-quality eval from CI on demand
-status: implementing
+status: implemented
 created: 2026-08-02
 updated: 2026-08-02
 archived_at: null
@@ -56,6 +56,16 @@ actually stored — this IS the developer's eval key. All three are corrected to
 (dedicated to the eval, capped, never production's). Deliberate tradeoff: one key with one
 purpose and one cap beats a second key, which would add a rotation surface without adding a
 limit — OpenRouter governs rate limits per account and only spend per key.
+
+**Phase 4** is written up in full in this change's `verification.md` (the only phase that has one —
+Phases 1–3 live here instead). Two deviations belong in this list rather than only there. **The
+dispatch order was inverted**: the plan numbers the green run 4.2 and the red 4.3, but nothing in
+4.3 depends on 4.2 and a bogus `generator_model` fails at the first generation call, so the red
+run doubles as a free credential probe and went first — which mattered, because the first dispatch
+had already failed on a corrupted secret. And **Phase 4 §4's contract was falsified by its own
+measurement**: "both attempts remain downloadable" is false, because `gh run rerun` deletes the
+previous attempt's artifacts. Recorded as observed, with the operational consequence — honour
+C10X-31's calibration re-run with a NEW dispatch, never `gh run rerun`.
 
 **A stale figure was found while satisfying 3.6 and is corrected in `test-plan.md` rather than
 worked around.** §8 has recorded the suite at `342/342` since C10X-40; the measured figure on

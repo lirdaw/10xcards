@@ -784,18 +784,18 @@ out-of-repo state is the new repository secret, created in Phase 3 and proven wo
 
 #### Automated
 
-- [ ] 4.1 `gh workflow list` shows the workflow after the merge
-- [ ] 4.2 Green dispatch: eval job `success`
-- [ ] 4.3 Red dispatch (bogus `generator_model`): eval job `failure`
-- [ ] 4.4 `gh run download` yields three files for both runs
-- [ ] 4.5 Red run's second attempt produced a distinctly named artifact
-- [ ] 4.6 No key material in either downloaded log
+- [x] 4.1 `gh workflow list` shows the workflow after the merge — 934cd52
+- [x] 4.2 Green dispatch: eval job `success` — 934cd52
+- [x] 4.3 Red dispatch (bogus `generator_model`): eval job `failure` — 934cd52
+- [x] 4.4 `gh run download` yields three files for both runs — 934cd52
+- [x] 4.5 Red run's second attempt produced a distinctly named artifact — 934cd52
+- [x] 4.6 No key material in either downloaded log — 934cd52
 
 #### Manual
 
-- [ ] 4.7 Green run's job log carries the summary and no card text
-- [ ] 4.8 Red run's artifact present despite the failure
-- [ ] 4.9 Red run's console file names the generator failure; step red, not green
-- [ ] 4.10 Green artifact readable as a calibration record
-- [ ] 4.11 No `needs:` reference and no required-check entry anywhere
-- [ ] 4.12 Pending fields in Phase 3's documents replaced with measured values
+- [x] 4.7 Green run's job log carries the summary and no card text — 934cd52
+- [x] 4.8 Red run's artifact present despite the failure — 934cd52
+- [x] 4.9 Red run's console file names the generator failure; step red, not green — 934cd52
+- [x] 4.10 Green artifact readable as a calibration record — 934cd52
+- [x] 4.11 No `needs:` reference and no required-check entry anywhere — 934cd52
+- [x] 4.12 Pending fields in Phase 3's documents replaced with measured values — 934cd52
