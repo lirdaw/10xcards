@@ -13,6 +13,16 @@
 # wired as a deploy-blocking gate — no `needs:`, no `workflow_run:`, no required status check,
 # no branch-protection entry. The contract is "run it and read the table", never "keep it
 # green".
+#
+# What a dispatch costs, stated as RECORDED MEASUREMENTS rather than as guarantees — the
+# provider dominates both numbers and neither is under this repository's control. Wall clock:
+# **2m03s** for the first green dispatch (run 30756678180, 2026-08-02), against 117-312 s
+# recorded locally by C10X-31 for the same 11-case matrix; the step timeout below is sized
+# against the worst case, not against these. Spend: **~$0.013** measured locally by C10X-41 for
+# the matrix. The green dispatch's own cost could not be separated from the key's accounting
+# rounding, so it is not quoted here as a CI figure — see this change's verification.md, which
+# states both hypotheses rather than picking one. Runner minutes are free (public repository,
+# standard runners), so OpenRouter is the only spend.
 name: Generation quality eval
 
 # `workflow_dispatch` is the ONLY trigger, and its loneliness is load-bearing rather than an
@@ -47,6 +57,13 @@ on:
 # both still pay. What the grouping buys is that they never run CONCURRENTLY — which matters
 # because a separate key gives spend isolation and *not* rate-limit isolation (OpenRouter
 # governs capacity per account, globally). This is serialisation, not deduplication.
+#
+# One more turn of that screw, because the sentence above holds for TWO dispatches and stops
+# holding at three: GitHub keeps at most ONE run pending per group, so a third dispatch
+# arriving while one runs and one waits CANCELS the waiting one and takes its place. It does
+# so silently — a runner who fires three gets two results and no explanation. The error is in
+# the cheap direction (the cancelled run pays nothing), which is exactly why it would never
+# be noticed from the bill.
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
@@ -156,23 +173,53 @@ jobs:
 
           npm run eval > eval-console.log 2>&1 || STATUS=$?
 
+          # Scrub the key out of the console capture before anything reads or uploads it.
+          # This file is the one artifact member whose contents are unbounded — it is the raw
+          # stream, so a tool error path that rendered the environment (Astro's loader inlines
+          # the WHOLE process.env into the astro:env/server module literal, which is exactly
+          # why the secret is scoped to this step) would put the key in it in cleartext. No
+          # such path is known and two dispatches measured clean, so this closes the class
+          # rather than a live leak. It is worth the line because GitHub's secret masking
+          # applies to LOGS, not to artifacts — the artifact is the LESS protected sink, and
+          # this is the only place that asymmetry can be repaired. `|| true` because `-e` must
+          # not abort before `exit $STATUS`, and a missing file is not an error here.
+          sed -i "s|${OPENROUTER_API_KEY}|***|g" eval-console.log 2>/dev/null || true
+
           if [ -f eval-summary.log ]; then
-            cat eval-summary.log
+            # `|| echo` for the same reason as the `tail` below: this is an `if` BODY, not a
+            # condition, so it is not `-e`-exempt and a failure here would abort the step
+            # before `exit $STATUS` — reporting cat's status instead of the eval's and losing
+            # the distinction between "the eval was red" and "the summary became unreadable".
+            cat eval-summary.log || echo "(eval-summary.log became unreadable)"
             echo
             echo "Card-by-card record (every card, verdict and judge rationale) plus the raw"
             echo "console stream: the 'eval-$RUN_ATTEMPT' artifact attached to this run."
           else
-            # FOUR causes produce this state and none is distinguishable from the exit code —
-            # every stream is in the file, so this branch's output is the job log's only
-            # diagnostic. Enumerate them and show evidence; naming the one cause the author
-            # happened to think of is the reassurance-shaped inference this repo has already
-            # had to measure and retract once (C10X-39).
-            echo "No eval-summary.log was produced: the run never reached the eval's afterAll hook."
-            echo "Four causes produce this, and the exit code does not separate them:"
-            echo "  1. the eval preflight aborted — it prints 'Eval preflight failed:' below"
-            echo "  2. a collection-time error (evals/ sits under no type gate — C10X-43)"
-            echo "  3. the step timeout killed the process"
-            echo "  4. any crash before afterAll"
+            # FIVE causes produce this state, and $STATUS separates them into two groups
+            # rather than not at all. Four of them kill the run before the afterAll hook and
+            # are indistinguishable from each other; the fifth — the report write itself
+            # failing — is the ONLY one that can leave the status ZERO, because writeReports
+            # is deliberately best-effort (evals/generation-quality.eval.ts: it reports and
+            # swallows, so a failed write can never mask a real generation defect). Hence the
+            # branch: announcing "the hook never ran" on a green run would be provably false,
+            # and it is the reassurance-shaped inference this repo has already had to measure
+            # and retract once (C10X-39), one layer down. Every stream is in the file, so this
+            # branch's output is the job log's only diagnostic — show evidence either way.
+            if [ "$STATUS" -eq 0 ]; then
+              echo "No eval-summary.log was produced, but the eval exited 0 — so the afterAll"
+              echo "hook DID run and the report WRITE is what failed. This is the only cause"
+              echo "compatible with a zero status. Look for 'Could not write the eval report"
+              echo "files:' below."
+            else
+              echo "No eval-summary.log was produced: the run did not get as far as writing one."
+              echo "Five causes produce this, and a non-zero exit does not separate them:"
+              echo "  1. the eval preflight aborted — it prints 'Eval preflight failed:' below"
+              echo "  2. a collection-time error (evals/ sits under no type gate — C10X-43)"
+              echo "  3. the step timeout killed the process"
+              echo "  4. any crash before afterAll"
+              echo "  5. the hook ran and only the report write failed — it prints"
+              echo "     'Could not write the eval report files:' below"
+            fi
             echo "Last 40 lines of eval-console.log — read them rather than guessing:"
             echo "---"
             tail -n 40 eval-console.log || echo "(eval-console.log is missing too)"

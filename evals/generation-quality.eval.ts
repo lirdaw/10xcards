@@ -227,7 +227,17 @@ describe("generation quality matrix (real provider + LLM judge)", () => {
   // failed their own it(); re-asserting them here would double-report, so only the
   // `run:`-prefixed failures gate this hook.
   afterAll(() => {
-    // Compose the summary section first, print second, write third — the printed order is
+    // The card log prints FIRST, before anything is composed, and that placement is not
+    // cosmetic. It depends on nothing the composition produces, while the composition calls
+    // four functions (resolveModel, resolveJudgeModel, summaryRows, evaluateRun) — so
+    // composing first would put the whole card record behind a throw in any of them, where
+    // before the report files existed it was already on stdout. None of the four can throw
+    // today (scoring.ts is total over CaseResult[]; every division is guarded by
+    // Math.max(x, 1)), so this buys against a latent regression rather than a live one. The
+    // emitted ORDER is unchanged either way: card log, then the summary section.
+    for (const line of cardLog) console.log(line);
+
+    // Compose the summary section, print it, write both files — the printed order is
     // identical to what this hook emitted before the report files existed (card log, then
     // generator/judge line, header, rows, MISSING lines, failures block). Composing rather
     // than printing inline is what lets the SAME lines reach two sinks: the workflow echoes
@@ -255,7 +265,6 @@ describe("generation quality matrix (real provider + LLM judge)", () => {
       summary.push(`\nfailures:\n- ${verdict.failures.join("\n- ")}`);
     }
 
-    for (const line of cardLog) console.log(line);
     for (const line of summary) console.log(line);
 
     writeReports(cardLog, summary);
