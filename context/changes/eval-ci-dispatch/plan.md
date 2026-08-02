@@ -41,7 +41,7 @@ What research established that changes the shape of the work (`research.md` §1-
   GitHub runner gets. In CI the eval therefore prints ~165 lines of card text plus the summary
   table on **every** run, green ones included.
 - **`schema-diff.yml`'s disclosure rationale does not transfer.** Its argument needs content that
-  is both absent from the public repo *and* security-relevant. Of the eval's four content classes,
+  is both absent from the public repo _and_ security-relevant. Of the eval's four content classes,
   two (reference texts, model names) are already committed byte-for-byte, and the other two
   (generated cards, judge rationales) are low-value derivatives of a published fixture through a
   published prompt. The API key is not reachable from any first-party error path — two sites only,
@@ -49,7 +49,7 @@ What research established that changes the shape of the work (`research.md` §1-
   logs, not to artifacts.**
 - **Three traps each produce a workflow that looks correct and is not.** `if: failure()` on the
   upload (the precedent's justification — "a green run's file is zero bytes" — does not hold when
-  the green table *is* the deliverable); `| tee` without `pipefail`, which makes **a red eval read
+  the green table _is_ the deliverable); `| tee` without `pipefail`, which makes **a red eval read
   as green** (measured; GitHub's default `run:` shell on Linux is `bash -e {0}` with no pipefail);
   and a **job**-level `timeout-minutes`, after which whether an `if: always()` step still runs is
   **undocumented** — a **step**-level timeout is documented to kill the process and let the job
@@ -125,7 +125,7 @@ downloaded and read (Phase 4).
   finds a generation defect, that is the instrument working; fixing it is a separate ticket, exactly
   as C10X-31 → C10X-41 already went.
 - **No OpenRouter Provisioning API.** The low-credit key is created in the dashboard by hand; the
-  Provisioning API needs a separate *Management* key, which would be a new credential class for a
+  Provisioning API needs a separate _Management_ key, which would be a new credential class for a
   one-off operation.
 - **No alerting, no cost dashboard, no budget pre-check step.** Named as a possible future, not
   built.
@@ -154,7 +154,7 @@ than as its justification.
 ## Critical Implementation Details
 
 **The report write must never mask the verdict.** The eval's `afterAll` prints and then asserts, in
-that order, on purpose. A file write placed in that hook sits *before* the run-level assertion, so
+that order, on purpose. A file write placed in that hook sits _before_ the run-level assertion, so
 an unwritable filesystem would abort the hook and turn a real generation defect into a write error —
 this repository's recurring "the check is correct about what it looks at and silent about what it
 never looks at" shape, inverted. The write therefore reports its own failure and continues; the
@@ -168,8 +168,8 @@ so `-e` does not abort the step before the summary is echoed and the upload step
 ends on an explicit `exit`. Do not "simplify" this back to a bare command or a pipe.
 
 **`generator_model` travels the transform-time seam.** `OPENROUTER_MODEL` is read through
-`astro:env/server`, whose value is inlined when the config loads — so it must be on the *eval
-step's* `env:`, not exported later, and an empty input value is correct (it maps to `undefined` and
+`astro:env/server`, whose value is inlined when the config loads — so it must be on the _eval
+step's_ `env:`, not exported later, and an empty input value is correct (it maps to `undefined` and
 falls through to the default) rather than something to guard against.
 
 **`judge_model` travels a different seam, and the two must not be written alike.**
@@ -191,7 +191,7 @@ operation here, so the name carries `github.run_attempt`.
 report file exists — but so does a collection-time error (live here: `evals/` sits under no type
 gate, C10X-43, so a type error surfaces only at run time), a step-timeout kill, and any crash before
 `afterAll`. Because every stream is redirected to a file, that branch's output is the job log's
-*only* diagnostic in all four states, and a sentence asserting the one cause the author happened to
+_only_ diagnostic in all four states, and a sentence asserting the one cause the author happened to
 think of is the reassurance-shaped inference this repo has already had to measure and retract
 (C10X-39). So: **tail the last ~40 lines of `eval-console.log` into the log** and enumerate the
 causes rather than picking one. A preflight abort identifies itself in that tail — it prints
@@ -200,7 +200,7 @@ stated rather than hidden: a mid-run failure can put card text in those 40 lines
 text in the job log" property becomes "no card text on the paths anyone runs", not an invariant.
 
 **And that branch ships unexercised.** Phase 4's controlled red uses a bogus `generator_model`,
-which throws *inside* a test, so `afterAll` still runs and both report files exist (criterion 4.4's
+which throws _inside_ a test, so `afterAll` still runs and both report files exist (criterion 4.4's
 "three files for both runs" is correct precisely because of this). Nothing in the plan reaches the
 no-report state, and nothing cheaply can — provoking it needs the secret removed or a broken commit
 on `main`. Recorded as an unexercised branch in Phase 4's write-up, not claimed as covered.
@@ -357,7 +357,7 @@ result to block a release.
   (plan-review F1). `generator_model` goes on the eval step's `env:` as `OPENROUTER_MODEL`, where an
   empty value is correct — `astro:env` maps `'' → undefined`. `judge_model` must **not** be written
   that way: `EVAL_JUDGE_MODEL` is read raw from `process.env` through `??`, so an empty value is a
-  *chosen* model and kills the default dispatch. Pass it into the step as an intermediate variable
+  _chosen_ model and kills the default dispatch. Pass it into the step as an intermediate variable
   and export `EVAL_JUDGE_MODEL` only when it is non-empty
   (`[ -n "$JUDGE_MODEL_INPUT" ] && export EVAL_JUDGE_MODEL="$JUDGE_MODEL_INPUT"`), which is safe
   because the judge reads it at run time. The comment must say why the two differ, or the next
@@ -462,7 +462,7 @@ isolation only, not rate-limit isolation** — OpenRouter governs capacity globa
 
 **File**: `README.md` (the CI section, `:167-194`)
 
-**Intent**: The workflow inventory paragraph currently names `schema-diff` as *the* separate
+**Intent**: The workflow inventory paragraph currently names `schema-diff` as _the_ separate
 workflow; there are now two dispatch-only workflows. The secrets table needs a row for
 `OPENROUTER_EVAL_KEY`.
 
@@ -481,17 +481,17 @@ two of which cover two locations each, and re-labelling rows as claims is how "t
 both entered this plan while neither matched the list beneath it (plan-review F7; the same
 total-vs-breakdown defect §8 records against C10X-40). The list, live class first:
 
-1. §2's Risk #7 row — *live*
-2. §4's Stack AI-native row (invocation and `checked:` date) — *live*
-3. §5's gate table LLM-as-judge row — *live*
-4. §5's deferral paragraph beneath it — *live*
-5. §3's Phase 5 sequencing note, where it states the current situation — *live*
-6. §3's Phase 5 sequencing note, where it narrates what C10X-31/C10X-41 did — *historical*
-7. §6.6's C10X-31 "No CI leg" bullet — *historical*
-8. §6.6's C10X-41 "Nothing about CI" bullet — *historical*
-9. §8's C10X-31 ledger entry — *historical*
-10. §8's C10X-41 ledger entry — *historical*
-11. the rolling header block's C10X-31 summary (`:248`) — *historical*, added by plan-review F4
+1. §2's Risk #7 row — _live_
+2. §4's Stack AI-native row (invocation and `checked:` date) — _live_
+3. §5's gate table LLM-as-judge row — _live_
+4. §5's deferral paragraph beneath it — _live_
+5. §3's Phase 5 sequencing note, where it states the current situation — _live_
+6. §3's Phase 5 sequencing note, where it narrates what C10X-31/C10X-41 did — _historical_
+7. §6.6's C10X-31 "No CI leg" bullet — _historical_
+8. §6.6's C10X-41 "Nothing about CI" bullet — _historical_
+9. §8's C10X-31 ledger entry — _historical_
+10. §8's C10X-41 ledger entry — _historical_
+11. the rolling header block's C10X-31 summary (`:248`) — _historical_, added by plan-review F4
 
 Then a new §6.6 entry and a new §8 ledger entry for this change. Outside test-plan: README (the
 workflow inventory paragraph **and** the secrets table row — two edits, not one), roadmap H-10,
@@ -504,18 +504,18 @@ number, including in this change's own §8 ledger entry.
 
 **Contract**: **the wording trap is the whole difficulty and it appears in five of those targets.**
 Every one says "human-triggered", and that stays **true** after this ships — `workflow_dispatch`
-*is* human-triggered. What changes is "local only" / "no CI". Edit the **location** claim, never the
+_is_ human-triggered. What changes is "local only" / "no CI". Edit the **location** claim, never the
 trigger claim; §8's "this coverage date does not refresh itself" sentences survive verbatim and
 must not be softened.
 
 **Two target CLASSES, two different edits — decide per site before touching anything**
-(plan-review F4). A **live** claim (what the project is protected by *today*: §2's Risk #7 row, §4's
+(plan-review F4). A **live** claim (what the project is protected by _today_: §2's Risk #7 row, §4's
 Stack row, §5's gate row and deferral paragraph, §3's Phase 5 note where it describes the current
 state) is **edited**. A **historical** entry (a dated record of what an earlier change did or
 deferred: §6.6's C10X-31 / C10X-41 does-NOT-prove bullets, §8's two ledger entries, and the file's
 rolling header block) takes a **dated correction line, never a rewrite** — the C10X-30 "4xx"
 precedent, which test-plan §8 states four separate times. The one documented exception is C10X-39,
-where paraphrase was chosen *because* a standing regression grep would otherwise never pass; that
+where paraphrase was chosen _because_ a standing regression grep would otherwise never pass; that
 reason does not apply here, so it is not the precedent to copy.
 
 **One target is missing from the enumeration above and from `research.md`'s table**: the rolling
@@ -523,7 +523,7 @@ header block at `test-plan.md:248`, inside the "Previously: … (C10X-31)" summa
 leg is deliberately deferred (local-only, human-triggered; §5)". It is the **first** thing a reader
 of that file meets, and it is a historical entry, so it takes a correction line. Add it to the list;
 the count in this section moves with it. The new §6.6 entry carries a claims table and a does-NOT-prove list in the
-established shape, including: this proves the eval *can* run in CI, never that anyone runs it; the
+established shape, including: this proves the eval _can_ run in CI, never that anyone runs it; the
 75% acceptance rate is still not measured; `evals/` is still under no type gate (C10X-43); and the
 red class exercised in Phase 4 is infrastructure, not a real generation defect.
 
@@ -618,8 +618,8 @@ artifact is uploaded anyway, and that the exit code survived the redirect.
 **Contract**: `gh workflow run` with `generator_model` set to a bogus model id. This fails at the
 first generation call, so the red run costs a fraction of a green one and needs no commit and no
 revert — which is what the `generator_model` input buys beyond its stated purpose. **State the
-boundary in the write-up rather than letting it be inferred: this exercises the *infrastructure*
-failure class, not the *real generation defect* class.** The distinction matters because the two are
+boundary in the write-up rather than letting it be inferred: this exercises the _infrastructure_
+failure class, not the _real generation defect_ class.** The distinction matters because the two are
 indistinguishable by exit code and separable only from the output.
 
 #### 4. The re-run
@@ -748,37 +748,37 @@ out-of-repo state is the new repository secret, created in Phase 3 and proven wo
 
 #### Automated
 
-- [x] 2.1 `npx prettier --check .github/workflows/eval.yml` passes
-- [x] 2.2 `npm run lint` exits 0
-- [x] 2.3 File has LF line endings
-- [x] 2.4 No `needs:`, `schedule:` or `workflow_run:` in the file
-- [x] 2.5 `gh workflow list` does NOT yet show the workflow (registration "before")
+- [x] 2.1 `npx prettier --check .github/workflows/eval.yml` passes — fc114d8
+- [x] 2.2 `npm run lint` exits 0 — fc114d8
+- [x] 2.3 File has LF line endings — fc114d8
+- [x] 2.4 No `needs:`, `schedule:` or `workflow_run:` in the file — fc114d8
+- [x] 2.5 `gh workflow list` does NOT yet show the workflow (registration "before") — fc114d8
 
 #### Manual
 
-- [x] 2.6 No pipe; exit status captured and re-raised
-- [x] 2.7 `timeout-minutes` on the step, not the job
-- [x] 2.8 Upload is `if: always()` with `github.run_attempt` in the name
-- [x] 2.9 Every secret on a step `env:`, none at job level
-- [x] 2.10 `EVAL_JUDGE_MODEL` exported conditionally in the script; `OPENROUTER_MODEL` on the step `env:`
-- [x] 2.11 Header states the never-a-gate contract; trigger comment states the deliberate absence of `schedule:`
+- [x] 2.6 No pipe; exit status captured and re-raised — fc114d8
+- [x] 2.7 `timeout-minutes` on the step, not the job — fc114d8
+- [x] 2.8 Upload is `if: always()` with `github.run_attempt` in the name — fc114d8
+- [x] 2.9 Every secret on a step `env:`, none at job level — fc114d8
+- [x] 2.10 `EVAL_JUDGE_MODEL` exported conditionally in the script; `OPENROUTER_MODEL` on the step `env:` — fc114d8
+- [x] 2.11 Header states the never-a-gate contract; trigger comment states the deliberate absence of `schedule:` — fc114d8
 
 ### Phase 3: The credential and the documentation
 
 #### Automated
 
-- [ ] 3.1 `gh secret list` shows `OPENROUTER_EVAL_KEY`
-- [ ] 3.2 Prettier clean on the edited markdown
-- [ ] 3.3 Every surviving "local only" / "no CI leg" hit in test-plan.md is classified: unrelated, or historical with a dated correction beside it
-- [ ] 3.4 Every pre-existing `human-triggered` site survives, checked per site against the pre-edit `grep -n` list
-- [ ] 3.5 Roadmap row H-10 present
-- [ ] 3.6 `npm test` still green
+- [x] 3.1 `gh secret list` shows `OPENROUTER_EVAL_KEY`
+- [x] 3.2 Prettier clean on the edited markdown
+- [x] 3.3 Every surviving "local only" / "no CI leg" hit in test-plan.md is classified: unrelated, or historical with a dated correction beside it
+- [x] 3.4 Every pre-existing `human-triggered` site survives, checked per site against the pre-edit `grep -n` list
+- [x] 3.5 Roadmap row H-10 present
+- [x] 3.6 `npm test` still green
 
 #### Manual
 
-- [ ] 3.7 New §6.6 entry carries a does-NOT-prove list naming all four boundaries
-- [ ] 3.8 README secrets row states separateness and the credit limit
-- [ ] 3.9 Pending run-identifier fields visibly marked, none fabricated
+- [x] 3.7 New §6.6 entry carries a does-NOT-prove list naming all four boundaries
+- [x] 3.8 README secrets row states separateness and the credit limit
+- [x] 3.9 Pending run-identifier fields visibly marked, none fabricated
 
 ### Phase 4: Ship-time evidence
 

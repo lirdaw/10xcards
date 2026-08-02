@@ -177,21 +177,42 @@ GitHub Actions runs on every push and PR to `main`, in three jobs:
    other does not.
 3. **`deploy`** — `needs: [ci, drift]`. The Worker ships only when both are green.
 
-A separate workflow, **`schema-diff`**, runs a DDL comparison (`supabase db diff`) against
-the cloud project. It is `workflow_dispatch` only — no schedule — and nothing depends on it,
-so a red DDL diff never blocks a release.
+Two further workflows are **`workflow_dispatch` only** — no schedule, and nothing declares
+either in `needs:`, so neither can block a release:
+
+- **`schema-diff`** runs a DDL comparison (`supabase db diff`) against the cloud project.
+  A red DDL diff never blocks a release.
+- **`eval`** ("Generation quality eval") runs `npm run eval` against the real OpenRouter
+  provider — the LLM-as-judge check on card language and usability, and the project's only
+  check that reaches the real AI provider. The 11-row verdict table is printed into the job
+  log; the card-by-card record, and the raw console stream, go to an artifact named for the
+  run attempt. **A red run here is a finding, not a hygiene failure**: `npm run eval` exits
+  1 on a real generation defect by design (C10X-31's first calibrated run was honestly red
+  and found a real bug), so the contract is "run it and read the table", never "keep it
+  green".
+
+Both are human-triggered on purpose. A schedule would produce a signal with no consumer:
+this project has no notification channel, so a nightly red in a tab nobody reads is an alarm
+without a listener rather than coverage. Adding `schedule:` is one line — do it the day a
+channel and an owner exist.
 
 ### Repository secrets
 
-| Secret                                          | Used by                | Required?                                                                                      |
-| ----------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------- |
-| `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | `deploy`               | yes                                                                                            |
-| `SUPABASE_ACCESS_TOKEN`                         | `drift`, `schema-diff` | yes — a **dedicated** Supabase personal access token, not a developer's own                    |
-| `SUPABASE_PROJECT_ID`                           | `drift`, `schema-diff` | yes — the cloud project ref                                                                    |
-| `SUPABASE_DB_PASSWORD`                          | `schema-diff` only     | yes for that workflow — without it the CLI mints a temporary **read-write** role on production |
+| Secret                                          | Used by                | Required?                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | `deploy`               | yes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `SUPABASE_ACCESS_TOKEN`                         | `drift`, `schema-diff` | yes — a **dedicated** Supabase personal access token, not a developer's own                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `SUPABASE_PROJECT_ID`                           | `drift`, `schema-diff` | yes — the cloud project ref                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `SUPABASE_DB_PASSWORD`                          | `schema-diff` only     | yes for that workflow — without it the CLI mints a temporary **read-write** role on production                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `OPENROUTER_EVAL_KEY`                           | `eval` only            | yes for that workflow — an OpenRouter key **dedicated to the eval** and carrying a low per-key credit limit, never production's (production's is a Worker secret set by `wrangler secret put`, not a repository secret). That limit is the blast-radius cap: OpenRouter refuses an over-cap request with `402`, and the eval throws on it immediately rather than retrying. It is the same eval key a developer uses locally — one key, one purpose, one cap — so it buys **spend** isolation, not rate-limit isolation |
 
 `SUPABASE_URL` / `SUPABASE_KEY` are **not** repository secrets and must not be added: the
 build does not read them, and the test suite gets them from the local stack it starts.
+
+`OPENROUTER_EVAL_KEY` is the store name only — the `eval` workflow exports it to the step as
+`OPENROUTER_API_KEY`, which is what the eval's preflight reads. It must **not** be added to
+`.env`: a key there feeds only one of the two seams and makes the next `npm test` abort, by
+design.
 
 ### When `drift` goes red
 

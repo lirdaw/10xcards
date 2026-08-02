@@ -79,9 +79,14 @@ jobs:
       # anything here. The guard's whole value is placement: it fails in seconds instead of
       # after a ~60 s `npm ci`, so a missing or rotated secret is obvious immediately.
       #
-      # The store name is deliberately NOT the exported name. `OPENROUTER_EVAL_KEY` is a
-      # SEPARATE OpenRouter key with a low per-key credit limit — never the developer's own and
-      # never production's — and that limit is this change's actual blast-radius cap.
+      # The store name is deliberately NOT the exported name. `OPENROUTER_EVAL_KEY` is a key
+      # DEDICATED to the eval and carrying a low per-key credit limit — never production's,
+      # which is a Worker secret set by `wrangler secret put` and is not a repository secret at
+      # all — and that limit is this change's actual blast-radius cap. Stated precisely rather
+      # than flatteringly: it is the SAME eval key a developer uses for a local `npm run eval`,
+      # not a third key minted for CI. One key, one purpose, one cap, and the cap is what does
+      # the work here; a second key would add a rotation surface without adding a limit, since
+      # OpenRouter governs rate limits per ACCOUNT and only spend per key.
       # `OPENROUTER_API_KEY` is what both preflight seams read; a workflow exporting it under
       # the store name fails with a message confusingly about `.env`.
       - name: Require the OpenRouter eval key
@@ -90,8 +95,8 @@ jobs:
         run: |
           test -n "$OPENROUTER_API_KEY" || {
             echo "OPENROUTER_EVAL_KEY is not set as a repository secret."
-            echo "It must be a SEPARATE OpenRouter key with a low per-key credit limit —"
-            echo "not the developer's own key and not production's."
+            echo "It must be an OpenRouter key DEDICATED to the eval and carrying a low"
+            echo "per-key credit limit — never production's, which is a Worker secret."
             exit 1
           }
 
