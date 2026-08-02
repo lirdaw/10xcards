@@ -1,3 +1,5 @@
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { generateCandidates, resolveModel } from "@/lib/openrouter";
 import { PROMPT_LANGUAGE_NAMES } from "./fixtures/language-names";
@@ -125,11 +127,48 @@ const MATRIX: MatrixCase[] = [...AUTO_CASES, ...FORCED_CASES, CROSS_SOURCE_CASE]
 // table includes ASSERTION-red cases too (report-then-assert). A case that THROWS before
 // its push (generator or judge infrastructure) cannot appear here — the afterAll prints a
 // MISSING line for it instead, so a short table never reads as a complete run. Card texts
-// + verdicts go to a separate log printed in afterAll — Vitest 4 swallows console output
-// of PASSING tests, and the spot-check/calibration record needs the raw pairs from green
-// cases too.
+// + verdicts go to a separate log emitted in afterAll, because the spot-check /
+// calibration record needs the raw pairs from GREEN cases too, not just the aggregate.
+//
+// This block used to add "Vitest 4 swallows console output of PASSING tests". That is
+// FALSE as a statement about Vitest, and it was corrected by measurement (C10X-42, on this
+// repo's Vitest 4.1.10): the swallowing is a property of the `agent` REPORTER, which
+// Vitest auto-selects only when `std-env` sees CLAUDECODE / CLAUDE_CODE in the environment
+// — it is MinimalReporter constructed with `silent: "passed-only"`. Under the `default`
+// reporter, which is what a GitHub runner gets, every line here PRINTS on a green run as
+// well. Consequence for CI, and the reason the report files below exist: a job log would
+// otherwise carry ~165 lines of card text on every dispatch, so
+// .github/workflows/eval.yml echoes only eval-summary.log into the log and ships the full
+// record as an artifact. Corollary: `--disable-console-intercept` is an agent-terminal
+// remedy (C10X-41 used it locally) and must NOT be copied into the workflow reflexively.
 const results: CaseResult[] = [];
 const cardLog: string[] = [];
+
+// Report sinks (C10X-42). Written on EVERY run, local and CI alike — one code path, so
+// nothing here is a CI-only branch that stays untested until the first dispatch. The `.log`
+// extension is load-bearing rather than incidental: `.gitignore:20` already covers `*.log`,
+// so a run inside a working tree leaves no untracked straggler. Both land in the process
+// cwd, which is the repo root under `npm run eval` and under the workflow alike.
+const REPORT_FULL = "eval-report.log";
+const REPORT_SUMMARY = "eval-summary.log";
+
+/**
+ * Write both report files, reporting a failure instead of throwing.
+ *
+ * Called from inside afterAll, i.e. BEFORE the run-level assertion that closes the hook. A
+ * throw here would abort the hook and turn a real generation defect into a write error —
+ * the diagnostic replacing the verdict it exists to explain. So the write is best-effort:
+ * the assertion below must be reached in every case where it would have been reached
+ * before these files existed.
+ */
+function writeReports(cardLines: string[], summaryLines: string[]): void {
+  try {
+    writeFileSync(join(process.cwd(), REPORT_FULL), `${[...cardLines, ...summaryLines].join("\n")}\n`, "utf8");
+    writeFileSync(join(process.cwd(), REPORT_SUMMARY), `${summaryLines.join("\n")}\n`, "utf8");
+  } catch (err) {
+    console.error(`Could not write the eval report files: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
 
 describe("generation quality matrix (real provider + LLM judge)", () => {
   for (const matrixCase of MATRIX) {
@@ -188,23 +227,38 @@ describe("generation quality matrix (real provider + LLM judge)", () => {
   // failed their own it(); re-asserting them here would double-report, so only the
   // `run:`-prefixed failures gate this hook.
   afterAll(() => {
-    for (const line of cardLog) console.log(line);
-    console.log(`\ngenerator: ${resolveModel()} | judge: ${resolveJudgeModel()}`);
-    console.log(SUMMARY_HEADER);
-    for (const row of summaryRows(results)) console.log(row);
+    // Compose the summary section first, print second, write third — the printed order is
+    // identical to what this hook emitted before the report files existed (card log, then
+    // generator/judge line, header, rows, MISSING lines, failures block). Composing rather
+    // than printing inline is what lets the SAME lines reach two sinks: the workflow echoes
+    // eval-summary.log into the public job log while the full record goes to the artifact,
+    // so the YAML never has to grep a table header owned by scoring.ts.
+    const summary: string[] = [
+      `\ngenerator: ${resolveModel()} | judge: ${resolveJudgeModel()}`,
+      SUMMARY_HEADER,
+      ...summaryRows(results),
+    ];
 
     // A case that threw before its results.push has no row — mark the hole, so a 10-row
     // table cannot be read as a complete 11-case run (its it() is red with the throw,
     // but the table is the diagnostic and must not under-report silently).
     const reported = new Set(results.map((r) => r.name));
     for (const missing of MATRIX.filter((c) => !reported.has(c.name))) {
-      console.log(`${missing.name} — MISSING (threw before judging completed; see its test failure)`);
+      summary.push(`${missing.name} — MISSING (threw before judging completed; see its test failure)`);
     }
 
+    // evaluateRun runs before the printing, not after it, so the `failures:` block is part
+    // of the composed summary section and therefore reaches eval-summary.log too. The
+    // ordering that matters is unchanged: every line is emitted before the assertion.
     const verdict = evaluateRun(results);
     if (verdict.failures.length > 0) {
-      console.log(`\nfailures:\n- ${verdict.failures.join("\n- ")}`);
+      summary.push(`\nfailures:\n- ${verdict.failures.join("\n- ")}`);
     }
+
+    for (const line of cardLog) console.log(line);
+    for (const line of summary) console.log(line);
+
+    writeReports(cardLog, summary);
 
     const runLevelFailures = verdict.failures.filter((f) => f.startsWith("run:"));
     expect(runLevelFailures, "run-level thresholds (usability / skip-rate)").toEqual([]);
