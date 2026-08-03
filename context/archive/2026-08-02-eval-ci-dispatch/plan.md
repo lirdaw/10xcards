@@ -114,6 +114,12 @@ downloaded and read (Phase 4).
 - **No `tsc --noEmit`** anywhere in this workflow. `evals/` sitting under no type gate is real and
   is owned by **C10X-43** — `jira-map.md:369-372` already draws the boundary: C10X-42 gives
   running-in-CI, C10X-43 gives compilability. Do not merge the two.
+  > **Dated correction, 2026-08-03:** C10X-43 shipped and the boundary held exactly as drawn — the
+  > two stayed separate changes, and `eval.yml` still carries **no** `tsc --noEmit`, deliberately:
+  > its header defends what a red in that file MEANS (a finding, not a hygiene failure), and a
+  > typecheck red is precisely a hygiene failure. `ci.yml` covers `evals/` on every push and PR to
+  > `main`; the residue is a feature-branch dispatch. So this bullet's instruction is still live —
+  > what changed is only that `evals/` is type-checked somewhere else. See also `:527` below.
 - **No GitHub Environment and no required reviewers.** Considered and rejected (see Key Decisions):
   the blast-radius cap lives on the OpenRouter key, not on the workflow.
 - **No widening of `npm test`.** `vitest.eval.config.ts`'s `include` replacement and the two
@@ -526,6 +532,11 @@ the count in this section moves with it. The new §6.6 entry carries a claims ta
 established shape, including: this proves the eval _can_ run in CI, never that anyone runs it; the
 75% acceptance rate is still not measured; `evals/` is still under no type gate (C10X-43); and the
 red class exercised in Phase 4 is infrastructure, not a real generation defect.
+
+> **Dated correction, 2026-08-03:** one item of that does-NOT-prove list is closed — `evals/` is
+> type-checked since C10X-43. The other two stand. Not rewritten; the correction landed in the
+> §6.6 entry this section instructed the author to write, exactly where a reader of that entry
+> meets it.
 
 #### 4. Roadmap
 

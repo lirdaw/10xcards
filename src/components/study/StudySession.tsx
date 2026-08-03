@@ -167,10 +167,13 @@ export default function StudySession({ deckPublicId, cards, sessionSize }: Props
   // advance, because it belongs to the card currently in hand.
   const [syncedReps, setSyncedReps] = React.useState<number | null>(null);
 
-  // `finished` (not a null card) is the end-of-session signal: tsconfig has no
-  // noUncheckedIndexedAccess, so cards[index] is typed non-nullable and a `!card`
-  // guard would be a lie the linter rightly rejects.
-  const finished = index >= cards.length;
+  // The absent card IS the end-of-session signal. Until C10X-43 turned on
+  // `noUncheckedIndexedAccess`, `cards[index]` was typed non-nullable, so this had to be
+  // spelled `index >= cards.length` and a `!card` guard would have been a lie the linter
+  // rightly rejected (`no-unnecessary-condition` is an error here). With the flag on, the
+  // honest form is the only one that compiles — and it is the same predicate on a dense
+  // batch, with one difference that is an improvement rather than a behaviour change: a
+  // hole in the array now ends the session cleanly instead of crashing on `card.front`.
   const card = cards[index];
   const pending = status === "pending";
 
@@ -187,7 +190,7 @@ export default function StudySession({ deckPublicId, cards, sessionSize }: Props
   }
 
   async function rate(grade: number) {
-    if (finished) return;
+    if (!card) return;
     setStatus("pending");
     setError(null);
     setNotice(null);
@@ -258,7 +261,7 @@ export default function StudySession({ deckPublicId, cards, sessionSize }: Props
     );
   }
 
-  if (finished) {
+  if (!card) {
     return (
       <div className={cn(panelClass, "text-center")}>
         <Check className="mx-auto size-8 text-emerald-300" aria-hidden="true" />

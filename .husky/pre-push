@@ -1,0 +1,14 @@
+# The project-wide type gate, once per push.
+#
+# pre-push, NOT pre-commit: the gate costs ~12 s (astro sync + tsc + astro check), and paying
+# that on every commit is a standing incentive to reach for `--no-verify` — which AGENTS.md and
+# the global commit rules both forbid absolutely. A gate a developer routinely bypasses is worse
+# than no gate.
+#
+# It also cannot live in lint-staged, which is where a "run it on the staged files" instinct
+# points. lint-staged appends the staged paths as arguments: `tsc` given file arguments discards
+# `tsconfig.json` entirely (its own README FAQ), and `astro check` accepts no positional file
+# arguments at all — it would silently ignore them and re-check the whole project once per chunk.
+# The documented function-value workaround is unavailable here because this repo's lint-staged
+# config lives in package.json, which is JSON.
+npm run typecheck

@@ -162,8 +162,14 @@ export async function judgeCard(input: JudgeInput): Promise<CardVerdict> {
     try {
       return await requestVerdict(input);
     } catch (err) {
-      if (err instanceof TruncatedVerdictError && attempt < TRUNCATION_BACKOFFS_MS.length) {
-        await sleep(TRUNCATION_BACKOFFS_MS[attempt]);
+      // The backoff entry IS the bound: it is `undefined` exactly when
+      // `attempt < TRUNCATION_BACKOFFS_MS.length` was false, so this is the same predicate with
+      // the value narrowed rather than re-derived from a length. Deliberately NO `?? 0` default —
+      // a fallback here would turn a 3 s / 10 s backoff into a hot retry against a paid provider,
+      // which is the one way this edit could have been a behaviour change (C10X-43).
+      const backoff = TRUNCATION_BACKOFFS_MS[attempt];
+      if (err instanceof TruncatedVerdictError && backoff !== undefined) {
+        await sleep(backoff);
         continue;
       }
       throw err;

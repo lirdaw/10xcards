@@ -64,3 +64,11 @@ Rdzeń planu jest solidny: schemat, konwencja identity 100000, `public_id`, kask
 - **Detail**: `astro sync` regeneruje typy tras/treści/`astro:env` — ta zmiana nie dotyka routingu ani content collections. Kryterium nieszkodliwe, ale to szum: nie weryfikuje niczego z end-state F-01. Realny typecheck generyka `<Database>` łapałby `npx astro check` (ani eslint, ani `astro build` nie wymuszają pełnego typecheck).
 - **Fix**: Zastąpić 3.4 realnym typecheckiem `npx astro check`.
 - **Decision**: FIXED — kryterium 3.4 (Success Criteria + Progress) zmienione z `astro sync` na `astro check`.
+
+> **Dated correction, 2026-08-03 (C10X-43 `typecheck-gate`).** Nic tu nie jest przepisywane — ten
+> wpis z **2026-07-05** jest najwcześniejszym zapisanym wystąpieniem tego znaleziska w całym repo,
+> prawie miesiąc przed kartą follow-upu, i zachowuje swoje brzmienie. Zdanie „ani eslint, ani
+> `astro build` nie wymuszają pełnego typecheck" pozostaje **prawdziwe o tych dwóch komendach** —
+> zmieniło się to, że od 2026-08-03 istnieje trzecia: `npm run typecheck` (`astro sync` →
+> `tsc --noEmit` → `astro check`) działa w CI i w hooku `pre-push`. Diagnoza tego wpisu była
+> trafna i czekała na bramkę **29 dni**.

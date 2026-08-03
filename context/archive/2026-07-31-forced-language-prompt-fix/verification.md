@@ -540,6 +540,17 @@ This is recorded as a gap, not fixed here — adding `tsc --noEmit` to `npm run 
 CI is a gate change with its own blast radius and belongs to its own ticket. Named in the
 does-NOT-prove list in test-plan §6.6.
 
+> **Dated correction, 2026-08-03 (C10X-43 `typecheck-gate`).** The gap this section measures is
+> **closed**; the section is not rewritten, because it is the measurement that produced the ticket
+> and its `TS2353` is still the acceptance evidence the gate is named for — C10X-43 reproduced it
+> as a falsification probe and confirmed the gate goes red on it. Two of this paragraph's own words
+> turned out to be load-bearing. The blast radius WAS real: the gate needed a wrapper rather than a
+> command, because `astro check` exits 0 when its own tooling is missing and cannot see a malformed
+> `tsconfig.json`. And "`npm run lint` **or** to CI" resolved as neither-and-both — it is its own
+> script (`npm run typecheck`), run by CI and by a `pre-push` hook, deliberately not folded into
+> `lint`, whose type-AWARE rules are the exact thing this file distinguishes from `tsc` diagnostics
+> three lines above.
+
 ### Acceptance runs (criteria 5.2–5.5)
 
 Same invocation as Phase 1 — the key lives in the user-scope `OPENROUTER_EVAL_KEY` and is

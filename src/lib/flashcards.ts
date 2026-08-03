@@ -25,9 +25,22 @@ export interface FlashcardView {
   // Provenance and lifecycle, for the review screen's badges. OPTIONAL on purpose,
   // and not merely as convenience (plan-review F2 + F8): the deck loader maps the
   // list branch and the search branch through ONE .map(), and the search RPC has a
-  // fixed projection — so a REQUIRED field one branch cannot supply would be
-  // `undefined` at runtime with nothing catching it (ESLint does not report a missing
-  // property, `astro build` does not type-check, and no script runs `astro check`).
+  // fixed projection — so a REQUIRED field one branch cannot supply is a field one
+  // branch structurally cannot provide.
+  //
+  // The REASON changed on 2026-08-03 (C10X-43) and the decision did not, so read the
+  // new reason rather than the old one. Until then the argument was "nothing would
+  // catch it": ESLint does not report a missing property, `astro build` does not
+  // type-check, and no script ran `astro check` — so a required field would simply be
+  // `undefined` at runtime. That is no longer true; `npm run typecheck` would now go
+  // red on exactly that, in CI and on pre-push. What stands is the honest half: these
+  // two branches genuinely DIFFER, and making the fields required would move the
+  // problem from a silent `undefined` to a build the search branch cannot satisfy
+  // without widening the RPC's projection. Optional is a description of the data, not
+  // a workaround for a missing gate. Changing it is a design decision with its own
+  // blast radius (a `drop function` + `create function` migration, and the ACL with
+  // it), deliberately out of C10X-43's scope.
+  //
   // Only the review loader fills these; listFlashcards and the deck loader do not.
   source?: "ai" | "manual";
   state?: "generated" | "accepted" | "rejected";

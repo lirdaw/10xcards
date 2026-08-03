@@ -310,3 +310,13 @@ Corroborated read-only against the live local stack (not taken from the diff):
   now heterogeneous (codes after the cutover, exonyms before) — deliberate, documented at
   `migration:26-32`, and the column has no reader; `tsc --noEmit` is in no gate — measured by this
   change and left open by decision.
+
+> **Dated correction, 2026-08-03 (C10X-43 `typecheck-gate`).** The last of those three is closed:
+> `tsc --noEmit` is now in a gate — inside `npm run typecheck`, in the `ci` job and on `pre-push`.
+> Not rewritten; the item was correctly disclosed and correctly deferred here. The other two in
+> that sentence are untouched by C10X-43. Worth reading alongside **F3 above**, which this review
+> recorded as _"not proved falsifiable by execution"_ because its hand-written `promptName(code)`
+> guard fires during Vitest collection behind the eval's inverse preflight, so exercising it needs
+> a paid provider run: C10X-43 enabled `noUncheckedIndexedAccess`, which catches that class
+> **statically and for free**, and the reproduction is a pair — F3's shape red with the flag on,
+> green with it off. The hand-written guard stays; it is now belt rather than the only layer.

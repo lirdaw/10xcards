@@ -1,0 +1,16 @@
+# Archived changes are immutable evidence: this repo's rule is that a dated artifact takes a
+# dated correction LINE and is never rewritten. `lint-staged` runs `prettier --write` on every
+# staged `*.md`, so without this entry the pre-commit hook (live since C10X-43 Phase 4) would
+# reformat archived evidence wholesale the moment a correction line is appended to it — 116 of
+# these files are prettier-dirty today, so the diff would be the whole file rather than the one
+# line, and "verify the correction by diff shape" would stop being possible.
+#
+# Scoped to `archive`, deliberately NOT to `context/**`: a live `context/changes/` folder is a
+# working document that should reach `/10x-archive` already normalised. Freezing it only once it
+# is archived is what makes "the archive is immutable" a property of the tooling rather than of a
+# reviewer's attention.
+#
+# Prettier 3 reads this file ALONGSIDE `.gitignore` rather than replacing it, so nothing already
+# ignored becomes visible. Consequence to state rather than leave implicit: `npm run format` no
+# longer touches the archive, by design.
+context/archive/**

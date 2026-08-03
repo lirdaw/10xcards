@@ -852,7 +852,12 @@ describe("keyword search inside a deck stays accepted-only", () => {
     // source_id in the projection has no consumer in this slice (the deck-view badge is
     // C10X-16's). It ships anyway so the next caller does not inherit a projection that
     // silently cannot feed FlashcardView — the deck loader maps the list branch and this
-    // search branch through ONE .map(), with no type gate to catch the difference.
+    // search branch through ONE .map(). "With no type gate to catch the difference" was true
+    // when this was written and stopped being true on 2026-08-03 (C10X-43): `npm run typecheck`
+    // now runs in CI and on pre-push. The gate would catch a REQUIRED field the RPC cannot
+    // supply — but `source` and `state` on FlashcardView are optional by a design decision that
+    // outlived its original rationale (see src/lib/flashcards.ts), so this projection is still
+    // the only thing standing between the next caller and a silent `undefined`.
     expect(data?.[0]?.source_id).toBe(SOURCE_MANUAL);
   });
 });

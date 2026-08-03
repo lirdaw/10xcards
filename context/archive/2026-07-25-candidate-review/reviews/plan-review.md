@@ -80,6 +80,11 @@ to `progress-format.md`). Codebase verification done directly, not delegated.
   `npm run lint` is plain ESLint (a missing property is a `tsc` error, not a rule violation),
   `astro build` does not type-check, and no script or CI step runs `astro check`
   (`package.json:5-17`, `.github/workflows/ci.yml:20-25`).
+  > **Dated correction, 2026-08-03 (C10X-43).** The last clause is no longer true: `npm run
+  > typecheck` runs `astro check` in CI and on `pre-push`. The finding is not rewritten, and note
+  > what the correction does NOT change — this finding's own Fix A was taken, so the RPC gained
+  > `source_id` at the data source rather than relying on any gate to notice its absence. The
+  > enumeration of what `lint` and `build` do is still accurate about those two commands.
 - **Fix A ⭐ Recommended**: add `source_id` to the RPC projection in the Phase 1 migration
   - Strength: parity at the data source, same principle the plan already applied to the state
     filter; no future caller inherits the gap.

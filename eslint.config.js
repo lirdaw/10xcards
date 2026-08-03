@@ -1,5 +1,17 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- tseslint.config() is the only way to use extends; core defineConfig has incompatible API */
-import { includeIgnoreFile } from "@eslint/config-helpers";
+// Config composition goes through `defineConfig` from @eslint/config-helpers, not through
+// `tseslint.config`. Until C10X-43 this file carried the opposite rationale in an
+// `eslint-disable @typescript-eslint/no-deprecated` — "tseslint.config() is the only way to use
+// extends; core defineConfig has incompatible API". Measured against the installed versions
+// (eslint 9.39.4, typescript-eslint 8.59.2, @eslint/config-helpers): both halves are false.
+// `defineConfig` types `extends` natively (`ConfigWithExtends.extends?: ExtendsElement[]`, whose
+// element may be a string, a config object, or an arbitrarily nested array — which is what
+// `tseslint.configs.strictTypeChecked` is), and the migration is behaviour-neutral, proved by a
+// byte-identical `eslint --print-config` across a `.ts`, a `.tsx`, an `.astro` and this `.js`
+// file itself. Every `tseslint.config(...)` call site raised `ts(6387)`: the variadic overload
+// `(...configs: InfiniteDepthConfigWithExtends[]): ConfigArray` is deprecated, and a single-object
+// call resolves to it too — so all four hints came from one signature, not from four spellings.
+// `tseslint` is still imported: it owns the shared rule presets this file extends.
+import { defineConfig, includeIgnoreFile } from "@eslint/config-helpers";
 import eslint from "@eslint/js";
 import eslintPluginPrettier from "eslint-plugin-prettier/recommended";
 import eslintPluginAstro from "eslint-plugin-astro";
@@ -11,7 +23,7 @@ import tseslint from "typescript-eslint";
 
 const gitignorePath = path.resolve(import.meta.dirname, ".gitignore");
 
-const baseConfig = tseslint.config({
+const baseConfig = defineConfig({
   extends: [eslint.configs.recommended, tseslint.configs.strictTypeChecked, tseslint.configs.stylisticTypeChecked],
   languageOptions: {
     parserOptions: {
@@ -37,7 +49,7 @@ const baseConfig = tseslint.config({
   },
 });
 
-const reactConfig = tseslint.config({
+const reactConfig = defineConfig({
   files: ["**/*.{js,jsx,ts,tsx}"],
   extends: [pluginReact.configs.flat.recommended],
   languageOptions: {
@@ -59,7 +71,7 @@ const reactConfig = tseslint.config({
   },
 });
 
-const astroConfig = tseslint.config({
+const astroConfig = defineConfig({
   files: ["**/*.astro"],
   rules: {
     "astro/no-set-html-directive": "error",
@@ -68,7 +80,7 @@ const astroConfig = tseslint.config({
   },
 });
 
-export default tseslint.config(
+export default defineConfig(
   includeIgnoreFile(gitignorePath),
   { ignores: ["src/db/database.types.ts"] },
   baseConfig,

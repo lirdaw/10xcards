@@ -649,7 +649,7 @@ describe("/api/generate rejects a request that fails its input contract", () => 
       .like("source_text", scope(AT_MAX_TEXT));
     expect(error).toBeNull();
     expect(data).toHaveLength(1);
-    expect(data?.[0].source_text).toHaveLength(SOURCE_MAX);
+    expect(data?.[0]?.source_text).toHaveLength(SOURCE_MAX);
   });
 
   it("400s a count outside its bounds or not an integer, and writes nothing", async () => {

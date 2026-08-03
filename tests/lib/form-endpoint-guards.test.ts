@@ -66,6 +66,18 @@ const BARE_IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 const STRING_LITERAL = /(["'`])(?:\\.|(?!\1)[^\\])*\1/g;
 
 /**
+ * Group 1 of every match, dropping any that did not participate.
+ *
+ * `noUncheckedIndexedAccess` (C10X-43) types a capture as `string | undefined`; none of the
+ * patterns here has an optional group, so the drop is unreachable. It is written as a drop
+ * rather than as a `?? ""` default on purpose: an empty string reaching `rejection` would be
+ * inspected as if it were a real emission, while a dropped one simply is not there.
+ */
+function captures(text: string, pattern: RegExp): string[] {
+  return [...text.matchAll(pattern)].flatMap((match) => (match[1] === undefined ? [] : [match[1]]));
+}
+
+/**
  * String literals sitting in a VALUE position of an expression.
  *
  * `const msg = error.code === "23505" ? A : B` is legitimate — `"23505"` is a discriminator that
@@ -293,8 +305,17 @@ describe("every ?error= value is a member of the closed set", () => {
   function ownedNames(source: string): Set<string> {
     // `[^}]*` cannot cross a brace, so a multi-line import list is captured and a NEIGHBOURING
     // import's names cannot be swept in by a lazy match that ran too far.
-    const match = /import\s*\{([^}]*)\}\s*from\s*["']@\/lib\/redirect-errors["']/.exec(source);
-    return new Set(match ? match[1].split(",").map((name) => name.trim().split(/\s+as\s+/)[0]) : []);
+    const imported = /import\s*\{([^}]*)\}\s*from\s*["']@\/lib\/redirect-errors["']/.exec(source)?.[1];
+    if (imported === undefined) return new Set();
+    // The empty name is filtered rather than defaulted in, and that is not cosmetic: `owned` is
+    // fed to `new RegExp(`\\b${name}\\b`)` below, and `\b\b` matches almost any declaration — so
+    // one `""` in the set would vouch for every local in the file.
+    return new Set(
+      imported
+        .split(",")
+        .map((name) => name.trim().split(/\s+as\s+/)[0])
+        .filter((name): name is string => name !== undefined && name !== ""),
+    );
   }
 
   /**
@@ -311,13 +332,12 @@ describe("every ?error= value is a member of the closed set", () => {
       .split(/\r?\n/)
       .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
       .join("\n");
-    return [...code.matchAll(new RegExp(`const\\s+${name}\\s*=\\s*([^;]*);`, "g"))].map((match) => match[1]);
+    return captures(code, new RegExp(`const\\s+${name}\\s*=\\s*([^;]*);`, "g"));
   }
 
   /** Why this expression may not reach `?error=`, or null when it may. */
   function rejection(expression: string, owned: Set<string>, source: string): string | null {
-    const encoded = ENCODE_WRAPPER.exec(expression.trim());
-    const value = (encoded ? encoded[1] : expression).trim();
+    const value = (ENCODE_WRAPPER.exec(expression.trim())?.[1] ?? expression).trim();
 
     // A literal, `err.message`, `String(err)`, a template — none of them is a bare identifier, so
     // the whole leak class is refused here without the guard having to enumerate it.
@@ -351,8 +371,8 @@ describe("every ?error= value is a member of the closed set", () => {
 
     const helpers = new Map<number, { name: string; param: string }>();
     for (const { text, index } of lines) {
-      const declared = ERROR_URL_HELPER.exec(text);
-      if (declared && text.includes("error=")) helpers.set(index, { name: declared[1], param: declared[2] });
+      const [, name, param] = ERROR_URL_HELPER.exec(text) ?? [];
+      if (name !== undefined && param !== undefined && text.includes("error=")) helpers.set(index, { name, param });
     }
     const helperNames = [...helpers.values()].map((helper) => helper.name);
 
@@ -363,13 +383,12 @@ describe("every ?error= value is a member of the closed set", () => {
       if (declared) {
         // The declaration itself is covered rather than skipped: its body must interpolate its OWN
         // parameter and nothing else, or a helper could smuggle a literal past every call site.
-        for (const [, expression] of text.matchAll(ERROR_INTERPOLATION)) {
-          const encoded = ENCODE_WRAPPER.exec(expression.trim());
-          const value = (encoded ? encoded[1] : expression).trim();
+        for (const expression of captures(text, ERROR_INTERPOLATION)) {
+          const value = (ENCODE_WRAPPER.exec(expression.trim())?.[1] ?? expression).trim();
           if (value !== declared.param) found.push(label(file, DECKS_API_DIR, index, `helper body: ${value}`));
         }
       } else {
-        for (const [, expression] of text.matchAll(ERROR_INTERPOLATION)) {
+        for (const expression of captures(text, ERROR_INTERPOLATION)) {
           const reason = rejection(expression, owned, source);
           if (reason) found.push(label(file, DECKS_API_DIR, index, reason));
         }
@@ -377,7 +396,7 @@ describe("every ?error= value is a member of the closed set", () => {
 
       for (const name of helperNames) {
         if (index === [...helpers.entries()].find(([, h]) => h.name === name)?.[0]) continue;
-        for (const [, argument] of text.matchAll(new RegExp(`\\b${name}\\s*\\(([^)]*)\\)`, "g"))) {
+        for (const argument of captures(text, new RegExp(`\\b${name}\\s*\\(([^)]*)\\)`, "g"))) {
           const reason = rejection(argument, owned, source);
           if (reason) found.push(label(file, DECKS_API_DIR, index, reason));
         }

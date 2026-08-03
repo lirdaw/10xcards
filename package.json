@@ -7,6 +7,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
+    "typecheck": "node --experimental-strip-types scripts/run-typecheck.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -17,7 +18,8 @@
     "db:kong": "node --experimental-strip-types scripts/disable-kong-keepalive.ts",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
-    "db:types": "supabase gen types typescript --local > src/db/database.types.ts"
+    "db:types": "supabase gen types typescript --local > src/db/database.types.ts",
+    "prepare": "husky || true"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.8",

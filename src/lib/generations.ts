@@ -73,13 +73,16 @@ export async function generationResultByGenerationId(supabase: Client, generatio
   if (error) return { data: null, error };
   // No cards left (all deleted since) means there is nothing to replay — a `null` the
   // caller must treat as a failure, not as an empty success, or the island navigates to
-  // a review screen it cannot name.
-  if (data.length === 0) return { data: null, error: null };
+  // a review screen it cannot name. Tested on the first row rather than on `data.length`
+  // since C10X-43: same predicate, and it is the row the deck name is read off, so the
+  // guard and the access are now the same fact instead of two that have to agree.
+  const first = data[0];
+  if (!first) return { data: null, error: null };
 
   return {
     data: {
       candidates: data.map((card) => ({ front: card.front, back: card.back })),
-      deckPublicId: data[0].deck.public_id,
+      deckPublicId: first.deck.public_id,
     },
     error: null,
   };

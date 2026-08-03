@@ -6,7 +6,7 @@
 
 - Import via `@/*` (maps to `src/*`, see @tsconfig.json); do not use deep relative paths like `../../lib`.
 - Read env only through `astro:env/server` (`SUPABASE_URL`, `SUPABASE_KEY`) — never `import.meta.env` or `process.env`. Both are optional server secrets; `createClient` in @src/lib/supabase.ts returns `null` when unset, so every caller must null-check before use (see @src/pages/api/auth/signin.ts).
-- Run `npx astro sync` after changing routes or content before `lint`/`build` — CI runs it and lint fails on stale generated types.
+- Run `npx astro sync` after changing routes or content before `lint`/`build`/`typecheck` — CI runs it and lint fails on stale generated types. `tsc` hard-depends on the same generated file (`.astro/types.d.ts`, listed explicitly in @tsconfig.json because `**/*` skips dotted directories): without it, `tsc --noEmit` reports 13 errors naming files you never touched. `npm run typecheck` therefore syncs first itself, so it is correct when invoked with no CI around it — but the rule stands for `lint`, whose `projectService: true` depends on the same file and which has no such fallback.
 - The two rules above are about `src/`. **`scripts/` is the one exception**: it is CI tooling run by bare `node --experimental-strip-types` (@.github/workflows/ci.yml), with no Vite — so `@/*` does not resolve and `astro:env/server` does not exist there. Those files read `process.env`, import siblings relatively (`./schema-drift.ts`, extension required), and may use `console.*` (@tests/lib/no-logging.test.ts scans `src/` only). Do not extend this to `src/`, and do not import across the boundary — that would be the deep relative path the first rule forbids.
 
 ## Project Structure
@@ -19,7 +19,8 @@
 ## Commands
 
 - `npm run dev` — dev server on the Cloudflare workerd runtime.
-- `npm run lint` / `npm run lint:fix` — ESLint, type-checked (@eslint.config.js).
+- `npm run typecheck` — the type gate (@scripts/run-typecheck.ts): `astro sync` → `tsc --noEmit` → `astro check`, over `src/`, `tests/`, `evals/`, `scripts/`, the root configs and the 18 `.astro` templates at once. Run it before you claim a change compiles; CI runs it and a husky `pre-push` hook blocks the push on it. It asserts on the checked-file count rather than the exit code, because `astro check` exits 0 when its own tooling is missing.
+- `npm run lint` / `npm run lint:fix` — ESLint with **type-aware rules** (@eslint.config.js). Type-aware is not a type check: it reads types to decide rules and reports no `tsc` diagnostic. `npm run typecheck` is the separate command for that, and neither substitutes for the other.
 - `npm run format` — Prettier (@.prettierrc.json).
 - `npm run build` — production build; `npx wrangler deploy` — ship to Cloudflare.
 - `npx supabase db push` — apply migrations to the **cloud** before merging; CI's `drift` job compares versions against the cloud and blocks `deploy` otherwise (@.github/workflows/ci.yml).
@@ -27,7 +28,7 @@
 
 ## Conventions
 
-- Node 22 (@.nvmrc). A husky `pre-commit` hook runs `lint-staged` (`eslint --fix` on `*.{ts,tsx,astro}`), so commits auto-fix; do not bypass with `--no-verify`.
+- Node 22 (@.nvmrc). Two husky hooks: `pre-commit` runs `lint-staged` (`eslint --fix` on `*.{ts,tsx,astro}`, `prettier --write` on `*.{json,css,md}`), so commits auto-fix; `pre-push` runs `npm run typecheck` over the whole project. Never bypass either with `--no-verify`. **Both need husky installed in your checkout** — `core.hooksPath` is per-repository git config that `git worktree add` does not copy, so run `npm install` (which runs `prepare`) once per worktree. Until 2026-08-03 this bullet claimed commits auto-fix and that was **false in every checkout**: `package.json` had no `prepare` script, so husky had never installed itself and `.git/hooks/` held only samples. If you are unsure, check `git config --get core.hooksPath` returns `.husky/_` rather than trusting this line.
 - Auth API routes read `formData`, then `redirect` with `?error=<message>` on failure instead of returning JSON — follow @src/pages/api/auth/signin.ts.
 - Add protected paths to the `PROTECTED_ROUTES` array in @src/middleware.ts.
 - Merge Tailwind classes with the `cn()` helper from @src/lib/utils.ts (clsx + tailwind-merge); do not concatenate class strings by hand.

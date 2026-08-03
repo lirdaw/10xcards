@@ -276,7 +276,11 @@ describe("no unregistered file under src/ reads ?error= at all", () => {
   // today, and the whole point is that the day one appears nobody will remember to check.
   it("does not mistake a shared-prefix sibling directory for a registered surface", () => {
     const excluded = (file: string) => registered.some((dir) => file.startsWith(dir));
-    const surface = registered[0];
+    // Asserted rather than defaulted: `registered` is derived from the SURFACES table, and an empty
+    // table would make both expects below vacuous instead of red.
+    const [surface] = registered;
+    expect(surface).toBeDefined();
+    if (surface === undefined) return;
     const sibling = surface.slice(0, -sep.length) + "-archive" + sep + "x.astro";
 
     expect(excluded(surface + "index.astro")).toBe(true);
@@ -321,6 +325,8 @@ describe("the ?q= read on the deck page goes through searchQuery", () => {
     const reads = codeLinesOf(page).filter(({ text }) => RAW_Q.test(text));
 
     expect(reads).toHaveLength(1);
-    expect(WRAPPED_Q.test(reads[0].text)).toBe(true);
+    // `?? ""` keeps this red rather than throwing if the length assertion above ever passes with
+    // an empty list: `WRAPPED_Q` does not match the empty string.
+    expect(WRAPPED_Q.test(reads[0]?.text ?? "")).toBe(true);
   });
 });

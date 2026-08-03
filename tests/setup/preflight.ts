@@ -43,14 +43,15 @@ function assertAnonKey(key: string): void {
   }
 
   const segments = key.split(".");
-  if (segments.length !== 3) {
+  const payload = segments[1];
+  if (segments.length !== 3 || payload === undefined) {
     fail(`SUPABASE_KEY is neither an sb_* API key nor a JWT. Got: "${key.slice(0, 12)}..."`);
   }
 
   // Decode only — no signature verification. This is a misconfiguration guard, not an auth check.
   let role: unknown;
   try {
-    role = (JSON.parse(Buffer.from(segments[1], "base64url").toString("utf8")) as { role?: unknown }).role;
+    role = (JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { role?: unknown }).role;
   } catch {
     fail("SUPABASE_KEY looks like a JWT but its payload could not be decoded.");
   }

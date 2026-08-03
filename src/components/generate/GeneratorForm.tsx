@@ -111,8 +111,10 @@ const fieldClass = "border-white/20 bg-white/5 text-white placeholder:text-blue-
 // deliberately NOT here — the results below live in React state only, so anything
 // actionable had to move to a server-rendered screen (S-05, /decks/<id>/review).
 export function GeneratorForm({ decks, languages }: Props) {
-  const hasDecks = decks.length > 0;
-  const [deckChoice, setDeckChoice] = React.useState<string>(hasDecks ? decks[0].publicId : NEW_DECK);
+  // The first deck when there is one, otherwise the "new deck" sentinel — `decks[0]` IS the
+  // emptiness test under `noUncheckedIndexedAccess` (C10X-43), so the separate `decks.length > 0`
+  // it used to be spelled with was the same predicate read off a different value.
+  const [deckChoice, setDeckChoice] = React.useState<string>(decks[0]?.publicId ?? NEW_DECK);
   const [newDeckName, setNewDeckName] = React.useState("");
   const [language, setLanguage] = React.useState<string>(AUTO_LANGUAGE.code);
   const [count, setCount] = React.useState(5);
