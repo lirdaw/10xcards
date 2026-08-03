@@ -3,7 +3,7 @@ project: 10xcards
 version: 1
 status: draft
 created: 2026-07-04
-updated: 2026-08-02
+updated: 2026-08-03
 prd_version: 1
 main_goal: quality
 top_blocker: capacity
@@ -62,7 +62,7 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 | H-08 | local-stack-transport-flake    | (harness) ufać, że zielony przebieg testów nie ukrywa podwójnego zapisu — lokalny flake transportowy przestaje być cichym duplikatem           | MVP (S-01…S-06)  | Guardrails: trwałość danych (pośrednio — wiarygodność harnessu)      | done   |
 | H-09 | deck-error-param-guard         | mieć bramki, które nie wygasają po cichu przy zwykłym refaktorze — zbiór `?error=` egzekwowany u producentów, skan odczytu na całym `src/`     | MVP (S-01…S-06)  | Guardrails, FR-015                                                   | done   |
 | H-10 | eval-ci-dispatch               | uruchomić eval jakości generacji z zakładki Actions — na żądanie, na realnym modelu, bez klucza i bez konfiguracji na czyjejkolwiek maszynie   | MVP (S-01…S-06)  | §Success Criteria (75% akceptacji — proxy), NFR: język kart          | done   |
-| H-11 | typecheck-gate                 | ufać, że zielona gałąź naprawdę się kompiluje — bramka typów w CI i przed pushem, obejmująca `src/`, `tests/`, `evals/`, `scripts/` i `.astro` | MVP (S-01…S-06)  | §Success Criteria (75% akceptacji — pośrednio: instrument Ryzyka #7) |        |
+| H-11 | typecheck-gate                 | ufać, że zielona gałąź naprawdę się kompiluje — bramka typów w CI i przed pushem, obejmująca `src/`, `tests/`, `evals/`, `scripts/` i `.astro` | MVP (S-01…S-06)  | §Success Criteria (75% akceptacji — pośrednio: instrument Ryzyka #7) | done   |
 
 Prefiks **`H-` (hardening)** oznacza pracę PO zamknięciu zakresu MVP: `F-01…F-03` i
 `S-01…S-06` są `done` i ta granica zostaje nienaruszona. Elementy `H-` nie są vertical
@@ -361,7 +361,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Bramka nie ufa kodowi wyjścia żadnego z dwóch checkerów i to jest jej cały projekt: `astro check` kończy się **zerem**, gdy brakuje jego własnych narzędzi (drukując po drodze `[ERROR]`), i jest **ślepy na zepsuty `tsconfig.json`** — literówka w nazwie opcji wyłącza tryb strict, a bramka nadal raportuje `0 errors`. Stąd asercja na linii `Result (N files):` z **progiem**, nie z przypiętą liczbą, i `tsc` uruchamiany jako pierwszy. Trzy granice trzymać jawnie. Bramka dowodzi, że projekt **się kompiluje**, nigdy że cokolwiek **zostało uruchomione** — dla evalu to nadal znaczy „kompiluje się", a nie „ktoś go odpalił" — i nie widzi **błędu w czasie kolekcji**. Hook to `pre-push`, nie `pre-commit` (12 s na commit to stała zachęta do `--no-verify`), więc **commit** może nieść błąd typu; blokowany jest dopiero push. I hook jest per-checkout: `core.hooksPath` to konfiguracja per-repozytorium, której `git worktree add` nie kopiuje — w istniejącym worktree trzeba raz odpalić `npm install`.
-- **Status:**
+- **Status:** done
 
 ## Backlog Handoff
 
@@ -419,6 +419,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **H-06: (hardening) zespół ma zmierzony, powtarzalny dowód, że wygenerowane fiszki wychodzą w języku tekstu źródłowego i nadają się do nauki: lokalny eval LLM-as-judge (`npm run eval`, osobna ścieżka uruchomienia — nigdy część `npm test`) przepuszcza 10-przypadkową macierz językową przez produkcyjne `generateCandidates()` na realnym modelu i ocenia każdą kartę sędzią z INNEJ rodziny modeli (`google/gemini-2.5-flash` vs `openai/gpt-4o-mini`).** — Archived 2026-07-29 → `context/archive/2026-07-29-ai-candidate-generation-test-3/`. Lesson: —.
 - **H-09: (hardening) reguły chroniące kanał `?error=` przestają być zaczepione o pisownię, a stają się zaczepione o konstrukcję: zbiór komunikatów jest egzekwowany w miejscu, gdzie wartości do niego wchodzą (a nie tylko tam, gdzie stoi literał obok napisu `error=`), a skan strony odczytu obejmuje każdy plik `.astro` w `src/`, nie tylko `src/pages/`.** — Archived 2026-08-01 → `context/archive/2026-08-01-deck-error-param-guard/`. Lesson: —.
 - **H-10: (hardening) instrument, który do tej pory żył wyłącznie na maszynie jednej osoby, staje się zdolnością projektu: każdy z prawem zapisu wchodzi w zakładkę Actions, uruchamia **Generation quality eval**, opcjonalnie podmienia model generatora albo sędziego, i po kilku minutach czyta 11-wierszową tabelę werdyktu w logu zadania — bez klucza OpenRouter, bez `npm ci` i bez lokalnego stacka u siebie. Pełny zapis (każda karta, każdy werdykt i uzasadnienie sędziego, plus surowy strumień konsoli) wisi przy przebiegu jako artefakt nazwany numerem próby, więc reguła kalibracyjna „czerwony przypadek powtarza się raz, zanim się w niego uwierzy" zostawia oba przebiegi obok siebie. Eval zapisuje przy okazji swój raport na dysk także lokalnie — jedna ścieżka kodu, więc CI nie ma gałęzi, której nikt nigdy nie uruchomił.** — Archived 2026-08-02 → `context/archive/2026-08-02-eval-ci-dispatch/`. Lesson: —.
+- **H-11: (hardening) zespół przestaje czytać zielony `lint` + `build` + `npm test` jako dowód, że kod się kompiluje: `npm run typecheck` (`astro sync` → `tsc --noEmit` → `astro check`) obejmuje `src/`, `tests/`, `evals/`, `scripts/`, konfiguracje w korzeniu i 18 plików `.astro`, których `tsc` nie widzi w ogóle. Działa w jobie `ci` (fail-closed, między `astro sync` a `lint`) i lokalnie w hooku `pre-push`. Przy okazji naprawiony husky, który **nigdy nie był w tym drzewie zainstalowany** (brak skryptu `prepare`), oraz włączone `noUncheckedIndexedAccess` (33 diagnostyki w 13 plikach, jeden commit).** — Archived 2026-08-03 → `context/archive/2026-08-02-typecheck-gate/`. Lesson: —.
 
 ## Parked ideas (post-MVP → Jira "Pomysł")
 
