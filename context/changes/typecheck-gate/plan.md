@@ -1,0 +1,827 @@
+# Typecheck Gate (C10X-43) Implementation Plan
+
+## Overview
+
+Wire a type gate into this project — an npm script, a CI step, and a local `pre-push` hook —
+so a type error can no longer hide behind a fully green `lint` + `build` + `test`. The gate is
+`astro check` (130 files: 112 tsc roots + 18 `.astro`) preceded by `tsc --noEmit` (which sees
+the `TS5xxx` config-error class `astro check` is blind to), driven by a wrapper that asserts on
+the checker's **output** rather than trusting its exit code. The same change turns on
+`noUncheckedIndexedAccess` and sweeps the 33 sites it surfaces.
+
+## Current State Analysis
+
+`package.json:5-21` has 15 scripts and no `typecheck`. `.github/workflows/ci.yml:21-29` runs
+`npm ci` → `astro sync` → `lint` → `build`, none of which performs TypeScript diagnostics:
+`npm run lint` is ESLint with type-**aware rules**, `astro build` does not run `astro check`,
+and `npm test` deliberately never collects `evals/**`. That is the exact gap C10X-41 measured —
+reverting to `b015662` makes `npx tsc --noEmit` exit 2 on a single `TS2353` in
+`evals/generation-quality.eval.ts`, meaning Risk #7's only acceptance instrument sat
+uncompilable for two fully green phases.
+
+Both candidate commands are green on `main` @ `9fb37bb` today, re-verified for this plan:
+`npx astro check` → exit **0**, `Result (130 files): 0 errors / 0 warnings / 4 hints`.
+`scripts/` passes despite being AGENTS.md's documented exception to the import rules, so the
+charter's "confirm rather than assume" item is closed and nothing has to be weakened on day one.
+
+The local half does not exist at all. `.husky/pre-commit` is tracked and contains
+`npx lint-staged`, but `.husky/_/` is absent, `core.hooksPath` is unset in every scope, and
+`.git/hooks/` holds only `*.sample` — re-verified for this plan. Root cause is a missing
+`prepare` script, so husky v9 never installed itself. Consequence: **AGENTS.md's claim that a
+pre-commit hook auto-fixes commits is false in this tree**, and enabling husky starts running
+`prettier --write` on three currently-dirty foundation documents for the first time.
+
+## Desired End State
+
+`npm run typecheck` exists, runs both checkers, and refuses to report success on a run that
+checked nothing. CI runs it between `astro sync` and `lint`, fail-closed. A `pre-push` hook runs
+it locally. `noUncheckedIndexedAccess` is on with a zero-error tree. `test-plan.md §5`'s first
+gate row — which claims `lint + typecheck` is "wired today" and is presently false in **both**
+halves — becomes true, and of the 11 live documentation claims that the project has no type gate, **10 are
+corrected and 1 is flagged** — `jira-map.md:86` is owned by the Jira skills and deliberately not
+hand-edited. One of the ten ships as executable output in a job log.
+
+Verification: `npm run typecheck` exits 0 on a clean tree and 1 on each falsification probe;
+a CI run shows the step green before `lint`; `git push` triggers the hook.
+
+### Key Discoveries:
+
+- `astro check` is a genuine superset of `tsc` at identical strictness — same `tsconfig.json`
+  resolved by `@astrojs/language-server/dist/check.js:153-165`, full TS language service via
+  `@volar/kit/lib/createChecker.js:125-129`. 130 = 112 + 18, and `git ls-files "*.astro"` = 18
+  (a `find`-based count returns 19 by matching the generated `./.astro` directory).
+- **FM-1 (severe):** `astro check` exits **0** when its own tooling is missing, printing
+  `[ERROR]` on the way out — `astro/dist/cli/index.js:224` evaluates
+  `process.exit(typeof checkServer === "boolean" && checkServer ? 1 : 0)`. Proven with a
+  positive control: same broken file, exit 1 with the package present, exit 0 with it hidden.
+- **FM-2:** a malformed `tsconfig.json` is invisible to `astro check` — `strctNullChecks`
+  makes `tsc` exit 2 with `TS5025` while `astro check` reports `0 errors` over 130 files,
+  because `@volar/kit/lib/createChecker.js:15-17` drops the parsed command line's `errors` array.
+- Only `errors > 0` fails at the default `--minimumFailingSeverity error`; the 4 permanent
+  `ts(6387)` diagnostics at `eslint.config.js:14,40,62,71` **print a yellow `warning` label but
+  are tallied as hints** — disambiguated by measurement (`--minimumFailingSeverity warning` → 0,
+  `hint` → 1), not by reading the label.
+- CI-portable: no `.env` (all four `envField` entries are `optional: true`,
+  `astro.config.mjs:16-23`), no database, no network. 8.0–8.6 s across five runs; a red run costs
+  the same as a green one. **`astro check` self-syncs; `tsc` does not** — measured, 13 errors
+  without `.astro/types.d.ts` — which is why the wrapper syncs explicitly rather than relying on
+  the leg it may short-circuit past (Critical Implementation Details).
+- `@typescript-eslint/no-unnecessary-condition` is **error**, so the nUIA fixes cannot precede
+  the flag — `arr[i]?.x` is an unnecessary condition while the flag is off. Same mechanism the
+  comment at `src/components/study/StudySession.tsx:170-172` already describes.
+- nUIA re-measured for this plan: **33 errors across 13 files** (22 `tests/`, 7 `src/`,
+  3 `scripts/`, 1 `evals/`). Research recorded 14 files; the file count is corrected here.
+
+## What We're NOT Doing
+
+- **Not adding a typecheck step to `eval.yml`.** `eval.yml:10-15` defends across four documents
+  what a red in that file means — "a FINDING, not a hygiene failure" — and a typecheck red is
+  precisely a hygiene failure. `ci.yml` already covers `evals/` on every push and PR to `main`;
+  the residue is a feature-branch dispatch, where a ~$0.013 wasted run is the accepted cost.
+- **Not adding typecheck to the `deploy` job.** Its `npm ci` + `astro sync` + `build`
+  (`ci.yml:138-140`) are artifact-production steps, not gates: `deploy` declares
+  `needs: [ci, drift]`, so the gate has already run by the time it starts. (An earlier draft cited
+  `ci.yml:119-121` here — that is the **drift** job's "no `npm ci`, deliberately" comment about
+  keeping that job at seconds, a different point.)
+- **Not touching the eval's isolation from `npm test`.** Staying out of the test run and being
+  type-checked are not in tension; `vitest.eval.config.ts` and the collection-level exclusion
+  stay byte-identical.
+- **Not editing `context/foundation/jira-map.md`.** Its line 86 carries an empty `Change ID` and
+  a stale `context/changes/…` path for an archived change, but `jira-map.md:3-4` says do not
+  hand-edit — it is owned by `/jira-backlog-sync` and `/jira-finish-work`. Flagged, not fixed.
+- **Not flipping any roadmap `Status`.** `lessons.md:180` reserves that for `/10x-archive`.
+- **Not making `flashcards.ts`'s two optional fields required.** The gate changes the rationale
+  (see Phase 6) but the type change is a separate design decision with its own blast radius.
+
+## Implementation Approach
+
+Six phases, ordered by two hard constraints and one soft one.
+
+**Hard: the gate must be proved green and falsifiable before nUIA moves the baseline.** Landing
+the flag first would make "green from day one" unprovable — the gate's own claim would be
+entangled with a 33-item sweep.
+
+**Hard: doc hygiene precedes enabling the hook.** Turning husky on activates the tracked
+`pre-commit` hook too, not just the new `pre-push`, so the first enabled commit would run
+`prettier --write` on three dirty foundation documents unsupervised — and `test-plan.md §8`
+records that command as destructive and non-idempotent on this repo's markdown once already.
+
+**Soft: doc-sync last**, because Phases 1–5 are what make the 11 live claims false.
+
+## Critical Implementation Details
+
+**The nUIA ordering is not a preference.** `@typescript-eslint/no-unnecessary-condition` is
+configured `error`, so with the flag off `arr[i]` is typed `T` and every `?.` / `?? fallback`
+the sweep introduces is reported as an unnecessary condition. The flag and the 33 fixes must
+land in **one commit**; there is no intermediate green state.
+
+**`tsc` runs first and short-circuits — which is why the wrapper must sync before it.** On a
+non-zero `tsc` exit the wrapper reports and stops without running `astro check`: a `TS5xxx` means
+the config is broken, and `astro check`'s verdict under a broken config is exactly the
+untrustworthy thing FM-2 describes. It also avoids printing the same diagnostics twice at 3× the
+cost.
+
+The cost of that ordering is that **"it self-syncs" is a property of `astro check`, not of the
+gate.** `tsconfig.json:3` lists `.astro/types.d.ts` explicitly because `**/*` skips dotted
+directories, and `tsc` hard-depends on it: measured with that file absent, `tsc --noEmit` exits 2
+with **13 errors** — `TS2307 Cannot find module 'astro:env/server'` ×10, `astro:middleware` ×1,
+plus two `TS7006` on `middleware.ts:43`. Short-circuiting on `tsc` therefore skips the one leg
+that would have regenerated the file. Reachable in ordinary use: a fresh clone (`npm ci` does not
+sync), a branch switch that changed routes or content — the case `AGENTS.md:9` already documents
+for `lint` — or any `.astro/` wipe. Under Phase 4 that is a `git push` blocked by 13 errors naming
+no file the developer touched, i.e. the exact standing incentive to reach for `--no-verify` that
+Phase 4's own rationale exists to remove. So the wrapper syncs first, and keeps a diagnostic for
+the residue.
+
+**The file-count assertion is a floor, not an equality.** A pinned `130` becomes a stale count
+the day a file is added, and this repository has recorded a count going stale four separate
+times. The assertion's job is to distinguish "checked the project" from "checked nothing"
+(FM-1), which a generous floor does completely.
+
+**Cross-platform spawn.** `scripts/` runs under bare `node --experimental-strip-types` on both
+this Windows machine and the Linux runner. `astro` / `tsc` resolve through `node_modules/.bin`,
+whose Windows entries are `.cmd` shims — a bare `spawn("astro")` fails there. Verify the chosen
+invocation on **both** platforms rather than only where it was written.
+
+## Phase 1: The gate, locally
+
+### Overview
+
+A `typecheck` npm script that runs both checkers and cannot report success on a run that
+checked nothing. Split pure/I-O exactly as `scripts/schema-drift.ts` + `scripts/check-schema-drift.ts`
+does, so the decision is falsifiable by a unit test while the I/O half stays untested by design.
+
+### Changes Required:
+
+#### 1. Pure half
+
+**File**: `scripts/typecheck.ts`
+
+**Intent**: Own the FM-1 decision as a pure function so it can be tested without spawning
+anything, following the `scripts/schema-drift.ts` precedent (pure module, tested from
+`tests/lib/`, per `test-plan.md §6.1`'s mirroring clarification).
+
+**Contract**: Exports a minimum-files floor constant and a function taking `astro check`'s
+combined output and returning a verdict object carrying `ok`, the parsed file count (or `null`
+when no `Result (N files):` line was produced) and a human-readable reason. Absent line → not
+ok; count below the floor → not ok. `console.*` is permitted here — `tests/lib/no-logging.test.ts`
+scans `src/` only, and `AGENTS.md:11` carves out `scripts/`.
+
+#### 2. I/O half
+
+**File**: `scripts/run-typecheck.ts`
+
+**Intent**: Run `astro sync`, then `tsc --noEmit`, and only if that is clean run `astro check`,
+capture its output, print it verbatim, and apply the pure verdict. Exit non-zero when any leg
+fails or the verdict rejects.
+
+**Contract**: **`astro sync` runs first**, before `tsc` — see Critical Implementation Details:
+`tsc` hard-depends on `.astro/types.d.ts` (13 errors without it, measured) and the tsc-first
+short-circuit means `astro check`, the only self-syncing leg, never gets to fix it. ~1 s
+(`[types] Generated 969ms`, measured). A sync failure must report as **"astro sync failed"** with
+its own message and exit — never as a type error, since a broken `astro.config.mjs` is a
+different diagnosis.
+
+Belt for the residue, because sync is not the only way generated types go stale: if the `tsc` leg
+fails and its output contains `TS2307` on an `astro:*` specifier, the wrapper appends
+"generated types look stale — run `npx astro sync`" to its own summary. It never suppresses or
+rewrites `tsc`'s output; it adds a line. Same standard as the FM-1 message below — name the state
+the reader is actually in.
+
+`astro check` is invoked with `--minimumSeverity warning` so a green log is actually empty. Never
+`--minimumFailingSeverity hint` (4 pre-existing hints turn it red today) and never `--watch`
+(`cli/index.js:220-221` awaits a promise that never resolves in watch mode). The FM-1 rejection
+message must name the cause — missing `@astrojs/check` / `typescript` — since that is the state a
+reader will be in.
+
+#### 3. Script registration
+
+**File**: `package.json`
+
+**Intent**: Add the `typecheck` script alongside the existing 15.
+
+**Contract**: `"typecheck": "node --experimental-strip-types scripts/run-typecheck.ts"` — the
+same invocation shape `db:kong` already uses.
+
+#### 4. Scope symmetry
+
+**File**: `tsconfig.json`
+
+**Intent**: Add `"context"` to `exclude`, so the local gate and CI agree on scope by
+construction.
+
+**Contract**: `exclude` becomes `["dist", "context"]`. Zero effect today (no `.ts`/`.tsx`/`.astro`
+under `context/`); it closes the asymmetry that `ci.yml:6,9`'s `paths-ignore: ["context/**"]`
+creates — a scratch `.ts` in a change folder would be checked locally and never in CI.
+
+#### 5. The pure half's test
+
+**File**: `tests/lib/typecheck.test.ts`
+
+**Intent**: Prove the FM-1 guard can go red, and that it accepts the real green output.
+
+**Contract**: Cases covering — today's real `Result (130 files):` output accepted (the positive
+control, without which a function returning `ok: false` for everything reads as perfect
+protection); the verbatim FM-1 output (install message + `[ERROR]`, no `Result` line) rejected;
+a `Result` line below the floor rejected; and an output with a `Result` line but non-zero errors
+handled per the contract. The FM-1 fixture must be the **measured** text, not a paraphrase.
+
+### Success Criteria:
+
+#### Automated Verification:
+
+- `npm run typecheck` exits 0 on the clean tree
+- `npx vitest run tests/lib/typecheck.test.ts` passes
+- `npm run lint` exits 0 (the two new `scripts/` files are inside the linted set)
+- Full suite green: `npm test`
+- Falsification A — a `TS2322` probe under `src/lib/` turns it red, exit 1
+- Falsification B — a probe in `.astro` frontmatter turns it red, exit 1 (the class `tsc` cannot see)
+- Falsification C — reproducing C10X-41's defect (`generateCandidates({ language: … })`) yields `ts(2353)`, exit 1
+- Falsification D (FM-1) — with `@astrojs/check` hidden and a broken file present, the wrapper exits **non-zero** where bare `astro check` exits 0; positive control = same broken file with the package present
+- Falsification E (FM-2) — a typo'd compiler option in a probe tsconfig is caught by the `tsc` leg, exit non-zero
+- Falsification F (stale generated types) — a **pair**: with `.astro/` deleted, `npm run typecheck` still exits **0** (the sync leg regenerated it), against the control of the same tree with the sync leg neutered, which exits non-zero on 13 `TS2307`/`TS7006` and prints the "run `npx astro sync`" line rather than only the raw diagnostics
+- Every probe deleted afterwards; `git status` clean and per-file hashes match a pristine copy
+
+#### Manual Verification:
+
+- The green run's output is genuinely empty of the 4 `ts(6387)` hints
+- The FM-1 rejection message tells a reader what to install, not just that something failed
+- Wall clock is in the expected band (~12 s: ~1 s astro sync + ~2.7 s tsc + ~8.4 s astro check)
+- A sync failure reports as "astro sync failed", not as a type error
+
+**Implementation Note**: pause here for manual confirmation before Phase 2.
+
+---
+
+## Phase 2: The CI step
+
+### Overview
+
+One fail-closed step, placed where a type error fails the run in seconds rather than after the
+~1m46s Supabase start.
+
+### Changes Required:
+
+#### 1. The step
+
+**File**: `.github/workflows/ci.yml`
+
+**Intent**: Insert `npm run typecheck` between `npx astro sync` (line 22) and `npm run lint`
+(line 23), with no `continue-on-error`.
+
+**Contract**: Placement rationale to carry in the comment, each item measured: only `npm ci`
+must precede it (no stack, Docker, credential or `.env`); before `lint` because typecheck is
+*cheaper* (~12 s vs 12.3 s) and type-aware ESLint rules degrade confusingly when types are
+broken; before `build` because `astro build` provably does not type-check; far before
+`supabase start`. The comment must place this step on the **drift-gate** side of the asymmetry
+`ci.yml:54-64` names, applying that comment's own test item by item — no flake mode, CI is
+exactly where this defect hid, a red is evidence about code that ships. And it must state the
+corollary explicitly: **unlike the Kong step, a green `ci` job does imply this step passed**,
+because `continue-on-error` reports a failed step's `conclusion` as `success`.
+
+`npx astro sync` stays its own step even though the wrapper now syncs too: a broken
+`astro.config.mjs` should read as "sync failed" at the step named for it, and `AGENTS.md:9`'s
+ordering rule exists for **`lint`**, whose `projectService: true` depends on
+`.astro/types.d.ts` — that contract must not become a side effect of a different step. The
+duplicate ~1 s is the price of the wrapper being correct when invoked with no CI around it
+(Phase 1 §2).
+
+Note the cost margin is now within measurement noise (~12 s vs 12.3 s), so "cheaper than lint"
+carries less of this decision than it did; the load-bearing reasons are the remaining three —
+type-aware ESLint degrades confusingly on a broken type graph, `astro build` provably does not
+type-check, and both sit far before the ~1m46s stack start.
+
+### Success Criteria:
+
+#### Automated Verification:
+
+> **Both CI rehearsals below need an open PR to `main`, and a scratch commit touching a
+> `.ts`/`.tsx`/`.astro` path.** `ci.yml:3-9` triggers only on `push` to `main` and
+> `pull_request` to `main`, with `paths-ignore: ["**/*.md", "context/**"]` — so a push to this
+> change's branch with no PR runs **nothing at all**, and a markdown-only commit on an open PR is
+> skipped. This is the trap `test-plan.md §8` records against C10X-39, where criteria 2.3 and 2.5
+> were "unmet at phase completion by decision, not by omission" for exactly this reason. If the
+> PR does not exist when Phase 2 lands, mark 2.2 and 2.3 **ship-time** here and close them at
+> `/ship`, per that precedent — do not leave them to be discovered unrunnable.
+
+- The workflow file parses: `gh workflow view CI` (or `actions/workflow-parse` equivalent) reports no error
+- A real CI run **on the PR** shows `npm run typecheck` **green**, positioned before `lint`
+- A deliberate type error pushed to a scratch commit **on the PR branch** turns the `ci` job **red on that step**, and `build` / `supabase start` never run — then reverted
+
+#### Manual Verification:
+
+- The red run's log names the file and line, readable without downloading an artifact
+- Step wall clock in CI is within ~2× the local measurement (cold cache is the variable)
+- `deploy` and `drift` are untouched
+
+**Implementation Note**: pause here for manual confirmation before Phase 3.
+
+---
+
+## Phase 3: Doc hygiene before the hook
+
+### Overview
+
+Make the set of markdown files this change stages prettier-clean, put archived evidence
+permanently out of prettier's reach, and remove the 4 permanent `ts(6387)` hints at their source.
+All three exist so that Phase 4's first hook run discovers nothing.
+
+### Changes Required:
+
+#### 0. Put the archive out of reach
+
+**File**: `.prettierignore` (new — none exists today)
+
+**Intent**: `lint-staged` runs `prettier --write` on every staged `*.md`, so from Phase 4 onward
+the hook would reformat archived evidence wholesale the moment Phase 6 appends a correction line
+to it. That contradicts this repo's stated rule — archived artifacts take dated corrections and
+are **never rewritten** — and it would make criterion 6.6 ("verify by diff shape") unverifiable,
+because the diff would be the whole file. Measured: **all nine** archive markdown files Phase 6
+edits are currently prettier-dirty, including this change's own charter.
+
+**Contract**: one line, `context/archive/**`. Prettier 3 reads `.prettierignore` **alongside**
+`.gitignore` rather than replacing it, so nothing already ignored becomes visible. Scoped to
+`archive` deliberately, **not** to `context/**`: a live `context/changes/` folder is a working
+document that should arrive at `/10x-archive` already normalised, and freezing it only once it is
+archived is what makes "the archive is immutable" a property of the tooling instead of of a
+reviewer's attention. Consequence to state rather than leave implicit: `npm run format` no longer
+touches the archive, by design.
+
+#### 1. Prettier normalisation
+
+**File**: `context/foundation/roadmap.md`, and this change's own
+`context/changes/typecheck-gate/{plan,plan-brief,research}.md`
+
+**Intent**: Run `prettier --write` on exactly the markdown this change stages after the hook goes
+live, in a commit that contains nothing else, so the diff is reviewable as formatting.
+
+**Contract**: The list is derived from what gets staged, not from what happens to be dirty.
+`roadmap.md` is staged by Phase 6 §3 and is dirty again despite C10X-42 formatting it; the three
+change-folder artifacts are staged repeatedly from Phase 1 onward (`/10x-implement` re-commits
+`plan.md` every time it ticks a Progress box) and are all dirty. **`prd.md` and `lessons.md` are
+deliberately NOT in this list** — measured, no phase of this change stages either, so normalising
+them is unrelated scope carrying the landmine risk below for no benefit. `test-plan.md`,
+`README.md` and `AGENTS.md` are already prettier-clean (measured) and need nothing.
+
+`test-plan.md §8` records `prettier --write` as **destructive and non-idempotent** on this repo's
+markdown — it stripped a `> ` continuation from a blockquote-embedded code span and then collapsed
+the block on a second pass. That landmine was disarmed for `test-plan.md` only. So: write, then
+write again and diff the two results (idempotency), and review the diff specifically for lines
+that lost a `> ` prefix or joined a wrapped code span.
+
+#### 2. The four hints
+
+**File**: `eslint.config.js`
+
+**Intent**: Migrate off the deprecated `tseslint.config` signature at lines 14, 40, 62, 71 so
+the log is empty because there is nothing to hide, not because it was hidden. Measured, the
+deprecated member is the variadic overload:
+`'(...configs: InfiniteDepthConfigWithExtends[]): ConfigArray' of 'tseslint.config' is deprecated`.
+
+**First, settle the constraint the file states against this edit.** `eslint.config.js:1` reads
+`/* eslint-disable @typescript-eslint/no-deprecated -- tseslint.config() is the only way to use
+extends; core defineConfig has incompatible API */`. That is an explicit, documented reason not to
+do this, and it may be stale — `@eslint/config-helpers` is already a dependency and already
+imported at line 2 for `includeIgnoreFile`, and its `defineConfig` supports `extends` natively —
+but **stale is a claim to measure, not to assume**. Establish it before editing anything.
+
+**The comment travels with the code it describes**, exactly as Phase 5 requires of
+`StudySession.tsx:170-172`: if the migration lands, the line-1 rationale is false and the
+`eslint-disable` becomes an unused directive (ESLint 9 defaults `reportUnusedDisableDirectives`
+to `warn`), so both go with it. Do not leave a disable for a deprecation that no longer fires.
+
+**Contract**: Behaviour-neutral, proved by an **exact** oracle rather than a sampled one.
+`npx eslint --print-config <file>` before and after, diffed, for one file of each kind the config
+fans across — `src/lib/utils.ts`, an island `.tsx`, an `.astro`, and `eslint.config.js` itself
+(the `allowJs` case). An empty diff on all four is the proof; a non-empty one names the
+divergence. `npm run lint` exiting 0 is a smoke check on top, not the evidence: it only exercises
+the rules the tree happens to trigger.
+
+**Escape hatch, taken deliberately rather than discovered late**: if `--print-config` diverges on
+any of the four and the divergence cannot be closed, or `defineConfig` genuinely cannot express
+this config, **record the measurement and drop this sub-phase**. The four hints then stay, and
+nothing else in the change depends on their absence — Phase 1 §2's `--minimumSeverity warning`
+already keeps them out of the gate's own log, and F3's hint-visible criterion above simply
+records `4 hints` as the observed state instead of `0`. A stale line-1 comment corrected in place
+is a perfectly good outcome for this sub-phase; a silently different lint config is not.
+
+### Success Criteria:
+
+#### Automated Verification:
+
+- `npx prettier --check context/foundation/roadmap.md context/changes/typecheck-gate/*.md` exits 0
+- Idempotency: a second `--write` produces a byte-identical file (diff empty) for all four
+- `npx prettier --check "context/archive/**/*.md"` reports **no files matched** — the ignore is in effect, proved as a pair against the same command before the file existed (it reports 9+ dirty files today)
+- `npm run lint` exits 0
+- `npx eslint --print-config` is byte-identical before and after for all four file kinds (`src/lib/utils.ts`, an island `.tsx`, an `.astro`, `eslint.config.js`) — the exact neutrality oracle
+- The four hints are gone **at their source, proved with an invocation that can still see them**: `npx astro check` (bare, no severity flag) reports `- 0 hints`, and `npx astro check --minimumFailingSeverity hint` exits **0** — against today's control, where the same two report 4 hints and exit 1. `npm run typecheck` is NOT the oracle here: Phase 1 §2 pins `--minimumSeverity warning`, which — measured — drops the hints row from the Result block entirely, so it reads "0 hints" whether or not this phase happened. **If the escape hatch was taken**, this criterion is met by recording the measurement that closed it plus the unchanged `4 hints` — not by leaving it unticked
+- `npm run typecheck` exits 0
+- `npm test` green (nothing here should move it)
+
+#### Manual Verification:
+
+- Read the four normalisation diffs for the blockquote/code-span landmine class specifically
+- Confirm no `> ` prefix was lost and no dated correction block was reflowed into unreadability
+- Spot-check that the ESLint config still lints an `.astro`, a `.tsx` and a `.ts` file
+
+**Implementation Note**: pause here for manual confirmation before Phase 4 — this is the phase
+whose failure mode is silent.
+
+---
+
+## Phase 4: The local hook
+
+### Overview
+
+Repair husky (it has never been installed in this tree) and put the gate on `pre-push`.
+
+### Changes Required:
+
+#### 1. husky installation wire
+
+**File**: `package.json`
+
+**Intent**: Add the missing `prepare` script that husky v9 installs itself from.
+
+**Contract**: `"prepare": "husky"` — the bare word, read from `node_modules/husky/bin.js:14`;
+`bin.js:24` prints a deprecation for the v8 `husky install` spelling. **CI-safe with no
+`|| true`**: `index.js:11` returns a string when `.git` is absent rather than throwing, and
+`bin.js:26` only writes it to stdout, so the exit code is always 0. Then run it once in this
+tree — nothing retroactively fixes an existing checkout.
+
+#### 2. The hook
+
+**File**: `.husky/pre-push`
+
+**Intent**: Run the project-wide gate once per push.
+
+**Contract**: A single `npm run typecheck` line. `pre-push` rather than `pre-commit` because
+8–11 s on every commit is a standing incentive to reach for `--no-verify`, which AGENTS.md and
+the global CLAUDE.md **both** forbid absolutely. The check goes in the **hook**, never in
+`lint-staged`: lint-staged appends staged file paths as arguments, which makes `tsc` discard
+`tsconfig.json` (its own README FAQ, `node_modules/lint-staged/README.md:1077-1092`) and makes
+`astro check` — which accepts no positional file arguments — silently discard them and re-check
+the whole project once per chunk. The documented function-value workaround is unavailable
+because this repo's lint-staged config lives in `package.json`, which is JSON.
+
+### Success Criteria:
+
+#### Automated Verification:
+
+- After the one-time install: `.husky/_/` exists and `git config --get core.hooksPath` returns `.husky/_`
+- `git push` on a clean tree runs the hook and succeeds
+- A staged type error makes `git push` **fail** at the hook, naming the file — then reverted
+- The now-live `pre-commit` hook runs `lint-staged` on a real commit without rewriting any foundation document (Phase 3's precondition, verified rather than assumed)
+
+#### Manual Verification:
+
+- The hook's failure output is readable in the terminal the developer is actually in
+- Confirm `--no-verify` was not needed at any point during the phase
+
+**Implementation Note**: pause here for manual confirmation before Phase 5.
+
+---
+
+## Phase 5: `noUncheckedIndexedAccess`
+
+### Overview
+
+Flip the flag and fix the 33 sites it surfaces, in one commit, because the lint configuration
+makes any intermediate state red.
+
+### Changes Required:
+
+#### 1. The flag
+
+**File**: `tsconfig.json`
+
+**Intent**: Add `"noUncheckedIndexedAccess": true` to `compilerOptions`.
+
+**Contract**: `astro/tsconfigs/strict` does not enable it. One setting governs both checkers —
+verified: `astro check --tsconfig` against a probe config reports the same 33 errors, same files,
+same codes.
+
+#### 2. The sweep — type-level only (27 diagnostics, 10 files)
+
+**File**: `tests/lib/form-endpoint-guards.test.ts` (10), `tests/isolation/flashcards.test.ts` (5),
+`tests/lib/error-param-guard.test.ts` (2), `tests/validation/decks.test.ts` (2),
+`tests/validation/cards.test.ts` (1), `tests/generation/generate.test.ts` (1),
+`tests/setup/preflight.ts` (1), `scripts/kong-keepalive.ts` (2),
+`scripts/disable-kong-keepalive.ts` (1), `src/components/generate/GeneratorForm.tsx` (1)
+
+> **Counts, stated so the total and the breakdown are one claim rather than two** — the defect
+> this repo has recorded against C10X-39, C10X-40 and C10X-42. Re-measured for this plan:
+> **33 diagnostics across 13 files** in total. This list is 27 across 10; §3 below owns the
+> remaining 6 across 3 files (`StudySession.tsx` ×5, `generations.ts` ×1, `judge.ts` ×1). The
+> earlier "30 sites, 12 files" was arrived at by splitting `StudySession.tsx` across both
+> sub-sections, which double-counted it and described a 4/1 division of work that does not
+> exist — its five diagnostics are one root cause behind one guard.
+
+**Intent**: Narrow each indexed access so the compiler sees what the code already guarantees.
+None of these is a latent defect: they are indexes guarded by a `.length` test, by a preceding
+`if (!match) throw`, or by a bounds check in the same `if`, plus tests indexing a fixture they
+just built.
+
+**Contract**: `@typescript-eslint/no-non-null-assertion` is **error**, so `!` is unavailable —
+every fix is `?.`, `??`, or an explicit guard. There are zero `!` assertions in the repo today
+and this phase must not introduce the first. No assertion may be weakened: a test that indexes
+`data[0]` to assert on it must still fail when `data` is empty, so `?.` plus an existing
+`expect` is fine only where the expectation would still go red.
+
+#### 3. The sweep — behaviour-adjacent (6 diagnostics, 3 files)
+
+**File**: `src/components/study/StudySession.tsx`, `src/lib/generations.ts`, `evals/lib/judge.ts`
+
+**Intent**: The fixes that touch control flow or a runtime path rather than only types, and
+therefore need real review rather than mechanical narrowing.
+
+**Contract**: `StudySession.tsx` accounts for **five** of the six diagnostics — `card` possibly
+undefined at lines 202, 209, 287, 293 and 336 — and they are **one root cause closed by one
+guard**, not five edits. `:170-172` carries a comment explaining it *cannot* write an honest
+`if (!card)` guard while the flag is off; **this phase deletes a workaround rather than adding
+one**, and that comment must be removed with the code it describes, not left contradicting it.
+
+`generations.ts:82` moves from a `data.length === 0` test to a `!data[0]` test — same predicate,
+different justification.
+
+`judge.ts:166` is **not** what an earlier draft of this plan called it, and the correction matters
+because it changes the fix and the risk. The line is
+`await sleep(TRUNCATION_BACKOFFS_MS[attempt])` inside `judgeCard`'s retry loop — `number |
+undefined` handed to a `number` parameter (`TS2345`), already guarded by
+`attempt < TRUNCATION_BACKOFFS_MS.length` on the line directly above, so the fix is a bounded-index
+narrowing (`?? ` a default, or destructure the entry and branch on it), **never `?.`**, which does
+not apply to a numeric argument. The "possibly-absent choice" is a different site,
+`judge.ts:234-235`, which already reads `choices?.[0]` and produces no diagnostic. Consequence:
+this is a mechanical fix on a guarded index, not a change that needs a paid provider run to
+justify — the only care required is that the chosen default cannot silently turn a 3 s/10 s
+backoff into a 0 s hot retry against the provider.
+
+### Success Criteria:
+
+#### Automated Verification:
+
+- `npm run typecheck` exits 0 with the flag on
+- `npm run lint` exits 0 — specifically, no `no-unnecessary-condition` and no `no-non-null-assertion` findings
+- `npm test` green, with the count recorded **as observed** (a change here would mean an assertion moved)
+- `grep -rn '!\.' src/ tests/ scripts/ evals/` produces no new non-null assertion (the repo's count of `!` stays zero)
+- Falsification: reproduce C10X-41's F3 shape (`PROMPT_LANGUAGE_NAMES[code]` into a non-optional `string`) and confirm it now goes red — the measurement that justifies the flag; then revert
+
+#### Manual Verification:
+
+- Read the three behaviour-adjacent diffs individually against their surrounding logic
+- Confirm `StudySession`'s early return cannot strand a session on a card it silently skipped
+- Confirm no test's oracle became unfalsifiable (a `?.` that turns a would-be failure into `undefined === undefined`)
+
+**Implementation Note**: pause here for manual confirmation before Phase 6.
+
+---
+
+## Phase 6: Doc-sync
+
+### Overview
+
+11 live claims edited, 17 dated entries given correction lines rather than rewrites, one roadmap
+row created, one file flagged and deliberately not touched. The **list** is the contract; the
+count is fragile and this repo has recorded counts going stale repeatedly.
+
+### Changes Required:
+
+#### 1. Live claims (11)
+
+**File**: as listed
+
+**Intent**: Each of these asserts, in the present tense, that this project has no type gate.
+After Phases 1–5 each is false.
+
+**Contract**:
+- `context/foundation/test-plan.md:642` — §5 gate row 1 (`lint + typecheck … required — wired today`) is presently false in **both** halves; it becomes true, but the local half is **`pre-push`, not `pre-commit` via lint-staged**, so the row's wording must say what is actually wired.
+- `context/foundation/test-plan.md:459` — §2 Risk #7: append a **fourth dated half**, per C10X-42's own idiom, retiring "`tsc` is in no gate".
+- `context/foundation/test-plan.md:652-686` — §5 prose: this gate earns its paragraph, including the fail-closed statement and the FM-1/FM-2 boundary.
+- `README.md:49` — Available Scripts: add `typecheck`; the existing "type-checked rules" phrasing on the `lint` line is the exact confusion the charter names and needs disambiguating.
+- `README.md:169-178` — `## CI` job inventory.
+- `AGENTS.md:22` — Commands.
+- `AGENTS.md:9` — the `astro sync` ordering rule now binds this step too. **Also correct the false pre-commit claim** in `## Conventions` — measured: husky was never installed here, so "commits auto-fix" was untrue until Phase 4.
+- `.github/workflows/eval.yml:217` — the only falsified claim in this repo that **ships as executable output**. Correct the parenthetical only; **do not delete cause #2** — a collection-time error (an import throw, a top-level side effect, a bad `vi.mock` path) stays fully live and no type gate sees it.
+- `src/lib/flashcards.ts:30` — the parenthetical's third clause becomes false. Note the nuance: the gate would now catch a required field one branch cannot supply, so the two optional fields' rationale shifts from "nothing catches this" to "these two branches genuinely differ". Rewrite the reason honestly rather than deleting the clause.
+- `tests/review/candidates.test.ts:855` — "with no type gate to catch the difference".
+- `context/foundation/jira-map.md:86` — **flag only, do not edit** (empty `Change ID`, stale `context/changes/…` path for an archived change; owned by the Jira skills per `jira-map.md:3-4`).
+
+#### 2. Historical entries (17)
+
+**File**: `context/foundation/test-plan.md` (§6.6's C10X-41 and C10X-42 entries, four §8 ledger
+lines), the charter, and the archive sites enumerated in `research.md:533-539`
+
+**Intent**: Dated correction lines, never rewrites — the C10X-30 "4xx" precedent this repo
+states four times.
+
+**Precondition, and it is what makes "never rewrites" survive contact with the hook**: Phase 3 §0
+put `context/archive/**` in `.prettierignore`, so the now-live `pre-commit` `lint-staged` cannot
+reformat these nine dirty files as a side effect of the one line you appended. Do not "tidy" them
+by hand either — the diff for each of these must be the correction line and nothing else, which
+is exactly what criterion 6.6 verifies by diff shape.
+
+**Contract**: The highest-value one is
+`context/archive/2026-07-25-candidate-review/reviews/impl-review.md:38-42` — *"`astro check`
+cannot be added as a CI gate until those three are fixed"* — an instruction addressed to this
+change, whose three errors are measured gone. Also correct `test-plan.md §8`'s **mechanism**
+claim that "husky's installed half is gitignored": measured false — `grep -i husky .gitignore`
+has no match and `git check-ignore` returns not-ignored for all five paths. The ignoring is done
+by `.husky/_/.gitignore`, which husky itself writes, and the real reason the setup does not
+travel is `core.hooksPath`, per-repository git config that `git worktree add` never copies. The
+conclusion was right; the mechanism sends a reader grepping for something that is not there.
+`context/foundation/roadmap.md:349` and `jira-map.md:342-357` are the mixed class — a
+present-tense sentence inside a dated block — and take a dated **supplement** per the H-03
+precedent (roadmap only; jira-map stays untouched).
+
+#### 3. Roadmap row
+
+**File**: `context/foundation/roadmap.md`
+
+**Intent**: Create `H-11` for this change in `## At a glance` and `## Slices`, before
+`/10x-archive` runs.
+
+**Contract**: `Status` left unset — `lessons.md:180` reserves the flip for archive. The note at
+`roadmap.md:68-76` is explicit about the cost of a missing row, and H-04, H-07 and H-08 were all
+backfilled retroactively.
+
+### Success Criteria:
+
+#### Automated Verification:
+
+- `grep -rn "no type gate\|astro check.*cannot be added\|tsc.*in no gate" --include="*.md" --include="*.ts" --include="*.yml" context/foundation README.md AGENTS.md src tests .github` returns only dated-correction contexts, never a live claim
+- `grep -rn "C10X-43" .github/` shows the corrected parenthetical
+- `npx prettier --check` passes on every edited markdown file **outside `context/archive/`** (`test-plan.md`, `README.md`, `AGENTS.md`, `roadmap.md`). Archive files are ignored by Phase 3 §0 and must NOT be normalised — a `--check` there reports "no matching files", which is the ignore working, not a pass
+- `npm test` green (the `candidates.test.ts` comment edit must not move an assertion)
+- `npm run typecheck` and `npm run lint` both exit 0
+
+#### Manual Verification:
+
+- Every dated entry received a correction **line**, not a rewrite — verify by diff shape
+- `test-plan.md §2` (coverage claim) and `§6.6` (mechanism) are consistent and readable together
+- `jira-map.md` is untouched, checked by **content hash** before and after (`md5sum`), never by `git diff` — the file is gitignored (`.gitignore:70`), so a diff there is empty whatever happens to it
+- The roadmap H-11 row's `Status` is unset
+
+---
+
+## Testing Strategy
+
+### Unit Tests:
+
+- `tests/lib/typecheck.test.ts` — the FM-1 verdict function: real green output accepted (positive
+  control), the measured FM-1 output rejected, a below-floor count rejected.
+
+### Integration Tests:
+
+- None. The gate has no integration surface: it spawns two first-party CLIs and reads their
+  output. Consistent with `test-plan.md §6.6`'s C10X-29 boundary — `scripts/check-schema-drift.ts`
+  deliberately gets no test because every branch is I/O, and the wiring is carried by recorded
+  runs rather than by an assertion. **State this explicitly rather than let it be inferred:
+  `npm test` covers the pure half and nothing else; no test in this suite runs the gate.**
+
+### Manual Testing Steps:
+
+1. Break a type in `src/`, run `npm run typecheck`, confirm red with file and line; revert.
+2. Break a type in an `.astro` frontmatter; confirm red (the class `tsc` cannot see); revert.
+3. Hide `@astrojs/check`, confirm the wrapper is red where bare `astro check` is green; restore.
+4. With a PR to `main` open, push a scratch commit carrying a type error in a `.ts`/`.tsx`/`.astro`
+   file (a markdown-only commit is skipped by `paths-ignore`, and a branch with no PR runs nothing
+   at all), confirm the `ci` job is red on that step and that `build` and `supabase start` never
+   ran; revert.
+5. `git push` with a staged type error, confirm the hook blocks it.
+
+## Performance Considerations
+
+~12 s added to every CI run (~1 s `astro sync` + ~2.7 s `tsc` + ~8.4 s `astro check`; the sync is
+paid twice in CI, once by its own step and once inside the wrapper — the wrapper's copy is what
+makes the LOCAL invocation correct and costs a second in CI to keep one code path), placed before the ~1m46s
+Supabase start so a type error fails at roughly T+15 s instead of T+2 min. Locally the cost is
+once per push, not once per commit. Red runs cost the same as green ones.
+
+One budgeted coupling: `allowJs: true` plus `include: ["**/*"]` puts `eslint.config.js` and
+`astro.config.mjs` inside the checked set, so a `typescript-eslint` major can turn the gate red
+with no source change. That is a true positive, not a false one, but it couples CI to
+devDependency typings and should not be a surprise the first time it happens.
+
+## Migration Notes
+
+The husky repair is a one-time action in each existing checkout — `core.hooksPath` is
+per-repository git config that `git worktree add` never copies and that no `npm ci` sets without
+the `prepare` script. A fresh clone gets it from `npm install`; an existing worktree needs the
+script run once by hand.
+
+## References
+
+- Research: `context/changes/typecheck-gate/research.md`
+- Charter: `context/archive/2026-07-31-forced-language-prompt-fix/follow-ups/typecheck-gate.md`
+- Retired blocker: `context/archive/2026-07-25-candidate-review/reviews/impl-review.md:38-42`
+- Gate-design precedent (fail-closed, positive control, "a gate carrying no test must say so"):
+  `context/archive/2026-07-27-schema-drift-test/`
+- The `lessons.md:194-199` exit-code rule this change must satisfy
+- Doc-sync idiom (live edited, dated corrected): `context/archive/2026-08-02-eval-ci-dispatch/`
+
+## Progress
+
+> Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.
+
+### Phase 1: The gate, locally
+
+#### Automated
+
+- [x] 1.1 `npm run typecheck` exits 0 on the clean tree
+- [x] 1.2 `npx vitest run tests/lib/typecheck.test.ts` passes
+- [x] 1.3 `npm run lint` exits 0
+- [x] 1.4 Full suite green: `npm test`
+- [x] 1.5 Falsification A — `TS2322` probe under `src/lib/` turns it red
+- [x] 1.6 Falsification B — `.astro` frontmatter probe turns it red
+- [x] 1.7 Falsification C — C10X-41's `ts(2353)` defect turns it red
+- [x] 1.8 Falsification D (FM-1) — hidden `@astrojs/check` exits non-zero, with positive control
+- [x] 1.9 Falsification E (FM-2) — typo'd compiler option caught by the `tsc` leg
+- [x] 1.10 Falsification F — `.astro/` deleted still exits 0; control with the sync leg neutered exits non-zero and prints the "run `npx astro sync`" line
+- [x] 1.11 All probes deleted; tree clean and hash-verified
+
+#### Manual
+
+- [x] 1.12 Green run's output is empty of the 4 `ts(6387)` hints
+- [x] 1.13 FM-1 rejection message names what to install
+- [x] 1.14 Wall clock in the expected ~12 s band
+- [x] 1.15 A sync failure reports as "astro sync failed", not as a type error
+
+### Phase 2: The CI step
+
+#### Automated
+
+- [ ] 2.1 Workflow file parses
+- [ ] 2.2 Real CI run **on an open PR to `main`** shows `npm run typecheck` green, before `lint` (ship-time if no PR exists yet)
+- [ ] 2.3 Deliberate type error in a `.ts`/`.tsx`/`.astro` file on the PR branch turns the `ci` job red on that step; `build` / `supabase start` never run; reverted (ship-time if no PR exists yet)
+
+#### Manual
+
+- [ ] 2.4 Red run's log names file and line without an artifact download
+- [ ] 2.5 CI step wall clock within ~2× the local measurement
+- [ ] 2.6 `deploy` and `drift` untouched
+
+### Phase 3: Doc hygiene before the hook
+
+#### Automated
+
+- [ ] 3.1 `prettier --check` exits 0 on `roadmap.md` + the three change-folder artifacts
+- [ ] 3.2 Idempotency: second `--write` is byte-identical for all four
+- [ ] 3.3 `prettier --check "context/archive/**/*.md"` matches no files (paired against its 9+ dirty files before `.prettierignore`)
+- [ ] 3.4 `npm run lint` exits 0
+- [ ] 3.5 `eslint --print-config` byte-identical before/after for `.ts`, `.tsx`, `.astro`, `.js`
+- [ ] 3.6 Hints gone at source, proved hint-visibly: bare `astro check` reports `- 0 hints` and `--minimumFailingSeverity hint` exits 0, against today's control (4 hints, exit 1) — or the escape hatch's measurement recorded instead
+- [ ] 3.7 `npm run typecheck` exits 0
+- [ ] 3.8 `npm test` green
+
+#### Manual
+
+- [ ] 3.9 Four normalisation diffs read for the blockquote/code-span landmine class
+- [ ] 3.10 No `> ` prefix lost, no dated correction block reflowed
+- [ ] 3.11 ESLint config still lints an `.astro`, a `.tsx` and a `.ts` file
+
+### Phase 4: The local hook
+
+#### Automated
+
+- [ ] 4.1 `.husky/_/` exists and `core.hooksPath` is set
+- [ ] 4.2 `git push` on a clean tree runs the hook and succeeds
+- [ ] 4.3 Staged type error makes `git push` fail at the hook; reverted
+- [ ] 4.4 Live `pre-commit` runs `lint-staged` without rewriting any foundation document
+
+#### Manual
+
+- [ ] 4.5 Hook failure output readable in the developer's terminal
+- [ ] 4.6 `--no-verify` was not needed at any point
+
+### Phase 5: `noUncheckedIndexedAccess`
+
+#### Automated
+
+- [ ] 5.1 `npm run typecheck` exits 0 with the flag on
+- [ ] 5.2 `npm run lint` exits 0 — no `no-unnecessary-condition`, no `no-non-null-assertion`
+- [ ] 5.3 `npm test` green, count recorded as observed
+- [ ] 5.4 Repo's non-null-assertion count stays zero
+- [ ] 5.5 Falsification: C10X-41's F3 shape now goes red; reverted
+
+#### Manual
+
+- [ ] 5.6 Three behaviour-adjacent diffs read individually
+- [ ] 5.7 `StudySession`'s early return cannot strand a session
+- [ ] 5.8 No test oracle became unfalsifiable
+
+### Phase 6: Doc-sync
+
+#### Automated
+
+- [ ] 6.1 No live "no type gate" claim survives the sweep grep
+- [ ] 6.2 `grep -rn "C10X-43" .github/` shows the corrected parenthetical
+- [ ] 6.3 `prettier --check` passes on every edited markdown file
+- [ ] 6.4 `npm test` green
+- [ ] 6.5 `npm run typecheck` and `npm run lint` both exit 0
+
+#### Manual
+
+- [ ] 6.6 Every dated entry received a correction line, not a rewrite
+- [ ] 6.7 `test-plan.md` §2 and §6.6 consistent and readable together
+- [ ] 6.8 `jira-map.md` untouched, verified by `md5sum` before/after (it is gitignored, so a `git diff` proves nothing)
+- [ ] 6.9 Roadmap H-11 row present with `Status` unset
