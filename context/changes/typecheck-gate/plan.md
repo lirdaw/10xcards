@@ -271,7 +271,7 @@ One fail-closed step, placed where a type error fails the run in seconds rather 
 
 **Contract**: Placement rationale to carry in the comment, each item measured: only `npm ci`
 must precede it (no stack, Docker, credential or `.env`); before `lint` because typecheck is
-*cheaper* (~12 s vs 12.3 s) and type-aware ESLint rules degrade confusingly when types are
+_cheaper_ (~12 s vs 12.3 s) and type-aware ESLint rules degrade confusingly when types are
 broken; before `build` because `astro build` provably does not type-check; far before
 `supabase start`. The comment must place this step on the **drift-gate** side of the asymmetry
 `ci.yml:54-64` names, applying that comment's own test item by item — no flake mode, CI is
@@ -537,7 +537,7 @@ therefore need real review rather than mechanical narrowing.
 
 **Contract**: `StudySession.tsx` accounts for **five** of the six diagnostics — `card` possibly
 undefined at lines 202, 209, 287, 293 and 336 — and they are **one root cause closed by one
-guard**, not five edits. `:170-172` carries a comment explaining it *cannot* write an honest
+guard**, not five edits. `:170-172` carries a comment explaining it _cannot_ write an honest
 `if (!card)` guard while the flag is off; **this phase deletes a workaround rather than adding
 one**, and that comment must be removed with the code it describes, not left contradicting it.
 
@@ -594,6 +594,7 @@ count is fragile and this repo has recorded counts going stale repeatedly.
 After Phases 1–5 each is false.
 
 **Contract**:
+
 - `context/foundation/test-plan.md:642` — §5 gate row 1 (`lint + typecheck … required — wired today`) is presently false in **both** halves; it becomes true, but the local half is **`pre-push`, not `pre-commit` via lint-staged**, so the row's wording must say what is actually wired.
 - `context/foundation/test-plan.md:459` — §2 Risk #7: append a **fourth dated half**, per C10X-42's own idiom, retiring "`tsc` is in no gate".
 - `context/foundation/test-plan.md:652-686` — §5 prose: this gate earns its paragraph, including the fail-closed statement and the FM-1/FM-2 boundary.
@@ -621,8 +622,8 @@ by hand either — the diff for each of these must be the correction line and no
 is exactly what criterion 6.6 verifies by diff shape.
 
 **Contract**: The highest-value one is
-`context/archive/2026-07-25-candidate-review/reviews/impl-review.md:38-42` — *"`astro check`
-cannot be added as a CI gate until those three are fixed"* — an instruction addressed to this
+`context/archive/2026-07-25-candidate-review/reviews/impl-review.md:38-42` — _"`astro check`
+cannot be added as a CI gate until those three are fixed"_ — an instruction addressed to this
 change, whose three errors are measured gone. Also correct `test-plan.md §8`'s **mechanism**
 claim that "husky's installed half is gitignored": measured false — `grep -i husky .gitignore`
 has no match and `git check-ignore` returns not-ignored for all five paths. The ignoring is done
@@ -750,34 +751,34 @@ script run once by hand.
 
 #### Automated
 
-- [x] 2.1 Workflow file parses
+- [x] 2.1 Workflow file parses — 21c39ff
 - [ ] 2.2 Real CI run **on an open PR to `main`** shows `npm run typecheck` green, before `lint` (ship-time if no PR exists yet) — SHIP-TIME: no PR open at Phase 2 (`gh pr list` empty, branch unpushed), close at `/ship`
 - [ ] 2.3 Deliberate type error in a `.ts`/`.tsx`/`.astro` file on the PR branch turns the `ci` job red on that step; `build` / `supabase start` never run; reverted (ship-time if no PR exists yet) — SHIP-TIME: same reason, close at `/ship`
 
 #### Manual
 
-- [x] 2.4 Red run's log names file and line without an artifact download
+- [x] 2.4 Red run's log names file and line without an artifact download — 21c39ff
 - [ ] 2.5 CI step wall clock within ~2× the local measurement — SHIP-TIME: needs a CI run, close at `/ship` (local baseline 12.39 s, so the CI bar is ≤ ~25 s)
-- [x] 2.6 `deploy` and `drift` untouched
+- [x] 2.6 `deploy` and `drift` untouched — 21c39ff
 
 ### Phase 3: Doc hygiene before the hook
 
 #### Automated
 
-- [ ] 3.1 `prettier --check` exits 0 on `roadmap.md` + the three change-folder artifacts
-- [ ] 3.2 Idempotency: second `--write` is byte-identical for all four
-- [ ] 3.3 `prettier --check "context/archive/**/*.md"` matches no files (paired against its 9+ dirty files before `.prettierignore`)
-- [ ] 3.4 `npm run lint` exits 0
-- [ ] 3.5 `eslint --print-config` byte-identical before/after for `.ts`, `.tsx`, `.astro`, `.js`
-- [ ] 3.6 Hints gone at source, proved hint-visibly: bare `astro check` reports `- 0 hints` and `--minimumFailingSeverity hint` exits 0, against today's control (4 hints, exit 1) — or the escape hatch's measurement recorded instead
-- [ ] 3.7 `npm run typecheck` exits 0
-- [ ] 3.8 `npm test` green
+- [x] 3.1 `prettier --check` exits 0 on `roadmap.md` + the three change-folder artifacts
+- [x] 3.2 Idempotency: second `--write` is byte-identical for all four
+- [x] 3.3 `prettier --check "context/archive/**/*.md"` matches no files (paired against its 9+ dirty files before `.prettierignore`) — met as a PAIR, and the predicted message is corrected as observed: prettier 3 prints `All matched files use Prettier code style!` (exit 0), never "no files matched", so that sentence is true VACUOUSLY and is indistinguishable from a genuinely-clean run. The evidence is the pair plus `--list-different`: **116** dirty archive files before, **0 files considered** after, and a known-dirty file named EXPLICITLY on the command line (which is how `lint-staged` invokes prettier) is skipped
+- [x] 3.4 `npm run lint` exits 0
+- [x] 3.5 `eslint --print-config` byte-identical before/after for `.ts`, `.tsx`, `.astro`, `.js`
+- [x] 3.6 Hints gone at source, proved hint-visibly: bare `astro check` reports `- 0 hints` and `--minimumFailingSeverity hint` exits 0, against today's control (4 hints, exit 1) — or the escape hatch's measurement recorded instead — escape hatch NOT taken: all four `--print-config` oracles identical, so the migration landed and both halves of the line-1 rationale were measured FALSE
+- [x] 3.7 `npm run typecheck` exits 0
+- [x] 3.8 `npm test` green — 358/358, 31 files, seed 1785746530044
 
 #### Manual
 
-- [ ] 3.9 Four normalisation diffs read for the blockquote/code-span landmine class
-- [ ] 3.10 No `> ` prefix lost, no dated correction block reflowed
-- [ ] 3.11 ESLint config still lints an `.astro`, a `.tsx` and a `.ts` file
+- [x] 3.9 Four normalisation diffs read for the blockquote/code-span landmine class — read, and closed by SEQUENCE comparison rather than by eye: prettier's effect isolated (pristine vs pass-1, before any Progress edit) leaves blockquote lines, inline code spans, headings and links **all four at zero differences** in all four files. Residual content difference after normalising emphasis + whitespace + table padding is **0/0/0/0**, so the entire diff is `*x*`→`_x_`, table column padding, and one blank line before a list (`plan.md:597`)
+- [x] 3.10 No `> ` prefix lost, no dated correction block reflowed — strongest available form: **every `>` line is byte-identical, in order, in all four files**, which covers every dated block at once rather than by sampling. Spot-read confirms rendering, including the structurally riskiest element — the bare `>` continuation line inside `roadmap.md`'s C10X-40 correction block (`:435`), which is exactly what the recorded landmine strips
+- [x] 3.11 ESLint config still lints an `.astro`, a `.tsx` and a `.ts` file — proved FALSIFIABLY, because `npm run lint` exiting 0 is also what a config that ignores everything produces: a real rule violation injected into each of the three kinds turns each one red on `@typescript-eslint/no-unused-vars` carrying this project's own `/^_/u` option — i.e. the `extends` chain survived the migration and reaches `.astro` too. Restored, per-file MD5 identical, `git diff -- src/` empty
 
 ### Phase 4: The local hook
 
