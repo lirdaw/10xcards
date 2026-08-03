@@ -102,6 +102,75 @@ export function readSyncResult(output: string, status: number): SyncVerdict {
   };
 }
 
+/** What `readTscFailure` concluded about a captured, failing `tsc --noEmit` run. */
+export interface TscFailure {
+  /** Did `tsc` reject the CONFIG (the `TS5xxx` range) rather than the code? */
+  configError: boolean;
+  /** Explanation lines, ordered, to print under the runner's own header. */
+  lines: string[];
+}
+
+/**
+ * `TS5023`, `TS5025`, … — TypeScript's command-line/configuration range. A diagnostic in it means
+ * `tsconfig.json` itself is wrong, which is a different diagnosis from a wrong line of source.
+ */
+const CONFIG_ERROR = /\bTS5\d{3}\b/;
+
+/** `TS2307` on an `astro:*` specifier — the signature of generated types that never got made. */
+const STALE_TYPES = /TS2307[^\n]*astro:/;
+
+/**
+ * Explain why the `tsc` leg stopped the gate before `astro check` ran.
+ *
+ * **There are two reasons and they are not interchangeable — which is the defect this function
+ * exists to fix.** The runner used to print the config-error rationale unconditionally, so an
+ * ordinary `TS2322` came back as "a tsconfig error (TS5xxx) makes `astro check`'s own verdict
+ * untrustworthy". Measured on a real blocked push: a one-line type error in `src/lib/utils.ts`
+ * told the developer to go and look at `tsconfig.json`. That is verbatim the class this project
+ * keeps recording — a message naming a state the reader is not in — and on a `pre-push` hook it
+ * is worse than untidy, because the whole reason the gate sits on push rather than commit is to
+ * remove standing incentives to reach for `--no-verify`. A misdiagnosis is such an incentive.
+ *
+ * So the branch is on the diagnostics actually captured:
+ *
+ *   - a `TS5xxx` present → the config really is broken, and FM-2 applies: `astro check` would
+ *     report `0 errors` over the whole project anyway, because
+ *     @volar/kit/lib/createChecker.js:15-17 drops the parsed command line's `errors` array. Its
+ *     opinion is worthless here and is deliberately not collected.
+ *   - otherwise → ordinary type errors, and the reason to stop is that `astro check` has nothing
+ *     to add about them: it resolves the same `tsconfig.json` at the same strictness, so it
+ *     would reprint these same diagnostics at ~3× the cost.
+ *
+ * The stale-generated-types line rides along in both branches as a belt for the residue: leg 1
+ * (`astro sync`) has already run and succeeded by the time this is reached, so `astro:*` still
+ * being unresolved means something else broke the generated types, and the reader should be told
+ * the one command that rebuilds them. It ADDS a line; the runner never suppresses or rewrites
+ * `tsc`'s own output.
+ *
+ * @param output `tsc`'s combined stdout+stderr, ANSI already stripped by the runner.
+ */
+export function readTscFailure(output: string): TscFailure {
+  const configError = CONFIG_ERROR.test(output);
+
+  const lines = configError
+    ? [
+        "A tsconfig error (TS5xxx) makes `astro check`'s own verdict untrustworthy — it reports",
+        "`0 errors` over the whole project under a broken config — so its opinion is deliberately",
+        "not collected on top of this one. Fix `tsconfig.json` first.",
+      ]
+    : [
+        "These are ordinary type errors, not a config problem. `astro check` runs the same",
+        "compiler at the same strictness, so it would only reprint them at ~3× the cost; fix the",
+        "lines above and the gate re-runs both legs.",
+      ];
+
+  if (STALE_TYPES.test(output)) {
+    lines.push("Generated types look stale — run `npx astro sync` and try again.");
+  }
+
+  return { configError, lines };
+}
+
 /** What `readCheckResult` concluded about a captured `astro check` run. */
 export interface CheckVerdict {
   /**

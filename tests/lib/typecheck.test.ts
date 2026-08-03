@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 // `@/*` maps to `src/*` only, and the subject here is CI tooling under `scripts/` — see
 // test-plan.md §6.1 on why its test still sits in tests/lib/ beside the suite's other
 // pure-function files rather than in a tests/scripts/ folder holding one file.
-import { MIN_CHECKED_FILES, readCheckResult, readSyncResult } from "../../scripts/typecheck.ts";
+import { MIN_CHECKED_FILES, readCheckResult, readSyncResult, readTscFailure } from "../../scripts/typecheck.ts";
 
 // The half of the type gate that can be decided WITHOUT spawning a checker. The runner beside
 // it (./run-typecheck.ts) spawns `astro sync`, `tsc` and `astro check` and owns the exit code;
@@ -211,6 +211,85 @@ describe("readSyncResult", () => {
   // error is the wrong diagnosis, which is the whole reason this leg reports separately.
   it("explains a real failure by pointing at the config rather than at types", () => {
     expect(readSyncResult(SYNC_REAL_FAILURE, 1).reason).toContain("config");
+  });
+});
+
+/**
+ * An ordinary type error — measured 2026-08-03 from the Phase 4 hook probe, which is the run
+ * that exposed the defect this function fixes: a `TS2322` staged into `src/lib/utils.ts`,
+ * blocking a real `git push`.
+ */
+const TSC_ORDINARY = `src/lib/utils.ts(7,7): error TS2322: Type 'string' is not assignable to type 'number'.
+`;
+
+/**
+ * A genuine config error — measured 2026-08-03 by pointing `tsc` at a probe config carrying the
+ * plan's own FM-2 typo. Note the real code is **TS5025** (the "did you mean" variant), which is
+ * why the detector keys on the `TS5xxx` RANGE rather than on one code somebody wrote down.
+ */
+const TSC_CONFIG_ERROR = `tsconfig.probe.json(3,24): error TS5025: Unknown compiler option 'strctNullChecks'. Did you mean 'strictNullChecks'?
+`;
+
+/**
+ * Generated types missing — measured 2026-08-03 by moving `.astro/` aside, reproducing Phase 1's
+ * count exactly (13 diagnostics: `TS2307` on `astro:env/server` ×10, `astro:middleware` ×1, two
+ * `TS7006`). Elided to the head of the real output; the two codes that matter are both present.
+ */
+const TSC_STALE_TYPES = `src/lib/supabase.ts(3,44): error TS2307: Cannot find module 'astro:env/server' or its corresponding type declarations.
+src/middleware.ts(1,34): error TS2307: Cannot find module 'astro:middleware' or its corresponding type declarations.
+src/middleware.ts(43,50): error TS7006: Parameter 'context' implicitly has an 'any' type.
+`;
+
+describe("readTscFailure", () => {
+  // THE CASE THIS FUNCTION EXISTS FOR, and it is a regression test for a message that shipped
+  // wrong. The runner printed the config-error rationale for EVERY non-zero `tsc`, so the
+  // blocked push above told a developer whose defect was one line of `utils.ts` that their
+  // `tsconfig.json` was broken. Asserting the ABSENCE of "tsconfig" here is the point: the
+  // reader must not be sent to a file that is fine.
+  it("does not blame the config for an ordinary type error", () => {
+    const failure = readTscFailure(TSC_ORDINARY);
+
+    expect(failure.configError).toBe(false);
+    expect(failure.lines.join("\n")).not.toContain("tsconfig");
+    expect(failure.lines.join("\n")).not.toContain("TS5");
+  });
+
+  // THE POSITIVE CONTROL. Without it, a function that answers "ordinary type error" to
+  // everything satisfies the case above while destroying the FM-2 diagnosis — the one state
+  // where `astro check`'s silence is actively misleading and must be explained.
+  it("does blame the config for a TS5xxx, and says why astro check is not consulted", () => {
+    const failure = readTscFailure(TSC_CONFIG_ERROR);
+
+    expect(failure.configError).toBe(true);
+    expect(failure.lines.join("\n")).toContain("tsconfig");
+  });
+
+  // The residue belt: leg 1 (`astro sync`) has already succeeded by the time this is reached, so
+  // unresolved `astro:*` modules mean something else broke the generated types. The reader gets
+  // the one command that rebuilds them, appended to — never in place of — tsc's own output.
+  it("adds the sync hint when astro:* modules are unresolved", () => {
+    expect(readTscFailure(TSC_STALE_TYPES).lines.join("\n")).toContain("astro sync");
+  });
+
+  // …and that hint is CONDITIONAL, which is the same defect one line over: a belt printed on
+  // every failure is a second misdiagnosis, telling a developer with a plain type error to go
+  // and re-run a sync that has nothing to do with it.
+  it("withholds the sync hint when the types are fine", () => {
+    expect(readTscFailure(TSC_ORDINARY).lines.join("\n")).not.toContain("astro sync");
+  });
+
+  // Stale generated types are a `TS2307`/`TS7006` pile, not a config error — so they must take
+  // the ordinary branch and get the hint, rather than being explained as a broken tsconfig.
+  it("treats stale generated types as ordinary errors, not as a config error", () => {
+    expect(readTscFailure(TSC_STALE_TYPES).configError).toBe(false);
+  });
+
+  // Every branch has to say something: an empty explanation under the runner's own header is a
+  // failure with no diagnosis at all.
+  it("always explains itself", () => {
+    for (const output of [TSC_ORDINARY, TSC_CONFIG_ERROR, TSC_STALE_TYPES]) {
+      expect(readTscFailure(output).lines.length).toBeGreaterThan(0);
+    }
   });
 });
 

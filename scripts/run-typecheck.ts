@@ -43,7 +43,7 @@
 
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { MIN_CHECKED_FILES, readCheckResult, readSyncResult } from "./typecheck.ts";
+import { MIN_CHECKED_FILES, readCheckResult, readSyncResult, readTscFailure } from "./typecheck.ts";
 
 /**
  * Resolved from this file's own location, not from `process.cwd()`, so the gate checks the
@@ -90,9 +90,6 @@ function run(args: string[]): Ran {
   };
 }
 
-/** `TS2307` on an `astro:*` specifier — the signature of generated types that never got made. */
-const STALE_TYPES = /TS2307[^\n]*astro:/;
-
 function main(): number {
   // ── Leg 1: sync ────────────────────────────────────────────────────────────────────────
   // A sync failure is a DIFFERENT diagnosis from a type error — a broken `astro.config.mjs`
@@ -115,15 +112,13 @@ function main(): number {
   if (tsc.status !== 0) {
     console.log(tsc.output);
     console.error("typecheck: `tsc --noEmit` failed — stopping before `astro check`.");
-    console.error("  A tsconfig error (TS5xxx) makes `astro check`'s own verdict untrustworthy,");
-    console.error("  so its opinion is deliberately not collected on top of this one.");
 
-    // A belt for the residue rather than a substitute for leg 1: sync ran and succeeded above,
-    // so if `astro:*` modules are STILL unresolved something else is wrong with the generated
-    // types, and the reader should be told the one command that regenerates them. This ADDS a
-    // line; it never suppresses or rewrites tsc's own output.
-    if (STALE_TYPES.test(tsc.output.replace(ANSI, ""))) {
-      console.error("  Generated types look stale — run `npx astro sync` and try again.");
+    // WHICH reason applies is decided next door, on the captured diagnostics, because it is
+    // decidable without spawning anything and because printing the wrong one is a real cost:
+    // this branch used to assert "a tsconfig error (TS5xxx)" for EVERY non-zero tsc, so a plain
+    // `TS2322` sent the reader to `tsconfig.json`. See readTscFailure.
+    for (const line of readTscFailure(tsc.output.replace(ANSI, "")).lines) {
+      console.error(`  ${line}`);
     }
     return tsc.status;
   }
@@ -152,7 +147,11 @@ function main(): number {
   }
 
   if (check.status !== 0) {
-    console.error(`typecheck: astro check found errors across ${String(verdict.files)} files.`);
+    // "across N files" read as "N files have errors" — measured on a one-error probe that
+    // printed "found errors across 133 files". The count is the COVERAGE figure (it is what
+    // the floor above is asserted against), so it goes in the parenthetical where the green
+    // line already puts it, not in the sentence's object position.
+    console.error(`typecheck: astro check reported errors (${String(verdict.files)} files checked).`);
     return check.status;
   }
 
