@@ -3,7 +3,7 @@ change_id: typecheck-gate
 title: Typecheck gate — `tsc --noEmit` as an npm script and a CI step
 status: implementing
 created: 2026-08-02
-updated: 2026-08-02
+updated: 2026-08-03
 archived_at: null
 ---
 

@@ -20,6 +20,39 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx astro sync
+
+      # The type gate (C10X-43). Nothing above or below this line performed TypeScript
+      # diagnostics before it existed: `npm run lint` is ESLint with type-AWARE RULES (not `tsc`
+      # diagnostics), `astro build` does not run `astro check`, and `npm test` deliberately never
+      # collects `evals/**`. Measured rather than argued — reverting to `b015662` makes
+      # `tsc --noEmit` exit 2 on a single `TS2353` in `evals/generation-quality.eval.ts`, i.e.
+      # Risk #7's only acceptance instrument sat uncompilable behind two fully green runs.
+      #
+      # Placement, each item measured. Only `npm ci` has to precede it — no stack, no Docker, no
+      # credential, no `.env` (all four `envField` entries are `optional: true`). Before `build`,
+      # because `astro build` provably does not type-check. Far before `supabase start` (~1m46s),
+      # so a type error fails the run at roughly T+15 s instead of T+2 min. Before `lint` because
+      # type-aware ESLint rules degrade confusingly over a broken type graph — and NOT because it
+      # is cheaper: measured locally at 12.4 s typecheck against 12.0 s lint, so the two are
+      # within noise of each other and cost carries none of this ordering.
+      #
+      # This step sits on the DRIFT-GATE side of the asymmetry the Kong comment below draws, and
+      # each of that comment's own tests resolves that way: it has no flake mode (it spawns two
+      # first-party checkers over the checkout and touches nothing shared), CI is exactly where
+      # the defect it catches hid, and a red here is evidence about code that is about to ship.
+      # Hence no `continue-on-error` — fail-closed. State the corollary explicitly, because the
+      # Kong step below inverts it: a green `ci` job DOES imply this step passed, since
+      # `continue-on-error` is what reports a failed step's `conclusion` as `success` and this
+      # step carries none.
+      #
+      # `npx astro sync` stays its own step above even though the wrapper syncs too. A broken
+      # `astro.config.mjs` should read as "sync failed" at the step named for it, and AGENTS.md's
+      # sync-before-lint rule exists for `lint`, whose `projectService: true`
+      # (`eslint.config.js:18`) depends on `.astro/types.d.ts` — that contract must not quietly
+      # become a side effect of a different step. The duplicated ~1 s is what buys the wrapper
+      # being correct when invoked with no CI around it: a fresh clone, a branch switch, a push.
+      - run: npm run typecheck
+
       - run: npm run lint
       # No `env:` here, deliberately. `secrets.SUPABASE_URL` / `secrets.SUPABASE_KEY` do not
       # exist in this repository, so the block that used to sit here injected two empty strings

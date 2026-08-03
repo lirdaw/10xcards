@@ -727,38 +727,38 @@ script run once by hand.
 
 #### Automated
 
-- [x] 1.1 `npm run typecheck` exits 0 on the clean tree
-- [x] 1.2 `npx vitest run tests/lib/typecheck.test.ts` passes
-- [x] 1.3 `npm run lint` exits 0
-- [x] 1.4 Full suite green: `npm test`
-- [x] 1.5 Falsification A — `TS2322` probe under `src/lib/` turns it red
-- [x] 1.6 Falsification B — `.astro` frontmatter probe turns it red
-- [x] 1.7 Falsification C — C10X-41's `ts(2353)` defect turns it red
-- [x] 1.8 Falsification D (FM-1) — hidden `@astrojs/check` exits non-zero, with positive control
-- [x] 1.9 Falsification E (FM-2) — typo'd compiler option caught by the `tsc` leg
-- [x] 1.10 Falsification F — `.astro/` deleted still exits 0; control with the sync leg neutered exits non-zero and prints the "run `npx astro sync`" line
-- [x] 1.11 All probes deleted; tree clean and hash-verified
+- [x] 1.1 `npm run typecheck` exits 0 on the clean tree — 73e78fd
+- [x] 1.2 `npx vitest run tests/lib/typecheck.test.ts` passes — 73e78fd
+- [x] 1.3 `npm run lint` exits 0 — 73e78fd
+- [x] 1.4 Full suite green: `npm test` — 73e78fd
+- [x] 1.5 Falsification A — `TS2322` probe under `src/lib/` turns it red — 73e78fd
+- [x] 1.6 Falsification B — `.astro` frontmatter probe turns it red — 73e78fd
+- [x] 1.7 Falsification C — C10X-41's `ts(2353)` defect turns it red — 73e78fd
+- [x] 1.8 Falsification D (FM-1) — hidden `@astrojs/check` exits non-zero, with positive control — 73e78fd
+- [x] 1.9 Falsification E (FM-2) — typo'd compiler option caught by the `tsc` leg — 73e78fd
+- [x] 1.10 Falsification F — `.astro/` deleted still exits 0; control with the sync leg neutered exits non-zero and prints the "run `npx astro sync`" line — 73e78fd
+- [x] 1.11 All probes deleted; tree clean and hash-verified — 73e78fd
 
 #### Manual
 
-- [x] 1.12 Green run's output is empty of the 4 `ts(6387)` hints
-- [x] 1.13 FM-1 rejection message names what to install
-- [x] 1.14 Wall clock in the expected ~12 s band
-- [x] 1.15 A sync failure reports as "astro sync failed", not as a type error
+- [x] 1.12 Green run's output is empty of the 4 `ts(6387)` hints — 73e78fd
+- [x] 1.13 FM-1 rejection message names what to install — 73e78fd
+- [x] 1.14 Wall clock in the expected ~12 s band — 73e78fd
+- [x] 1.15 A sync failure reports as "astro sync failed", not as a type error — 73e78fd
 
 ### Phase 2: The CI step
 
 #### Automated
 
-- [ ] 2.1 Workflow file parses
-- [ ] 2.2 Real CI run **on an open PR to `main`** shows `npm run typecheck` green, before `lint` (ship-time if no PR exists yet)
-- [ ] 2.3 Deliberate type error in a `.ts`/`.tsx`/`.astro` file on the PR branch turns the `ci` job red on that step; `build` / `supabase start` never run; reverted (ship-time if no PR exists yet)
+- [x] 2.1 Workflow file parses
+- [ ] 2.2 Real CI run **on an open PR to `main`** shows `npm run typecheck` green, before `lint` (ship-time if no PR exists yet) — SHIP-TIME: no PR open at Phase 2 (`gh pr list` empty, branch unpushed), close at `/ship`
+- [ ] 2.3 Deliberate type error in a `.ts`/`.tsx`/`.astro` file on the PR branch turns the `ci` job red on that step; `build` / `supabase start` never run; reverted (ship-time if no PR exists yet) — SHIP-TIME: same reason, close at `/ship`
 
 #### Manual
 
-- [ ] 2.4 Red run's log names file and line without an artifact download
-- [ ] 2.5 CI step wall clock within ~2× the local measurement
-- [ ] 2.6 `deploy` and `drift` untouched
+- [x] 2.4 Red run's log names file and line without an artifact download
+- [ ] 2.5 CI step wall clock within ~2× the local measurement — SHIP-TIME: needs a CI run, close at `/ship` (local baseline 12.39 s, so the CI bar is ≤ ~25 s)
+- [x] 2.6 `deploy` and `drift` untouched
 
 ### Phase 3: Doc hygiene before the hook
 
