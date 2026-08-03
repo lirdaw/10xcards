@@ -9,7 +9,7 @@ Add a type gate — npm script, CI step, `pre-push` hook — so a TypeScript err
 hide behind a fully green `lint` + `build` + `test`. This is not hypothetical: reverting to
 `b015662` makes `tsc --noEmit` exit 2 on a `TS2353` in `evals/generation-quality.eval.ts`, so
 Risk #7's only acceptance instrument sat uncompilable for two fully green phases. None of the
-three existing gates performs TypeScript diagnostics — `lint` is ESLint with type-*aware rules*,
+three existing gates performs TypeScript diagnostics — `lint` is ESLint with type-_aware rules_,
 `astro build` does not type-check, and `npm test` never collects `evals/**`.
 
 ## Starting Point
@@ -32,16 +32,16 @@ in a job log.
 
 ## Key Decisions Made
 
-| Decision | Choice | Why (1 sentence) | Source |
-| --- | --- | --- | --- |
-| Which checker | `astro check`, not `tsc` | Genuine superset at identical strictness: 130 files = tsc's 112 + the 18 `.astro` this project keeps loaders and `?error=` reads in. | Research |
-| FM-1 (missing tooling exits 0) | Node wrapper in `scripts/` asserting the `Result (N files):` line | Works identically on Windows and Linux, and its pure half is testable exactly like `scripts/schema-drift.ts`. | Plan |
-| FM-2 (malformed tsconfig invisible) | Run `tsc --noEmit` too | The redundancy is not total — `tsc` reports `TS5xxx`, `astro check` reports zero; 2.7 s buys the class back. | Plan |
-| Placement | Between `astro sync` and `lint`, fail-closed | Cheaper than lint, before `build`, far before the ~1m46s stack start; the drift-gate side of `ci.yml:54-64`'s asymmetry. | Research |
-| Local hook | `pre-push` | 8–11 s per *commit* is a standing incentive to reach for `--no-verify`, which two rule files forbid absolutely. | Plan |
-| `noUncheckedIndexedAccess` | **In this change**, after the gate is green | Research recommended a separate ticket; the user chose to include it, so the flag and its 33 fixes land in one commit — the lint config makes any intermediate state red. | Plan |
-| Tidy-ups | `exclude: ["context"]`, `--minimumSeverity warning`, `.prettierignore` for `context/archive/**`, fix the 4 `ts(6387)` hints | Closes a local-vs-CI scope asymmetry, keeps the hook off archived evidence, and makes a green log genuinely empty rather than four lines a reader learns to skim. | Plan + review |
-| `eval.yml` | Correct the parenthetical, add no step | `eval.yml:10-15` defends across four documents that a red there is a *finding*; a typecheck red is a hygiene failure. | Research |
+| Decision                            | Choice                                                                                                                      | Why (1 sentence)                                                                                                                                                          | Source        |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| Which checker                       | `astro check`, not `tsc`                                                                                                    | Genuine superset at identical strictness: 130 files = tsc's 112 + the 18 `.astro` this project keeps loaders and `?error=` reads in.                                      | Research      |
+| FM-1 (missing tooling exits 0)      | Node wrapper in `scripts/` asserting the `Result (N files):` line                                                           | Works identically on Windows and Linux, and its pure half is testable exactly like `scripts/schema-drift.ts`.                                                             | Plan          |
+| FM-2 (malformed tsconfig invisible) | Run `tsc --noEmit` too                                                                                                      | The redundancy is not total — `tsc` reports `TS5xxx`, `astro check` reports zero; 2.7 s buys the class back.                                                              | Plan          |
+| Placement                           | Between `astro sync` and `lint`, fail-closed                                                                                | Cheaper than lint, before `build`, far before the ~1m46s stack start; the drift-gate side of `ci.yml:54-64`'s asymmetry.                                                  | Research      |
+| Local hook                          | `pre-push`                                                                                                                  | 8–11 s per _commit_ is a standing incentive to reach for `--no-verify`, which two rule files forbid absolutely.                                                           | Plan          |
+| `noUncheckedIndexedAccess`          | **In this change**, after the gate is green                                                                                 | Research recommended a separate ticket; the user chose to include it, so the flag and its 33 fixes land in one commit — the lint config makes any intermediate state red. | Plan          |
+| Tidy-ups                            | `exclude: ["context"]`, `--minimumSeverity warning`, `.prettierignore` for `context/archive/**`, fix the 4 `ts(6387)` hints | Closes a local-vs-CI scope asymmetry, keeps the hook off archived evidence, and makes a green log genuinely empty rather than four lines a reader learns to skim.         | Plan + review |
+| `eval.yml`                          | Correct the parenthetical, add no step                                                                                      | `eval.yml:10-15` defends across four documents that a red there is a _finding_; a typecheck red is a hygiene failure.                                                     | Research      |
 
 ## Scope
 
@@ -68,14 +68,14 @@ stale count, and this repo has recorded counts going stale four times.
 
 ## Phases at a Glance
 
-| Phase | What it delivers | Key risk |
-| --- | --- | --- |
-| 1. The gate, locally | Wrapper, script, `exclude`, unit test, five falsification runs | A probe left behind, or an FM-1 guard that cannot itself go red |
-| 2. The CI step | Fail-closed step before `lint` | Proving the red path needs a real scratch push |
-| 3. Doc hygiene | `.prettierignore` for `context/archive/**`, four staged docs normalised, 4 hints removed | `prettier --write` was already destructive and non-idempotent on this repo's markdown once |
-| 4. The local hook | `prepare: husky` + `.husky/pre-push` | Enabling husky also activates the tracked `pre-commit` — hence Phase 3 first |
-| 5. nUIA | Flag + 33 fixes in one commit | Three of the 33 change control flow, not just types |
-| 6. Doc-sync | 11 live edits, 17 dated corrections, roadmap H-11 | Rewriting a dated entry instead of appending a correction line |
+| Phase                | What it delivers                                                                         | Key risk                                                                                   |
+| -------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 1. The gate, locally | Wrapper, script, `exclude`, unit test, five falsification runs                           | A probe left behind, or an FM-1 guard that cannot itself go red                            |
+| 2. The CI step       | Fail-closed step before `lint`                                                           | Proving the red path needs a real scratch push                                             |
+| 3. Doc hygiene       | `.prettierignore` for `context/archive/**`, four staged docs normalised, 4 hints removed | `prettier --write` was already destructive and non-idempotent on this repo's markdown once |
+| 4. The local hook    | `prepare: husky` + `.husky/pre-push`                                                     | Enabling husky also activates the tracked `pre-commit` — hence Phase 3 first               |
+| 5. nUIA              | Flag + 33 fixes in one commit                                                            | Three of the 33 change control flow, not just types                                        |
+| 6. Doc-sync          | 11 live edits, 17 dated corrections, roadmap H-11                                        | Rewriting a dated entry instead of appending a correction line                             |
 
 **Prerequisites:** none beyond a clean tree — the gate needs no `.env`, no database, no Docker
 and no network (all measured).

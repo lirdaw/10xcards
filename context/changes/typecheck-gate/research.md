@@ -33,8 +33,8 @@ Charter: `context/archive/2026-07-31-forced-language-prompt-fix/follow-ups/typec
 **The gate can be wired green today, and that is the first thing worth knowing** — the
 follow-up's central fear ("a gate that has to be weakened on day one is worse than none")
 does not materialise. Both candidates exit **0** on the current tree. A standing blocker
-addressed directly at this change — *"`astro check` cannot be added as a CI gate until
-those three are fixed"*
+addressed directly at this change — _"`astro check` cannot be added as a CI gate until
+those three are fixed"_
 (`context/archive/2026-07-25-candidate-review/reviews/impl-review.md:38-42`) — is measured
 **false**: those three pre-existing errors are gone.
 
@@ -57,8 +57,8 @@ own tooling is missing (proven with a positive control: the same broken file, ex
 the package present, exit **0** with it hidden, `[ERROR]` printed either way), and it is
 **blind to a malformed `tsconfig.json`** (a typo'd `strct: true` silently disables strict
 mode; `tsc` exits 2, `astro check` reports `0 errors`). Both are verbatim the class
-`lessons.md` records as *"bramka, która nie potrafi zaświecić na czerwono, jest gorsza niż
-jej brak"*. **Neither is a reason to reject the gate — both are reasons the wiring must
+`lessons.md` records as _"bramka, która nie potrafi zaświecić na czerwono, jest gorsza niż
+jej brak"_. **Neither is a reason to reject the gate — both are reasons the wiring must
 carry an assertion on the `Result (N files):` line rather than trusting the exit code
 alone.** This is the single most important finding in this document.
 
@@ -80,12 +80,12 @@ C10X-41's F3 statically, which is the whole argument.
 
 All measurements on `main` @ `9fb37bb`, clean tree, this machine.
 
-| Command | Exit | Scope | Wall clock |
-| --- | --- | --- | --- |
-| `npx tsc --noEmit` | **0** | 112 root input files, **0 × `.astro`** | ~2.65 s |
-| `npx astro check` | **0** | **130 files**, `0 errors / 0 warnings / 4 hints` | 8.0–8.6 s (5 runs) |
-| `npm run lint` | 0 | — | ~12.3 s |
-| `npx astro sync` | 0 | — | ~2.9 s |
+| Command            | Exit  | Scope                                            | Wall clock         |
+| ------------------ | ----- | ------------------------------------------------ | ------------------ |
+| `npx tsc --noEmit` | **0** | 112 root input files, **0 × `.astro`**           | ~2.65 s            |
+| `npx astro check`  | **0** | **130 files**, `0 errors / 0 warnings / 4 hints` | 8.0–8.6 s (5 runs) |
+| `npm run lint`     | 0     | —                                                | ~12.3 s            |
+| `npx astro sync`   | 0     | —                                                | ~2.9 s             |
 
 **`scripts/` passes** — the charter's explicit "confirm rather than assume" item is
 resolved. All 4 files are in the program and both commands are green over them, despite
@@ -95,7 +95,7 @@ weakening is needed on day one.
 **Retired blocker.** `context/archive/2026-07-25-candidate-review/reviews/impl-review.md:38-42`
 recorded three pre-existing `astro check` errors in `vitest.config.ts`,
 `tests/fixtures/endpoint.ts` and `tests/fixtures/session.ts`, and left an instruction for a
-future phase: *"`astro check` cannot be added as a CI gate until those three are fixed."*
+future phase: _"`astro check` cannot be added as a CI gate until those three are fixed."_
 Measured today: **0 errors**. That instruction is addressed to this change and is now
 satisfied — it should get a dated correction line in the archive rather than a rewrite.
 
@@ -106,14 +106,14 @@ measure different things. Stating this precisely matters, because this repo has 
 count going stale four separate times:
 
 - **112** — root input files, from `tsc --showConfig` (the `files` array after glob expansion).
-- **115** — files in the tsc *program*, from `--listFilesOnly`: the 112 roots plus 3
+- **115** — files in the tsc _program_, from `--listFilesOnly`: the 112 roots plus 3
   transitively-pulled `.d.ts` (`.astro/content.d.ts`, `.astro/env.d.ts`, the Cloudflare
   integration shim). Those 3 are not type-checked by either tool — `astro/tsconfigs/base`
   sets `skipLibCheck: true`.
 - **130** — `astro check` = 112 roots + **18** `.astro` files.
 
 `git ls-files "*.astro"` returns **18**. A `find`-based count returns 19 because it matches
-the generated directory `./.astro`, whose *name* ends in `.astro`. The arithmetic
+the generated directory `./.astro`, whose _name_ ends in `.astro`. The arithmetic
 corroborates: 130 − 112 = 18.
 
 ### 2. `astro check` is a genuine superset — same tsconfig, same strictness
@@ -141,14 +141,14 @@ installed.
 lockfile-pinned version, with a **positive control**. Both halves are now measured. Every
 probe was deleted immediately and the tree verified clean afterwards.
 
-| Class | Probe | Exit | Verbatim diagnostic |
-| --- | --- | --- | --- |
-| plain `.ts` under `src/` | `src/lib/__typecheck_probe_a.ts` | **1** | `error ts(2322): Type 'string' is not assignable to type 'number'.` |
-| **`.astro` frontmatter** | `src/pages/__typecheck_probe_b.astro` | **1** | `error ts(2322)` at `:2:7` |
-| **`.astro` template props** | `src/pages/__typecheck_probe_h.astro` | **1** | `error ts(2322)` on `<ServerError message={42} />` |
-| `evals/` | `evals/__typecheck_probe_c.ts` | **1** | `error ts(2322)` |
-| `.tsx` strictness | `src/components/__typecheck_probe_g.tsx` | **1** | `error ts(18047): 'value' is possibly 'null'.` |
-| **the historical C10X-41 defect** | `evals/__typecheck_probe_d.ts` | **1** | `error ts(2353): Object literal may only specify known properties, and 'language' does not exist in type 'GenerateArgs'.` |
+| Class                             | Probe                                    | Exit  | Verbatim diagnostic                                                                                                       |
+| --------------------------------- | ---------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------- |
+| plain `.ts` under `src/`          | `src/lib/__typecheck_probe_a.ts`         | **1** | `error ts(2322): Type 'string' is not assignable to type 'number'.`                                                       |
+| **`.astro` frontmatter**          | `src/pages/__typecheck_probe_b.astro`    | **1** | `error ts(2322)` at `:2:7`                                                                                                |
+| **`.astro` template props**       | `src/pages/__typecheck_probe_h.astro`    | **1** | `error ts(2322)` on `<ServerError message={42} />`                                                                        |
+| `evals/`                          | `evals/__typecheck_probe_c.ts`           | **1** | `error ts(2322)`                                                                                                          |
+| `.tsx` strictness                 | `src/components/__typecheck_probe_g.tsx` | **1** | `error ts(18047): 'value' is possibly 'null'.`                                                                            |
+| **the historical C10X-41 defect** | `evals/__typecheck_probe_d.ts`           | **1** | `error ts(2353): Object literal may only specify known properties, and 'language' does not exist in type 'GenerateArgs'.` |
 
 The last row is the acceptance evidence for the whole ticket: the defect that sat behind two
 fully green phases is caught by this gate. The two `.astro` rows are the evidence for the
@@ -238,11 +238,11 @@ The 4 pre-existing diagnostics are `ts(6387)` tseslint deprecation notices at
 `eslint.config.js:14,40,62,71`. **They print with a yellow `warning` label but are tallied
 as hints** — disambiguated by measurement, not by reading the label:
 
-| Flag | Exit |
-| --- | --- |
-| default (`error`) | 0 |
-| `--minimumFailingSeverity warning` | 0 |
-| `--minimumFailingSeverity hint` | **1** |
+| Flag                               | Exit  |
+| ---------------------------------- | ----- |
+| default (`error`)                  | 0     |
+| `--minimumFailingSeverity warning` | 0     |
+| `--minimumFailingSeverity hint`    | **1** |
 
 Had they been severity `Warning`, the middle row would have failed. So: **at the default, only
 `errors > 0` fails the gate** — correct for a gate.
@@ -290,7 +290,7 @@ will skim the fifth.
 Justification, all from measurement:
 
 - **Only `npm ci` must precede it.** No stack, no Docker, no credential, no `.env`.
-- **Before `lint`, and this is the counter-intuitive part**: typecheck (8.4 s) is *cheaper*
+- **Before `lint`, and this is the counter-intuitive part**: typecheck (8.4 s) is _cheaper_
   than lint (12.3 s), and type-aware ESLint rules degrade confusingly when types are broken —
   a type error surfacing as a lint error is a worse signal than the reverse.
 - **Before `build`**, because `astro build` provably does not type-check — the exact premise
@@ -308,9 +308,9 @@ lint would silently lose its types; and the cost is ~1 s.
 **`deploy` should not typecheck.** It declares `needs: [ci, drift]` with no `always()` escape
 (`ci.yml:126-128`) and runs on the same commit. Its `npm ci` + `astro sync` + `build` are
 **artifact-production** steps — `wrangler deploy` needs `dist/` — not gates. A typecheck
-produces no artifact. The repo states the principle itself at `ci.yml:119-121`: *"which is
+produces no artifact. The repo states the principle itself at `ci.yml:119-121`: _"which is
 what keeps this job at seconds rather than minutes on the path between merge and deploy.
-Keep it that way."*
+Keep it that way."_
 
 **`paths-ignore` has no consequence today** — zero `.ts`/`.tsx`/`.astro` files exist under
 `context/`. But there is a cheap forward-looking hole worth closing while here:
@@ -324,12 +324,12 @@ their scope by construction.
 This is the drift-gate side of the asymmetry `ci.yml:54-64` names, not the Kong side. That
 comment's own test clause, applied item by item, inverts on every one:
 
-| Kong step's reason to be advisory | Typecheck step |
-| --- | --- |
+| Kong step's reason to be advisory                              | Typecheck step                                                                             |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | "an unsupported `docker` operation" breakable by a CLI upgrade | first-party `tsc` / `@astrojs/check`; no Docker, network or credential — **no flake mode** |
-| CI "structurally immune" to what it fixes | CI is exactly where this defect hid — a real `TS2353` behind two green phases |
-| "its own justification is cosmetic" (local parity) | evidence about code that ships to production |
-| a red is "ADVISORY … never evidence about the code" | a red **is** evidence about the code |
+| CI "structurally immune" to what it fixes                      | CI is exactly where this defect hid — a real `TS2353` behind two green phases              |
+| "its own justification is cosmetic" (local parity)             | evidence about code that ships to production                                               |
+| a red is "ADVISORY … never evidence about the code"            | a red **is** evidence about the code                                                       |
 
 And the decisive one: `continue-on-error` makes a step's `conclusion` report `success` on
 failure (the pre-tolerance value lives in `outcome`, which the run API does not return
@@ -357,9 +357,9 @@ parenthetical becomes false.
 
 **Do not add a typecheck step to `eval.yml`.** The case for is real (it spends money in CI,
 and the file already contains the identical placement argument at `eval.yml:94-97` for the key
-guard: *"The guard's whole value is placement"*). But the case against wins: `eval.yml:10-15`
-defends, across four documents, **what a red in that file means** — *"Read a red run here as a
-FINDING, not as a hygiene failure."* A typecheck red is precisely a hygiene failure.
+guard: _"The guard's whole value is placement"_). But the case against wins: `eval.yml:10-15`
+defends, across four documents, **what a red in that file means** — _"Read a red run here as a
+FINDING, not as a hygiene failure."_ A typecheck red is precisely a hygiene failure.
 Introducing a categorically different red either weakens that header or forces a caveat into
 it. Meanwhile `ci.yml` already covers `evals/` on every push and PR to `main`, so the only
 residue is a dispatch from a feature branch — the exploratory use the workflow exists for,
@@ -382,11 +382,11 @@ missing wire, not a stale install.
 sets `(o.scripts ||= {}).prepare = 'husky'` — the v9 idiom is the bare word **`husky`**;
 `bin.js:24` prints `husky - install command is DEPRECATED` for the v8 spelling. Then run it
 once in this tree; nothing retroactively fixes an existing checkout.
-**CI-safe with no `|| true`**: `index.js:11` *returns a string* when `.git` is absent rather
+**CI-safe with no `|| true`**: `index.js:11` _returns a string_ when `.git` is absent rather
 than throwing, and `bin.js:26` only writes it to stdout — exit code is always 0.
 
-**The `.gitignore` claim in `test-plan.md §8` is wrong as stated.** It says *"husky's
-installed half is gitignored"*. Measured: `grep -i husky .gitignore` → **no match**, and
+**The `.gitignore` claim in `test-plan.md §8` is wrong as stated.** It says _"husky's
+installed half is gitignored"_. Measured: `grep -i husky .gitignore` → **no match**, and
 `git check-ignore -q` returns exit 1 (not ignored) for all five of `.husky`,
 `.husky/pre-commit`, `.husky/_`, `.husky/_/h`, `.husky/_/pre-commit`. The ignoring is done by
 a file **husky itself writes** (`index.js:20` creates `.husky/_/.gitignore` containing `*`).
@@ -397,9 +397,9 @@ reader grepping for something that is not there.
 
 #### The lint-staged trap — documented in lint-staged's own README
 
-`node_modules/lint-staged/README.md:1077-1092` carries this FAQ verbatim: *"How can I resolve
-TypeScript (`tsc`) ignoring `tsconfig.json` when `lint-staged` runs via Husky hooks?"* — root
-cause: *"lint-staged automatically passes matched staged files as arguments"*, and certain
+`node_modules/lint-staged/README.md:1077-1092` carries this FAQ verbatim: _"How can I resolve
+TypeScript (`tsc`) ignoring `tsconfig.json` when `lint-staged` runs via Husky hooks?"_ — root
+cause: _"lint-staged automatically passes matched staged files as arguments"_, and certain
 inputs make TypeScript discard `tsconfig.json` (`TS17004`, `TS1056`).
 
 In **this** repo that would mean: every `@/…` import unresolved (AGENTS.md mandates them),
@@ -412,7 +412,7 @@ positional file arguments (`--root`, `-w`, `--tsconfig`, the two severity flags,
 anyway** — and since lint-staged chunks long file lists, a large commit runs the full 8.4 s
 check **once per chunk**. The glob becomes a lie without ever going red.
 
-The documented workaround (a *function* value in the config, which gets no arguments appended)
+The documented workaround (a _function_ value in the config, which gets no arguments appended)
 is **unavailable here**: this repo's lint-staged config lives in `package.json:73-80`, which
 is JSON and cannot hold a function. Using it requires first extracting the config to
 `lint-staged.config.js` — a second change with its own blast radius.
@@ -474,14 +474,14 @@ list alone the answer would be "not worth it."**
 was recovered from `ec0959f` — five sites assigning `PROMPT_LANGUAGE_NAMES[code]` into
 non-optional `string` fields — and compiled both ways:
 
-| Flags | Result |
-| --- | --- |
-| `--strict` (today's effective strictness) | **exit 0, 0 errors** |
-| `--strict --noUncheckedIndexedAccess` | **exit 2, 5 × TS2322** |
+| Flags                                     | Result                 |
+| ----------------------------------------- | ---------------------- |
+| `--strict` (today's effective strictness) | **exit 0, 0 errors**   |
+| `--strict --noUncheckedIndexedAccess`     | **exit 2, 5 × TS2322** |
 
 It catches the dotted form (`PROMPT_LANGUAGE_NAMES.fr`) too, which is not obvious and was
 checked rather than assumed. The compound point: the hand-written guard that replaced F3 is
-recorded by its own impl-review as *"not proved falsifiable by execution"* — it fires during
+recorded by its own impl-review as _"not proved falsifiable by execution"_ — it fires during
 collection behind the eval's inverse preflight, so exercising it needs a paid provider run.
 nUIA would have caught it statically and for free.
 
@@ -493,7 +493,7 @@ guarantee twice in reviewer attention.
 **Two constraints shape every fix.** `@typescript-eslint/no-non-null-assertion` is **error**,
 so `!` is unavailable — every fix must be `?.` / `??` / an explicit guard (zero `!` exist in
 the repo today). And `no-unnecessary-condition` is **error**, which is why
-`src/components/study/StudySession.tsx:170-172` carries a comment explaining it *cannot* write
+`src/components/study/StudySession.tsx:170-172` carries a comment explaining it _cannot_ write
 an honest `if (!card)` guard while nUIA is off. **Enabling the flag deletes a workaround
 rather than adding one.**
 
@@ -516,19 +516,19 @@ Produced by enumeration. The **list** is the contract; the count is fragile.
 
 **LIVE — must be edited (11):**
 
-| Location | Claim |
-| --- | --- |
-| `context/foundation/test-plan.md:642` | §5 gate table row 1: `lint + typecheck \| local (husky pre-commit via lint-staged) + CI \| required — wired today`. **Already false today in both halves** — this change makes it true. |
-| `context/foundation/test-plan.md:459` | §2 Risk #7: *"`tsc` is in no gate…"*. Append a **fourth dated half**, per C10X-42's own idiom. |
-| `context/foundation/test-plan.md:652-686` | §5 prose — each gate earns a paragraph; this one needs its fail-closed statement. |
-| `README.md:49` | Available Scripts — add `typecheck`; *"type-checked rules"* is the exact confusion the charter names. |
-| `README.md:169-178` | `## CI` job inventory. |
-| `AGENTS.md:22` | Commands. |
-| `AGENTS.md:9` | The `astro sync` ordering rule now binds this step too. |
-| `.github/workflows/eval.yml:217` | The only falsified claim that **ships as executable output**. |
-| `src/lib/flashcards.ts:30` | Production comment: *"no script runs `astro check`"* — load-bearing design rationale for two optional fields. |
-| `tests/review/candidates.test.ts:855` | *"with no type gate to catch the difference."* |
-| `context/foundation/jira-map.md:86` | Empty `Change ID` **and** a stale source path (points at `context/changes/…` for an archived change). ⚠️ Owned by the Jira skills — `jira-map.md:3-4` says do not hand-edit. Flag, do not edit. |
+| Location                                  | Claim                                                                                                                                                                                           |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `context/foundation/test-plan.md:642`     | §5 gate table row 1: `lint + typecheck \| local (husky pre-commit via lint-staged) + CI \| required — wired today`. **Already false today in both halves** — this change makes it true.         |
+| `context/foundation/test-plan.md:459`     | §2 Risk #7: _"`tsc` is in no gate…"_. Append a **fourth dated half**, per C10X-42's own idiom.                                                                                                  |
+| `context/foundation/test-plan.md:652-686` | §5 prose — each gate earns a paragraph; this one needs its fail-closed statement.                                                                                                               |
+| `README.md:49`                            | Available Scripts — add `typecheck`; _"type-checked rules"_ is the exact confusion the charter names.                                                                                           |
+| `README.md:169-178`                       | `## CI` job inventory.                                                                                                                                                                          |
+| `AGENTS.md:22`                            | Commands.                                                                                                                                                                                       |
+| `AGENTS.md:9`                             | The `astro sync` ordering rule now binds this step too.                                                                                                                                         |
+| `.github/workflows/eval.yml:217`          | The only falsified claim that **ships as executable output**.                                                                                                                                   |
+| `src/lib/flashcards.ts:30`                | Production comment: _"no script runs `astro check`"_ — load-bearing design rationale for two optional fields.                                                                                   |
+| `tests/review/candidates.test.ts:855`     | _"with no type gate to catch the difference."_                                                                                                                                                  |
+| `context/foundation/jira-map.md:86`       | Empty `Change ID` **and** a stale source path (points at `context/changes/…` for an archived change). ⚠️ Owned by the Jira skills — `jira-map.md:3-4` says do not hand-edit. Flag, do not edit. |
 
 **HISTORICAL — dated correction line, never rewritten (17):** `test-plan.md` §6.6's C10X-41
 and C10X-42 entries and four §8 ledger lines; the charter file itself; C10X-41's
@@ -561,7 +561,7 @@ per the H-03 precedent: `context/foundation/roadmap.md:349`, and `jira-map.md:34
 - `.github/workflows/eval.yml:217` — the executable false claim
 - `.github/workflows/eval.yml:10-15` — the "a red here is a FINDING" paragraph that argues against a typecheck step in that file
 - `.github/workflows/eval.yml:94-97` — the placement-guard precedent
-- `src/lib/flashcards.ts:25-31` — two fields optional *because* nothing type-checks
+- `src/lib/flashcards.ts:25-31` — two fields optional _because_ nothing type-checks
 - `src/components/study/StudySession.tsx:170-172` — the workaround comment nUIA would delete
 - `src/lib/auth-errors.ts:259-265` — the hand-hardened `Record` lookup on upstream input
 - `astro.config.mjs:16-23` — all four `envField` entries `optional: true`; why no `.env` is needed
@@ -581,15 +581,15 @@ of which always exit 0. `astro check` exits 0 in two situations nobody would pre
 tooling and a malformed tsconfig — which means the lesson generalises further than the entry
 that records it: **the failure mode is not "this vendor's CLI is sloppy" but "an exit code is
 a summary, and summaries lose information."** The mitigation is the same one the drift runner
-already uses: assert on *content*, not on `$?`.
+already uses: assert on _content_, not on `$?`.
 
 **Fail-closed vs advisory is a per-gate decision with a written justification, not a default.**
 This repo ships one of each in the same job and states the discriminator inline
 (`ci.yml:54-64`). Applying that written test — rather than inventing a new rationale — resolves
 this change's version in four lines.
 
-**Two claims, two homes.** §2's risk row is the *coverage* claim; §6.6's entry is the
-*mechanism*. The house rule is that they are written to be read together and must not drift —
+**Two claims, two homes.** §2's risk row is the _coverage_ claim; §6.6's entry is the
+_mechanism_. The house rule is that they are written to be read together and must not drift —
 and where they conflict, §2 is the coverage claim.
 
 **Live claims are edited; dated entries take a correction line.** The count of "human-triggered"
@@ -608,8 +608,8 @@ its value.
   charter. Its measurement (`b015662` → `TS2353`, exit 2) is the defect this gate is named for.
 - `context/archive/2026-07-31-forced-language-prompt-fix/reviews/impl-review.md:137-162` — F3,
   which named nUIA's absence explicitly and worked around it by hand.
-- **`context/archive/2026-07-25-candidate-review/reviews/impl-review.md:38-42`** — *"`astro
-  check` cannot be added as a CI gate until those three are fixed."* Measured false today; the
+- **`context/archive/2026-07-25-candidate-review/reviews/impl-review.md:38-42`** — _"`astro
+check` cannot be added as a CI gate until those three are fixed."_ Measured false today; the
   instruction is discharged.
 - `context/archive/2026-07-05-per-user-data-isolation/reviews/plan-review.md:64` — the earliest
   instance of this finding, **2026-07-05**: nearly a month before the charter was written.
@@ -617,8 +617,8 @@ its value.
   `GATE UNAVAILABLE` vs a real finding, the rehearsal-as-a-pair with a positive control, and
   the rule that a gate carrying no test must say so rather than imply it.
 - `context/archive/2026-08-02-eval-ci-dispatch/` — the immediately preceding change; nine sites
-  record the `evals/`-has-no-type-gate boundary, and `jira-map.md` draws it as *"C10X-42 gives
-  running-in-CI, C10X-43 gives compilability. Do not merge the two."*
+  record the `evals/`-has-no-type-gate boundary, and `jira-map.md` draws it as _"C10X-42 gives
+  running-in-CI, C10X-43 gives compilability. Do not merge the two."_
 
 ## Related Research
 
