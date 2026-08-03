@@ -71,6 +71,13 @@ by-hand prettier check is genuinely necessary.
 - **Detail**: The step prints "a message naming a preflight abort as the likely cause" when `eval-summary.log` is absent. At least four states produce that absence: a preflight abort, a collection-time error (the plan-brief itself names this as live — `evals/` is under no type gate, C10X-43), a step-timeout kill, and any crash before `afterAll`. With every stream redirected to a file, the job log's only diagnostic in those states is a sentence asserting the one cause that may not be the actual one — the reassurance-shaped inference this repo has already had to measure and retract (C10X-39).
 
   And no phase exercises the branch. Phase 4's controlled red uses a bogus `generator_model`, which throws **inside** a test, so `afterAll` still runs and both report files exist (correctly predicted by criterion 4.4's "three files for both runs"). The branch written to prevent a bare `cat: No such file` ships unexecuted.
+
+  > **Dated correction, 2026-08-03 (C10X-43).** The parenthetical "`evals/` is under no type gate,
+  > C10X-43" is no longer true — it is, in the `ci` job and on `pre-push`. The finding is not
+  > rewritten, and nothing in its substance moves: **a type gate does not see a collection-time
+  > error**, so that cause stays live and the branch this finding produced still has to enumerate
+  > it. `eval.yml`'s own message was corrected in place for exactly that reason — the parenthetical
+  > changed, cause #2 did not.
 - **Fix**: When `eval-summary.log` is absent, tail `eval-console.log` (last ~40 lines) into the job log instead of guessing, and list the absence's causes rather than one — a preflight abort is recognisable from its own `Eval preflight failed:` string, which the tail will carry. Then either exercise the branch in Phase 4 or state it in the write-up as an unexercised branch.
   - Strength: The tail is self-diagnosing for all four causes and costs one line.
   - Tradeoff: A tail can print card text if the failure lands mid-run; bounding it to the last N lines weakens (does not break) the "no card text in the log" property.

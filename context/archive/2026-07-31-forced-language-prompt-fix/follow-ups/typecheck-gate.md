@@ -4,6 +4,34 @@
 > impl-review. **To be ticketed via `/jira-backlog-sync`** — no ticket is created by this
 > change, deliberately.
 
+> **DISCHARGED 2026-08-03 by C10X-43 (`typecheck-gate`, roadmap H-11).** This charter is left
+> standing verbatim — including its title, which was accurate the day it was written and is the
+> reason the ticket exists. It was ticketed as predicted, and every item under "What the ticket
+> should cover" was taken:
+>
+> - **A `typecheck` script and a CI step** — `npm run typecheck`, and one fail-closed step in the
+>   `ci` job between `astro sync` and `lint`. The script is a **wrapper**, not `tsc --noEmit`
+>   alone, and it is `astro check` preceded by `tsc`: `tsc` type-checks **zero** `.astro` files,
+>   and this project keeps its SSR loaders, its `?error=` reads and its `visibleConfigStatuses`
+>   call in `.astro` frontmatter. It also does not trust either checker's exit code — `astro check`
+>   exits **0** with its own tooling missing and is blind to a malformed `tsconfig.json`, so the
+>   wrapper asserts on the `Result (N files):` line and runs `tsc` first.
+> - **Blast radius decided before wiring** — and the charter's central fear did not materialise:
+>   `scripts/` passes as-is despite being AGENTS.md's documented exception to the import rules, so
+>   nothing had to be weakened on day one. `context` was added to `tsconfig.json`'s `exclude` so
+>   the local gate and CI agree on scope by construction.
+> - **Sequenced against `npx astro sync`** — and more tightly than this charter asked: the wrapper
+>   syncs itself, because the tsc-first short-circuit would otherwise skip the only self-syncing
+>   leg and answer 13 errors naming files nobody touched.
+> - **`noUncheckedIndexedAccess` scoped deliberately, and taken IN** — 33 diagnostics across 13
+>   files, swept in one commit. Zero were latent defects; the argument is exactly the one this
+>   charter makes, and it was reproduced as a pair rather than asserted.
+>
+> One thing this charter got right that is easy to lose: the closing "What it is NOT" holds
+> unchanged. The eval's isolation from `npm test` is byte-identical, and it is now both outside the
+> test run and type-checked. And one boundary the charter could not have known to state: the gate
+> proves `evals/` **compiles**, never that it RAN, and it cannot see a collection-time error at all.
+
 ## Why this exists
 
 C10X-41 did not find this by reasoning about the gate set; it tripped over it. Phase 3

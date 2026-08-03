@@ -480,6 +480,10 @@ fails in 2 seconds instead of after a 60-second install, and it matches the hous
 - **This change is the first automation to touch `evals/` at all**, which is exposed because
   `evals/` sits under no type gate (C10X-43 open). A `TS2353` there surfaces only at run time —
   after paid calls. Worth one sentence, not a scope change.
+  > **Dated correction, 2026-08-03:** C10X-43 shipped; `evals/` is type-checked and a `TS2353`
+  > there now fails the `ci` job and blocks a `git push`. Not rewritten — and note the bullet above
+  > it, "keep `tsc --noEmit` out" of `eval.yml`, is **still the shipped decision** and was not
+  > revisited by C10X-43.
 - **The repo's recurring failure shape appears again, twice.** "A command that always exits 0 is
   not a gate" (`lessons.md`) is the `tee`-without-pipefail trap; and a claim written from
   inference that reads as reassurance — the console-swallowing comment — is the same class as the

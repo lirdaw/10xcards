@@ -90,6 +90,10 @@ provider spend.
   capacity globally per account.
 - `evals/` is under no type gate (C10X-43 open), so a type error there still surfaces only at run
   time, after paid calls. In scope to name, not to fix.
+  > **Dated correction, 2026-08-03:** C10X-43 shipped, so `evals/` IS type-checked — in the `ci`
+  > job and on `pre-push`. Not rewritten; naming this and not fixing it was the right call and the
+  > ticket it named closed six days later. The half that survives: a **collection-time** error in
+  > `evals/` still surfaces only at run time, after paid calls, because no type gate sees one.
 - Artifacts on a public repository are downloadable by any signed-in user and are **not** covered by
   secret masking. The move narrows exposure; it does not remove it.
 - Preflight proves a key *string* exists, never that it *works* — a truthy but invalid key passes

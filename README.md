@@ -46,9 +46,10 @@ npm run dev
 - `npm run dev` - Start development server (Cloudflare workerd runtime)
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build
-- `npm run lint` - Run ESLint with type-checked rules
+- `npm run typecheck` - The type gate: `astro sync`, then `tsc --noEmit`, then `astro check` over all 133 files (`src/`, `tests/`, `evals/`, `scripts/`, the root configs, and the 18 `.astro` templates `tsc` cannot see). Runs in CI and on `git push` via a husky `pre-push` hook
+- `npm run lint` - Run ESLint with **type-aware rules** — note this is not the same thing as a type check: it reads types to decide rules, and reports no `tsc` diagnostic. That distinction is why `npm run typecheck` exists as a separate script
 - `npm run lint:fix` - Auto-fix ESLint issues
-- `npm run format` - Run Prettier
+- `npm run format` - Run Prettier. Note `context/archive/**` is in `.prettierignore`, so archived evidence is never reformatted (dated corrections are appended to it, never rewrites)
 
 ## Project Structure
 
@@ -168,9 +169,15 @@ Set `SUPABASE_URL` and `SUPABASE_KEY` as secrets in your Cloudflare dashboard or
 
 GitHub Actions runs on every push and PR to `main`, in three jobs:
 
-1. **`ci`** — lint, build, then a local Supabase stack for the test suite. It also
+1. **`ci`** — typecheck, lint, build, then a local Supabase stack for the test suite. It also
    regenerates `src/db/database.types.ts` and fails on a non-empty `git diff`, so committed
    types cannot go stale against the migrations that generate them.
+   The `npm run typecheck` step (added 2026-08-03, C10X-43) sits between `astro sync` and `lint`
+   and is **fail-closed** — no `continue-on-error`, so unlike the Kong keep-alive step in the same
+   job, a green `ci` job **does** imply the typecheck passed. It needs only `npm ci`: no stack, no
+   Docker, no credential and no `.env`. Placing it before `build` matters because `astro build`
+   does not type-check, and placing it far before the ~1m46s `supabase start` means a type error
+   fails the run at roughly T+15 s rather than T+2 min.
 2. **`drift`** — `needs: ci`, and it runs only on a push to `main`. It compares the
    repository's migration versions against the cloud project's applied migrations (read
    through the Supabase Management API) and fails when either side carries something the

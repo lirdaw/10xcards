@@ -57,6 +57,15 @@ Verified in the working tree at `132fa47`, not inferred from the research doc:
   other silently: `npm run lint` is plain ESLint (a missing property is a `tsc` error, not a
   rule violation), `astro build` does not type-check, and no script or CI step runs
   `astro check` (`package.json:5-17`, `.github/workflows/ci.yml:20-25`). Plan-review F2.
+  > **Dated correction, 2026-08-03 (C10X-43).** "No script or CI step runs `astro check`" was true
+  > on 2026-07-25 and is not now — `npm run typecheck` runs it, in CI and on `pre-push`. Not
+  > rewritten: it is the reasoning that made these fields optional, and the reasoning is what a
+  > reader needs. The DESIGN is unchanged and its rationale is restated at
+  > `src/lib/flashcards.ts` — the two branches genuinely differ, so the fields stay optional for
+  > that reason rather than for the absence of a gate. The same correction applies to the second
+  > instance of this sentence, in "Optional, not required, for two reasons that both bite"
+  > (`:274` as the file stands after this insertion — it was `:268` before it, which is why this
+  > pointer names the heading too).
 - **`updated_at` is maintained by an unqualified trigger.** `flashcard_set_updated_at` is
   `before update ... for each row` moddatetime
   (`supabase/migrations/20260705180246_init_core_schema.sql:79-81`), so it fires on a
@@ -267,6 +276,12 @@ maps the list branch and the search branch through one `.map()`
 `undefined` at runtime with **no gate catching it** — ESLint does not report a missing
 property, `astro build` does not type-check, and nothing runs `astro check`. Change #6 still
 closes the RPC side at the data source so C10X-16 does not inherit the trap.
+
+> **Dated correction, 2026-08-03 (C10X-43).** "Nothing runs `astro check`" was true on 2026-07-25;
+> since 2026-08-03 `npm run typecheck` does, in CI and on `pre-push`. Not rewritten — see the
+> correction under "The deck loader maps both card sources through ONE `.map()`" (`:58` above),
+> which carries the reasoning. The optional-fields decision stands
+> on its own merits and its current rationale lives at `src/lib/flashcards.ts`.
 
 #### 4. Generation session lookup and the acceptance aggregate
 

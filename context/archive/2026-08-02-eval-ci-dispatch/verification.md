@@ -253,6 +253,10 @@ refusing over-cap requests with `402`, which `evals/lib/judge.ts:128` classes as
 - **`evals/` is still under no type gate** (C10X-43), and this change makes that exposure worse
   rather than better: a type error there now surfaces at run time **in CI, after paid calls**,
   rather than on a developer's machine.
+  > **Dated correction, 2026-08-03:** closed by C10X-43 — `evals/` is type-checked in the `ci` job
+  > and on `pre-push`, so the worsened exposure this bullet correctly named lasted one day. Not
+  > rewritten. What survives is the class no type gate covers: a **collection-time** error still
+  > surfaces at run time in CI, after paid calls.
 - **A fixed artifact name was not tested**, so the collision claim above is an inference from the
   observed deletion.
 - **`concurrency` was never contended.** The four executions were sequential by hand; nothing here

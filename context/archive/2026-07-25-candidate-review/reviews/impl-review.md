@@ -41,6 +41,20 @@ Extra check not required by the plan: `npx astro check` reports 3 errors, **all 
 `FlashcardView` fields) holds up under a real type-check. Note for a future phase: `astro check`
 cannot be added as a CI gate until those three are fixed.
 
+> **Dated correction, 2026-08-03 (C10X-43 `typecheck-gate`).** This paragraph's last sentence is an
+> instruction addressed to a future phase, and that phase has now run — so the instruction is
+> **discharged**, not wrong. It is left standing verbatim because it is the record of the blocker.
+> Measured on `main` @ `9fb37bb` before any of C10X-43's work: `npx astro check` exits **0**,
+> `Result (130 files): 0 errors`. The three pre-existing errors in `vitest.config.ts`,
+> `tests/fixtures/endpoint.ts` and `tests/fixtures/session.ts` were cleared by **`674e919`**
+> (2026-07-30, `fix(types): clear 4 latent type errors for a green astro check (M3L3)`) — a commit
+> that names this blocker in its own subject line and touches exactly those three files plus
+> `vitest.eval.config.ts`. Worth stating because C10X-43's own doc-sync first wrote "fixed by
+> changes that did not record doing so" and that was **false**, found by running `git log` on the
+> three paths rather than by inference — the reassurance-shaped guess this repo keeps having to
+> retract. `astro check` was then added as a CI gate — inside `npm run typecheck`, fail-closed,
+> between `astro sync` and `lint`.
+
 ## Findings
 
 ### F1 — Bulk selection can exceed the endpoint's 100-id cap, producing a 400 for an action the UI offered
