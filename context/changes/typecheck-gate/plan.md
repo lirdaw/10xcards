@@ -765,34 +765,34 @@ script run once by hand.
 
 #### Automated
 
-- [x] 3.1 `prettier --check` exits 0 on `roadmap.md` + the three change-folder artifacts
-- [x] 3.2 Idempotency: second `--write` is byte-identical for all four
-- [x] 3.3 `prettier --check "context/archive/**/*.md"` matches no files (paired against its 9+ dirty files before `.prettierignore`) — met as a PAIR, and the predicted message is corrected as observed: prettier 3 prints `All matched files use Prettier code style!` (exit 0), never "no files matched", so that sentence is true VACUOUSLY and is indistinguishable from a genuinely-clean run. The evidence is the pair plus `--list-different`: **116** dirty archive files before, **0 files considered** after, and a known-dirty file named EXPLICITLY on the command line (which is how `lint-staged` invokes prettier) is skipped
-- [x] 3.4 `npm run lint` exits 0
-- [x] 3.5 `eslint --print-config` byte-identical before/after for `.ts`, `.tsx`, `.astro`, `.js`
-- [x] 3.6 Hints gone at source, proved hint-visibly: bare `astro check` reports `- 0 hints` and `--minimumFailingSeverity hint` exits 0, against today's control (4 hints, exit 1) — or the escape hatch's measurement recorded instead — escape hatch NOT taken: all four `--print-config` oracles identical, so the migration landed and both halves of the line-1 rationale were measured FALSE
-- [x] 3.7 `npm run typecheck` exits 0
-- [x] 3.8 `npm test` green — 358/358, 31 files, seed 1785746530044
+- [x] 3.1 `prettier --check` exits 0 on `roadmap.md` + the three change-folder artifacts — f3861b9
+- [x] 3.2 Idempotency: second `--write` is byte-identical for all four — f3861b9
+- [x] 3.3 `prettier --check "context/archive/**/*.md"` matches no files (paired against its 9+ dirty files before `.prettierignore`) — met as a PAIR, and the predicted message is corrected as observed: prettier 3 prints `All matched files use Prettier code style!` (exit 0), never "no files matched", so that sentence is true VACUOUSLY and is indistinguishable from a genuinely-clean run. The evidence is the pair plus `--list-different`: **116** dirty archive files before, **0 files considered** after, and a known-dirty file named EXPLICITLY on the command line (which is how `lint-staged` invokes prettier) is skipped — f3861b9
+- [x] 3.4 `npm run lint` exits 0 — f3861b9
+- [x] 3.5 `eslint --print-config` byte-identical before/after for `.ts`, `.tsx`, `.astro`, `.js` — f3861b9
+- [x] 3.6 Hints gone at source, proved hint-visibly: bare `astro check` reports `- 0 hints` and `--minimumFailingSeverity hint` exits 0, against today's control (4 hints, exit 1) — or the escape hatch's measurement recorded instead — escape hatch NOT taken: all four `--print-config` oracles identical, so the migration landed and both halves of the line-1 rationale were measured FALSE — f3861b9
+- [x] 3.7 `npm run typecheck` exits 0 — f3861b9
+- [x] 3.8 `npm test` green — 358/358, 31 files, seed 1785746530044 — f3861b9
 
 #### Manual
 
-- [x] 3.9 Four normalisation diffs read for the blockquote/code-span landmine class — read, and closed by SEQUENCE comparison rather than by eye: prettier's effect isolated (pristine vs pass-1, before any Progress edit) leaves blockquote lines, inline code spans, headings and links **all four at zero differences** in all four files. Residual content difference after normalising emphasis + whitespace + table padding is **0/0/0/0**, so the entire diff is `*x*`→`_x_`, table column padding, and one blank line before a list (`plan.md:597`)
-- [x] 3.10 No `> ` prefix lost, no dated correction block reflowed — strongest available form: **every `>` line is byte-identical, in order, in all four files**, which covers every dated block at once rather than by sampling. Spot-read confirms rendering, including the structurally riskiest element — the bare `>` continuation line inside `roadmap.md`'s C10X-40 correction block (`:435`), which is exactly what the recorded landmine strips
-- [x] 3.11 ESLint config still lints an `.astro`, a `.tsx` and a `.ts` file — proved FALSIFIABLY, because `npm run lint` exiting 0 is also what a config that ignores everything produces: a real rule violation injected into each of the three kinds turns each one red on `@typescript-eslint/no-unused-vars` carrying this project's own `/^_/u` option — i.e. the `extends` chain survived the migration and reaches `.astro` too. Restored, per-file MD5 identical, `git diff -- src/` empty
+- [x] 3.9 Four normalisation diffs read for the blockquote/code-span landmine class — read, and closed by SEQUENCE comparison rather than by eye: prettier's effect isolated (pristine vs pass-1, before any Progress edit) leaves blockquote lines, inline code spans, headings and links **all four at zero differences** in all four files. Residual content difference after normalising emphasis + whitespace + table padding is **0/0/0/0**, so the entire diff is `*x*`→`_x_`, table column padding, and one blank line before a list (`plan.md:597`) — f3861b9
+- [x] 3.10 No `> ` prefix lost, no dated correction block reflowed — strongest available form: **every `>` line is byte-identical, in order, in all four files**, which covers every dated block at once rather than by sampling. Spot-read confirms rendering, including the structurally riskiest element — the bare `>` continuation line inside `roadmap.md`'s C10X-40 correction block (`:435`), which is exactly what the recorded landmine strips — f3861b9
+- [x] 3.11 ESLint config still lints an `.astro`, a `.tsx` and a `.ts` file — proved FALSIFIABLY, because `npm run lint` exiting 0 is also what a config that ignores everything produces: a real rule violation injected into each of the three kinds turns each one red on `@typescript-eslint/no-unused-vars` carrying this project's own `/^_/u` option — i.e. the `extends` chain survived the migration and reaches `.astro` too. Restored, per-file MD5 identical, `git diff -- src/` empty — f3861b9
 
 ### Phase 4: The local hook
 
 #### Automated
 
-- [ ] 4.1 `.husky/_/` exists and `core.hooksPath` is set
-- [ ] 4.2 `git push` on a clean tree runs the hook and succeeds
-- [ ] 4.3 Staged type error makes `git push` fail at the hook; reverted
-- [ ] 4.4 Live `pre-commit` runs `lint-staged` without rewriting any foundation document
+- [x] 4.1 `.husky/_/` exists and `core.hooksPath` is set — `npm run prepare` exit 0, 16 dispatchers written under `.husky/_/`, `git config --get core.hooksPath` → `.husky/_`
+- [x] 4.2 `git push` on a clean tree runs the hook and succeeds — measured with `git push --dry-run origin HEAD`, which **does** fire `pre-push` (verified rather than assumed: the wrapper's full output appeared and the run took 13.35 s). Green: `Result (133 files): 0 errors / 0 warnings`, `typecheck: OK — 133 files checked (floor 50)`, push exit 0, `* [new branch] HEAD -> C10X-43-typecheck-gate`. A real (non-dry) push belongs to `/ship`
+- [x] 4.3 Staged type error makes `git push` fail at the hook; reverted — a `TS2322` staged into `src/lib/utils.ts` turns the same command red: `src/lib/utils.ts(7,7): error TS2322`, `husky - pre-push script failed (code 2)`, `error: failed to push some refs`, exit 1. The **pair** is the evidence — same command, one variable. Restored from a pristine copy, MD5 identical (`D9837F38CC05303254571985E3164050`), `git diff -- src/` empty
+- [x] 4.4 Live `pre-commit` runs `lint-staged` without rewriting any foundation document — closed by the phase's own first commit (`e962ff2`), which is the first commit this tree has ever run a hook on. `lint-staged` stashed, ran `eslint --fix` on 3 `.ts` files, applied and cleaned up. Proved by **hash**, not by inspection: all ten `context/foundation/*.md` plus `README.md`, `AGENTS.md`, `CLAUDE.md` and `.husky/pre-commit` are MD5-identical to a snapshot taken before the commit. Two things Phase 3's precondition also has to survive and did — the unstaged work (`package.json`, `plan.md`) came back intact through the stash, and `git stash list` is empty, so no backup was orphaned
 
 #### Manual
 
-- [ ] 4.5 Hook failure output readable in the developer's terminal
-- [ ] 4.6 `--no-verify` was not needed at any point
+- [x] 4.5 Hook failure output readable in the developer's terminal — **the criterion did its job: it found a defect.** Re-run in a real `sh` (not through the PowerShell host, whose `NativeCommandError` wrapper is not what a developer sees), the tsc branch printed "A tsconfig error (TS5xxx) makes `astro check`'s own verdict untrustworthy" for an ordinary `TS2322` — sending a developer whose defect was one line of `utils.ts` to a `tsconfig.json` that is fine. Fixed in the pure half (`readTscFailure`, +6 cases) rather than in the runner, and the summary line for the `astro check` leg was reworded too ("found errors across 133 files" read as "133 files have errors"; it is the coverage figure). Exercised through the **hook** on all four failure classes it can report, each blocking the push and each naming the state the reader is in: ordinary `TS2322`; config `TS5025`; an `.astro` frontmatter error (the class `tsc` cannot see — file:line:col plus a source excerpt and caret); and FM-1 with `@astrojs/check` hidden, which blocks where the bare command exits 0 and names what to install — e962ff2
+- [x] 4.6 `--no-verify` was not needed at any point — and was not used. Both deliberate red pushes were **reverted, never bypassed**, each restore hash-verified. Audited more widely than the phase: outside `context/archive/`, `--no-verify` appears in 8 files and every occurrence is prose explaining why it must not be used — zero invocations. `HUSKY` is unset, so the hooks were genuinely live for every commit and push in this phase
 
 ### Phase 5: `noUncheckedIndexedAccess`
 
