@@ -90,6 +90,25 @@ function run(args: string[]): Ran {
   };
 }
 
+/**
+ * A child's status, made safe to hand to `process.exitCode`.
+ *
+ * A process exit code is one byte. `process.exitCode = 256` makes the shell see **0** (measured),
+ * so relaying a child's raw status can turn a failed leg into a green gate — the one outcome this
+ * whole file exists to prevent. On Linux it cannot happen (a child status is already 0-255), and
+ * on Windows no observed status has a zero low byte: `astro sync`'s teardown abort is
+ * `0xC0000409`, low byte `0x09`. So this closes a latent edge rather than a live defect, which is
+ * exactly when closing it is cheap.
+ *
+ * The RAW status is still what gets printed — `readSyncResult` quotes it in its message, and
+ * `3221226505` is the searchable string there, not `9`. This narrowing applies only where the
+ * number stops being information and becomes a signal.
+ */
+function exitFor(status: number): number {
+  const low = Math.abs(status) % 256;
+  return low === 0 ? 1 : low;
+}
+
 function main(): number {
   // ── Leg 1: sync ────────────────────────────────────────────────────────────────────────
   // A sync failure is a DIFFERENT diagnosis from a type error — a broken `astro.config.mjs`
@@ -104,7 +123,7 @@ function main(): number {
   if (!syncVerdict.ok) {
     console.error(sync.output);
     console.error(`typecheck: ${syncVerdict.reason}`);
-    return sync.status;
+    return exitFor(sync.status);
   }
 
   // ── Leg 2: tsc ─────────────────────────────────────────────────────────────────────────
@@ -120,7 +139,7 @@ function main(): number {
     for (const line of readTscFailure(tsc.output.replace(ANSI, "")).lines) {
       console.error(`  ${line}`);
     }
-    return tsc.status;
+    return exitFor(tsc.status);
   }
 
   // ── Leg 3: astro check ─────────────────────────────────────────────────────────────────
@@ -152,7 +171,7 @@ function main(): number {
     // the floor above is asserted against), so it goes in the parenthetical where the green
     // line already puts it, not in the sentence's object position.
     console.error(`typecheck: astro check reported errors (${String(verdict.files)} files checked).`);
-    return check.status;
+    return exitFor(check.status);
   }
 
   console.log(`typecheck: OK — ${String(verdict.files)} files checked (floor ${String(MIN_CHECKED_FILES)}).`);
@@ -165,7 +184,22 @@ try {
   console.error("");
   console.error(`typecheck: ${String(err)}`);
   console.error("");
-  console.error("  The checker could not be started at all. If this is a fresh clone, run");
-  console.error("  `npm ci` first.");
+
+  // `spawnSync` sets `error` for failures of the SPAWN, not of the child — the child's own
+  // failures come back as a status and are diagnosed in `main`. Two shapes reach here, and they
+  // send the reader to different places, so they are not collapsed into one message.
+  //
+  // Note which shape does NOT reach here: an absent `node_modules`. The binary spawned is always
+  // `process.execPath`, so that is a module-resolution failure INSIDE the child — `status: 1`,
+  // `error` undefined — and `readSyncResult` owns it.
+  if (err instanceof Error && "code" in err && err.code === "ENOBUFS") {
+    console.error("  The checker produced more output than the 32 MB capture buffer, so it was");
+    console.error("  killed and its output is truncated. This is NOT a verdict about your code:");
+    console.error("  run `npx astro check` directly to see the diagnostics.");
+  } else {
+    console.error("  The checker could not be started at all. If this is a fresh clone, run");
+    console.error("  `npm ci` first.");
+  }
+
   process.exitCode = 1;
 }

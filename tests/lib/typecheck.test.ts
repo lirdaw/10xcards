@@ -151,6 +151,19 @@ describe("readCheckResult", () => {
     expect(verdict.reason).toContain("3");
     expect(verdict.reason).toContain(String(MIN_CHECKED_FILES));
   });
+
+  // The Result block is emitted ONCE and LAST — after every diagnostic
+  // (@astrojs/check/dist/index.js:71) — so the real one is the last match, and reading the first
+  // would let anything earlier at column 0 decide the verdict. The direction matters: an earlier
+  // SMALL number fails closed, an earlier LARGE one is a false green over a genuine below-floor
+  // run, which is the single outcome this module exists to prevent. Asserted with the false-green
+  // shape rather than the harmless one, so this case dies if the reader goes back to `.exec`.
+  it("reads the LAST Result line, so an earlier one cannot manufacture a green", () => {
+    const verdict = readCheckResult("Result (999 files): \n- 0 errors\nResult (3 files): \n- 0 errors\n");
+
+    expect(verdict.files).toBe(3);
+    expect(verdict.ok).toBe(false);
+  });
 });
 
 /**
@@ -178,6 +191,27 @@ Failed to parse source for import analysis because the content contains invalid 
 /** The ordinary success, for completeness. */
 const SYNC_CLEAN = `Using secrets defined in .env
 22:57:12 [types] Generated 934ms
+`;
+
+/**
+ * The checker not being installed at all — measured 2026-08-03 by pointing the runner's own
+ * `spawnSync(process.execPath, [ASTRO_BIN, "sync"])` shape at a `node_modules` that is not there.
+ *
+ * The measurement that matters is not in the text: it came back **`status: 1` with `error`
+ * undefined**, because the binary actually spawned is `process.execPath`, which always exists.
+ * So this never reaches the runner's `if (result.error) throw` — it arrives here as an ordinary
+ * failing sync, and without its own branch it is reported as a broken `astro.config.mjs`.
+ * Trimmed to the head of the real capture; the stack frames below it carry nothing this asserts on.
+ */
+const SYNC_CHECKER_ABSENT = `node:internal/modules/cjs/loader:1520
+  throw err;
+  ^
+
+Error: Cannot find module 'E:\\...\\node_modules\\astro\\bin\\astro.mjs'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1517:15) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
 `;
 
 describe("readSyncResult", () => {
@@ -211,6 +245,24 @@ describe("readSyncResult", () => {
   // error is the wrong diagnosis, which is the whole reason this leg reports separately.
   it("explains a real failure by pointing at the config rather than at types", () => {
     expect(readSyncResult(SYNC_REAL_FAILURE, 1).reason).toContain("config");
+  });
+
+  // Still a rejection — an uninstalled checker must never read as a pass, and this is the one
+  // failure shape that arrives with `error` undefined, so nothing upstream catches it first.
+  it("rejects a sync whose checker is not installed at all", () => {
+    expect(readSyncResult(SYNC_CHECKER_ABSENT, 1).ok).toBe(false);
+  });
+
+  // THE CASE THIS BRANCH EXISTS FOR, and the assertion is a PAIR because either half alone is
+  // satisfied by the wrong function. It must name the install — and it must NOT reuse the config
+  // reason, which is what shipped until this was measured: a fresh clone was sent to
+  // `astro.config.mjs` while the runner's own "run `npm ci`" line, written for exactly this
+  // state, sat unreachable. Same defect `readTscFailure` fixes one leg over.
+  it("tells a fresh clone to install rather than blaming the config", () => {
+    const reason = readSyncResult(SYNC_CHECKER_ABSENT, 1).reason;
+
+    expect(reason).toContain("npm ci");
+    expect(reason).not.toContain("astro.config.mjs");
   });
 });
 
@@ -298,8 +350,13 @@ describe("MIN_CHECKED_FILES", () => {
   // pinned count wearing a different name, and one set at 0 is no assertion at all. This pins
   // it into the band where it separates "the project" from "nothing" without tracking the
   // project's size.
-  it("is a generous floor, well below today's real count and well above zero", () => {
+  //
+  // The upper bound was `130` — today's real count at the time — until 2026-08-03, when the
+  // count was already 133: the assertion had quietly become a second place tracking the project's
+  // size, which is the very thing the constant's own docblock argues against. 100 is a bound on
+  // the FLOOR's generosity and not on the project, so it cannot go stale by anyone adding a file.
+  it("is a generous floor, well below any real project count and well above zero", () => {
     expect(MIN_CHECKED_FILES).toBeGreaterThan(0);
-    expect(MIN_CHECKED_FILES).toBeLessThan(130);
+    expect(MIN_CHECKED_FILES).toBeLessThan(100);
   });
 });

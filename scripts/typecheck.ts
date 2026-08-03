@@ -33,16 +33,23 @@
 /**
  * The smallest file count that still means "the checker looked at this project".
  *
- * A **floor, deliberately not an equality**. `astro check` reports 130 files today (112 tsc
+ * A **floor, deliberately not an equality**. `astro check` reports 133 files today (115 tsc
  * roots + 18 `.astro`), and pinning that number would make the gate go red the day someone adds
  * a file — this repository has recorded a count going stale four separate times, so a
  * self-invalidating assertion is a known-cost mistake here, not a hypothetical one.
  *
+ * The number in the previous paragraph read **130** until 2026-08-03, which made it the fifth,
+ * three lines above the sentence citing the rule: it was measured while this gate was being
+ * built and went stale against the three files that building it added. Nothing depended on it —
+ * the floor is 50 and the parser is a regex — and the fix is to keep the count out of anything
+ * executable, which is why the test asserts the floor is *generous* rather than comparing it to
+ * today's total.
+ *
  * What the floor has to separate is "checked the project" from "checked nothing", and the
  * failure it guards against beyond FM-1 is a `tsconfig.json` whose `include`/`exclude` stopped
  * matching `src/` — a checker that genuinely ran, genuinely reported success, and genuinely
- * looked at a handful of files. 50 sits far enough below 130 to survive an ordinary deletion
- * sweep and far enough above a handful to catch that.
+ * looked at a handful of files. 50 sits far enough below the real total to survive an ordinary
+ * deletion sweep and far enough above a handful to catch that.
  */
 export const MIN_CHECKED_FILES = 50;
 
@@ -59,6 +66,23 @@ export interface SyncVerdict {
  * the leg did its job — which the exit code, measured, is not.
  */
 const TYPES_GENERATED = "[types] Generated";
+
+/**
+ * Node's own code for "the entry point I was told to run is not there" — i.e. the checker was
+ * never installed, and the sync has nothing to say about the project at all.
+ *
+ * **This needs its own branch because it does NOT reach the runner's catch.** The runner spawns
+ * `process.execPath` with a package entry point as its first argument, and `process.execPath`
+ * always exists — so an absent `node_modules` is a module-resolution failure *inside* Node, which
+ * `spawnSync` reports as an ordinary `status: 1` with `error` **undefined** (measured
+ * 2026-08-03). Without this branch it falls through to the config-problem reason below, and a
+ * developer on a fresh clone or a new worktree is sent to `astro.config.mjs` — which is fine —
+ * while the runner's "run `npm ci`" line, written for exactly this case, never prints.
+ *
+ * Keyed on the CODE rather than on the English sentence beside it: `Error: Cannot find module …`
+ * is prose that a Node major may reword, `MODULE_NOT_FOUND` is the stable half.
+ */
+const MISSING_MODULE = "MODULE_NOT_FOUND";
 
 /**
  * Decide whether `astro sync` did its job.
@@ -79,6 +103,11 @@ const TYPES_GENERATED = "[types] Generated";
  * A genuine failure never reaches the marker: measured by appending invalid JS to
  * `astro.config.mjs`, `astro sync` exits 1 printing `[astro] Unable to load your Astro config`
  * and nothing else — so the marker separates the two cleanly, in both directions.
+ *
+ * A genuine failure then splits again, and the split is the point: "the checker is missing"
+ * (`MISSING_MODULE`) and "your config is broken" send the reader to different files, so they get
+ * different reasons. Reporting the second for the first is the same defect `readTscFailure`
+ * exists to fix one leg over — a message naming a state the reader is not in.
  */
 export function readSyncResult(output: string, status: number): SyncVerdict {
   if (status === 0) {
@@ -91,6 +120,16 @@ export function readSyncResult(output: string, status: number): SyncVerdict {
       reason:
         `astro sync generated the types and then exited ${String(status)} — a teardown abort, ` +
         "not a failure. The generated types are on disk, so the gate continues.",
+    };
+  }
+
+  if (output.includes(MISSING_MODULE)) {
+    return {
+      ok: false,
+      reason:
+        "the checker itself is not installed — Node could not load `astro`'s entry point, so " +
+        "nothing was checked and this says nothing about your code. On a fresh clone or a new " +
+        "worktree, run `npm ci` first.",
     };
   }
 
@@ -189,11 +228,17 @@ export interface CheckVerdict {
 }
 
 /**
- * `Result (130 files):` — the line `astro check` prints exactly once, at the end of a run that
+ * `Result (N files):` — the line `astro check` prints exactly once, at the end of a run that
  * happened. Tolerant of the singular, of extra spacing and of a trailing space after the colon
  * (which the real output carries), because none of those are the thing being asserted.
+ *
+ * Matched globally and read from the END, because the block is emitted *after* every diagnostic
+ * (`@astrojs/check/dist/index.js:71`). Taking the first match instead would let any earlier line
+ * matching at column 0 win — which fails closed in the usual direction (a small number falls
+ * below the floor) but would be a **false green** for an earlier large one, and a false green is
+ * the single thing this module exists to prevent. Free to make unreachable, so it is.
  */
-const RESULT_LINE = /^Result \((\d+) files?\)/m;
+const RESULT_LINE = /^Result \((\d+) files?\)/gm;
 
 /**
  * Decide whether a captured `astro check` run is evidence of anything.
@@ -201,7 +246,10 @@ const RESULT_LINE = /^Result \((\d+) files?\)/m;
  * @param output the checker's combined stdout+stderr, ANSI already stripped by the runner.
  */
 export function readCheckResult(output: string): CheckVerdict {
-  const match = RESULT_LINE.exec(output);
+  // `.at(-1)`, never `.exec` — see RESULT_LINE. A `g` regex also carries `lastIndex` across
+  // calls, so `matchAll` (which works on a fresh iterator) is the safe reader as well as the
+  // correct one.
+  const match = [...output.matchAll(RESULT_LINE)].at(-1);
 
   if (!match) {
     return {
