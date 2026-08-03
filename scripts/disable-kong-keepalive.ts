@@ -69,9 +69,9 @@ const HEALTH_POLL_MS = 1_000;
  */
 function readProjectId(): string {
   const toml = readFileSync(CONFIG_TOML, "utf8");
-  const match = /^\s*project_id\s*=\s*"([^"]+)"/m.exec(toml);
-  if (!match) throw new Error(`no \`project_id\` found in ${CONFIG_TOML.pathname}`);
-  return match[1];
+  const projectId = /^\s*project_id\s*=\s*"([^"]+)"/m.exec(toml)?.[1];
+  if (projectId === undefined) throw new Error(`no \`project_id\` found in ${CONFIG_TOML.pathname}`);
+  return projectId;
 }
 
 /** `docker …`, with stderr surfaced on failure rather than swallowed. */

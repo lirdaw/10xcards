@@ -116,8 +116,11 @@ export function parseKongEnv(dump: string): KeepAliveSettings {
     // banner as settings.
     if (line === "" || line.startsWith("#")) continue;
 
-    const match = SETTING_LINE.exec(line);
-    if (match) settings.set(match[1], match[2].trim());
+    // Both groups are non-optional in `SETTING_LINE`, so a match always carries both — but
+    // `noUncheckedIndexedAccess` types them `string | undefined` and the narrowing is what
+    // keeps the "missing key reads as null, never 0" property above true by construction.
+    const [, key, value] = SETTING_LINE.exec(line) ?? [];
+    if (key !== undefined && value !== undefined) settings.set(key, value.trim());
   }
 
   const numberAt = (key: string): number | null => {

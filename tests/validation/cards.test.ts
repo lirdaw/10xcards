@@ -235,13 +235,16 @@ describe("POST /api/decks/[publicId]/cards enforces the content rules server-sid
   // a missing part, an empty part and a whitespace-only part all measure 0 after the trim,
   // so none of them can be told apart from the outside — which is the intended contract.
   it("refuses a missing, empty or whitespace-only front with one indistinguishable message", async () => {
+    // The "missing" case genuinely omits the part rather than sending it empty. Built before the
+    // table rather than reached for by index afterwards, so there is no indexed access to narrow
+    // under `noUncheckedIndexedAccess` (C10X-43) and no `?.` that could no-op the omission.
+    const missing = cardForm("", `Missing front back ${suffix}`);
+    missing.delete("front");
     const bodies: [string, FormData][] = [
-      ["missing", cardForm("", `Missing front back ${suffix}`)],
+      ["missing", missing],
       ["empty", cardForm("", `Empty front back ${suffix}`)],
       ["whitespace-only", cardForm("   \t \n ", `Whitespace front back ${suffix}`)],
     ];
-    // The "missing" case genuinely omits the part rather than sending it empty.
-    bodies[0][1].delete("front");
 
     for (const [label, body] of bodies) {
       const before = await countCards(deckId);

@@ -168,7 +168,7 @@ describe("account B is denied account A's flashcards", () => {
 
     const cards = await cardsOf(a, aDeckId);
     expect(cards).toHaveLength(1);
-    expect(cards[0].front).toBe(A_FRONT);
+    expect(cards[0]?.front).toBe(A_FRONT);
   });
 
   it("refuses B's edit of A's card and leaves A's card unchanged", async () => {
@@ -183,8 +183,8 @@ describe("account B is denied account A's flashcards", () => {
 
     const cards = await cardsOf(a, aDeckId);
     expect(cards).toHaveLength(1);
-    expect(cards[0].front).toBe(A_FRONT);
-    expect(cards[0].back).toBe(A_BACK);
+    expect(cards[0]?.front).toBe(A_FRONT);
+    expect(cards[0]?.back).toBe(A_BACK);
   });
 
   it("refuses B's delete of A's card and leaves A's card in place", async () => {
@@ -217,7 +217,7 @@ describe("account B is denied account A's flashcards", () => {
 
     const cards = await cardsOf(a, aDeckId);
     expect(cards).toHaveLength(1);
-    expect(cards[0].front).toBe(A_FRONT);
+    expect(cards[0]?.front).toBe(A_FRONT);
     // The card did not land in B's deck either — a card cannot be dragged across decks
     // by naming it in another deck's path.
     expect(await cardsOf(b, bDeckId)).toHaveLength(0);
@@ -250,7 +250,7 @@ describe("account B is denied account A's flashcards", () => {
 
     const cards = await cardsOf(a, controlDeckId);
     expect(cards).toHaveLength(1);
-    expect(cards[0].front).toBe(front);
+    expect(cards[0]?.front).toBe(front);
   });
 });
 

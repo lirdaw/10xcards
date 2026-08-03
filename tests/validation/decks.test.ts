@@ -237,13 +237,16 @@ describe("POST /api/decks enforces the name rules server-side", () => {
   // part all measure 0 after the trim, so none can be told apart from outside, which is the
   // intended contract. Their rename twins below are where the same refusal gets an oracle.
   it("refuses a missing, empty or whitespace-only name with one indistinguishable message", async () => {
+    // The "missing" case genuinely omits the part rather than sending it empty. Built before the
+    // table rather than reached for by index afterwards, so there is no indexed access to narrow
+    // under `noUncheckedIndexedAccess` (C10X-43) and no `?.` that could no-op the omission.
+    const missing = deckForm("");
+    missing.delete("name");
     const bodies: [string, FormData][] = [
-      ["missing", deckForm("")],
+      ["missing", missing],
       ["empty", deckForm("")],
       ["whitespace-only", deckForm("   \t \n ")],
     ];
-    // The "missing" case genuinely omits the part rather than sending it empty.
-    bodies[0][1].delete("name");
 
     for (const [label, body] of bodies) {
       const response = await postDeck(body);
@@ -401,12 +404,13 @@ describe("POST /api/decks/[publicId] enforces the same rules on rename", () => {
   });
 
   it("refuses a missing, empty or whitespace-only name and leaves the row untouched", async () => {
+    const missing = deckForm("");
+    missing.delete("name");
     const bodies: [string, FormData][] = [
-      ["missing", deckForm("")],
+      ["missing", missing],
       ["empty", deckForm("")],
       ["whitespace-only", deckForm("   \t \n ")],
     ];
-    bodies[0][1].delete("name");
 
     for (const [label, body] of bodies) {
       const before = await rowOf(deckPublicId);
