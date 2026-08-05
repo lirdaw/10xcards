@@ -598,16 +598,16 @@ and do not apply.
 
 #### Automated
 
-- [ ] 1.1 `grep -c "over all 133 files" README.md` returns 0
-- [ ] 1.2 README carries **no** file total and still carries the `18 .astro templates` clause
-- [ ] 1.3 §6.6's `(133 files)` row survives byte-identical — checked by `git diff` on `:2765`, not by a substring count
-- [ ] 1.4 A `Corrected 2026-08-05` block exists after the C10X-43 claims table
-- [ ] 1.5 `npx prettier --check README.md context/foundation/test-plan.md` exits 0
+- [x] 1.1 `grep -c "over all 133 files" README.md` returns 0
+- [x] 1.2 README carries **no** file total and still carries the `18 .astro templates` clause
+- [x] 1.3 §6.6's `(133 files)` row survives byte-identical — checked by `git diff` on `:2765`, not by a substring count
+- [x] 1.4 A `Corrected 2026-08-05` block exists after the C10X-43 claims table
+- [x] 1.5 `npx prettier --check README.md context/foundation/test-plan.md` exits 0
 
 #### Manual
 
-- [ ] 1.6 The README sentence reads as one coherent claim
-- [ ] 1.7 The §6.6 correction explains why the floor assertion stayed green
+- [x] 1.6 The README sentence reads as one coherent claim
+- [x] 1.7 The §6.6 correction explains why the floor assertion stayed green
 
 ### Phase 2: §4 Stack — earn the date, then replace the e2e row
 

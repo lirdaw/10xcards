@@ -2771,6 +2771,24 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
   | `noUncheckedIndexedAccess` is on with a zero-error tree                        | 33 diagnostics across 13 files, swept in **one commit** because `no-unnecessary-condition` is `error` and makes every intermediate state red. Justified by measurement rather than preference: C10X-41's F3 shape (`PROMPT_LANGUAGE_NAMES[code]` into a non-optional `string`) now goes red, and the identical probe with the flag removed exits **0** — the gate built in Phases 1-4 could not see this class                                                                        |
   | No `!` assertion was introduced                                                | `no-non-null-assertion` is `error`, so every one of the 33 fixes is `?.`, `??` or an explicit guard; the repo's count of `!` stays zero, checked by two grep shapes and by the lint run                                                                                                                                                                                                                                                                                               |
 
+  > **Corrected 2026-08-05 (`test-plan-refresh-2026-08-05`), both figures in the `18 .astro` row
+  > above — and the row itself is NOT rewritten**, because it is the accurate record of what
+  > C10X-43 measured on 2026-08-03. Measured today: `astro check` reports **135** files and
+  > `tsc --noEmit` resolves **117** roots, against the row's 133 and 115. The delta is exactly two
+  > files with no residue — `playwright.config.ts` and `tests/e2e/seed.spec.ts`, both landed
+  > outside the phased rollout and both confirmed as resolved project members by
+  > `npx tsc --showConfig`; the arithmetic closes in the row's own decomposition, `117 + 18 = 135`,
+  > and the `18 .astro` half is unchanged (measured: 18). **Nothing went red, and that is the gate
+  > working rather than failing** — the FM-1 row in the same table records that the wrapper asserts
+  > on the `Result (N files):` line against a **floor**, never a pinned count, so a rising count
+  > cannot break it. The mechanism is `tsconfig.json:3` (`include: ["**/*"]`, excluding only
+  > `dist` and `context`), which §5's typecheck-gate paragraph names as why the local gate and CI
+  > agree on scope by construction; the same line is why a whole new top-level test directory
+  > enters the gate silently. So `tests/e2e/` is type-checked in CI on every push and PR to `main`
+  > and blocks a local `git push`, and no document said so until this date. Read this as a NUMBER
+  > correction and nothing more: it says the e2e layer **compiles**, never that anything runs it —
+  > §4's e2e row and §3's Phase 6 note are where that boundary is stated.
+
   **Three traps this change paid for, so the next contributor does not.**
   - **A gate's own failure message is part of the gate.** The `pre-push` hook's first real red
     printed "a tsconfig error (`TS5xxx`) makes `astro check`'s own verdict untrustworthy" for an
