@@ -598,30 +598,79 @@ and do not apply.
 
 #### Automated
 
-- [x] 1.1 `grep -c "over all 133 files" README.md` returns 0
-- [x] 1.2 README carries **no** file total and still carries the `18 .astro templates` clause
-- [x] 1.3 §6.6's `(133 files)` row survives byte-identical — checked by `git diff` on `:2765`, not by a substring count
-- [x] 1.4 A `Corrected 2026-08-05` block exists after the C10X-43 claims table
-- [x] 1.5 `npx prettier --check README.md context/foundation/test-plan.md` exits 0
+- [x] 1.1 `grep -c "over all 133 files" README.md` returns 0 — d55ce4b
+- [x] 1.2 README carries **no** file total and still carries the `18 .astro templates` clause — d55ce4b
+- [x] 1.3 §6.6's `(133 files)` row survives byte-identical — checked by `git diff` on `:2765`, not by a substring count — d55ce4b
+- [x] 1.4 A `Corrected 2026-08-05` block exists after the C10X-43 claims table — d55ce4b
+- [x] 1.5 `npx prettier --check README.md context/foundation/test-plan.md` exits 0 — d55ce4b
 
 #### Manual
 
-- [x] 1.6 The README sentence reads as one coherent claim
-- [x] 1.7 The §6.6 correction explains why the floor assertion stayed green
+- [x] 1.6 The README sentence reads as one coherent claim — d55ce4b
+- [x] 1.7 The §6.6 correction explains why the floor assertion stayed green — d55ce4b
 
 ### Phase 2: §4 Stack — earn the date, then replace the e2e row
 
 #### Automated
 
-- [ ] 2.1 `none yet — deliberately deferred` returns 0 hits
-- [ ] 2.2 The §4 e2e row names Playwright with `1.62.1` and `checked: 2026-08-05`
-- [ ] 2.3 Every version stated in §4 matches its installed value (commands + outputs recorded)
-- [ ] 2.4 `npx prettier --check context/foundation/test-plan.md` exits 0
+- [x] 2.1 `none yet — deliberately deferred` returns 0 hits
+- [x] 2.2 The §4 e2e row names Playwright with `1.62.1` and `checked: 2026-08-05`
+- [x] 2.3 Every version stated in §4 matches its installed value (commands + outputs recorded)
+- [x] 2.4 `npx prettier --check context/foundation/test-plan.md` exits 0
+
+> **2.3 measurements, 2026-08-05 — the review that earns Phase 7's two ledger dates.**
+> `npm ls vitest astro supabase @playwright/test eslint-plugin-jsx-a11y --depth=0` →
+> `vitest@4.1.10`, `astro@6.3.1`, `supabase@2.98.2`, `@playwright/test@1.62.1`,
+> `eslint-plugin-jsx-a11y@6.10.2`. **Every version §4 states matches its installed value, so per the
+> Contract no version cell was edited** — the non-edit is the result, not an omission. Per row:
+> Vitest `4.1.10` ✓; Container API "ships with Astro 6" ✓ (6.3.1); Supabase CLI `2.98.2` ✓ and
+> `package.json:67` is still `^2.23.4`, so the "range floor" parenthetical stays true;
+> `eslint-plugin-jsx-a11y` `6.10.2` ✓ (pinned exactly, `package.json:57`). AI-native row re-read at
+> the source rather than trusted: `evals/lib/judge.ts:31` still pins `google/gemini-2.5-flash`, `:44`
+> the `EVAL_JUDGE_MODEL` override, `:194` `temperature: 0`, `:206` `json_schema` structured outputs.
+> Stack grounding tools re-checked: Context7, Exa, claude-in-chrome and the Atlassian MCP are all
+> still available this session, and Supabase MCP still exposes only an interactive `authenticate`
+> tool — so that line's parenthetical holds too.
+>
+> Harness facts behind the new e2e row, measured rather than inferred: `package.json` carries **no**
+> playwright script (`@playwright/test` at `:51` is its only hit) and `.github/workflows/*.yml` no
+> playwright step; `playwright.config.ts` has no `webServer`, no `globalSetup` and no setup project;
+> `8a12d07` and `5f3c87e` are both dated **2026-08-05**.
+>
+> **One deliberate non-edit to carry into Phase 7.** The four rows verified today keep their old
+> `checked:` dates (`2026-07-15`, `2026-07-26`, `2026-08-02`), because the Contract says to change
+> nothing where a version has not moved. That leaves §4's per-row dates reading older than the
+> `Stack versions last verified: 2026-08-05` line Phase 7 will write. Recorded here rather than
+> resolved: bumping them is a Phase 7 call, and doing it silently in Phase 2 would put an edit
+> outside its Contract.
 
 #### Manual
 
-- [ ] 2.5 The e2e row claims no runnability the harness lacks
-- [ ] 2.6 Re-verification covered every §4 row, not a convenient subset
+- [x] 2.5 The e2e row claims no runnability the harness lacks
+- [x] 2.6 Re-verification covered every §4 row, not a convenient subset
+
+> **2.5 / 2.6 evidence, 2026-08-05 — both done by measurement, not by re-reading the row.**
+> 2.5, one probe per clause: **no browser-install step** — `playwright install` / `install-deps`
+> return zero hits across `package.json`, `README.md`, `AGENTS.md`, `.github/workflows/*.yml` and the
+> config; **no `webServer`, no preflight** — `webServer`, `globalSetup`, `globalTeardown`,
+> `dependencies` and a setup project are all absent from the 11-line `playwright.config.ts`;
+> **`storageState` has no producer** — `playwright.config.ts:7` consumes
+> `playwright/.auth/user.json`, `.gitignore:125` ignores it, and no spec or script writes it, so a
+> fresh checkout has no such file; **one spec** — `git ls-files tests/e2e` returns exactly
+> `seed.spec.ts` and `git status -uall` on those paths is empty, so there is no untracked spec
+> inflating the claim (the trap criterion 7.3 exists for); **inside the type gate** —
+> `npx tsc --showConfig` lists `./playwright.config.ts` (`:44`) and `./tests/e2e/seed.spec.ts`
+> (`:120`) as project members.
+>
+> 2.6 deliberately covered the rows `npm ls` **cannot** reach, since a version sweep alone would be
+> exactly the convenient subset this criterion is written against. unit+integration:
+> `vitest.config.ts:2` still imports `getViteConfig` from `astro/config` and `:14-19`/`:56` still
+> strip the Cloudflare plugin. API mocking: **no** mocking library in either dependency block, and
+> `vi.mock(` resolves to **exactly one** file — `tests/generation/failure-path.test.ts`, as the row
+> claims — with `tests/setup/retry-transport.ts` still present as the second, non-double seam.
+> database: `db:start` still chains `db:kong` and `scripts/disable-kong-keepalive.ts` exists.
+> accessibility: wired lint-level only, via `eslint.config.js:89`
+> (`flat/jsx-a11y-recommended`). endpoint rendering rests on `astro@6.3.1` from the sweep above.
 
 ### Phase 3: §3 — the Phase 6 row and the harness sequencing note
 
