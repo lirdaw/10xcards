@@ -613,10 +613,10 @@ and do not apply.
 
 #### Automated
 
-- [x] 2.1 `none yet — deliberately deferred` returns 0 hits
-- [x] 2.2 The §4 e2e row names Playwright with `1.62.1` and `checked: 2026-08-05`
-- [x] 2.3 Every version stated in §4 matches its installed value (commands + outputs recorded)
-- [x] 2.4 `npx prettier --check context/foundation/test-plan.md` exits 0
+- [x] 2.1 `none yet — deliberately deferred` returns 0 hits — 7ed5c5d
+- [x] 2.2 The §4 e2e row names Playwright with `1.62.1` and `checked: 2026-08-05` — 7ed5c5d
+- [x] 2.3 Every version stated in §4 matches its installed value (commands + outputs recorded) — 7ed5c5d
+- [x] 2.4 `npx prettier --check context/foundation/test-plan.md` exits 0 — 7ed5c5d
 
 > **2.3 measurements, 2026-08-05 — the review that earns Phase 7's two ledger dates.**
 > `npm ls vitest astro supabase @playwright/test eslint-plugin-jsx-a11y --depth=0` →
@@ -646,8 +646,8 @@ and do not apply.
 
 #### Manual
 
-- [x] 2.5 The e2e row claims no runnability the harness lacks
-- [x] 2.6 Re-verification covered every §4 row, not a convenient subset
+- [x] 2.5 The e2e row claims no runnability the harness lacks — 7ed5c5d
+- [x] 2.6 Re-verification covered every §4 row, not a convenient subset — 7ed5c5d
 
 > **2.5 / 2.6 evidence, 2026-08-05 — both done by measurement, not by re-reading the row.**
 > 2.5, one probe per clause: **no browser-install step** — `playwright install` / `install-deps`
@@ -676,15 +676,79 @@ and do not apply.
 
 #### Automated
 
-- [ ] 3.1 §3 has six phase rows; row 6 Status is `not started`
-- [ ] 3.2 The sequencing note names all nine harness findings — greps scoped to the note's line range (file-wide would pass `preflight`/`trace`/`.gitignore` vacuously)
-- [ ] 3.3 §2 is byte-identical to `HEAD`
-- [ ] 3.4 `npx prettier --check context/foundation/test-plan.md` exits 0
+- [x] 3.1 §3 has six phase rows; row 6 Status is `not started`
+- [x] 3.2 The sequencing note names all nine harness findings — greps scoped to the note's line range (file-wide would pass `preflight`/`trace`/`.gitignore` vacuously)
+- [x] 3.3 §2 is byte-identical to `HEAD`
+- [x] 3.4 `npx prettier --check context/foundation/test-plan.md` exits 0
+
+> **3.1–3.4 measurements, 2026-08-05.** 3.1: the §3 table has **6** phase rows
+> (`awk` over the section, `grep -cE '^\| [0-9]+ +\|'`) and row 6's Status cell is
+> `not started`. 3.3: §2 extracted between the `## 2.` and `## 3.` headings and `diff`ed
+> against the same extraction from `HEAD` — **identical**, 31 lines, md5
+> `b39f7e1f12fd11874bffeb3c0a7d7d8d`. 3.4: red before, green after one `prettier --write`;
+> the whole diff is **two hunks** — the §3 table (row 6 plus column re-padding on rows 1-5,
+> no cell text changed) and the new note. No other section moved.
+>
+> **3.2 ran scoped to lines 669-761 (the note's own range)** and all nine tokens are present:
+> `preflight` 5, `trace` 1, `.gitignore` 2, `storageState` 2, `webServer` 1, `.spec.ts` 2,
+> `zero auth requests` 1, `npm script` 1, `browser install` 1.
+>
+> **The criterion's own falsifiability claim was rounder than reality, and the scoping is what
+> saved it.** The plan states the six non-vacuous tokens are `0` at `HEAD`; measured today,
+> **four are 1** — `storageState`, `webServer` and `npm script` at `:680`, all three introduced
+> by **this change's own Phase 2** when it rewrote §4's e2e row, and `.spec.ts` at `:2785`,
+> introduced by **Phase 1**'s C10X-43 correction block. The plan's figure was taken at the
+> pre-change `HEAD` and was correct then. Only `zero auth requests` and `browser install` are
+> still `0` file-wide. Recorded as observed rather than rounded — the same discipline §8 applies
+> to C10X-29's `missingLocal` neuter — and it makes the case for the scoping stronger, not
+> weaker: a file-wide grep would now pass **seven** of the nine vacuously, not three.
 
 #### Manual
 
-- [ ] 3.5 The note reads as a hand-off, not a coverage claim
-- [ ] 3.6 A reader stopping after §3 learns the harness is not yet trustworthy
+- [x] 3.5 The note reads as a hand-off, not a coverage claim
+- [x] 3.6 A reader stopping after §3 learns the harness is not yet trustworthy
+
+> **3.5 / 3.6 evidence, 2026-08-05 — done by re-measuring every factual claim in the note, not
+> by re-reading it.** Nineteen claims were probed at their source. Confirmed: both commits dated
+> **2026-08-05**; the config is **11 lines** and contains **zero** hits for
+> `retries`/`globalSetup`/`globalTeardown`/`webServer`/`dependencies`, so `trace: "on-first-retry"`
+> is inert by the documented default of `0`; `5f3c87e` added **exactly** `/test-results/` and
+> `/.playwright-cli/`; `.env:7` carries the `PROD_`-prefix swap comment while `.env:4` is
+> `http://127.0.0.1:54321`, so the production-deletion path is a **seam, not an incident**, as
+> worded; `vitest.config.ts:27` is `tests/**/*.test.ts` against a `.spec.ts` file in the same
+> tree; `package.json` has no `postinstall` and no e2e script; `tests/middleware.test.ts:85,94`
+> are the two `it.each(PROTECTED_ROUTES)` blocks; `CandidateReviewWorkspace.tsx:138` is the
+> app's own `window.location.reload()`; `review.astro:107` is the `if (!error)` that hides the
+> metric silently; `flashcards.ts:102` is the `STATE_ACCEPTED` filter behind the deck-page oracle.
+>
+> **The oracle was checked against the components rather than taken from research.** `Edytuj`
+> exists at exactly two sites in `src/` — `FlashcardItem.tsx:241` (the deck page, one per card,
+> in a `grid-cols-3` footer beside `Odrzuć` and `Usuń`) and `CandidateItem.tsx:287` (the review
+> screen, a different page) — so on the deck page it is one per card and nothing else. The
+> `Usuń` over-count is **+1** and its source is now pinned: `DeckActions.tsx:76`, rendered at
+> `index.astro:150` inside the `sticky top-0 z-20 … h-16` bar at `:129`. (`DeckActions` also
+> carries a confirm `Usuń` at `:146`, inside a closed `<dialog>` and therefore outside a role
+> query — the reason the over-count is one and not two.)
+>
+> **One real defect was found by this pass and fixed rather than noted.** The note claimed
+> `npx playwright install` "appears nowhere in the repo" — **self-falsifying**, because writing
+> the sentence puts the phrase in the repo. Measured: three hits, all prose (`research.md`,
+> `plan.md`, and this note). Rewritten to scope the claim to **executable** surfaces
+> (`package.json`, `.github/workflows/`, `README.md`/`AGENTS.md`, the config), with the trap
+> stated at the site so the looser wording is not restored — a grep written from it would go red
+> on the document making the claim, which is this file's own unfalsifiable-assertion class
+> pointed at itself. Re-verified after the fix: prettier green, §2 md5 unchanged
+> (`b39f7e1f12fd11874bffeb3c0a7d7d8d`), still exactly two hunks, all nine tokens still in range.
+>
+> **3.5 verdict:** every verdict in the note is about the harness's STATE (`LIVE`, `CLOSED`,
+> `latent`, `inert`), never about what e2e proves; four sentences hand work forward explicitly
+> ("the assertion belongs to the phase", "closing them belongs to the phase", "open to
+> re-decision", "handed over with verdicts so the phase's own research starts from them"). The
+> only coverage claim in the note is about **existing** unit + integration coverage of Risk #3,
+> and it is there to justify journey C's exclusion. **3.6 verdict:** the note says it outright at
+> `:676-677` and then demonstrates it — nothing runs the harness, no preflight, a spec that can
+> delete decks in production under a documented credential swap, a `storageState` nobody
+> produces, and the one debugging affordance the config declares can never fire.
 
 ### Phase 4: §5 — the gate row and the closing paragraph
 

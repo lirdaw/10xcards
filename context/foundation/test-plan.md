@@ -536,13 +536,14 @@ appear on disk. A fourth value, **`reopened`**, exists because a later audit can
 show a `complete` phase never covered all of its risk — see Phase 4. Treat
 `complete` as a dated claim, not a permanent state.
 
-| #   | Phase name                      | Goal (one line)                                                                         | Risks covered                                                                                                       | Test types                         | Status   | Change folder                                                                                                                                                              |
-| --- | ------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Harness + per-account isolation | Stand up the runner and prove cross-account denial on read and write                    | #1                                                                                                                  | runner bootstrap, integration, RLS | complete | `context/archive/2026-07-15-verification-harness/`                                                                                                                         |
-| 2   | Endpoint contract               | Prove the server does not trust the client and does not leak; stop duplication on retry | #2 (**covered** — S-05 Phase 6), #4 (**covered** — C10X-28), #6 (**covered, server side** — C10X-30, 2026-07-28)    | integration                        | complete | `context/archive/2026-07-18-ai-candidate-generation-test/` → `context/archive/2026-07-26-ai-candidate-generation-test-2/` → `context/changes/server-side-validation-test/` |
-| 3   | Quality gates + schema drift    | Make green CI mean "tested and prod actually migrated"                                  | #5 (**covered** — the deploy-blocking classes and the stale generated types; C10X-29, 2026-07-28)                   | gates                              | complete | `context/changes/schema-drift-test/`                                                                                                                                       |
-| 4   | SRS schedule correctness        | Prove the schedule defers by rating, survives restart, and admits only accepted cards   | #3 (**covered** — both halves; closed by C10X-27, 2026-07-26)                                                       | unit + integration                 | complete | `context/archive/2026-07-24-srs-study-session/` → `context/archive/2026-07-26-srs-study-session-test/`                                                                     |
-| 5   | AI-native generation quality    | Prove cards match the source language and are usable, so the 75% thesis is measurable   | #7 (**covered as far as a proxy can be** — C10X-31, 2026-07-29; the judge does not measure the 75% acceptance rate) | LLM-as-judge                       | complete | `context/changes/ai-candidate-generation-test-3/`                                                                                                                          |
+| #   | Phase name                         | Goal (one line)                                                                                   | Risks covered                                                                                                       | Test types                         | Status      | Change folder                                                                                                                                                              |
+| --- | ---------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Harness + per-account isolation    | Stand up the runner and prove cross-account denial on read and write                              | #1                                                                                                                  | runner bootstrap, integration, RLS | complete    | `context/archive/2026-07-15-verification-harness/`                                                                                                                         |
+| 2   | Endpoint contract                  | Prove the server does not trust the client and does not leak; stop duplication on retry           | #2 (**covered** — S-05 Phase 6), #4 (**covered** — C10X-28), #6 (**covered, server side** — C10X-30, 2026-07-28)    | integration                        | complete    | `context/archive/2026-07-18-ai-candidate-generation-test/` → `context/archive/2026-07-26-ai-candidate-generation-test-2/` → `context/changes/server-side-validation-test/` |
+| 3   | Quality gates + schema drift       | Make green CI mean "tested and prod actually migrated"                                            | #5 (**covered** — the deploy-blocking classes and the stale generated types; C10X-29, 2026-07-28)                   | gates                              | complete    | `context/changes/schema-drift-test/`                                                                                                                                       |
+| 4   | SRS schedule correctness           | Prove the schedule defers by rating, survives restart, and admits only accepted cards             | #3 (**covered** — both halves; closed by C10X-27, 2026-07-26)                                                       | unit + integration                 | complete    | `context/archive/2026-07-24-srs-study-session/` → `context/archive/2026-07-26-srs-study-session-test/`                                                                     |
+| 5   | AI-native generation quality       | Prove cards match the source language and are usable, so the 75% thesis is measurable             | #7 (**covered as far as a proxy can be** — C10X-31, 2026-07-29; the judge does not measure the 75% acceptance rate) | LLM-as-judge                       | complete    | `context/changes/ai-candidate-generation-test-3/`                                                                                                                          |
+| 6   | E2E harness + two browser journeys | Close the non-local seams, then prove the guard is mounted and an accepted card survives a reload | #1 and #6 (**extending — no §2 row changes**; e2e introduces no new failure scenario)                               | e2e (Playwright), human-triggered  | not started | — (opens its own via `/10x-new`)                                                                                                                                           |
 
 Sequencing notes:
 
@@ -665,6 +666,102 @@ Sequencing notes:
   reality" (that row now reads local **and** dispatchable), and "still local, still
   human-triggered" (the first half retired, the second untouched). Read §6.6's C10X-42 entry
   with this one.
+- Phase 6 is `not started`, and the unusual thing about the row — the reason this note is the
+  longest in the list — is that **the harness it will inherit already exists**.
+  `playwright.config.ts` plus one spec under `tests/e2e/` landed 2026-08-05 (`8a12d07`,
+  `5f3c87e`) **outside** the phased rollout, which is the C10X-39/40/42/43 orphan pattern one
+  more time. So the phase does not start from nothing; it starts from something nobody had
+  audited. It was audited on 2026-08-05 by this refresh's research, and the nine findings below
+  are handed over **with verdicts** so the phase's own research starts from them rather than
+  re-deriving them — and so a reader who stops here learns that the harness exists **and** that
+  it is not yet trustworthy. The phase runs the full
+  `/10x-new` → `/10x-research` → `/10x-plan` → `/10x-implement` / `/10x-e2e` chain, deliberately
+  **not** as a hardening ticket: shipping it as hardening is what would repeat the orphan
+  pattern rather than close it. Its ids are reserved and deliberately **not** created by this
+  refresh — roadmap **H-12**, Jira **C10X-45**.
+
+  **Sub-phase 6.1 is an entry condition that blocks the rest of the phase, not a follow-up.** A
+  Playwright preflight comes first. `tests/setup/preflight.ts` closes three non-local seams for
+  `npm test` — local host, anon key, `OPENROUTER_API_KEY` unset — with no env opt-out (§6.4),
+  and the Playwright side has **none** of them. `baseURL` is hardcoded to `localhost`, but the
+  dev server reads `.env`, whose own comments document the cloud-credential swap under a `PROD_`
+  prefix, and `seed.spec.ts` ends by **deleting a whole deck through the real UI**. In the
+  swapped state a hand-started `npm run dev` plus `npx playwright test` creates and deletes
+  decks in **production**, and nothing stops it. `SUPABASE_URL` is local today (measured), so
+  this is a live **seam**, not a live incident — and it is exactly the rule `lessons.md` states
+  as "Preflight musi domknąć KAŻDY nielokalny szew".
+
+  **The six harness risks, with the verdicts measured 2026-08-05.** Four LIVE, one CLOSED, one
+  LIVE and **inverted** on the axis it was written about:
+  - **1 — no Playwright preflight: LIVE.** No `globalSetup`, no setup project and no env
+    assertion anywhere in the 11-line config. This is 6.1 above.
+  - **2 — `storageState` has no producer: LIVE, and sharpened.** The config consumes
+    `playwright/.auth/user.json`; `.gitignore` ignores it and nothing writes it, so a fresh
+    checkout has no such file at all. The copy that exists on one machine is hand-made, and its
+    cookie NAME is derived from the `SUPABASE_URL` hostname (§6.4) — change the URL or the port
+    and the cookie is simply not read, which presents as a locator timeout rather than as
+    "signed out". `lessons.md`'s "Nigdy nie sklejaj ręcznie cookie sesji `@supabase/ssr`" is the
+    measured rule for producing one properly.
+  - **3 — no `webServer` block: LIVE.** `baseURL` is a hardcoded string and nothing asserts a
+    server is up or which environment it loaded. It couples to 6.1: a preflight has little to
+    assert against until the run owns the server it talks to.
+  - **4 — isolation from `npm test` is incidental, not asserted: LIVE.** Vitest collects
+    `tests/**/*.test.ts` and the spec is `tests/e2e/seed.spec.ts`, so the two layers are
+    separated by a filename infix alone, **inside one directory**, with nothing asserting it in
+    either direction — weaker than the eval, whose separation is a second config's `include`
+    plus two runtime preflights that fail in opposite directions. §6.1 and §6.2 carry the trap
+    note as of this refresh; the assertion belongs to the phase.
+  - **5 — `test-results/` and `.playwright-cli/` unignored: CLOSED** by `5f3c87e`, which added
+    exactly those two entries. Recorded as closed rather than dropped from the list, so the next
+    reader does not re-open it.
+  - **6 — one persistent account vs per-run accounts: LIVE, and INVERTED on the rate-limit
+    axis.** The harness issues **zero auth requests per run** — the spec goes straight to
+    `/decks` on `storageState` — so the 30-sign-ins / 5-min / IP limit §6.4 records is not
+    exposed at all; on that axis this is cheaper than Vitest, and the price paid for it is
+    risk 2's unreproducible cookie. Row growth **is** exposed: cleanup is inline test-body code
+    rather than a fixture teardown, so any failure earlier in the spec orphans a deck
+    permanently — on the same dev DB §6.6 already records at 1053 decks against
+    `max_rows = 1000`, where growth turned an assertion unfalsifiable while it stayed green.
+
+  **Three findings that were on no list.** `trace: "on-first-retry"` is **inert**: no `retries`
+  is configured and Playwright's default is `0`, so there is never a first retry and the only
+  debugging affordance the config declares can never fire. There is **no npm script and no
+  browser install** — `package.json` carries no `e2e` / `test:e2e` entry and no `postinstall`,
+  and `npx playwright install` appears in no **executable** surface: not `package.json`, not
+  `.github/workflows/`, not `README.md` or `AGENTS.md`, not the config. Scope the claim that way
+  rather than as "nowhere in the repo", which this very sentence falsifies — the phrase now has
+  prose hits, this note among them, and a grep written from the looser wording would go red on
+  the document making the claim. So a fresh clone has the runner and no browser binaries, and
+  the only entry point is a bare `npx playwright test`. And four
+  artifact classes remain unignored — `playwright-report/`, `blob-report/`, a root-level
+  `.last-run.json` and `*-snapshots/` — **latent rather than live**, because the default
+  reporter produces none of them today; that is why `.gitignore` is deliberately untouched by
+  this refresh and closing them belongs to the phase.
+
+  **Two scope decisions, written down so they are not rediscovered as gaps.** **Journey C — an
+  SRS study session — is deliberately OUT**: Risk #3 is covered on both halves by unit +
+  integration (§6.6's Phase 4 entry), so a browser adds no signal there. That is a decision,
+  never a gap. And **journey B's mandate is "the guard is MOUNTED and executes on a real
+  request"**, never "`PROTECTED_ROUTES` has a test": since C10X-27 `tests/middleware.test.ts`
+  has driven `it.each(PROTECTED_ROUTES)` over the real imported array on both branches, and
+  `lessons.md`'s Container-API rule names precisely what that cannot reach — the Container
+  mounts `NOOP_MIDDLEWARE_FN`, so a middleware that stopped being mounted (file renamed, export
+  dropped, adapter change) leaves those cases fully green while every protected route stands
+  open in production. Scoped the old way — "the guard is uncovered" — research would specify a
+  test duplicating the two `it.each` blocks that already exist.
+
+  **Response guidance for journey A's oracle, decided at research time and open to
+  re-decision.** Assert on the **deck page**, not on the review screen: a content-free count of
+  `getByRole("button", { name: "Edytuj" })`, one per card — and note that **`Usuń` over-counts
+  by one**, the deck-delete button in the sticky header. The review screen was rejected for two
+  measured reasons: it calls `window.location.reload()` itself on the accept branch, so an
+  oracle there partly asserts what the application performs for the test; and its
+  acceptance-metric line **hides silently** on an aggregate error, so its presence is evidence
+  while its absence proves nothing. The deck page reaches an `.astro` loader that §6.4 records
+  as deliberately never rendered and §6.6's S-05 entry records as resting on manual verification
+  alone — which is the coverage hole this journey extends into. Do not assert on card
+  **content**: §6.5 is explicit that mock output is identical on every call and is not an
+  oracle.
 
 ## 4. Stack
 
