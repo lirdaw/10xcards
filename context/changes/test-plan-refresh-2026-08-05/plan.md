@@ -101,6 +101,11 @@ covers `context/archive/**` only — **not** `context/foundation/`. Every phase 
 the file prettier-clean, and Phase 7 must prove idempotency by writing twice and diffing. Never
 break a code span across a line inside a blockquote.
 
+**Measured 2026-08-05, and it is not the file this note was written about**: `README.md` and
+`test-plan.md` both pass `prettier --check` at `HEAD`; **`context/foundation/lessons.md` does
+not** — it exits 1 on two trailing-whitespace lines (`:204`, `:211`). So the hazard is live on the
+one document nobody checked. Phase 6 owns it.
+
 **Ordering:** §3 (Phase 3) before §5 (Phase 4). Writing §5's "no §3 phase" clause against the
 pre-change §3 produces a file that contradicts itself.
 
@@ -119,15 +124,25 @@ reveals: the e2e layer is already inside the type gate.
 
 **File**: `README.md`
 
-**Intent**: Correct the false file count and, in the same sentence, state that the gate now
-covers the e2e layer — which is what the new number is made of. This is a number correction, not
+**Intent**: Stop stating a total at all, and in the same sentence state that the gate now covers
+the e2e layer — which is the fact the changed number was made of. This is a scope correction, not
 a coverage claim.
 
-**Contract**: Line 49, the `npm run typecheck` bullet. `133` → `135`. The clause
-``the 18 `.astro` templates `tsc` cannot see`` is **true and must survive verbatim**. The
-directory enumeration (`src/`, `tests/`, `evals/`, `scripts/`, the root configs) is also true and
-survives — `tests/` now additionally contains `tests/e2e/`, which is the fact to add. Do not
-touch the `pre-push` half of the sentence.
+**Contract**: Line 49, the `npm run typecheck` bullet. **Remove the total** (`over all 133
+files` → a clause naming the scope with no count) rather than replacing `133` with `135`. Reason,
+and it is the plan's own evidence: the gate asserts on a **floor** (`test-plan.md:24-25`)
+precisely so a rising count cannot go red, and the count measured 133, 135, 136 and 135 again
+inside four days — a live claim pinned to it re-rots by construction, which is the denominator
+class §8 records four times. **`AGENTS.md:22` already states this identical gate with no total**,
+which is why research found it needed no correction on this axis; match that wording. The clause
+``the 18 `.astro` templates `tsc` cannot see`` is **true and must survive verbatim** — it is a
+category, not a moving total. The directory enumeration (`src/`, `tests/`, `evals/`, `scripts/`,
+the root configs) is also true and survives — `tests/` now additionally contains `tests/e2e/`,
+which is the fact to add. Do not touch the `pre-push` half of the sentence.
+
+**Do not over-apply this to §2 below.** A count inside a **dated correction block** is the right
+place for one: it is a measurement carrying its own date, not a standing claim. §2 keeps its
+`135` / `117`.
 
 #### 2. §6.6's C10X-43 claims table
 
@@ -147,8 +162,8 @@ blocks in §6.6 (e.g. the C10X-42 and C10X-43 blocks).
 #### Automated Verification:
 
 - `grep -c "over all 133 files" README.md` returns `0`
-- `grep -c "135" README.md` returns at least `1`, and ``grep -c '18 `.astro` templates' README.md`` still returns `1`
-- `grep -c "(133 files)" context/foundation/test-plan.md` still returns `1` — the §6.6 row was not rewritten
+- README states **no** file total: `grep -cE '\b(133\|135\|136)\b' README.md` returns `0` (`133` is its only such hit at `HEAD`), while ``grep -c '18 `.astro` templates' README.md`` still returns `1`
+- The §6.6 row at `:2765` is **byte-identical to `HEAD`**: `git diff HEAD -- context/foundation/test-plan.md` shows no hunk touching that line. Assert it this way rather than with `grep -c "(133 files)" … returns 1` — a correction block conventionally quotes the figure it supersedes, so that count legitimately becomes `2` and the criterion would push the writer toward a vaguer correction just to keep a grep green
 - `grep -c "Corrected 2026-08-05" context/foundation/test-plan.md` returns at least `1`
 - `npx prettier --check README.md context/foundation/test-plan.md` exits 0
 
@@ -202,9 +217,14 @@ note rather than duplicating the harness audit here.
 **Intent**: Correct a clause that was already contradicted by §7 when it was written, and a stale
 date.
 
-**Contract**: Line 688. `no §2 risk is DOM-unreachable` is false — §7's focus-ring bullet says a
-computed style in a real browser is required. `not used` remains true of claude-in-chrome
-specifically. Update `checked:`.
+**Contract**: Line 688, which carries **two** false clauses, not one — the second is easy to miss
+because it sits after an `and` on the same line. (a) `no §2 risk is DOM-unreachable` is false —
+§7's focus-ring bullet says a computed style in a real browser is required. (b)
+**`and no phase claims e2e`** is the exact twin of the clause Phase 2 §2 rewrites in §4's e2e row,
+and it becomes false for the same reason and at the same moment: when Phase 3 adds the §3 Phase 6
+row. So this line inherits the **same ordering dependency** as §4's row and §5's paragraph —
+finalise it after Phase 3, and word it to match them on the claims-vs-wires distinction.
+`not used` remains true of claude-in-chrome specifically. Update `checked:`.
 
 ### Success Criteria:
 
@@ -272,7 +292,7 @@ over-counts by one**), with the reason the review-screen metric was rejected: th
 #### Automated Verification:
 
 - The §3 table has six phase rows and row 6's Status cell reads `not started`
-- The sequencing note names all nine harness findings (checked by grepping for the distinguishing token of each: `preflight`, `storageState`, `webServer`, `.spec.ts`, `.gitignore`/artifacts, auth-request count, `trace`, npm script, browser install)
+- The sequencing note names all nine harness findings — checked by grepping the note's **own line range** (`sed -n '<start>,<end>p'` piped to grep), never the whole file. Measured at `HEAD`, three of the nine tokens already occur file-wide — `preflight` ×18, `trace` ×5, `.gitignore` ×4 — so a file-wide grep passes those three whatever the note says: the unfalsifiable-assertion class §6.6 records against `listDueCounts`. The other six (`storageState`, `webServer`, `.spec.ts`, auth-request count, npm script, browser install) are `0` at `HEAD` and are falsifiable either way
 - The §2 Risk Map section is byte-identical to `HEAD` (extract the section between the `## 2.` and `## 3.` headings and diff)
 - `npx prettier --check context/foundation/test-plan.md` exits 0
 
@@ -386,7 +406,8 @@ than an in-place replacement — the opposite treatment from sites 1 and 2 above
 
 #### Automated Verification:
 
-- Every occurrence of `Re-evaluate the moment any §3 phase wires e2e` sits inside a block that also contains `2026-08-05` (grep with context and inspect each hit; expected total: 4)
+- Each of the **four sites named in the Contract** (`:3227-3243`, `:3256-3258`, `:3279-3293`, `:3524`) sits inside a block that also contains `2026-08-05` — checked per anchor, never by a hit count. **A hit count would be wrong twice over**, measured at `HEAD`: a literal grep for `Re-evaluate the moment any §3 phase wires e2e` returns **2**, not 4, because `:3237-3239` **wraps the phrase across a line break** ("any §3 phase\n wires e2e") and `:3256-3258` never carried the clause at all (its blocker is worded "needs its own browser verification")
+- The **pair** of patterns, per §8's C10X-39 rule that one pattern is not enough on this file: `grep -n "Re-evaluate the moment any §3 phase wires e2e"` **and** the wrap-tolerant `grep -n "Re-evaluate the moment any §3 phase"`. Every hit of either must sit in a `2026-08-05` block
 - All §7 exclusion bullets present at `HEAD` are still present — the count of `- **` bullets in §7 is unchanged
 - `grep -c "2.4.11 is Focus Not Obscured, and nothing tests it" context/foundation/test-plan.md` returns `1`
 - `npx prettier --check context/foundation/test-plan.md` exits 0
@@ -432,6 +453,17 @@ place.
 is at `roadmap.md:401` (`:234` is H-01's Risk paragraph). Change the pointer only; the rule's
 text is correct.
 
+**`lessons.md` is prettier-dirty at `HEAD` and this file is the one the plan's prettier hazard
+note checked the wrong file for.** Measured 2026-08-05: `npx prettier --check
+context/foundation/lessons.md` exits **1**, while `README.md` and `test-plan.md` both exit 0. The
+drift is two lines of trailing whitespace (`:204`, `:211`) and nothing else. Because
+`.prettierignore` covers `context/archive/**` and **not** `context/foundation/`, staging this file
+makes `lint-staged` normalise those two lines whether or not you ask it to. **Normalise them
+deliberately in the same commit** and say so in the commit body's absence — i.e. in this Contract
+— so the diff's shape is explained rather than discovered: the pointer change plus exactly two
+whitespace-only lines. Do not let it look like an unexplained reformat, and do not extend it
+beyond those two lines.
+
 ### Success Criteria:
 
 #### Automated Verification:
@@ -439,13 +471,13 @@ text is correct.
 - §6.1 and §6.2 each contain `tests/e2e/` and `.spec.ts`
 - `grep -c "roadmap.md:234" context/foundation/lessons.md` returns `0`
 - `grep -c "roadmap.md:401" context/foundation/lessons.md` returns `1`
-- `grep -c "6.11" context/foundation/test-plan.md` returns `0`
-- `npx prettier --check context/foundation/test-plan.md context/foundation/lessons.md` exits 0
+- `grep -cF "### 6.11" context/foundation/test-plan.md` returns `0`. **`-F` and the heading prefix are both load-bearing**: `grep -c "6.11"` returns `1` at `HEAD` and can therefore never pass — `.` is a regex wildcard and matches `6011` inside the migration timestamp `'20260601120000'` at `:1866`
+- `npx prettier --check context/foundation/test-plan.md context/foundation/lessons.md` exits 0 — **an after-check, not a before-check**: `lessons.md` exits 1 at `HEAD` (two trailing-whitespace lines), so this criterion is expected to be red until this phase normalises them
 
 #### Manual Verification:
 
 - Each addition is one sentence, in the voice of the surrounding bullets
-- The `lessons.md` edit changed a pointer and nothing else — verify against `git diff`
+- The `lessons.md` diff is the pointer change **plus exactly two whitespace-only lines** (`:204`, `:211`, pre-existing prettier drift normalised deliberately) — and nothing else. Verify against `git diff`; three or more content hunks means the reformat ran wider than intended
 
 ---
 
@@ -512,11 +544,11 @@ same breath that this is a guide update, not a coverage change.
 
 - `grep -n "last reviewed\|last verified" context/foundation/test-plan.md | head -3` shows all three dates as `2026-08-05`
 - The file's `Last updated:` line reads `2026-08-05` and the immediately following block begins `Previously:`
-- `git diff --stat` lists only `README.md`, `context/foundation/test-plan.md`, `context/foundation/lessons.md` and the change folder — **no file under `src/`, `tests/`, `evals/` or `scripts/`**
-- `npm run typecheck` still reports `Result (135 files)` with 0 errors
+- `git status --porcelain` lists only `README.md`, `context/foundation/test-plan.md`, `context/foundation/lessons.md` and the change folder — **no file under `src/`, `tests/`, `evals/` or `scripts/`**. `--porcelain`, not `git diff --stat`: an **untracked** file never appears in a diff, so `git diff` cannot see a stray spec under `tests/e2e/` and would report a clean sweep over one. Measured during plan-review (2026-08-05): an untracked `tests/e2e/route-guard.spec.ts` was present in the tree and took `npm run typecheck` to **136**, while `git diff --stat` stayed clean — it was removed before implementation, and the count is 135 again
+- `npm run typecheck` reports **0 errors**, and its `Result (N files)` count is recorded in Progress. `N` is expected to be `135`; a different `N` is not a failure of this change but a signal that a file entered or left the tree — cross-check against 7.3 rather than editing a document to match it
 - `npm run lint` exits 0
 - `npx prettier --check` passes on all three edited docs, **and** is idempotent: run `--write` twice, `git diff` between the two runs is empty
-- `grep -c "364/364, 31 files" context/foundation/test-plan.md` is unchanged from `HEAD`
+- Both `364/364, 31` sites are unchanged from `HEAD` — `:42-43` **and** `:4168`, checked per anchor. Same trap as 5.1: `grep -c "364/364, 31 files"` returns **1**, because `:42-43` wraps between `31` and `files`; the wrap-tolerant partner is `grep -n "364/364, 31"`
 
 #### Manual Verification:
 
@@ -539,7 +571,7 @@ There is no code under test. The verification is textual and mechanical:
 
 ### Manual:
 
-1. Read §3 row 6, §4's e2e row and §5's paragraph in sequence — they must agree on "claims" vs "wires"
+1. Read §3 row 6, §4's e2e row, **§4's `:688` tooling line** and §5's paragraph in sequence — all four must agree on "claims" vs "wires"
 2. Read each §7 re-decision — the condition must read as mis-keyed, never as fired
 3. Read the §8 entry cold and confirm the four deferrals and the orphan consequence are recoverable from it alone
 4. Confirm `git diff` shows appended corrections (not rewrites) at `test-plan.md:2765` and `:3524`
@@ -567,8 +599,8 @@ and do not apply.
 #### Automated
 
 - [ ] 1.1 `grep -c "over all 133 files" README.md` returns 0
-- [ ] 1.2 README carries 135 and still carries the `18 .astro templates` clause
-- [ ] 1.3 §6.6's `(133 files)` row survives byte-identical
+- [ ] 1.2 README carries **no** file total and still carries the `18 .astro templates` clause
+- [ ] 1.3 §6.6's `(133 files)` row survives byte-identical — checked by `git diff` on `:2765`, not by a substring count
 - [ ] 1.4 A `Corrected 2026-08-05` block exists after the C10X-43 claims table
 - [ ] 1.5 `npx prettier --check README.md context/foundation/test-plan.md` exits 0
 
@@ -596,7 +628,7 @@ and do not apply.
 #### Automated
 
 - [ ] 3.1 §3 has six phase rows; row 6 Status is `not started`
-- [ ] 3.2 The sequencing note names all nine harness findings
+- [ ] 3.2 The sequencing note names all nine harness findings — greps scoped to the note's line range (file-wide would pass `preflight`/`trace`/`.gitignore` vacuously)
 - [ ] 3.3 §2 is byte-identical to `HEAD`
 - [ ] 3.4 `npx prettier --check context/foundation/test-plan.md` exits 0
 
@@ -616,14 +648,14 @@ and do not apply.
 
 #### Manual
 
-- [ ] 4.5 §3 row 6, §4's row and §5's paragraph agree on claims-vs-wires
+- [ ] 4.5 §3 row 6, §4's e2e row, §4's `:688` tooling line and §5's paragraph agree on claims-vs-wires
 - [ ] 4.6 The gate row cannot be read as "a documented command runs the e2e suite"
 
 ### Phase 5: §7 re-decisions and the §8 twin clause
 
 #### Automated
 
-- [ ] 5.1 All 4 occurrences of the mis-keyed trigger sit inside a `2026-08-05` block
+- [ ] 5.1 All 4 **Contract-named sites** sit inside a `2026-08-05` block, checked per anchor (a hit count is wrong: a literal grep returns 2 — `:3237-3239` is line-wrapped, `:3256-3258` never carried the clause), using the C10X-39 **pair** of patterns
 - [ ] 5.2 The §7 exclusion bullet count is unchanged
 - [ ] 5.3 The `2.4.11 is Focus Not Obscured` sentence survives
 - [ ] 5.4 `npx prettier --check context/foundation/test-plan.md` exits 0
@@ -639,13 +671,13 @@ and do not apply.
 
 - [ ] 6.1 §6.1 and §6.2 each name `tests/e2e/` and `.spec.ts`
 - [ ] 6.2 `roadmap.md:234` returns 0 hits in `lessons.md`; `roadmap.md:401` returns 1
-- [ ] 6.3 No `6.11` subsection was added
-- [ ] 6.4 `npx prettier --check` passes on both files
+- [ ] 6.3 No `6.11` subsection was added — `grep -cF "### 6.11"` returns 0 (a bare `grep -c "6.11"` returns 1 at `HEAD` and can never pass)
+- [ ] 6.4 `npx prettier --check` passes on both files (after-check: `lessons.md` is red at `HEAD`)
 
 #### Manual
 
 - [ ] 6.5 Each addition is one sentence, in the surrounding voice
-- [ ] 6.6 The `lessons.md` diff is a pointer change and nothing else
+- [ ] 6.6 The `lessons.md` diff is the pointer change plus exactly two whitespace-only lines (`:204`, `:211`)
 
 ### Phase 7: §8 ledger, the Vitest-only sentence, and the rolling header
 
@@ -653,11 +685,11 @@ and do not apply.
 
 - [ ] 7.1 All three ledger dates read `2026-08-05`
 - [ ] 7.2 `Last updated:` reads `2026-08-05` and the next block begins `Previously:`
-- [ ] 7.3 `git diff --stat` touches no file under `src/`, `tests/`, `evals/`, `scripts/`
-- [ ] 7.4 `npm run typecheck` still reports `Result (135 files)`, 0 errors
+- [ ] 7.3 `git status --porcelain` (not `git diff --stat` — it is blind to untracked files) touches no file under `src/`, `tests/`, `evals/`, `scripts/`
+- [ ] 7.4 `npm run typecheck` reports 0 errors; `Result (N files)` recorded (expected `135`)
 - [ ] 7.5 `npm run lint` exits 0
 - [ ] 7.6 `prettier --check` passes and a double `--write` produces an empty diff
-- [ ] 7.7 The `364/364, 31 files` figures are unchanged
+- [ ] 7.7 Both `364/364, 31` sites unchanged — `:42-43` (wrapped, invisible to the full-phrase grep) and `:4168`
 
 #### Manual
 
