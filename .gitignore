@@ -122,3 +122,4 @@ supabase/.branches/
 
 supabase/snippets/
 supabase/.temp/
+/playwright/.auth/user.json
