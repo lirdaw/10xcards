@@ -48,8 +48,8 @@ document knows it.** Same denominator-rot class §8 records against C10X-39 and 
   - A: generate → accept → the accepted card survives a page reload (US-01; real auth, real
     API, real Postgres, real SSR; OpenRouter in mock mode).
   - B: a signed-out browser navigation to a protected route lands on `/auth/signin`.
-- **Journey C (SRS session) is deliberately OUT.** Risk #3 is covered on both halves by unit
-  - integration; e2e adds no signal. Record as a decision, never as a gap.
+- **Journey C (SRS session) is deliberately OUT.** Risk #3 is covered on both halves by
+  unit + integration; e2e adds no signal. Record as a decision, never as a gap.
 - **§7's three exclusions STAY excluded**, replacing the conditional clause with a dated
   re-decision (2026-08-05).
 - **A Playwright preflight is an entry condition**, not a follow-up: sub-phase 6.1 blocks the
