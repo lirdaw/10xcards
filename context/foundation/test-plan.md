@@ -798,22 +798,43 @@ The full set of gates that must pass before a change reaches production.
 "Required after §3 Phase `<N>`" means the gate is enforced once that rollout
 phase lands; before that, the gate is `planned`.
 
-| Gate                               | Where                                                                                                       | Required?                                                                                        | Catches                                                                   |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
-| lint                               | local (husky `pre-commit` → lint-staged, staged files only) + CI                                            | required — wired today                                                                           | syntactic drift, rule violations                                          |
-| typecheck                          | local (husky `pre-push`, whole project) + CI (`ci` job, between `astro sync` and `lint`)                    | required — wired 2026-08-03 by C10X-43; before that date this row was false in **both** halves   | type drift — including in `evals/`, `tests/` and `scripts/`               |
-| build                              | CI                                                                                                          | required — wired today                                                                           | broken production build                                                   |
-| unit + integration                 | local + CI                                                                                                  | required — wired by §3 Phase 1                                                                   | logic regressions, cross-account access, endpoint contract breaks         |
-| migration/schema drift check       | CI, `drift` job between `ci` and `deploy`                                                                   | required — wired by §3 Phase 3 (C10X-29)                                                         | deployed app running against an un-migrated prod schema; a history desync |
-| generated-types check              | CI, inside the `ci` job after the local stack                                                               | required — wired by §3 Phase 3 (C10X-29)                                                         | `src/db/database.types.ts` stale against the migrations that generate it  |
-| DDL diff against the cloud         | GitHub Actions, `workflow_dispatch` only                                                                    | optional, human-triggered — no schedule                                                          | a migration amended after it was pushed; production edited by hand        |
-| post-edit hook                     | local (agent loop)                                                                                          | recommended local, not a CI substitute                                                           | regressions at edit time                                                  |
-| prod smoke on a real flow          | between merge and "done"                                                                                    | optional                                                                                         | environment-specific failures (missing prod secret, silent mock mode)     |
-| LLM-as-judge on generation quality | local (`npm run eval`, key in the shell env) **and** GitHub Actions, `workflow_dispatch` only — no schedule | optional, human-triggered — wired by §3 Phase 5 (C10X-31); the CI leg added 2026-08-02 (C10X-42) | wrong-language or unusable cards                                          |
+| Gate                               | Where                                                                                                                             | Required?                                                                                                            | Catches                                                                                        |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| lint                               | local (husky `pre-commit` → lint-staged, staged files only) + CI                                                                  | required — wired today                                                                                               | syntactic drift, rule violations                                                               |
+| typecheck                          | local (husky `pre-push`, whole project) + CI (`ci` job, between `astro sync` and `lint`)                                          | required — wired 2026-08-03 by C10X-43; before that date this row was false in **both** halves                       | type drift — including in `evals/`, `tests/` and `scripts/`                                    |
+| build                              | CI                                                                                                                                | required — wired today                                                                                               | broken production build                                                                        |
+| unit + integration                 | local + CI                                                                                                                        | required — wired by §3 Phase 1                                                                                       | logic regressions, cross-account access, endpoint contract breaks                              |
+| migration/schema drift check       | CI, `drift` job between `ci` and `deploy`                                                                                         | required — wired by §3 Phase 3 (C10X-29)                                                                             | deployed app running against an un-migrated prod schema; a history desync                      |
+| generated-types check              | CI, inside the `ci` job after the local stack                                                                                     | required — wired by §3 Phase 3 (C10X-29)                                                                             | `src/db/database.types.ts` stale against the migrations that generate it                       |
+| DDL diff against the cloud         | GitHub Actions, `workflow_dispatch` only                                                                                          | optional, human-triggered — no schedule                                                                              | a migration amended after it was pushed; production edited by hand                             |
+| post-edit hook                     | local (agent loop)                                                                                                                | recommended local, not a CI substitute                                                                               | regressions at edit time                                                                       |
+| prod smoke on a real flow          | between merge and "done"                                                                                                          | optional                                                                                                             | environment-specific failures (missing prod secret, silent mock mode)                          |
+| LLM-as-judge on generation quality | local (`npm run eval`, key in the shell env) **and** GitHub Actions, `workflow_dispatch` only — no schedule                       | optional, human-triggered — wired by §3 Phase 5 (C10X-31); the CI leg added 2026-08-02 (C10X-42)                     | wrong-language or unusable cards                                                               |
+| e2e browser journeys               | local only — a bare `npx playwright test` against a hand-started `npm run dev`; no npm script, no CI job, no browser-install step | **never a gate** — human-triggered, no schedule, and nothing may declare it in `needs:`; §3 Phase 6 is `not started` | the guard is MOUNTED and runs on a real browser navigation; an accepted card survives a reload |
 
-e2e on critical flows is deliberately absent: no §3 phase wires it, so
-listing it as a gate would be aspirational. Add it only if a risk survives
-the integration layer.
+**The e2e row is the newest row in this table and deliberately the only one that is not a gate
+at all** — which is why its `Required?` cell reads as a decision rather than as a waiting room.
+Read it against §3 first: **Phase 6 CLAIMS this layer, as `not started`, and nothing WIRES it** —
+no npm script, no CI job, no browser-install step, no `webServer` and no preflight (§4's e2e row;
+§3's sequencing note carries the nine measured harness findings). That distinction is the new
+footing under the one clause of this paragraph that survived 2026-08-05, namely that listing e2e
+as a gate would be **aspirational**: a phase claiming the layer is not a phase enforcing it, and
+the `Where` cell says exactly what a runner would have to type by hand. Read that cell as the
+absence of an entry point, never as a documented one — it does not say the command WORKS as
+typed, and on a fresh checkout it does not, because nothing installs the browser binaries and
+nothing produces the `storageState` file the config consumes. The two sentences around
+it are retired rather than re-based. The opening one said e2e was deliberately absent, which is
+false — a runner and one spec exist, they landed outside the rollout, and §4's e2e row is where
+that is stated. The closing one said to add e2e only if a risk survived the integration layer,
+and it is superseded by the way Phase 6 was scoped: both journeys were chosen because the
+integration layer cannot reach them **by construction** (§6.4 renders `routeType: "endpoint"`
+only and never runs project middleware), not because a risk survived it.
+
+**`never a gate` must not soften into `required — wired by §3 Phase 6` the day that phase
+lands**, which is the one way this row could rot without anybody editing it. Same rule and same
+reason as the DDL diff and the eval below: this project has no notification channel, so a red
+run nobody is committed to reading is not coverage. Nothing may ever declare an e2e job in
+`needs:`.
 
 **The typecheck row is the newest gate and the one this table was wrong about for longest.**
 Until 2026-08-03 it read `lint + typecheck | local (husky pre-commit via lint-staged) + CI |

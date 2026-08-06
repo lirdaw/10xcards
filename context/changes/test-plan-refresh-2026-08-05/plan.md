@@ -676,10 +676,10 @@ and do not apply.
 
 #### Automated
 
-- [x] 3.1 §3 has six phase rows; row 6 Status is `not started`
-- [x] 3.2 The sequencing note names all nine harness findings — greps scoped to the note's line range (file-wide would pass `preflight`/`trace`/`.gitignore` vacuously)
-- [x] 3.3 §2 is byte-identical to `HEAD`
-- [x] 3.4 `npx prettier --check context/foundation/test-plan.md` exits 0
+- [x] 3.1 §3 has six phase rows; row 6 Status is `not started` — efc7c27
+- [x] 3.2 The sequencing note names all nine harness findings — greps scoped to the note's line range (file-wide would pass `preflight`/`trace`/`.gitignore` vacuously) — efc7c27
+- [x] 3.3 §2 is byte-identical to `HEAD` — efc7c27
+- [x] 3.4 `npx prettier --check context/foundation/test-plan.md` exits 0 — efc7c27
 
 > **3.1–3.4 measurements, 2026-08-05.** 3.1: the §3 table has **6** phase rows
 > (`awk` over the section, `grep -cE '^\| [0-9]+ +\|'`) and row 6's Status cell is
@@ -705,8 +705,8 @@ and do not apply.
 
 #### Manual
 
-- [x] 3.5 The note reads as a hand-off, not a coverage claim
-- [x] 3.6 A reader stopping after §3 learns the harness is not yet trustworthy
+- [x] 3.5 The note reads as a hand-off, not a coverage claim — efc7c27
+- [x] 3.6 A reader stopping after §3 learns the harness is not yet trustworthy — efc7c27
 
 > **3.5 / 3.6 evidence, 2026-08-05 — done by re-measuring every factual claim in the note, not
 > by re-reading it.** Nineteen claims were probed at their source. Confirmed: both commits dated
@@ -754,15 +754,101 @@ and do not apply.
 
 #### Automated
 
-- [ ] 4.1 `e2e on critical flows is deliberately absent` returns 0 hits
-- [ ] 4.2 The gate table's e2e row carries `never` and `needs:` in `Required?`
-- [ ] 4.3 The `planned` count is unchanged from `HEAD`
-- [ ] 4.4 `npx prettier --check context/foundation/test-plan.md` exits 0
+- [x] 4.1 `e2e on critical flows is deliberately absent` returns 0 hits
+- [x] 4.2 The gate table's e2e row carries `never` and `needs:` in `Required?`
+- [x] 4.3 The `planned` count is unchanged from `HEAD`
+- [x] 4.4 `npx prettier --check context/foundation/test-plan.md` exits 0
+
+> **4.1–4.4 measurements, 2026-08-05.** 4.1: `0`. 4.2: the `Required?` cell was read by
+> **field**, not by a file-wide grep — `awk -F'|'` on the row, so a `never` or a `needs:`
+> living anywhere else in the file cannot satisfy it; both present. 4.3: `5` at `HEAD` and
+> `5` after, so the new row borrowed none of the `planned` vocabulary — and the count is
+> stated with its baseline because "unchanged" is a claim about two runs, not one. 4.4: red
+> before, green after one `prettier --write`, and green again on a second `--check` with no
+> further write. The whole change is **one hunk** at default context (two at `-U0`: the
+> table and the paragraph block), both bounded by §5's own intro line above and the
+> typecheck paragraph below — §2, §3, §4 and everything from §6 down are untouched.
+>
+> **The table's diff is wider than the row, and that is prettier, not scope creep.** All ten
+> pre-existing rows re-pad because the new `Where` cell is the widest in its column; no cell
+> text on any of them changed. Checked rather than assumed.
+>
+> **One collision was caught by reading the neighbours and fixed before the commit.** The
+> paragraph first opened "The e2e row is the newest, …" while the typecheck paragraph three
+> below opens "The typecheck row is the newest gate …" — two rows claiming the same
+> superlative. Reworded to "the newest row in this table and deliberately the only one that is
+> not a gate at all", which turns the collision into the distinction the row exists to make.
+>
+> **The plan's destructive-prettier hazard fired inside THIS note, which is the finding worth
+> carrying.** The first draft of §5's paragraph split two code spans across line breaks (the
+> "aspirational" clause and the "add it only if a risk survives…" clause); both are gone from
+> the final text, and lines 795-835 now carry no line with an odd backtick count (checked by
+> `awk`). But the note recording that fact split those same two spans across lines **inside a
+> blockquote** — the one place the plan says never to — and `prettier --write` on `plan.md`
+> promptly ate the `> ` continuation marker on three lines, exactly the failure §8 records for
+> `test-plan.md`. Caught by running prettier on a COPY before committing rather than by
+> reading. Two consequences. `.prettierignore` covers `context/archive/**` only, so
+> `context/changes/**` is in scope for `lint-staged` too — **the hazard applies to plan.md, not
+> just to the documents a phase edits**. And the rule is narrower than "avoid code spans":
+> a span may wrap freely in ordinary prose (§5's own paragraph proves it), but inside a
+> blockquote it must stay on one line. Rewritten to quote those clauses as plain text, after
+> which `plan.md` is prettier-clean and a `--write` is a no-op.
 
 #### Manual
 
-- [ ] 4.5 §3 row 6, §4's e2e row, §4's `:688` tooling line and §5's paragraph agree on claims-vs-wires
-- [ ] 4.6 The gate row cannot be read as "a documented command runs the e2e suite"
+- [x] 4.5 §3 row 6, §4's e2e row, §4's `:688` tooling line and §5's paragraph agree on claims-vs-wires
+- [x] 4.6 The gate row cannot be read as "a documented command runs the e2e suite"
+
+> **4.5 / 4.6 evidence, 2026-08-05 — every factual claim in the new cells was probed at its
+> source before the four sites were read in sequence.** The `Where` cell names two commands and
+> both are real: `package.json` carries `dev: "astro dev"`, and it carries **no** `postinstall`
+> and **no** script matching `/e2e|playwright/`, so "no npm script" is measured rather than
+> recalled. `playwright install` returns **0** hits across `package.json`,
+> `.github/workflows/`, `README.md`, `AGENTS.md` and `playwright.config.ts`, which is what
+> licenses both "no browser-install step" in the cell and "nothing installs the browser
+> binaries" in the paragraph. `storageState` resolves to exactly two sites tree-wide —
+> `playwright.config.ts:7` **consumes** it and `seed.spec.ts:21` mentions it in a comment — so
+> nothing produces it. And the §6.4 citation was read rather than trusted: `:1142` is
+> "The Container API does not run project middleware" and `:1156` is `routeType: "endpoint"`
+> only, so the paragraph's parenthetical states what §6.4 actually says. §3's note really does
+> carry **nine** findings (6 numbered risk bullets + the "Three findings that were on no list"
+> block), which is the figure both §4's row and §5's paragraph quote.
+>
+> **4.5, read in sequence.** All four agree, and two of them agree byte-for-byte where it
+> matters: §4's e2e row and §5's paragraph give the **identical** five-item enumeration (no npm
+> script, no CI job, no browser-install step, no `webServer`, no preflight). All four carry
+> `not started`; sites 2, 3 and 4 state the distinction outright ("claiming is not wiring (§5)"
+> twice, "CLAIMS … and nothing WIRES it" once). Site 1 is the §3 row itself and does not repeat
+> the distinction — correctly, because it is the **referent** the other three point at, not a
+> fourth repeater. The claim/oracle wording also lines up: §3's Goal "prove the guard is mounted
+> and an accepted card survives a reload" against §5's `Catches` "the guard is MOUNTED and runs
+> on a real browser navigation; an accepted card survives a reload" — a refinement that matches
+> §3's own journey-B mandate, not a divergence. A negative check backs the positive one: no line
+> mentioning e2e anywhere in the file matches `required —` / `wired by` / `is a gate` outside the
+> two deliberate negations.
+>
+> **What this phase actually closed, which is sharper than "they agree".** Sites 2 and 3 were
+> written in Phase 2 and both end by pointing at **§5** for the claims-vs-wires distinction —
+> against a §5 that still said "no §3 phase wires it" and nothing about claiming. The forward
+> reference had no destination until this phase wrote one. That is the loop, and it is why the
+> plan's Implementation Approach ordered §3 before §5.
+>
+> **4.6: PASS, with the residual named rather than waved through.** Read cold and alone, the row
+> hands the reader four negatives — "local only", "no npm script, no CI job, no browser-install
+> step", "never a gate", "§3 Phase 6 is `not started`" — so reaching "a documented command runs
+> the e2e suite" means reading past "no browser-install step". The residual is that the cell does
+> contain a literal command, which is unavoidable given the Contract requires `Where` to state
+> what a runner would type; it is closed one line below by the sentence added during this phase
+> ("Read that cell as the absence of an entry point, never as a documented one"), and again in
+> §4's row, which names the `storageState` gap the §5 cell has no room for.
+>
+> **One residual is left OPEN and is not this phase's to close.** §5's intro at `:797-799` still
+> says, unqualified, that a gate is `planned` until its rollout phase lands — a convention a
+> reader could apply to the e2e row and conclude it becomes `required` after Phase 6. The second
+> paragraph blocks exactly that inference by name ("must not soften into
+> `required — wired by §3 Phase 6`"), and the Contract's instruction was to keep the row out of
+> that vocabulary (done; criterion 4.3 pins the count at 5). Editing the intro sentence was not
+> in the Contract, so it is recorded here rather than done silently.
 
 ### Phase 5: §7 re-decisions and the §8 twin clause
 
