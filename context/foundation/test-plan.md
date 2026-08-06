@@ -46,7 +46,8 @@
 >
 > Read the four deferrals as decisions rather than omissions: `.gitignore`'s remaining artifact
 > classes (latent under the default reporter), a §6.11 "adding an e2e test" subsection, and the
-> ids **H-12** / **C10X-45** — all owned by the phase this refresh adds. The known cost is written
+> ids **H-12** / **C10X-46** — all owned by the phase this refresh adds (the Jira half of that
+> deferral was re-decided on 2026-08-06; §8 carries the correction). The known cost is written
 > into §8 rather than discovered at archive time: this refresh carries **no roadmap row of its
 > own** and needs the same backfill H-04/H-07/H-08 needed.
 >
@@ -721,8 +722,10 @@ Sequencing notes:
   it is not yet trustworthy. The phase runs the full
   `/10x-new` → `/10x-research` → `/10x-plan` → `/10x-implement` / `/10x-e2e` chain, deliberately
   **not** as a hardening ticket: shipping it as hardening is what would repeat the orphan
-  pattern rather than close it. Its ids are reserved and deliberately **not** created by this
-  refresh — roadmap **H-12**, Jira **C10X-45**.
+  pattern rather than close it. Its ids are reserved — roadmap **H-12**, Jira **C10X-46**. The
+  roadmap half is still uncreated by this refresh; the Jira half was re-decided on 2026-08-06,
+  when the refresh was given a ticket of its own and took **C10X-45**, so the phase's reservation
+  moved up one (§8).
 
   **Sub-phase 6.1 is an entry condition that blocks the rest of the phase, not a follow-up.** A
   Playwright preflight comes first. `tests/setup/preflight.ts` closes three non-local seams for
@@ -4532,6 +4535,18 @@ contributors should respect these unless the underlying assumption changes.
   practice. **(3)** The roadmap id **H-12** and **(4)** the Jira key **C10X-45**, both of which
   this refresh **names and does not create** (`jira-map.md` is owned by `/jira-backlog-sync`,
   `jira-map.md:3-4`).
+
+  > **Corrected 2026-08-06 — deferral (4) was reversed the day after this entry was written, and
+  > (3) was not.** The refresh was given a Jira ticket of its own after all, and because keys are
+  > sequential it took **C10X-45** — the very key this bullet reserved for the phase. The phase's
+  > reservation therefore moves up one, to **C10X-46**, corrected in place at §3's Phase 6 note
+  > and in the header block, because both are live forward-guidance rather than dated records.
+  > This bullet is not rewritten: it is the accurate statement of what the refresh decided on
+  > 2026-08-05. Deferral **(3)** stands untouched — **H-12** is still the phase's and still
+  > uncreated — so the bullet directly below survives verbatim, and the consequence a reader
+  > should not have to infer is that this refresh now carries the unusual pair of a **Jira key
+  > with no roadmap row**. The backfill it names is therefore still owed.
+
 - **The known cost of that last deferral, stated now rather than discovered at archive time**:
   this refresh has **no roadmap row of its own**, so `/10x-archive` will have nothing to close and
   it will need the same backfill H-04, H-07 and H-08 needed. Accepted deliberately at plan time —
