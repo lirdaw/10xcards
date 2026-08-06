@@ -854,10 +854,10 @@ and do not apply.
 
 #### Automated
 
-- [x] 5.1 All 4 **Contract-named sites** sit inside a `2026-08-05` block, checked per anchor (a hit count is wrong: a literal grep returns 2 — `:3237-3239` is line-wrapped, `:3256-3258` never carried the clause), using the C10X-39 **pair** of patterns
-- [x] 5.2 The §7 exclusion bullet count is unchanged
-- [x] 5.3 The `2.4.11 is Focus Not Obscured` sentence survives
-- [x] 5.4 `npx prettier --check context/foundation/test-plan.md` exits 0
+- [x] 5.1 All 4 **Contract-named sites** sit inside a `2026-08-05` block, checked per anchor (a hit count is wrong: a literal grep returns 2 — `:3237-3239` is line-wrapped, `:3256-3258` never carried the clause), using the C10X-39 **pair** of patterns — 0404d5d
+- [x] 5.2 The §7 exclusion bullet count is unchanged — 0404d5d
+- [x] 5.3 The `2.4.11 is Focus Not Obscured` sentence survives — 0404d5d
+- [x] 5.4 `npx prettier --check context/foundation/test-plan.md` exits 0 — 0404d5d
 
 > **5.1–5.4 measurements, 2026-08-05.** 5.1 was run **per anchor**, never as a hit count, and
 > the anchors had all moved — Phases 1-4 grew the file, so the plan's `:3227`/`:3256`/`:3279`/
@@ -891,8 +891,8 @@ and do not apply.
 
 #### Manual
 
-- [x] 5.5 Each re-decision says the condition was never literally met
-- [x] 5.6 `:3524` got an appended correction, not a rewrite
+- [x] 5.5 Each re-decision says the condition was never literally met — 0404d5d
+- [x] 5.6 `:3524` got an appended correction, not a rewrite — 0404d5d
 
 > **5.5 / 5.6 evidence, 2026-08-05 — both done by probing the claims, not by re-reading the
 > prose.** 5.5 ran as a per-block scan for the mis-keyed framing plus a file-wide scan for the
@@ -955,15 +955,126 @@ and do not apply.
 
 #### Automated
 
-- [ ] 6.1 §6.1 and §6.2 each name `tests/e2e/` and `.spec.ts`
-- [ ] 6.2 `roadmap.md:234` returns 0 hits in `lessons.md`; `roadmap.md:401` returns 1
-- [ ] 6.3 No `6.11` subsection was added — `grep -cF "### 6.11"` returns 0 (a bare `grep -c "6.11"` returns 1 at `HEAD` and can never pass)
-- [ ] 6.4 `npx prettier --check` passes on both files (after-check: `lessons.md` is red at `HEAD`)
+- [x] 6.1 §6.1 and §6.2 each name `tests/e2e/` and `.spec.ts`
+- [x] 6.2 `roadmap.md:234` returns 0 hits in `lessons.md`; `roadmap.md:401` returns 1
+- [x] 6.3 No `6.11` subsection was added — `grep -cF "### 6.11"` returns 0 (a bare `grep -c "6.11"` returns 1 at `HEAD` and can never pass)
+- [x] 6.4 `npx prettier --check` passes on both files (after-check: `lessons.md` is red at `HEAD`)
+
+> **6.1–6.4 measurements, 2026-08-06.** 6.1 was run **scoped to each subsection** (`awk`
+> between the `### 6.1`/`### 6.2` and `### 6.2`/`### 6.3` headings), never file-wide — the same
+> discipline criterion 3.2 forced, and for the same reason: `tests/e2e/` and `.spec.ts` both
+> already occur elsewhere in the file after Phases 1-3, so a file-wide grep would pass
+> vacuously. Each subsection carries exactly 1 of each token. 6.2: `0` and `1`. 6.3: `0` with
+> `-F`, and the trap the criterion warns about reproduced **exactly** as predicted — a bare
+> `grep -c "6.11"` returns `1`, matching `6011` inside the migration timestamp
+> `'20260601120000'`, so the criterion is written the only way it can ever pass. 6.4: green on
+> both files.
+>
+> **The pointer was verified at its destination rather than taken from the Contract.**
+> `roadmap.md:401` is the archive-ownership sentence ("NIE wypełniać ręcznie") and `:234` is
+> C10X-22's Risk paragraph — both confirmed by reading the lines today, not by trusting the
+> plan's 2026-08-05 measurement, since `roadmap.md` could have moved under it in the interim.
+>
+> **The Contract's characterisation of the `lessons.md` drift is WRONG, and the line numbers
+> are right — recorded as observed rather than rounded to the prediction.** The Contract and
+> criterion 6.6 both call `:204` and `:211` "trailing whitespace" / "whitespace-only". Measured:
+> `grep -nE ' +$'` over the whole file returns **zero** hits, and the actual drift is prettier's
+> emphasis-marker normalisation — `*green*` → `_green_` at `:204` and `*innej*` → `_innej_` at
+> `:211`, one token per line. Same class §8 records for `test-plan.md` itself (`*italic*` →
+> `_italic_` across ~190 lines), one document over. What the criterion was protecting survives
+> untouched: both spellings render identically, so the normalisation is content-neutral, and it
+> is confined to exactly the two lines named. Diff shape measured rather than eyeballed —
+> `git diff -U0` gives **three** hunks of one line each (`:184` the pointer, `:204` and `:211`
+> the two formatting lines), i.e. **one** content hunk, which is what 6.6 means by "three or
+> more content hunks means the reformat ran wider than intended".
+>
+> **The trap the two new sentences describe is sharper than the plan's framing, and the extra
+> half was measured.** The Contract describes the failure as "a contributor creating
+> `tests/e2e/foo.test.ts` gets a file Vitest collects". True, and it is only half: Playwright's
+> config sets **no** `testMatch` (verified — the 11-line file has zero hits), so the documented
+> default applies, and that default is `**/*.@(spec|test).?(c|m)[jt]s?(x)` — it matches `test`
+> **as well as** `spec` (Context7, `packages/playwright/src/common/config.ts` plus the
+> `TestProject.testMatch` reference). So the mis-named file is collected by **both** runners,
+> not just by the wrong one; `.spec.ts` is the only suffix that is unambiguous, because Vitest's
+> `include` is `tests/**/*.test.ts` with no `exclude` covering `tests/e2e/` (read at
+> `vitest.config.ts:27`). Both sentences state the two-sided version. The one thing NOT
+> measured, and therefore not claimed at either site, is what Vitest does once it loads such a
+> file — reaching that needs a scratch spec under `tests/`, which is the untracked-file trap
+> criterion 7.3 exists for, and the collection facts alone carry the warning.
+>
+> **Prettier was run on a COPY of `test-plan.md` before being allowed near the original**, per
+> Phase 4's finding. It came back a **no-op** — zero-line diff — so the destructive hazard never
+> had a chance to fire on this phase's edits; only `lessons.md` needed an actual `--write`.
+>
+> **One out-of-scope falsehood was found and deliberately NOT fixed.** `roadmap.md:234` — the
+> line this phase's pointer work made me read — asserts "projekt nie ma warstwy e2e ani
+> visual-diff — patrz `test-plan.md` §7". That is now **half** false in exactly the way Phase 5
+> split the same clause inside §7: no visual-diff tool exists at any layer, but a Playwright
+> runner does. `roadmap.md` is not among the three documents this change's Desired End State
+> names, and `/10x-archive` owns that file's Status column, so editing it here would be the
+> scope creep `lessons.md` warns against. Recorded so the §3 Phase 6 change inherits it.
 
 #### Manual
 
-- [ ] 6.5 Each addition is one sentence, in the surrounding voice
-- [ ] 6.6 The `lessons.md` diff is the pointer change plus exactly two whitespace-only lines (`:204`, `:211`)
+- [x] 6.5 Each addition is one sentence, in the surrounding voice
+- [x] 6.6 The `lessons.md` diff is the pointer change plus exactly two whitespace-only lines (`:204`, `:211`)
+
+> **6.5 / 6.6 evidence, 2026-08-06 — both done by measuring the prose, not by re-reading it,
+> and 6.5 sent BOTH sentences back for a rewrite.** "One sentence, in the surrounding voice" is
+> two claims, so it was run as two measurements: a verbatim-survival check (extract the bullet
+> from `git show HEAD:` and from the worktree, normalise whitespace, assert the old text is a
+> literal prefix of the new) and a sentence count with code spans stripped first, so `.spec.ts`
+> and `vitest.config.ts` cannot be miscounted as sentence terminators.
+>
+> **The first draft of §6.2 failed the count, and the failure was invisible to reading.** It
+> appended its clause with an em dash **onto** the existing sentence, so the bullet measured
+> `1 -> 1` sentences — one sentence's worth of material, but not "one sentence added", and it
+> left a semicolon, an em dash and a colon inside a single sentence. Restructured so the
+> original survives **verbatim including its period** and exactly one new sentence follows,
+> which is the shape §6.1 already had. Both bullets now measure `+1` and both pass the prefix
+> check, so nothing was removed from either.
+>
+> **The voice half was measured against the section's own peers rather than asserted.** A
+> marker profile (em dashes, code spans, bold pairs, parentheses, words) over every bullet in
+> each subsection put the first draft of §6.1 **above its section on every axis at once** —
+> `code=10` against an average of `3.4`, `bold=3` against `1.0`, `words=63` against `31` — i.e.
+> the densest bullet in a section whose densest existing bullet is `code=9`. Tightened by moving
+> the `testMatch` mechanism to §6.2 instead of stating it in both places: §6.1 now measures
+> `code=8`, `bold=2`, `words=61`, below that existing bullet on both axes. §6.2 needed no
+> tightening — `code=6`, `bold=2`, `words=46` against a section average of `4.8` / `2.4` / `99`.
+> The division is deliberate: §6.1 states the collision, §6.2 states why it happens.
+>
+> **Scope checked rather than assumed.** The whole `test-plan.md` diff is **two** hunks, `+7/-2`,
+> at `:909` and `:991` — inside §6.1 (heading at `:905`) and §6.2 (heading at `:988`). No other
+> section moved. Prettier passed on the rewritten file with **no `--write` needed**, so the
+> destructive hazard never had a chance to fire.
+>
+> **6.6 measured three ways, and the criterion's own wording is the thing that was wrong.**
+> `git diff -U0` gives exactly three hunks of one line each (`:184`, `:204`, `:211`) and
+> `--numstat` gives `3/3`, so nothing outside those lines moved. `--word-diff=porcelain` shows
+> the character-level truth: `:184` changes only the pointer digits, and `:204` / `:211` change
+> only the emphasis delimiter, with the inner text (`green`, `innej`) byte-identical. They are
+> **not** the "whitespace-only" lines the criterion names — that characterisation was already
+> corrected in the 6.1–6.4 note above — but they are content-neutral, which is what the
+> criterion was protecting.
+>
+> **Rendering neutrality was measured, not assumed, and it could have gone the other way.**
+> CommonMark does not allow intra-word emphasis with `_`, so a blind `*` → `_` normalisation
+> changes rendering whenever the emphasis sits inside a word. Both sites were checked and both
+> are **word-bounded** — each sits between spaces rather than inside a word — so the two
+> spellings render identically here. Prettier would have had to keep `*` in the intra-word case;
+> the point is that "prettier only reformats" is an assumption worth one grep rather than a
+> given.
+>
+> **And the prettier hazard fired once more inside this very note, in a NEW shape worth adding
+> to Phase 4's finding.** The sentence above originally showed the two sites as code spans
+> padded with spaces, to display the boundary it was asserting. Prettier **strips code-span
+> padding** — CommonMark discards one leading and trailing space inside a span anyway — so a
+> `--write` silently deleted the exact detail the sentence rested on, leaving a claim about
+> spaces with no spaces in it. Caught by running prettier on a COPY, which is the only reason it
+> is a rewrite rather than a committed contradiction. Phase 4 recorded the hazard as "never
+> break a code span across a line inside a blockquote"; this adds a second rule with a different
+> mechanism — **never let a code span's own padding carry meaning**, anywhere in the file.
 
 ### Phase 7: §8 ledger, the Vitest-only sentence, and the rolling header
 

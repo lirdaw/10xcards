@@ -906,7 +906,10 @@ the relevant rollout phase ships; before that, the sub-section reads
 
 - **Location**: `tests/`, mirroring the `src/` path of what you test.
 - **Naming**: `*.test.ts`. Only files matching `tests/**/*.test.ts` are
-  collected (`vitest.config.ts`).
+  collected (`vitest.config.ts`). Playwright's specs live under `tests/e2e/` and end
+  `.spec.ts`, which that `include` does not match — but the reverse is not true, so naming
+  one `.test.ts` hands the same file to **both** runners (Playwright's default `testMatch`
+  takes either suffix) and this node-only suite then tries to run a browser spec (§3 Phase 6).
 - **Reference**: `tests/harness.test.ts` — the smallest possible case;
   imports through the `@/` alias and asserts on the result.
 - **Run**: `npm test` (single pass) or `npm run test:watch`. One file while
@@ -985,7 +988,9 @@ extractions (§7), with one extra rule: extract the decision **and** its inputs.
 ### 6.2 Adding an integration test
 
 - **Location**: `tests/isolation/` for ownership cases; a sibling folder
-  named after the concern otherwise.
+  named after the concern otherwise. Never `tests/e2e/`, though — that is Playwright's
+  `testDir` and takes `.spec.ts`, so a `.test.ts` placed there is collected by this suite
+  **and** by Playwright, whose default `testMatch` matches both suffixes (§3 Phase 6).
 - **Naming**: `*.test.ts`, named after the **resource**, not the scenario
   (`decks.test.ts`, `flashcards.test.ts`). A new case for a resource that
   already has a file goes in that file as another `it()` — do not open
