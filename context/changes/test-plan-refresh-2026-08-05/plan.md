@@ -1080,13 +1080,13 @@ and do not apply.
 
 #### Automated
 
-- [x] 7.1 All three ledger dates read `2026-08-05`
-- [x] 7.2 `Last updated:` reads `2026-08-05` and the next block begins `Previously:`
-- [x] 7.3 `git status --porcelain` (not `git diff --stat` — it is blind to untracked files) touches no file under `src/`, `tests/`, `evals/`, `scripts/`
-- [x] 7.4 `npm run typecheck` reports 0 errors; `Result (N files)` recorded (expected `135`)
-- [x] 7.5 `npm run lint` exits 0
-- [x] 7.6 `prettier --check` passes and a double `--write` produces an empty diff
-- [x] 7.7 Both `364/364, 31` sites unchanged — `:42-43` (wrapped, invisible to the full-phrase grep) and `:4168`
+- [x] 7.1 All three ledger dates read `2026-08-05` — 7311698
+- [x] 7.2 `Last updated:` reads `2026-08-05` and the next block begins `Previously:` — 7311698
+- [x] 7.3 `git status --porcelain` (not `git diff --stat` — it is blind to untracked files) touches no file under `src/`, `tests/`, `evals/`, `scripts/` — 7311698
+- [x] 7.4 `npm run typecheck` reports 0 errors; `Result (N files)` recorded (expected `135`) — 7311698
+- [x] 7.5 `npm run lint` exits 0 — 7311698
+- [x] 7.6 `prettier --check` passes and a double `--write` produces an empty diff — 7311698
+- [x] 7.7 Both `364/364, 31` sites unchanged — `:42-43` (wrapped, invisible to the full-phrase grep) and `:4168` — 7311698
 
 > **7.1–7.7 measurements, 2026-08-06.** 7.1: all three at `:3599`, `:3602`, `:3608`. 7.2: `:9`
 > reads `2026-08-05` and the next `>` block, at `:48`, begins `Previously:` — the C10X-43 block's
@@ -1150,9 +1150,9 @@ and do not apply.
 
 #### Manual
 
-- [x] 7.8 The §8 entry's "does not claim" list is as prominent as its claims
-- [x] 7.9 The header block does not contradict the C10X-43 block it demoted
-- [x] 7.10 The four deferrals and the orphan consequence are recoverable from the §8 entry alone
+- [x] 7.8 The §8 entry's "does not claim" list is as prominent as its claims — 7311698
+- [x] 7.9 The header block does not contradict the C10X-43 block it demoted — 7311698
+- [x] 7.10 The four deferrals and the orphan consequence are recoverable from the §8 entry alone — 7311698
 
 > **7.8 / 7.9 / 7.10 evidence, 2026-08-06 — run as measurements, and two of the three sent the
 > entry back for a rewrite.** 7.8 was measured per bullet rather than judged: the entry is **9**
