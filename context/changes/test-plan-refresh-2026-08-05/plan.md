@@ -754,10 +754,10 @@ and do not apply.
 
 #### Automated
 
-- [x] 4.1 `e2e on critical flows is deliberately absent` returns 0 hits
-- [x] 4.2 The gate table's e2e row carries `never` and `needs:` in `Required?`
-- [x] 4.3 The `planned` count is unchanged from `HEAD`
-- [x] 4.4 `npx prettier --check context/foundation/test-plan.md` exits 0
+- [x] 4.1 `e2e on critical flows is deliberately absent` returns 0 hits — 5d91df2
+- [x] 4.2 The gate table's e2e row carries `never` and `needs:` in `Required?` — 5d91df2
+- [x] 4.3 The `planned` count is unchanged from `HEAD` — 5d91df2
+- [x] 4.4 `npx prettier --check context/foundation/test-plan.md` exits 0 — 5d91df2
 
 > **4.1–4.4 measurements, 2026-08-05.** 4.1: `0`. 4.2: the `Required?` cell was read by
 > **field**, not by a file-wide grep — `awk -F'|'` on the row, so a `never` or a `needs:`
@@ -796,8 +796,8 @@ and do not apply.
 
 #### Manual
 
-- [x] 4.5 §3 row 6, §4's e2e row, §4's `:688` tooling line and §5's paragraph agree on claims-vs-wires
-- [x] 4.6 The gate row cannot be read as "a documented command runs the e2e suite"
+- [x] 4.5 §3 row 6, §4's e2e row, §4's `:688` tooling line and §5's paragraph agree on claims-vs-wires — 5d91df2
+- [x] 4.6 The gate row cannot be read as "a documented command runs the e2e suite" — 5d91df2
 
 > **4.5 / 4.6 evidence, 2026-08-05 — every factual claim in the new cells was probed at its
 > source before the four sites were read in sequence.** The `Where` cell names two commands and
@@ -854,15 +854,102 @@ and do not apply.
 
 #### Automated
 
-- [ ] 5.1 All 4 **Contract-named sites** sit inside a `2026-08-05` block, checked per anchor (a hit count is wrong: a literal grep returns 2 — `:3237-3239` is line-wrapped, `:3256-3258` never carried the clause), using the C10X-39 **pair** of patterns
-- [ ] 5.2 The §7 exclusion bullet count is unchanged
-- [ ] 5.3 The `2.4.11 is Focus Not Obscured` sentence survives
-- [ ] 5.4 `npx prettier --check context/foundation/test-plan.md` exits 0
+- [x] 5.1 All 4 **Contract-named sites** sit inside a `2026-08-05` block, checked per anchor (a hit count is wrong: a literal grep returns 2 — `:3237-3239` is line-wrapped, `:3256-3258` never carried the clause), using the C10X-39 **pair** of patterns
+- [x] 5.2 The §7 exclusion bullet count is unchanged
+- [x] 5.3 The `2.4.11 is Focus Not Obscured` sentence survives
+- [x] 5.4 `npx prettier --check context/foundation/test-plan.md` exits 0
+
+> **5.1–5.4 measurements, 2026-08-05.** 5.1 was run **per anchor**, never as a hit count, and
+> the anchors had all moved — Phases 1-4 grew the file, so the plan's `:3227`/`:3256`/`:3279`/
+> `:3524` are now `:3370`/`:3401`/`:3448`/`:3711`. All four resolve inside a bullet whose block
+> contains `2026-08-05`. The C10X-39 **pair** agrees at **3** hits after the edit (`:3406`,
+> `:3538`, `:3711`), and the wrap-tolerant partner finds no fourth — the wrapped focus-ring
+> occurrence the plan flagged is gone, because that is the clause this phase struck. 5.2: `7`
+> at `HEAD` and `7` now, stated with its baseline because "unchanged" is a claim about two
+> runs. 5.3: `1`. 5.4: green with **no `--write` needed** — prettier was a no-op on the edited
+> file, checked on a COPY first per Phase 4's finding before it was allowed near the original.
+>
+> **The clause sat at THREE sites, not the four the Contract names, and the two figures are
+> different claims.** The nested `scroll-padding-top` deferral never carried the sentence — its
+> blocker is worded "needs its own browser verification" — so it got a re-decision of its own
+> rather than a replacement. The plan predicted exactly this (`5.1`'s parenthetical) and the run
+> confirms it; recorded here and at the §8 site so a later reader does not hunt for a missing
+> fourth occurrence.
+>
+> **Diff shape, checked rather than assumed:** five hunks, all at `:3377+` — i.e. entirely
+> inside §7 and §8. §2, §3, §4, §5 and §6 are untouched, and every removed line in the whole
+> diff belongs to the two §7 exclusions. The §8 hunk contains **zero** removals (`git diff -U0`
+> → `0` lines starting `-`), which is criterion 5.6 measured rather than eyeballed.
+>
+> **One factual claim in a new block was wrong and was caught by measuring it instead of
+> deriving it.** The islands re-decision first said "five islands carry a `fetch`" — arithmetic
+> from the bullet's own "Four sibling islands … only `rate()` inverts the order". Measured
+> (`grep -rln "fetch(" src/components/`): **four** files — `GeneratorForm`,
+> `FlashcardWorkspace`, `CandidateReviewWorkspace`, `StudySession` — because `rate()` lives
+> inside one of the four rather than beside them. Corrected before the commit and the figure is
+> now named with its command and date at the site.
 
 #### Manual
 
-- [ ] 5.5 Each re-decision says the condition was never literally met
-- [ ] 5.6 `:3524` got an appended correction, not a rewrite
+- [x] 5.5 Each re-decision says the condition was never literally met
+- [x] 5.6 `:3524` got an appended correction, not a rewrite
+
+> **5.5 / 5.6 evidence, 2026-08-05 — both done by probing the claims, not by re-reading the
+> prose.** 5.5 ran as a per-block scan for the mis-keyed framing plus a file-wide scan for the
+> wording that would falsify it (a regex over "trigger fired", "condition is/was met", "that
+> moment has arrived"). Fired-language: **NONE**, anywhere in the file. R1 (focus-ring), R3
+> (islands) and R4 (§8) each carry "mis-keyed", "never literally met" and the landing
+> **outside** the phased rollout; R1 and R3 say "No §3 phase ever did" and R4 says "no §3 phase
+> wired anything" — different wording, same claim. All three then restate the condition rather
+> than deleting it, so nothing is left dangling on a moment that has already passed.
+>
+> **My own checker was bitten by the wrap trap on its first run, which is worth recording
+> because it is this file's recurring class pointed at the verification instead of the
+> document.** The first pass reported R1 as missing "never literally met" and R2 as missing its
+> own phrase — both **False negatives**: the predicates joined lines with a newline, and both
+> phrases wrap across a line break (R1 at `:3408-3409`, R2 at `:3419-3420`). Re-run
+> whitespace-normalised — the C10X-39 pair-of-patterns discipline — both are present. Same shape
+> as criterion 5.1's own warning, met one layer up.
+>
+> **One deliberate deviation from the Contract, recorded rather than smoothed over.** The
+> Contract says R2's blocker "is removed, so it needs a dated re-decision like the others". The
+> re-decision as written makes a **different and stronger** claim: the blocker was never a
+> capability blocker at all, so there was nothing to remove. That is measured, not preferred —
+> `test-plan.md:791` states that browser work here "is still manual verification recorded per
+> change", so the evidence was collectable on 2026-07-25 and simply was not collected. R2
+> therefore does not use the mis-keyed wording, correctly: its site never carried the trigger
+> clause (criterion 5.1's own parenthetical says so), so it re-decides a blocker rather than a
+> trigger. It still explicitly denies anything fired — "A Playwright runner existing changes
+> nothing about that".
+>
+> **Every cross-section claim the new blocks make was probed at its source, not cited from
+> memory.** No visual-diff tool exists at any layer: zero dependency hits for argos / lost-pixel
+> / percy / reg-suit / backstop / jest-image-snapshot / pixelmatch / resemblejs, and zero
+> `toMatchSnapshot` / `toHaveScreenshot` in `tests/` or `evals/`. Nothing reads a computed
+> style: `getComputedStyle` returns **zero** hits across `tests/`, `src/`, `scripts/` and
+> `evals/` — so "a runner is not a computed-style oracle" is a measurement. §3 row 6 really is
+> "E2E harness + two browser journeys" (R3's "two journeys" figure). `:677` really does say the
+> harness "is not yet trustworthy" (R2's citation). And "claiming is not wiring (§5)" now reads
+> identically at six sites — `:777`, `:790`, `:817` from Phases 2-4 and `:3411`, `:3541`,
+> `:3718` from this one — so §7 and §8 join the vocabulary Phase 4 settled instead of inventing
+> a second one.
+>
+> **The adjacent corrections the Contract named were done, and no others.** The clause about
+> the e2e / visual-diff layer that §4 and §5 deliberately do not have was **half** false and is
+> split accordingly: the Playwright runner is acknowledged, the absence of any visual-diff tool
+> is stated flatly. The "untested by construction" opener is scoped to "at every layer this
+> project runs", and "no layer in this plan could see the difference" becomes "no layer this
+> plan carries today can", with the reason — a runner nobody runs is a capability, not a layer.
+> The two rules the Contract protects survive: the measured acceptance check (contrast ≥ 3:1,
+> WCAG 1.4.11 only) and **reviewed by reading, deliberately and every time**. The
+> `2.4.11 is Focus Not Obscured` sentence is untouched (5.3).
+>
+> **5.6 measured twice, and neither time by reading the file.** `git diff -U0` on the §8 hunk
+> is `+12` with **zero** lines starting `-`. Independently, the bullet was extracted from
+> `git show HEAD:` and from the worktree and compared: **5 lines each, byte-identical**. So the
+> sentence at `:3711` survives verbatim and the correction hangs beneath it — the opposite
+> treatment from sites 1-3, exactly as the Contract requires, and the block says so in its own
+> first sentence so the asymmetry is legible without the diff.
 
 ### Phase 6: §6.1 / §6.2 trap notes and the `lessons.md` pointer
 

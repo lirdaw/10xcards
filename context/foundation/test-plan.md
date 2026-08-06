@@ -3377,12 +3377,13 @@ contributors should respect these unless the underlying assumption changes.
   dark surface: 43 of 48 controls measured 2.3–2.7:1 against a 3:1 bar. (The
   ticket's own suspected cause — "`ring-*` never maps to a real box-shadow" —
   was refuted by measurement; do not re-derive the plan from it.) Catching this
-  needs a computed style in a real browser — i.e. the e2e / visual-diff layer
-  §4 and §5 deliberately do not have. Re-evaluate the moment any §3 phase
-  wires e2e; that is the point at which this becomes cheap rather than a new
-  layer. Until then the guard is the measured acceptance check in the change
-  itself (contrast ≥ 3:1, **WCAG 1.4.11 only**), recorded per control before
-  and after in `context/archive/2026-07-25-focus-ring-a11y/verification.md`.
+  needs a computed style in a real browser, and the layer that would produce one
+  still does not exist: §4 gained a Playwright runner on 2026-08-05, nothing reads
+  a computed style through it, and this project carries **no visual-diff tool at
+  any layer**. Until such an oracle is wired the guard is the measured acceptance
+  check in the change itself (contrast ≥ 3:1, **WCAG 1.4.11 only**), recorded per
+  control before and after in
+  `context/archive/2026-07-25-focus-ring-a11y/verification.md`.
   (Source: C10X-22 / `context/archive/2026-07-25-focus-ring-a11y/`.)
   > **Citation corrected (2026-07-25, impl-review F4).** This bullet used to
   > claim "WCAG 1.4.11 / 2.4.11". Only 1.4.11 (Non-text Contrast) is measured.
@@ -3399,6 +3400,31 @@ contributors should respect these unless the underlying assumption changes.
   > covered by C10X-22. Fixing it is a one-property change
   > (`scroll-padding-top`) but needs its own browser verification; deliberately
   > left out of C10X-22 rather than claimed without evidence.
+  >
+  > **Re-decided 2026-08-05 (`test-plan-refresh-2026-08-05`) — the exclusion STANDS,
+  > and its trigger was mis-keyed rather than fired.** The clause struck from the prose
+  > above read "Re-evaluate the moment any §3 phase wires e2e". **No §3 phase ever did**:
+  > a Playwright runner and one spec landed on 2026-08-05 **outside** the phased rollout
+  > — the C10X-39/40/42/43 pattern one more time — so the condition was never literally
+  > met, and leaving it unreconsidered would have turned it into a dead clause pointing
+  > at a moment that had already passed under another name. §3 Phase 6 now claims the
+  > layer as `not started`, and claiming is not wiring (§5). Re-decided on the merits
+  > instead, and the merits have not moved: a browser runner is not a computed-style
+  > oracle, nothing runs the one that exists (§4's e2e row, §3's Phase 6 note), and no
+  > visual-diff tool exists here at any layer. So the condition is **restated** rather
+  > than deleted — re-evaluate when a computed-style or visual-diff oracle is actually
+  > wired, never when a browser runner merely exists.
+  >
+  > **Re-decided 2026-08-05, separately, for the nested `scroll-padding-top` deferral —
+  > still deferred, and its blocker is restated because it was never the one it sounded
+  > like.** "Needs its own browser verification" reads as a missing capability and was
+  > not one: browser work in this project has always been manual verification recorded
+  > per change (§4's tooling list), so the evidence was collectable on 2026-07-25 and
+  > simply was not collected. A Playwright runner existing changes nothing about that —
+  > nothing runs it, and §3's Phase 6 note records the harness as not yet trustworthy.
+  > What the deferral gains today is an owner rather than a capability: whoever wires
+  > the e2e layer under §3 Phase 6 inherits the cheapest place to collect the evidence.
+  > Until then this stays untested negative space, exactly as the paragraph above says.
 - **Marketing/landing pages and static copy** — snapshot tests break
   constantly and catch nothing. Re-evaluate if the landing gains a real
   flow (e.g. the inline sign-in form parked as C10X-20). (Source: Phase 2
@@ -3419,21 +3445,22 @@ contributors should respect these unless the underlying assumption changes.
   require adding the safeguard first. Re-evaluate if a limit is
   implemented; the cost exposure is partially covered by Risk #6
   (server-side length enforcement). (Source: Phase 3 challenger pass.)
-- **React islands' own fetch-response handling** — untested by _construction_, not
-  by decision, and named here because that distinction was invisible until it cost
-  something. §6.4's "pages are deliberately not rendered" is well known; the islands
-  those pages mount are equally unreachable, and nobody had written it down. The
-  gap is not academic: **the one production bug the C10X-27 audit found lives
+- **React islands' own fetch-response handling** — untested by _construction_ at every
+  layer this project runs, not by decision, and named here because that distinction was
+  invisible until it cost something. §6.4's "pages are deliberately not rendered" is
+  well known; the islands those pages mount are equally unreachable, and nobody had
+  written it down. The gap is not academic: **the one production bug the C10X-27
+  audit found lives
   exactly there** — `StudySession.rate()` checks `!res.ok` on a response that
   middleware turned into an HTML `200`, so every rating is silently discarded while
   the UI reports progress. Four sibling islands parse before checking `ok` and would
-  survive it; only `rate()` inverts the order, and no layer in this plan could see
-  the difference. What follows: an island's response handling is **reviewed by
-  reading, deliberately and every time** — when a change touches a `fetch` in an
-  island, diff its ok/parse/redirect handling against `GeneratorForm.tsx`,
-  `FlashcardWorkspace.tsx` and `CandidateReviewWorkspace.tsx` rather than trusting
-  the suite. Re-evaluate the moment any §3 phase wires e2e; that is the layer this
-  belongs to. (Source: C10X-27 audit, 2026-07-26.)
+  survive it; only `rate()` inverts the order, and no layer this plan carries today can
+  see the difference — §4's Playwright row is a runner nobody runs (§3 Phase 6,
+  `not started`), which is a capability rather than a layer. What follows: an island's
+  response handling is **reviewed by reading, deliberately and every time** — when a
+  change touches a `fetch` in an island, diff its ok/parse/redirect handling against
+  `GeneratorForm.tsx`, `FlashcardWorkspace.tsx` and `CandidateReviewWorkspace.tsx`
+  rather than trusting the suite. (Source: C10X-27 audit, 2026-07-26.)
   > **Narrowed, not closed (C10X-27, 2026-07-26).** The **decision** is now testable and
   > tested; the **JSX remains unreachable**. Rather than add a DOM environment and a
   > component-test layer — which §4 would need a new row and a `checked:` date for — the
@@ -3505,6 +3532,23 @@ contributors should respect these unless the underlying assumption changes.
   > `context/archive/2026-07-31-deck-form-hardening/verification.md`, where the trap worth carrying is that
   > the deck page renders a SECOND `[role="alert"]` (the OpenRouter config banner), so an unscoped
   > `querySelector('[role="alert"]')` reads the wrong node and the case passes on it.
+  >
+  > **Re-decided 2026-08-05 (`test-plan-refresh-2026-08-05`) — the exclusion STANDS, and its
+  > trigger was mis-keyed rather than fired.** The clause struck from the prose above read
+  > "Re-evaluate the moment any §3 phase wires e2e; that is the layer this belongs to".
+  > **No §3 phase ever did**: a Playwright runner and one spec landed on 2026-08-05
+  > **outside** the phased rollout, so the condition was never literally met. §3 Phase 6 now
+  > claims the layer as `not started`, and claiming is not wiring (§5). Re-decided on the
+  > merits — and this is the one exclusion whose merits a wired e2e layer would move only
+  > PARTLY. Phase 6 scopes two journeys, so at most two islands get exercised on one happy
+  > path each, while **four** carry a `fetch` (measured 2026-08-05: `GeneratorForm`,
+  > `FlashcardWorkspace`, `CandidateReviewWorkspace`, `StudySession`) and the defect this
+  > bullet was written from was a wrong ok/parse ORDER on a response no journey
+  > deliberately produces. **One exemplar spec covers one flow, not the class.**
+  > So the review-by-reading rule above survives Phase 6
+  > unchanged, and the restated condition is narrower than the one it replaces: re-evaluate
+  > per island, when a spec actually drives that island's failure branch — never on the
+  > arrival of the layer as such.
 
 ## 8. Freshness Ledger
 
@@ -3665,6 +3709,22 @@ contributors should respect these unless the underlying assumption changes.
   is reachable through the browser rather than sealed behind an input stop — an untested branch
   a user actually meets. Named in §7 and in §6.6's C10X-30 entry, carried by manual browser
   checks. Re-evaluate the moment any §3 phase wires e2e.
+  > **Corrected 2026-08-05 (`test-plan-refresh-2026-08-05`), the last sentence only — and
+  > appended rather than rewritten, because this is a dated ledger entry.** That sentence
+  > was the accurate statement of the trigger this entry inherited from §7 on 2026-07-28 and
+  > is left standing as that record. The trigger turned out to be **mis-keyed rather than
+  > fired**: a Playwright runner and one spec landed on 2026-08-05 **outside** the phased
+  > rollout, so no §3 phase wired anything and the condition was never literally met. §3
+  > Phase 6 now claims the layer as `not started`, and claiming is not wiring (§5). This is
+  > the **third and last** site carrying that clause and the only one outside §7 — a
+  > §7-scoped edit list misses it, which is why it is named here. Counted rather than
+  > carried over: the refresh's own plan named **four** anchors, but one of them (the nested
+  > `scroll-padding-top` deferral) never carried this sentence at all — its blocker was
+  > worded "needs its own browser verification" — so four anchors and three clause sites are
+  > two different figures. Everything else in the bullet is untouched and
+  > still true: the three card islands still carry no `maxLength`, their over-length branch
+  > is still the one a user meets, and it still rests on manual browser checks. §7's own
+  > re-decision of the same date is where the merits are re-stated.
 - **A migration is committed and NOT yet pushed to the cloud** as of this entry
   (`20260728104500_flashcard_content_bounds.sql`). The pre-push row check ran read-only against
   production — `bad_front` 0, `bad_back` 0 over 38 rows, maxima 64/157 — so it applies without
