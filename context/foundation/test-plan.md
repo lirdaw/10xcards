@@ -6,7 +6,46 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-08-03 (C10X-43 `typecheck-gate` — not a §3 rollout phase). **No risk row
+> Last updated: 2026-08-05 (`test-plan-refresh-2026-08-05` — a REFRESH, not a §3 rollout phase,
+> and not a change to any product code). **No risk row moves, no coverage claim widens, and no
+> test changed — so no suite figure in this file is restated.** What changes is that a Playwright
+> harness now exists, that it landed **outside** the phased rollout (the C10X-39/40/42/43 pattern
+> for the fifth time), and that **§4, §5, §7 and §8** each asserted something about e2e which is
+> false on this date — enumerated rather than counted, because a total and its breakdown are two
+> claims and this ledger has caught itself on that three times. §6.6 is deliberately not in that
+> list: its figures were correct when they were measured, so they take a correction block instead.
+> §3 gains a **Phase 6** row as `not started`, and the nine measured harness
+> findings are handed to it **with verdicts** in its sequencing note, so the phase's own research
+> starts from them rather than re-deriving them.
+>
+> **The number that moved is the one nobody was watching.** `npm run typecheck` reports
+> `Result (135 files)` against the `133` two documents carried, and the delta is exactly
+> `playwright.config.ts` and `tests/e2e/seed.spec.ts`, both resolved as project members by
+> `npx tsc --showConfig`. So **the e2e layer has sat inside the type gate — in CI and on
+> `pre-push` — since the day it landed, and no document knew it.** Nothing went red because the
+> gate asserts on a **floor** rather than on a pinned count, which is correct design and also why
+> the change announced itself nowhere. `README.md` now states that scope with **no total at all**,
+> because a live claim pinned to a count measured at 133, 135, 136 and 135 again inside four days
+> re-rots by construction; §6.6's dated C10X-43 row keeps its `133` / `115` and takes a correction block
+> beneath it. The gate says the e2e layer **compiles**, never that anything runs it.
+>
+> **§7's three re-evaluation triggers were MIS-KEYED, not fired**, and that distinction is the
+> whole of what §7 changed. All three read "re-evaluate the moment any §3 phase wires e2e"; no §3
+> phase ever did. Each exclusion is re-decided on the merits and **stands** — a browser runner is
+> not a computed-style oracle, this project carries no visual-diff tool at any layer, and one
+> exemplar spec covers one flow rather than the class — with the condition **restated rather than
+> deleted**, so it now points at something reachable. **Claiming is not wiring**, and the three
+> sections say so in one voice: §3 Phase 6 claims the layer, §4's row states what the harness
+> cannot do (no npm script, no CI job, no browser-install step, no `webServer`, no preflight), and
+> §5's new row makes e2e **never a gate** — nothing may ever declare it in `needs:`.
+>
+> Read the four deferrals as decisions rather than omissions: `.gitignore`'s remaining artifact
+> classes (latent under the default reporter), a §6.11 "adding an e2e test" subsection, and the
+> ids **H-12** / **C10X-45** — all owned by the phase this refresh adds. The known cost is written
+> into §8 rather than discovered at archive time: this refresh carries **no roadmap row of its
+> own** and needs the same backfill H-04/H-07/H-08 needed.
+>
+> Previously: 2026-08-03 (C10X-43 `typecheck-gate` — not a §3 rollout phase). **No risk row
 > moves and no coverage claim widens. What changes is §5's gate set, for the first time since
 > C10X-29, and the question it answers is embarrassingly basic: does anything in this project
 > compile what it ships?** Until this date, nothing did. `npm run lint` is ESLint with
@@ -3557,9 +3596,29 @@ contributors should respect these unless the underlying assumption changes.
 
 ## 8. Freshness Ledger
 
-- Strategy (§1–§5) last reviewed: 2026-07-15
-- Stack versions last verified: 2026-07-15
-- AI-native tool references last verified: 2026-07-15
+- Strategy (§1–§5) last reviewed: 2026-08-05 (`test-plan-refresh-2026-08-05`). §3, §4 and §5 were
+  rewritten by that refresh; §1 and §2 were read and **deliberately left untouched**, because e2e
+  adds a layer of proof for existing risks and introduces no new product failure scenario.
+- Stack versions last verified: 2026-08-05. Every version §4 states was checked against its
+  installed value and **every one matched, so no version cell was edited** — the non-edit is the
+  result, not an omission. The review deliberately also covered the rows a version sweep cannot
+  reach: `getViteConfig()` still wiring the unit+integration row, `vi.mock` still resolving to
+  exactly one file, `db:start` still chaining `db:kong`, `renderToResponse` still rendering
+  `routeType: "endpoint"`, and a11y still wired lint-level only.
+- AI-native tool references last verified: 2026-08-05. `evals/lib/judge.ts` was re-read at the
+  source rather than trusted — the pinned judge model, the `EVAL_JUDGE_MODEL` override,
+  `temperature: 0` and `json_schema` structured outputs — and the four Stack-grounding lines were
+  re-checked for availability.
+- **§4's per-row `checked:` dates deliberately stay older than the two lines above, and that is a
+  decision rather than drift.** A row's date stamps its whole Notes cell; the two lines above stamp
+  versions and mechanisms. The 2026-08-05 review confirmed every version and the mechanism each row
+  turns on, but not every clause those cells carry — e.g. that the Kong recreation is wiped by
+  `npx supabase stop`, which no command run that day observed. Bumping the row dates would have
+  claimed more than was measured, so they were left alone and the gap is recorded here instead.
+- **Every `N/N, M files` suite total in this file counts VITEST files only** — Playwright's specs
+  under `tests/e2e/` are collected by a different runner and enter no figure here, so adding one
+  moves neither number, and a reader must not read a static `M` as evidence that the e2e layer is
+  empty (stated once, rather than by editing figures that were true when they were measured).
 - §3 Phase 4 / Risk #3 coverage claims last **audited against the code**:
   2026-07-26 (C10X-27). Suite state at that moment: 69/69 green, 8 files, local
   stack up, `OPENROUTER_API_KEY` unset. Three claims in this file were found false
@@ -4411,6 +4470,99 @@ contributors should respect these unless the underlying assumption changes.
   and stale `context/changes/…` path are **flagged and deliberately not edited** — that file is
   owned by the Jira skills (`jira-map.md:3-4`). And `customfield_10041` on **C10X-43** is
   `/jira-finish-work`'s to fill.
+
+- **This guide refreshed for the arrival of e2e: 2026-08-05** (`test-plan-refresh-2026-08-05`,
+  triggered by `/10x-test-plan --refresh` on two of the four triggers directly above — the stack
+  changed, and §7's negative space stopped matching). Its entire diff is markdown — `README.md`,
+  `context/foundation/test-plan.md`, `context/foundation/lessons.md` and its own change folder —
+  and its "does not claim" list is longer than its claims by design.
+  **No risk row moves. No coverage claim widens. No test changed, so every suite total in this
+  file — the C10X-43 headline figure and every dated figure beneath it — survives untouched, and
+  this entry deliberately quotes none of them rather than restating one it did not measure.**
+  At the close of the change `git status --porcelain -uall` lists two markdown paths and
+  **nothing under `src/`, `tests/`, `evals/` or `scripts/`** — tracked or untracked.
+  `--porcelain` rather than `git diff --stat` is load-bearing:
+  a diff is blind to an **untracked** file, and plan-review found exactly that — an untracked
+  `tests/e2e/route-guard.spec.ts` taking `npm run typecheck` to 136 while `git diff --stat` read
+  clean. It was removed before implementation; the final run reports `Result (135 files)`.
+- **The one number that moved, and what it revealed.** The type gate reports
+  `Result (135 files): 0 errors`, against the `133` documented on 2026-08-03; the delta is exactly
+  `playwright.config.ts` and `tests/e2e/seed.spec.ts` (`117` roots + `18` `.astro` = `135`), both
+  confirmed as project members by `npx tsc --showConfig` rather than inferred from the arithmetic.
+  So the e2e layer entered the gate silently the day it landed, by `tsconfig.json:3`'s
+  `include: ["**/*"]`, and nothing announced it because the gate asserts against a **floor**. Two
+  sites carried `133` and took **opposite** treatments: `README.md:49` is a live claim and now
+  carries **no total at all**, while §6.6's C10X-43 row is a dated record and keeps its figures
+  under an appended correction block. **`AGENTS.md` was checked on this axis and deliberately NOT
+  edited** — it quotes no total, so there was nothing false in it; the absence of an edit is
+  recorded here as its own note, the C10X-42 precedent, so a reader working the doc-sync list does
+  not hunt for a correction that should not exist.
+- **§7's triggers were mis-keyed, not fired.** The exclusions were keyed on "the moment any §3
+  phase wires e2e" and **no §3 phase ever did** — the harness landed outside the rollout — so the
+  condition was never literally met and the clauses would otherwise have become dead pointers
+  aimed at a moment that had already passed under another name. Each is re-decided on the merits,
+  **stands**, and restates its condition in a reachable form rather than deleting it.
+  **Two figures here are different claims and must not be collapsed**, which is the trap this
+  ledger keeps recording: **four** sites took a dated 2026-08-05 re-decision, but the trigger
+  sentence itself sat at only **three** of them. The fourth, the nested `scroll-padding-top`
+  deferral, never carried that sentence at all — its blocker was worded "needs its own browser
+  verification" — so it re-decides a **blocker** rather than a trigger, and it turned out never to
+  have been a capability blocker in the first place. A hit count is therefore the wrong instrument
+  twice over: at `HEAD` a literal grep for the clause returned **2**, not 3, because one
+  occurrence wrapped across a line break. Every site was checked **per anchor** with the C10X-39
+  pair of patterns instead.
+- **Four deferrals, named so they are decisions rather than gaps**, all owned by the §3 Phase 6
+  change — numbered, because one of them contains a four of its own and the two must not be read
+  as the same list. **(1)** `.gitignore`, which this refresh does not touch at all: four artifact
+  classes stay unignored (`playwright-report/`, `blob-report/`, a root `.last-run.json`,
+  `*-snapshots/`), **latent** because the default reporter produces none of them today.
+  **(2)** A §6.11 "adding an e2e test" subsection — §6 got two trap sentences and nothing else,
+  because a cookbook for a layer nobody can run yet would document a procedure rather than a
+  practice. **(3)** The roadmap id **H-12** and **(4)** the Jira key **C10X-45**, both of which
+  this refresh **names and does not create** (`jira-map.md` is owned by `/jira-backlog-sync`,
+  `jira-map.md:3-4`).
+- **The known cost of that last deferral, stated now rather than discovered at archive time**:
+  this refresh has **no roadmap row of its own**, so `/10x-archive` will have nothing to close and
+  it will need the same backfill H-04, H-07 and H-08 needed. Accepted deliberately at plan time —
+  the alternative was collapsing this change into the phase it adds, which is the orphan pattern
+  it exists to break.
+- **The prettier hazard §6.6's C10X-43 entry records fired twice during this change, in two shapes,
+  and neither was caught by reading.** Shape one is the documented one, met one document over: a
+  code span split across a line break **inside a blockquote** lost its `> ` continuation marker on
+  a `--write`, this time in `plan.md` rather than in this file — so the hazard covers
+  `context/changes/**` too, since `.prettierignore` carries only `context/archive/**`. Shape two is
+  new: prettier **strips a code span's own padding**, so a sentence whose point rested on the
+  spaces inside a span silently lost the detail it was asserting. Two rules follow, and the second
+  is not implied by the first: inside a blockquote a span must stay on one line (it may wrap
+  freely in ordinary prose), and **a span's padding must never carry meaning** anywhere. Both were
+  caught only because every phase ran prettier on a **copy** before letting it near the original.
+- **This refresh kept catching its OWN drafts asserting something it had not measured, always in
+  the direction that reads as reassurance** — the discipline this ledger applies to C10X-29's
+  `missingLocal` neuter, turned on the document doing the applying. Examples rather than an
+  inventory, and deliberately not totalled, since a count is the very thing that keeps going
+  wrong here. A sentence claiming `npx playwright install` "appears nowhere in the repo" was
+  **self-falsifying**, because writing it put the phrase in the repo; it is now scoped to
+  **executable** surfaces. "Five islands carry a `fetch`" was arithmetic off a neighbouring
+  bullet; measured, it is **four**. A draft of this entry's own header said "five sections"
+  asserted something false about e2e; enumerated, it is **§4, §5, §7 and §8**. Another said the
+  type-gate count "moved four times in four days", when four was the number of measurements.
+  And a draft of the bullet directly above opened "the file now says so at four sites" two
+  sentences before saying the clause "sat at three sites" — the total-versus-breakdown collision,
+  committed inside the paragraph that names it. Every one was caught by running something, none
+  by re-reading.
+- **One correction belongs to the plan rather than to this file, and is recorded so the next
+  reader does not re-derive it.** The `lessons.md` drift the plan characterised as "trailing
+  whitespace" is nothing of the kind: `grep -nE ' +$'` returns **zero** hits file-wide, and the
+  two lines are prettier's `*emphasis*` → `_emphasis_` normalisation — content-neutral, but only
+  because both sites happen to be word-bounded (`_` cannot open emphasis inside a word, so the
+  same normalisation would have changed rendering had they not been).
+- **Still open after this entry, deliberately**: everything the four deferrals name; `roadmap.md:234`,
+  which asserts this project "nie ma warstwy e2e ani visual-diff" and is now **half** false in
+  exactly the way §7's clause was — left for the phase, because `roadmap.md` is not among the three
+  documents this change's scope names and `/10x-archive` owns that file's Status column. And the
+  §5 intro's unqualified "before that, the gate is `planned`" convention, which the e2e row is
+  deliberately kept out of; the paragraph beneath the table blocks the inference by name, and
+  editing the intro was outside the phase's contract.
 
 Refresh (`/10x-test-plan --refresh`) when:
 

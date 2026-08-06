@@ -955,10 +955,10 @@ and do not apply.
 
 #### Automated
 
-- [x] 6.1 §6.1 and §6.2 each name `tests/e2e/` and `.spec.ts`
-- [x] 6.2 `roadmap.md:234` returns 0 hits in `lessons.md`; `roadmap.md:401` returns 1
-- [x] 6.3 No `6.11` subsection was added — `grep -cF "### 6.11"` returns 0 (a bare `grep -c "6.11"` returns 1 at `HEAD` and can never pass)
-- [x] 6.4 `npx prettier --check` passes on both files (after-check: `lessons.md` is red at `HEAD`)
+- [x] 6.1 §6.1 and §6.2 each name `tests/e2e/` and `.spec.ts` — 2bc8c86
+- [x] 6.2 `roadmap.md:234` returns 0 hits in `lessons.md`; `roadmap.md:401` returns 1 — 2bc8c86
+- [x] 6.3 No `6.11` subsection was added — `grep -cF "### 6.11"` returns 0 (a bare `grep -c "6.11"` returns 1 at `HEAD` and can never pass) — 2bc8c86
+- [x] 6.4 `npx prettier --check` passes on both files (after-check: `lessons.md` is red at `HEAD`) — 2bc8c86
 
 > **6.1–6.4 measurements, 2026-08-06.** 6.1 was run **scoped to each subsection** (`awk`
 > between the `### 6.1`/`### 6.2` and `### 6.2`/`### 6.3` headings), never file-wide — the same
@@ -1016,8 +1016,8 @@ and do not apply.
 
 #### Manual
 
-- [x] 6.5 Each addition is one sentence, in the surrounding voice
-- [x] 6.6 The `lessons.md` diff is the pointer change plus exactly two whitespace-only lines (`:204`, `:211`)
+- [x] 6.5 Each addition is one sentence, in the surrounding voice — 2bc8c86
+- [x] 6.6 The `lessons.md` diff is the pointer change plus exactly two whitespace-only lines (`:204`, `:211`) — 2bc8c86
 
 > **6.5 / 6.6 evidence, 2026-08-06 — both done by measuring the prose, not by re-reading it,
 > and 6.5 sent BOTH sentences back for a rewrite.** "One sentence, in the surrounding voice" is
@@ -1080,16 +1080,137 @@ and do not apply.
 
 #### Automated
 
-- [ ] 7.1 All three ledger dates read `2026-08-05`
-- [ ] 7.2 `Last updated:` reads `2026-08-05` and the next block begins `Previously:`
-- [ ] 7.3 `git status --porcelain` (not `git diff --stat` — it is blind to untracked files) touches no file under `src/`, `tests/`, `evals/`, `scripts/`
-- [ ] 7.4 `npm run typecheck` reports 0 errors; `Result (N files)` recorded (expected `135`)
-- [ ] 7.5 `npm run lint` exits 0
-- [ ] 7.6 `prettier --check` passes and a double `--write` produces an empty diff
-- [ ] 7.7 Both `364/364, 31` sites unchanged — `:42-43` (wrapped, invisible to the full-phrase grep) and `:4168`
+- [x] 7.1 All three ledger dates read `2026-08-05`
+- [x] 7.2 `Last updated:` reads `2026-08-05` and the next block begins `Previously:`
+- [x] 7.3 `git status --porcelain` (not `git diff --stat` — it is blind to untracked files) touches no file under `src/`, `tests/`, `evals/`, `scripts/`
+- [x] 7.4 `npm run typecheck` reports 0 errors; `Result (N files)` recorded (expected `135`)
+- [x] 7.5 `npm run lint` exits 0
+- [x] 7.6 `prettier --check` passes and a double `--write` produces an empty diff
+- [x] 7.7 Both `364/364, 31` sites unchanged — `:42-43` (wrapped, invisible to the full-phrase grep) and `:4168`
+
+> **7.1–7.7 measurements, 2026-08-06.** 7.1: all three at `:3599`, `:3602`, `:3608`. 7.2: `:9`
+> reads `2026-08-05` and the next `>` block, at `:48`, begins `Previously:` — the C10X-43 block's
+> body is byte-identical to `HEAD` (md5 `c927e5c8977e2da42852392d77bec225` over its 38 lines), so
+> only the label word moved. 7.3: `git status --porcelain -uall` lists two paths, both markdown,
+> and the untracked sweep returns **0** — the trap this criterion was written for is absent.
+> 7.4: `Result (135 files): 0 errors`, the expected `135`, decomposed rather than accepted —
+> `npx tsc --showConfig` resolves **117** roots (zero of them `.astro`) and `git ls-files '*.astro'`
+> returns **18**, so `117 + 18 = 135` closes, and both e2e files are confirmed project members.
+> 7.5: exit 0 with the **3** pre-existing `no-console` warnings, unchanged. 7.6: green on all four
+> documents this change or its hooks touch — including `plan.md`, per Phase 4's finding that
+> `.prettierignore` leaves `context/changes/**` in `lint-staged`'s path — and the write-twice
+> fixed-point test on copies gives a **zero-line** diff.
+>
+> **The prettier green was checked for VACUITY, which is the C10X-43 trap this file records.**
+> `All matched files use Prettier code style!` is indistinguishable from "no files matched", so
+> each of the four paths was put through `npx prettier --file-info`: all four report
+> `"ignored": false` with the markdown parser. The green is about files that were actually
+> considered.
+>
+> **7.7 was run per anchor and the plan's trap reproduced exactly.** The two sites moved with the
+> file (`:42-43` → `:81-82`, `:4376` → `:4435`) and both are byte-identical to `HEAD` by md5
+> (`262f61348a1d68fa5eebb3e1b507969d`, `fd037c62f107fd79edcf05ad6158a147`). The full-phrase
+> `grep -c "364/364, 31 files"` returns **1**, not 2, because `:81` wraps between `31` and
+> `files` — the wrap-tolerant partner finds both.
+>
+> **One draft of the §8 entry pushed that count to 2 and was rewritten rather than accepted.**
+> The entry first quoted `364/364, 31 files` inside the sentence asserting it was untouched,
+> which would have left a third occurrence in a file whose §8 warns three times about exactly
+> this ambiguity. Reworded to name no figure at all, which is also the honest form: the entry
+> measured no suite total, so it should restate none. Count back to 1.
+>
+> **Three claims in my own draft were wrong and were caught by measuring them, not by reading.**
+> (a) The header said "five sections of this guide asserted things about e2e which are false" —
+> unmeasured, and wrong: it is **§4, §5, §7 and §8**, four, with §6.6 deliberately excluded
+> because its figures were correct when measured. Replaced by the enumeration, which is this
+> file's own "a total and its breakdown are two claims" rule applied to the sentence introducing
+> it. (b) "a count that moved four times in four days" — there were four measurements (133, 135,
+> 136, 135), i.e. three moves; now stated as the four values. (c) The §7 bullet opened "the file
+> now says so at four sites" and two sentences later said the clause "sat at three sites", a
+> flat self-contradiction; rewritten to state the two figures as the **different claims** they
+> are — four sites took a dated re-decision, the trigger sentence sat at three of them — which is
+> what Phase 5 actually measured.
+>
+> **Every cross-document fact the new blocks assert was probed at its source.** The four
+> artifact classes are still unignored (`playwright-report`, `blob-report`, `last-run.json`,
+> `snapshots` → **0** hits each in `.gitignore`, which carries only the three entries `5f3c87e`
+> added); `roadmap.md:234` really does assert "projekt nie ma warstwy e2e ani visual-diff";
+> §5's intro at `:835` really does read "before that, the gate is `planned`"; and C10X-43's
+> closing sentence at `:86` is "the gate proves the project COMPILES, never that anything RAN",
+> which the new header block deliberately echoes rather than contradicts.
+>
+> **One Contract question Phase 2 handed forward was decided, and decided NOT to edit.** Phase 2
+> left §4's per-row `checked:` dates at their old values and recorded that bumping them was "a
+> Phase 7 call". They stay. A row's date stamps its whole Notes cell, while the two ledger lines
+> stamp versions and mechanisms — and Phase 2 confirmed every version and every mechanism, but
+> not every clause those cells carry (e.g. that the Kong recreation is wiped by
+> `npx supabase stop`, which nothing run that day observed). Bumping would have claimed more than
+> was measured, so the decision and its reason are written into §8 as a fourth bullet instead —
+> the Contract's own instruction to "say so beside the date rather than moving it silently".
 
 #### Manual
 
-- [ ] 7.8 The §8 entry's "does not claim" list is as prominent as its claims
-- [ ] 7.9 The header block does not contradict the C10X-43 block it demoted
-- [ ] 7.10 The four deferrals and the orphan consequence are recoverable from the §8 entry alone
+- [x] 7.8 The §8 entry's "does not claim" list is as prominent as its claims
+- [x] 7.9 The header block does not contradict the C10X-43 block it demoted
+- [x] 7.10 The four deferrals and the orphan consequence are recoverable from the §8 entry alone
+
+> **7.8 / 7.9 / 7.10 evidence, 2026-08-06 — run as measurements, and two of the three sent the
+> entry back for a rewrite.** 7.8 was measured per bullet rather than judged: the entry is **9**
+> bullets / **1282** words, of which **six bullets (741 words, 58%)** are wholly limits,
+> deferrals or self-corrections, and the remaining three each carry a disclaimer half. Position
+> backs the volume — the first bold statement in the entry is the triple negation
+> ("No risk row moves. No coverage claim widens. No test changed…") and the last bullet is
+> "Still open after this entry, deliberately". The claims never hold a majority on either axis.
+>
+> **7.10 failed its first read and the defect is this file's own recurring class, committed
+> inside the bullet whose job is reconstructability.** The deferrals bullet was titled "**Four**
+> deferrals" and its first item was "`.gitignore`'s **four** remaining artifact classes" — two
+> different fours, one nested in the other, so a cold reader counting deferrals could land on
+> the artifact classes instead. Fixed by numbering the four deferrals **(1)**–**(4)** explicitly
+> and naming why each is deferred, not just what. Re-measured entry-scoped: all four markers plus
+> `H-12`, `C10X-45`, `6.11`, `no roadmap row` and `H-04` present.
+>
+> **7.8's read also caught an undercount, and it is the same class again.** The bullet
+> "**Three** claims this refresh made about itself were wrong" was itself wrong: three more
+> landed in Phase 7 alone (the header's "five sections", "moved four times", and the §7 bullet's
+> four-sites/three-sites self-contradiction), so the true figure is at least six. Rewritten to
+> carry **no total at all** — "examples rather than an inventory, and deliberately not totalled,
+> since a count is the very thing that keeps going wrong here" — which is the only form immune to
+> the defect it describes. The one item that belongs to the **plan** rather than to the refresh
+> (the `lessons.md` "trailing whitespace" mischaracterisation) was split into its own bullet, so
+> the refresh does not claim credit for catching someone else's error as if it were its own.
+>
+> **7.9 was run as a positive check, not as "I spotted no contradiction".** Block boundaries
+> resolved first (new header `9-47`, C10X-43 `48-87`, C10X-42 `88-147`). Both demoted blocks
+> contain **zero** file-count tokens (`133`/`135`/`136`/`115`/`117` — those live only in §6.6)
+> and **zero** mentions of e2e or Playwright, so neither a numeric nor a topical collision is
+> structurally possible. On the axes all three blocks do share, they agree: `no risk row moves`,
+> `no coverage claim widens` and `floor` in both the new header and C10X-43's, and the new
+> block's "the gate says the e2e layer **compiles**, never that anything runs it" is a deliberate
+> echo of C10X-43's closing "the gate proves the project COMPILES, never that anything RAN".
+>
+> **My own 7.9 checker was bitten by the wrap trap TWICE, in a sharper form than Phase 5
+> recorded, and that is the reusable half.** Pass 1 reported C10X-43's block as missing
+> `No risk row moves` — false, the phrase wraps across a line break. Pass 2 joined the lines and
+> **still** reported 0, because inside a blockquote the continuation line carries a `> ` marker
+> that lands **between** the wrapped words ("No risk row `>` moves"). Only pass 3 — strip `^> `,
+> then join, then match — returns 1 for both blocks. Phase 5 hit the newline half of this; the
+> blockquote-marker half is new, and any future wrap-tolerant grep over this file needs both
+> steps or it produces false negatives on precisely the header blocks it is checking.
+>
+> **The change-level manual list (plan §Testing Strategy) was closed in the same pass.** Item 1,
+> the claims-vs-wires sequential read, now spans **five** sites rather than four, because this
+> phase added a header that speaks for all of them: `claiming is not wiring` reads at seven
+> places (`:37` the new header, `:816` §4's row, `:829` §4's tooling line, `:856` §5's paragraph,
+> `:3455`/`:3585`/`:3782` in §7-§8), and the negative control — any e2e line matching
+> `required —` / `wired by` / `is a gate` outside the deliberate negations — returns **0**. Item 2:
+> **zero** affirmative "the trigger fired / condition met / has arrived" anywhere in the file, and
+> every one of the eleven occurrences of "fired" is either the deliberate negation or a different
+> subject entirely (the retry-transport control, the `429` retry, the artifact upload, prettier).
+> Item 4 was closed **byte-level, not by eye**: against the change's base `cc40f8f`, §6.6's
+> C10X-43 claims row is md5-identical (`3979fde4d6bb8f19cc1545a3aa424e4b`) and §8's C10X-30 twin
+> bullet is md5-identical (`121f6b8155a86bba4aca76524fc8b905`), each with its correction block
+> hanging beneath — appended, never rewritten, which is the opposite treatment from the live
+> claims in §4, §5 and §7 that were edited in place. The whole-change removal set is **50** lines
+> and every one is accounted for: the demoted header label, two tables prettier re-padded, the
+> five live claims struck by design, and the three old ledger dates.
