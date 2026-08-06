@@ -728,7 +728,14 @@ and do not apply.
 > `Usuń` over-count is **+1** and its source is now pinned: `DeckActions.tsx:76`, rendered at
 > `index.astro:150` inside the `sticky top-0 z-20 … h-16` bar at `:129`. (`DeckActions` also
 > carries a confirm `Usuń` at `:146`, inside a closed `<dialog>` and therefore outside a role
-> query — the reason the over-count is one and not two.)
+> query — the reason the over-count is one and not three. **Corrected by the impl-review,
+> 2026-08-06: this read "one and not two" and undercounted the gated confirms by one.** The deck
+> page carries a THIRD `Usuń`, `ConfirmDeleteModal.tsx:34`, rendered by
+> `FlashcardWorkspace.tsx:268` and gated by `{card && …}` — so it is absent from the DOM entirely
+> when closed, where `DeckActions:146` is present but hidden from the accessibility tree. Two
+> different mechanisms, same result; the operative figure is unaffected and the over-count is
+> **+1**. `test-plan.md`'s own wording names only the sticky-header button and makes no
+> enumeration, so the durable document was never wrong.)
 >
 > **One real defect was found by this pass and fixed rather than noted.** The note claimed
 > `npx playwright install` "appears nowhere in the repo" — **self-falsifying**, because writing
@@ -944,6 +951,17 @@ and do not apply.
 > WCAG 1.4.11 only) and **reviewed by reading, deliberately and every time**. The
 > `2.4.11 is Focus Not Obscured` sentence is untouched (5.3).
 >
+> **One of those two survives in substance but not in wording, and this note first claimed both
+> survived outright — corrected by the impl-review, 2026-08-06.** The Contract quoted the first
+> rule as "Until then the guard is the measured acceptance check…", and a grep for that phrase
+> now returns **0**: the site reads "Until such an oracle is wired the guard is the measured
+> acceptance check…". The re-base was forced rather than chosen — "Until **then**" referred to
+> the trigger clause this very phase struck, so leaving it would have pointed at nothing — and
+> the rule itself is byte-for-byte intact on every axis that matters: same guard, same 3:1 bar,
+> same WCAG 1.4.11-only scope, same evidence path. The second rule does survive verbatim. Recorded
+> because a Contract that protects a sentence by quoting it deserves to be told when the quote
+> stops matching, even where the substance is untouched.
+>
 > **5.6 measured twice, and neither time by reading the file.** `git diff -U0` on the §8 hunk
 > is `+12` with **zero** lines starting `-`. Independently, the bullet was extracted from
 > `git show HEAD:` and from the worktree and compared: **5 lines each, byte-identical**. So the
@@ -1139,6 +1157,18 @@ and do not apply.
 > closing sentence at `:86` is "the gate proves the project COMPILES, never that anything RAN",
 > which the new header block deliberately echoes rather than contradicts.
 >
+> **This phase silently invalidated one of Phase 4's automated criteria, and nobody re-ran it at
+> HEAD — added by the impl-review, 2026-08-06.** Criterion 4.3 requires
+> `grep -c "planned" context/foundation/test-plan.md` to be unchanged from the change's base. It is
+> **6** at HEAD against **5** at `cc40f8f`, and the sixth hit is this phase's own §8 "Still open"
+> bullet, which QUOTES the vocabulary in order to disclaim it ("the §5 intro's unqualified
+> 'before that, the gate is `planned`' convention, which the e2e row is deliberately kept out of").
+> Phase 4's note recorded `5` before and `5` after, which was true at `5d91df2` and decayed three
+> commits later. The Contract's actual instruction — the new gate row must not borrow that
+> vocabulary — is intact: §5's e2e `Required?` cell reads `never a gate`. Recorded because this is
+> exactly the shape §8 records against C10X-40: a phase-completion figure a later edit moved, with
+> no one re-measuring at the end.
+>
 > **One Contract question Phase 2 handed forward was decided, and decided NOT to edit.** Phase 2
 > left §4's per-row `checked:` dates at their old values and recorded that bumping them was "a
 > Phase 7 call". They stay. A row's date stamps its whole Notes cell, while the two ledger lines
@@ -1211,6 +1241,14 @@ and do not apply.
 > C10X-43 claims row is md5-identical (`3979fde4d6bb8f19cc1545a3aa424e4b`) and §8's C10X-30 twin
 > bullet is md5-identical (`121f6b8155a86bba4aca76524fc8b905`), each with its correction block
 > hanging beneath — appended, never rewritten, which is the opposite treatment from the live
-> claims in §4, §5 and §7 that were edited in place. The whole-change removal set is **50** lines
-> and every one is accounted for: the demoted header label, two tables prettier re-padded, the
-> five live claims struck by design, and the three old ledger dates.
+> claims in §4, §5 and §7 that were edited in place. The removal set in `test-plan.md` is **49**
+> lines and every one is accounted for: the demoted header label, two tables prettier re-padded,
+> the five live claims struck by design, and the three old ledger dates. Across all three
+> documents it is **53** (`+1` README, `+3` `lessons.md`).
+>
+> **That pair of figures read "the whole-change removal set is 50 lines" until the impl-review
+> measured it, 2026-08-06.** `git diff --numstat cc40f8f..HEAD` gives `49` / `1` / `3`, so `50`
+> matched neither the enumerated set (49, all of it `test-plan.md`) nor the whole-change set (53)
+> — a total quoted against a breakdown that belonged to a different scope, which is the class this
+> very phase's §8 entry says "keeps going wrong here". Recorded rather than silently swapped,
+> because the enumeration itself was correct and only its label and figure were not.

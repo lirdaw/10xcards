@@ -10,9 +10,12 @@
 > and not a change to any product code). **No risk row moves, no coverage claim widens, and no
 > test changed — so no suite figure in this file is restated.** What changes is that a Playwright
 > harness now exists, that it landed **outside** the phased rollout (the C10X-39/40/42/43 pattern
-> for the fifth time), and that **§4, §5, §7 and §8** each asserted something about e2e which is
-> false on this date — enumerated rather than counted, because a total and its breakdown are two
-> claims and this ledger has caught itself on that three times. §6.6 is deliberately not in that
+> for the fifth time), and that **§4, §5 and §7** each asserted something about e2e which is false
+> on this date, while **§8** carried the same mis-keyed trigger — enumerated rather than counted,
+> because a total and its breakdown are two claims and this ledger has caught itself on that three
+> times. The §8 clause is listed separately on purpose: this refresh's own correction block defends
+> it as the accurate statement of its trigger, so folding it into "false" would collapse the
+> mis-keyed/false distinction the rest of this entry turns on. §6.6 is deliberately not in that
 > list: its figures were correct when they were measured, so they take a correction block instead.
 > §3 gains a **Phase 6** row as `not started`, and the nine measured harness
 > findings are handed to it **with verdicts** in its sequencing note, so the phase's own research
@@ -29,15 +32,17 @@
 > re-rots by construction; §6.6's dated C10X-43 row keeps its `133` / `115` and takes a correction block
 > beneath it. The gate says the e2e layer **compiles**, never that anything runs it.
 >
-> **§7's three re-evaluation triggers were MIS-KEYED, not fired**, and that distinction is the
-> whole of what §7 changed. All three read "re-evaluate the moment any §3 phase wires e2e"; no §3
-> phase ever did. Each exclusion is re-decided on the merits and **stands** — a browser runner is
-> not a computed-style oracle, this project carries no visual-diff tool at any layer, and one
-> exemplar spec covers one flow rather than the class — with the condition **restated rather than
-> deleted**, so it now points at something reachable. **Claiming is not wiring**, and the three
-> sections say so in one voice: §3 Phase 6 claims the layer, §4's row states what the harness
-> cannot do (no npm script, no CI job, no browser-install step, no `webServer`, no preflight), and
-> §5's new row makes e2e **never a gate** — nothing may ever declare it in `needs:`.
+> **§7's re-evaluation triggers were MIS-KEYED, not fired**, and that distinction is the whole of
+> what §7 changed. Three exclusions took a dated re-decision; the trigger sentence itself —
+> "re-evaluate the moment any §3 phase wires e2e" — sat at three sites, two of them in §7 and one
+> in §8. No §3 phase ever did. Each exclusion is re-decided on the merits and **stands** — a
+> browser runner is not a computed-style oracle, this project carries no visual-diff tool at any
+> layer, and one exemplar spec covers one flow rather than the class — with the condition
+> **restated rather than deleted**, so it now points at something reachable. **Claiming is not
+> wiring**, and the three sections say so in one voice: §3 Phase 6 claims the layer, §4's row
+> states what the harness cannot do (no npm script, no CI job, no browser-install step, no
+> `webServer`, no preflight), and §5's new row makes e2e **never a gate** — nothing may ever
+> declare it in `needs:`.
 >
 > Read the four deferrals as decisions rather than omissions: `.gitignore`'s remaining artifact
 > classes (latent under the default reporter), a §6.11 "adding an e2e test" subsection, and the
@@ -797,10 +802,12 @@ Sequencing notes:
   oracle there partly asserts what the application performs for the test; and its
   acceptance-metric line **hides silently** on an aggregate error, so its presence is evidence
   while its absence proves nothing. The deck page reaches an `.astro` loader that §6.4 records
-  as deliberately never rendered and §6.6's S-05 entry records as resting on manual verification
-  alone — which is the coverage hole this journey extends into. Do not assert on card
-  **content**: §6.5 is explicit that mock output is identical on every call and is not an
-  oracle.
+  as deliberately never rendered and that §6.6's Phase 1 entry still lists as open after
+  C10X-27, one of "the two `.astro` page loaders" — which is the coverage hole this journey
+  extends into. Cite that entry rather than §6.6's S-05 one, whose "manual verification alone"
+  bullet is scoped to `review.astro`, i.e. the screen this paragraph has just rejected as the
+  oracle. Do not assert on card **content**: §6.5 is explicit that mock output is identical on
+  every call and is not an oracle.
 
 ## 4. Stack
 
@@ -4479,8 +4486,12 @@ contributors should respect these unless the underlying assumption changes.
   **No risk row moves. No coverage claim widens. No test changed, so every suite total in this
   file — the C10X-43 headline figure and every dated figure beneath it — survives untouched, and
   this entry deliberately quotes none of them rather than restating one it did not measure.**
-  At the close of the change `git status --porcelain -uall` lists two markdown paths and
-  **nothing under `src/`, `tests/`, `evals/` or `scripts/`** — tracked or untracked.
+  Measured while the last phase was still in flight, `git status --porcelain -uall` listed only
+  markdown paths and **nothing under `src/`, `tests/`, `evals/` or `scripts/`** — tracked or
+  untracked. Read that as a claim carrying its own moment rather than a reproducible one: at the
+  true close everything is committed, so the command returns nothing at all and the surviving
+  oracle is `git diff --name-only` against the change's base, which lists the three documents
+  above and the change folder.
   `--porcelain` rather than `git diff --stat` is load-bearing:
   a diff is blind to an **untracked** file, and plan-review found exactly that — an untracked
   `tests/e2e/route-guard.spec.ts` taking `npm run typecheck` to 136 while `git diff --stat` read
