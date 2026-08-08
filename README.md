@@ -46,7 +46,7 @@ npm run dev
 - `npm run dev` - Start development server (Cloudflare workerd runtime)
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build
-- `npm run typecheck` - The type gate: `astro sync`, then `tsc --noEmit`, then `astro check` over all 133 files (`src/`, `tests/`, `evals/`, `scripts/`, the root configs, and the 18 `.astro` templates `tsc` cannot see). Runs in CI and on `git push` via a husky `pre-push` hook
+- `npm run typecheck` - The type gate: `astro sync`, then `tsc --noEmit`, then `astro check` over `src/`, `tests/` (which since 2026-08-05 also means the Playwright specs under `tests/e2e/`), `evals/`, `scripts/`, the root configs, and the 18 `.astro` templates `tsc` cannot see. No file total is quoted here on purpose: the gate asserts on a **floor**, so the count moves whenever a file enters or leaves the tree and a number pinned in prose only re-rots. Runs in CI and on `git push` via a husky `pre-push` hook
 - `npm run lint` - Run ESLint with **type-aware rules** — note this is not the same thing as a type check: it reads types to decide rules, and reports no `tsc` diagnostic. That distinction is why `npm run typecheck` exists as a separate script
 - `npm run lint:fix` - Auto-fix ESLint issues
 - `npm run format` - Run Prettier. Note `context/archive/**` is in `.prettierignore`, so archived evidence is never reformatted (dated corrections are appended to it, never rewrites)

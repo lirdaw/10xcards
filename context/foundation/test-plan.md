@@ -6,7 +6,52 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-08-03 (C10X-43 `typecheck-gate` — not a §3 rollout phase). **No risk row
+> Last updated: 2026-08-05 (`test-plan-refresh-2026-08-05` — a REFRESH, not a §3 rollout phase,
+> and not a change to any product code). **No risk row moves, no coverage claim widens, and no
+> test changed — so no suite figure in this file is restated.** What changes is that a Playwright
+> harness now exists, that it landed **outside** the phased rollout (the C10X-39/40/42/43 pattern
+> for the fifth time), and that **§4, §5 and §7** each asserted something about e2e which is false
+> on this date, while **§8** carried the same mis-keyed trigger — enumerated rather than counted,
+> because a total and its breakdown are two claims and this ledger has caught itself on that three
+> times. The §8 clause is listed separately on purpose: this refresh's own correction block defends
+> it as the accurate statement of its trigger, so folding it into "false" would collapse the
+> mis-keyed/false distinction the rest of this entry turns on. §6.6 is deliberately not in that
+> list: its figures were correct when they were measured, so they take a correction block instead.
+> §3 gains a **Phase 6** row as `not started`, and the nine measured harness
+> findings are handed to it **with verdicts** in its sequencing note, so the phase's own research
+> starts from them rather than re-deriving them.
+>
+> **The number that moved is the one nobody was watching.** `npm run typecheck` reports
+> `Result (135 files)` against the `133` two documents carried, and the delta is exactly
+> `playwright.config.ts` and `tests/e2e/seed.spec.ts`, both resolved as project members by
+> `npx tsc --showConfig`. So **the e2e layer has sat inside the type gate — in CI and on
+> `pre-push` — since the day it landed, and no document knew it.** Nothing went red because the
+> gate asserts on a **floor** rather than on a pinned count, which is correct design and also why
+> the change announced itself nowhere. `README.md` now states that scope with **no total at all**,
+> because a live claim pinned to a count measured at 133, 135, 136 and 135 again inside four days
+> re-rots by construction; §6.6's dated C10X-43 row keeps its `133` / `115` and takes a correction block
+> beneath it. The gate says the e2e layer **compiles**, never that anything runs it.
+>
+> **§7's re-evaluation triggers were MIS-KEYED, not fired**, and that distinction is the whole of
+> what §7 changed. Three exclusions took a dated re-decision; the trigger sentence itself —
+> "re-evaluate the moment any §3 phase wires e2e" — sat at three sites, two of them in §7 and one
+> in §8. No §3 phase ever did. Each exclusion is re-decided on the merits and **stands** — a
+> browser runner is not a computed-style oracle, this project carries no visual-diff tool at any
+> layer, and one exemplar spec covers one flow rather than the class — with the condition
+> **restated rather than deleted**, so it now points at something reachable. **Claiming is not
+> wiring**, and the three sections say so in one voice: §3 Phase 6 claims the layer, §4's row
+> states what the harness cannot do (no npm script, no CI job, no browser-install step, no
+> `webServer`, no preflight), and §5's new row makes e2e **never a gate** — nothing may ever
+> declare it in `needs:`.
+>
+> Read the four deferrals as decisions rather than omissions: `.gitignore`'s remaining artifact
+> classes (latent under the default reporter), a §6.11 "adding an e2e test" subsection, and the
+> ids **H-12** / **C10X-46** — all owned by the phase this refresh adds (the Jira half of that
+> deferral was re-decided on 2026-08-06; §8 carries the correction). The known cost is written
+> into §8 rather than discovered at archive time: this refresh carries **no roadmap row of its
+> own** and needs the same backfill H-04/H-07/H-08 needed.
+>
+> Previously: 2026-08-03 (C10X-43 `typecheck-gate` — not a §3 rollout phase). **No risk row
 > moves and no coverage claim widens. What changes is §5's gate set, for the first time since
 > C10X-29, and the question it answers is embarrassingly basic: does anything in this project
 > compile what it ships?** Until this date, nothing did. `npm run lint` is ESLint with
@@ -536,13 +581,14 @@ appear on disk. A fourth value, **`reopened`**, exists because a later audit can
 show a `complete` phase never covered all of its risk — see Phase 4. Treat
 `complete` as a dated claim, not a permanent state.
 
-| #   | Phase name                      | Goal (one line)                                                                         | Risks covered                                                                                                       | Test types                         | Status   | Change folder                                                                                                                                                              |
-| --- | ------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Harness + per-account isolation | Stand up the runner and prove cross-account denial on read and write                    | #1                                                                                                                  | runner bootstrap, integration, RLS | complete | `context/archive/2026-07-15-verification-harness/`                                                                                                                         |
-| 2   | Endpoint contract               | Prove the server does not trust the client and does not leak; stop duplication on retry | #2 (**covered** — S-05 Phase 6), #4 (**covered** — C10X-28), #6 (**covered, server side** — C10X-30, 2026-07-28)    | integration                        | complete | `context/archive/2026-07-18-ai-candidate-generation-test/` → `context/archive/2026-07-26-ai-candidate-generation-test-2/` → `context/changes/server-side-validation-test/` |
-| 3   | Quality gates + schema drift    | Make green CI mean "tested and prod actually migrated"                                  | #5 (**covered** — the deploy-blocking classes and the stale generated types; C10X-29, 2026-07-28)                   | gates                              | complete | `context/changes/schema-drift-test/`                                                                                                                                       |
-| 4   | SRS schedule correctness        | Prove the schedule defers by rating, survives restart, and admits only accepted cards   | #3 (**covered** — both halves; closed by C10X-27, 2026-07-26)                                                       | unit + integration                 | complete | `context/archive/2026-07-24-srs-study-session/` → `context/archive/2026-07-26-srs-study-session-test/`                                                                     |
-| 5   | AI-native generation quality    | Prove cards match the source language and are usable, so the 75% thesis is measurable   | #7 (**covered as far as a proxy can be** — C10X-31, 2026-07-29; the judge does not measure the 75% acceptance rate) | LLM-as-judge                       | complete | `context/changes/ai-candidate-generation-test-3/`                                                                                                                          |
+| #   | Phase name                         | Goal (one line)                                                                                   | Risks covered                                                                                                       | Test types                         | Status      | Change folder                                                                                                                                                              |
+| --- | ---------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Harness + per-account isolation    | Stand up the runner and prove cross-account denial on read and write                              | #1                                                                                                                  | runner bootstrap, integration, RLS | complete    | `context/archive/2026-07-15-verification-harness/`                                                                                                                         |
+| 2   | Endpoint contract                  | Prove the server does not trust the client and does not leak; stop duplication on retry           | #2 (**covered** — S-05 Phase 6), #4 (**covered** — C10X-28), #6 (**covered, server side** — C10X-30, 2026-07-28)    | integration                        | complete    | `context/archive/2026-07-18-ai-candidate-generation-test/` → `context/archive/2026-07-26-ai-candidate-generation-test-2/` → `context/changes/server-side-validation-test/` |
+| 3   | Quality gates + schema drift       | Make green CI mean "tested and prod actually migrated"                                            | #5 (**covered** — the deploy-blocking classes and the stale generated types; C10X-29, 2026-07-28)                   | gates                              | complete    | `context/changes/schema-drift-test/`                                                                                                                                       |
+| 4   | SRS schedule correctness           | Prove the schedule defers by rating, survives restart, and admits only accepted cards             | #3 (**covered** — both halves; closed by C10X-27, 2026-07-26)                                                       | unit + integration                 | complete    | `context/archive/2026-07-24-srs-study-session/` → `context/archive/2026-07-26-srs-study-session-test/`                                                                     |
+| 5   | AI-native generation quality       | Prove cards match the source language and are usable, so the 75% thesis is measurable             | #7 (**covered as far as a proxy can be** — C10X-31, 2026-07-29; the judge does not measure the 75% acceptance rate) | LLM-as-judge                       | complete    | `context/changes/ai-candidate-generation-test-3/`                                                                                                                          |
+| 6   | E2E harness + two browser journeys | Close the non-local seams, then prove the guard is mounted and an accepted card survives a reload | #1 and #6 (**extending — no §2 row changes**; e2e introduces no new failure scenario)                               | e2e (Playwright), human-triggered  | not started | — (opens its own via `/10x-new`)                                                                                                                                           |
 
 Sequencing notes:
 
@@ -665,6 +711,106 @@ Sequencing notes:
   reality" (that row now reads local **and** dispatchable), and "still local, still
   human-triggered" (the first half retired, the second untouched). Read §6.6's C10X-42 entry
   with this one.
+- Phase 6 is `not started`, and the unusual thing about the row — the reason this note is the
+  longest in the list — is that **the harness it will inherit already exists**.
+  `playwright.config.ts` plus one spec under `tests/e2e/` landed 2026-08-05 (`8a12d07`,
+  `5f3c87e`) **outside** the phased rollout, which is the C10X-39/40/42/43 orphan pattern one
+  more time. So the phase does not start from nothing; it starts from something nobody had
+  audited. It was audited on 2026-08-05 by this refresh's research, and the nine findings below
+  are handed over **with verdicts** so the phase's own research starts from them rather than
+  re-deriving them — and so a reader who stops here learns that the harness exists **and** that
+  it is not yet trustworthy. The phase runs the full
+  `/10x-new` → `/10x-research` → `/10x-plan` → `/10x-implement` / `/10x-e2e` chain, deliberately
+  **not** as a hardening ticket: shipping it as hardening is what would repeat the orphan
+  pattern rather than close it. Its ids are reserved — roadmap **H-12**, Jira **C10X-46**. The
+  roadmap half is still uncreated by this refresh; the Jira half was re-decided on 2026-08-06,
+  when the refresh was given a ticket of its own and took **C10X-45**, so the phase's reservation
+  moved up one (§8).
+
+  **Sub-phase 6.1 is an entry condition that blocks the rest of the phase, not a follow-up.** A
+  Playwright preflight comes first. `tests/setup/preflight.ts` closes three non-local seams for
+  `npm test` — local host, anon key, `OPENROUTER_API_KEY` unset — with no env opt-out (§6.4),
+  and the Playwright side has **none** of them. `baseURL` is hardcoded to `localhost`, but the
+  dev server reads `.env`, whose own comments document the cloud-credential swap under a `PROD_`
+  prefix, and `seed.spec.ts` ends by **deleting a whole deck through the real UI**. In the
+  swapped state a hand-started `npm run dev` plus `npx playwright test` creates and deletes
+  decks in **production**, and nothing stops it. `SUPABASE_URL` is local today (measured), so
+  this is a live **seam**, not a live incident — and it is exactly the rule `lessons.md` states
+  as "Preflight musi domknąć KAŻDY nielokalny szew".
+
+  **The six harness risks, with the verdicts measured 2026-08-05.** Four LIVE, one CLOSED, one
+  LIVE and **inverted** on the axis it was written about:
+  - **1 — no Playwright preflight: LIVE.** No `globalSetup`, no setup project and no env
+    assertion anywhere in the 11-line config. This is 6.1 above.
+  - **2 — `storageState` has no producer: LIVE, and sharpened.** The config consumes
+    `playwright/.auth/user.json`; `.gitignore` ignores it and nothing writes it, so a fresh
+    checkout has no such file at all. The copy that exists on one machine is hand-made, and its
+    cookie NAME is derived from the `SUPABASE_URL` hostname (§6.4) — change the URL or the port
+    and the cookie is simply not read, which presents as a locator timeout rather than as
+    "signed out". `lessons.md`'s "Nigdy nie sklejaj ręcznie cookie sesji `@supabase/ssr`" is the
+    measured rule for producing one properly.
+  - **3 — no `webServer` block: LIVE.** `baseURL` is a hardcoded string and nothing asserts a
+    server is up or which environment it loaded. It couples to 6.1: a preflight has little to
+    assert against until the run owns the server it talks to.
+  - **4 — isolation from `npm test` is incidental, not asserted: LIVE.** Vitest collects
+    `tests/**/*.test.ts` and the spec is `tests/e2e/seed.spec.ts`, so the two layers are
+    separated by a filename infix alone, **inside one directory**, with nothing asserting it in
+    either direction — weaker than the eval, whose separation is a second config's `include`
+    plus two runtime preflights that fail in opposite directions. §6.1 and §6.2 carry the trap
+    note as of this refresh; the assertion belongs to the phase.
+  - **5 — `test-results/` and `.playwright-cli/` unignored: CLOSED** by `5f3c87e`, which added
+    exactly those two entries. Recorded as closed rather than dropped from the list, so the next
+    reader does not re-open it.
+  - **6 — one persistent account vs per-run accounts: LIVE, and INVERTED on the rate-limit
+    axis.** The harness issues **zero auth requests per run** — the spec goes straight to
+    `/decks` on `storageState` — so the 30-sign-ins / 5-min / IP limit §6.4 records is not
+    exposed at all; on that axis this is cheaper than Vitest, and the price paid for it is
+    risk 2's unreproducible cookie. Row growth **is** exposed: cleanup is inline test-body code
+    rather than a fixture teardown, so any failure earlier in the spec orphans a deck
+    permanently — on the same dev DB §6.6 already records at 1053 decks against
+    `max_rows = 1000`, where growth turned an assertion unfalsifiable while it stayed green.
+
+  **Three findings that were on no list.** `trace: "on-first-retry"` is **inert**: no `retries`
+  is configured and Playwright's default is `0`, so there is never a first retry and the only
+  debugging affordance the config declares can never fire. There is **no npm script and no
+  browser install** — `package.json` carries no `e2e` / `test:e2e` entry and no `postinstall`,
+  and `npx playwright install` appears in no **executable** surface: not `package.json`, not
+  `.github/workflows/`, not `README.md` or `AGENTS.md`, not the config. Scope the claim that way
+  rather than as "nowhere in the repo", which this very sentence falsifies — the phrase now has
+  prose hits, this note among them, and a grep written from the looser wording would go red on
+  the document making the claim. So a fresh clone has the runner and no browser binaries, and
+  the only entry point is a bare `npx playwright test`. And four
+  artifact classes remain unignored — `playwright-report/`, `blob-report/`, a root-level
+  `.last-run.json` and `*-snapshots/` — **latent rather than live**, because the default
+  reporter produces none of them today; that is why `.gitignore` is deliberately untouched by
+  this refresh and closing them belongs to the phase.
+
+  **Two scope decisions, written down so they are not rediscovered as gaps.** **Journey C — an
+  SRS study session — is deliberately OUT**: Risk #3 is covered on both halves by unit +
+  integration (§6.6's Phase 4 entry), so a browser adds no signal there. That is a decision,
+  never a gap. And **journey B's mandate is "the guard is MOUNTED and executes on a real
+  request"**, never "`PROTECTED_ROUTES` has a test": since C10X-27 `tests/middleware.test.ts`
+  has driven `it.each(PROTECTED_ROUTES)` over the real imported array on both branches, and
+  `lessons.md`'s Container-API rule names precisely what that cannot reach — the Container
+  mounts `NOOP_MIDDLEWARE_FN`, so a middleware that stopped being mounted (file renamed, export
+  dropped, adapter change) leaves those cases fully green while every protected route stands
+  open in production. Scoped the old way — "the guard is uncovered" — research would specify a
+  test duplicating the two `it.each` blocks that already exist.
+
+  **Response guidance for journey A's oracle, decided at research time and open to
+  re-decision.** Assert on the **deck page**, not on the review screen: a content-free count of
+  `getByRole("button", { name: "Edytuj" })`, one per card — and note that **`Usuń` over-counts
+  by one**, the deck-delete button in the sticky header. The review screen was rejected for two
+  measured reasons: it calls `window.location.reload()` itself on the accept branch, so an
+  oracle there partly asserts what the application performs for the test; and its
+  acceptance-metric line **hides silently** on an aggregate error, so its presence is evidence
+  while its absence proves nothing. The deck page reaches an `.astro` loader that §6.4 records
+  as deliberately never rendered and that §6.6's Phase 1 entry still lists as open after
+  C10X-27, one of "the two `.astro` page loaders" — which is the coverage hole this journey
+  extends into. Cite that entry rather than §6.6's S-05 one, whose "manual verification alone"
+  bullet is scoped to `review.astro`, i.e. the screen this paragraph has just rejected as the
+  oracle. Do not assert on card **content**: §6.5 is explicit that mock output is identical on
+  every call and is not an oracle.
 
 ## 4. Stack
 
@@ -677,7 +823,7 @@ The classic test base for this project. AI-native tools (if any) carry a
 | endpoint rendering  | Astro Container API                                                                                                                                                                                                                           | ships with Astro 6                                                          | `renderToResponse` with `routeType: "endpoint"` renders an API route against a real `Request`; checked: 2026-07-15                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | API mocking         | one confined module double — **see §6.9**                                                                                                                                                                                                     | Vitest's own `vi.mock` / `vi.hoisted`; no mocking library                   | Only the external HTTP edge (the LLM provider) is ever doubled; the database is real via local Supabase. Exactly one file does it (`tests/generation/failure-path.test.ts`), doubling **`astro:env/server`** plus a pass-through `globalThis.fetch` to reach the 502/422 branches the harness otherwise seals. Read §6.9 before copying it; checked: 2026-07-26. Since 2026-07-30 a **second** `fetch` seam exists and is NOT a double — `tests/setup/retry-transport.ts`, a suite-wide `setupFiles` wrapper that replays Kong's keep-alive `502` and nothing else; it fabricates no response, so it is not precedent for a second double (§6.9)                                                                                                                                                                                                                                                                                                                                                                               |
 | database under test | Supabase CLI local stack                                                                                                                                                                                                                      | 2.98.2 (devDependency; `^2.23.4` in `package.json` is only the range floor) | Driven by `npm run db:start` / `db:stop` / `db:reset`; RLS is only meaningful against a real Postgres. CI starts the same stack and reads its URL + publishable key from `supabase status -o env`; checked: 2026-07-15. Since 2026-08-01 (C10X-39) `db:start` also chains `db:kong`, an **unsupported** post-`supabase start` recreation of the Kong container at `KONG_UPSTREAM_KEEPALIVE_POOL_SIZE=0`; it is per-machine, wiped by every `npx supabase stop`, and a bare `npx supabase start` does NOT get it — so never read a green run as evidence the stack was in that state, read `.kong_env` (§6.6's C10X-39 entry)                                                                                                                                                                                                                                                                                                                                                                                                   |
-| e2e                 | none yet — deliberately deferred                                                                                                                                                                                                              | —                                                                           | No rollout phase claims e2e; promote only if a risk survives cheaper layers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| e2e                 | Playwright                                                                                                                                                                                                                                    | 1.62.1                                                                      | **A harness, not a layer.** `playwright.config.ts` plus one spec under `tests/e2e/` landed 2026-08-05 (`8a12d07`, `5f3c87e`) **outside** the phased rollout, the C10X-39/40/42/43 pattern. **Nothing runs it**: no npm script, no CI job, no browser-install step, no `webServer` and no preflight — so `npx playwright test` needs a hand-started dev server plus a `storageState` file that nothing produces. §3 **Phase 6** is the row that CLAIMS this layer and it is `not started`; claiming is not wiring (§5), and its sequencing note carries the nine measured harness findings — read them before running anything. Both files sit inside the type gate already, which says they COMPILE and nothing more (§6.6's C10X-43 correction); checked: 2026-08-05                                                                                                                                                                                                                                                          |
 | accessibility       | `eslint-plugin-jsx-a11y`                                                                                                                                                                                                                      | 6.10.2                                                                      | Lint-level only; PRD names baseline a11y but no risk in §2 requires an axe run yet                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | AI-native           | LLM-as-judge over a reference set — shipped by §3 Phase 5 (C10X-31); judge `google/gemini-2.5-flash` via OpenRouter, `temperature: 0`, structured outputs, `EVAL_JUDGE_MODEL` override; CI dispatch leg added by C10X-42; checked: 2026-08-02 | judge pinned in `evals/lib/judge.ts` as a revisable constant                | **Two invocations, one code path.** Locally: `npm run eval` with `OPENROUTER_API_KEY` in the SHELL env — a `.env` key feeds only the generator's seam and the inverse preflight rejects it. In CI since 2026-08-02: the **Generation quality eval** workflow (`workflow_dispatch` only, `.github/workflows/eval.yml`), which exports the repository secret `OPENROUTER_EVAL_KEY` to the step as `OPENROUTER_API_KEY` and takes optional `judge_model` / `generator_model` inputs. Both write `eval-report.log` + `eval-summary.log`; the workflow additionally captures the console stream and uploads all three. NOT part of `npm test` in either case (collection-level exclusion via `vitest.eval.config.ts`), and never a gate — nothing may declare it in `needs:`. **When NOT to use**: any assertion a deterministic check can make (JSON shape, card count, field presence, language tag) — those live in the ordinary suite (`tests/lib/eval-scoring.test.ts`). The judge is for usability and language fidelity only |
 
@@ -685,7 +831,14 @@ The classic test base for this project. AI-native tools (if any) carry a
 
 - Docs: Context7 (`/withastro/docs`) — checked Astro's testing guide for the current Vitest setup path (`getViteConfig()`) and the Container API endpoint-testing shape; checked: 2026-07-15
 - Search: Exa.ai — available; not used, the docs MCP answered the stack question directly; checked: 2026-07-15
-- Runtime/browser: claude-in-chrome — available; not used, no §2 risk is DOM-unreachable and no phase claims e2e; checked: 2026-07-15
+- Runtime/browser: claude-in-chrome — available; still not used, and **neither clause that justified that survives**.
+  `no §2 risk is DOM-unreachable` is false: **Risk #6's island half is reachable only through a browser** — §7's islands
+  bullet says so outright, and §6.6's C10X-30 entry measures why (the three card islands carry no `maxLength`, so their
+  over-length branch is the one a user actually meets and rests on manual checks); §7's focus-ring exclusion names a
+  computed style in a real browser as the only thing that catches its class. `and no phase claims e2e` is false as of
+  this refresh — §3 **Phase 6** claims the layer, as `not started`; claiming is not wiring (§5). What has not changed is
+  the tool: browser work in this project is still manual verification recorded per change, never automation;
+  checked: 2026-08-05
 - Provider/platform: Supabase MCP (requires interactive auth, unavailable in headless runs), Atlassian/Jira MCP — noted for Phase 3 gate work only; GitHub Actions is the CI surface every gate in §5 must map onto; checked: 2026-07-15
 
 ## 5. Quality Gates
@@ -694,22 +847,43 @@ The full set of gates that must pass before a change reaches production.
 "Required after §3 Phase `<N>`" means the gate is enforced once that rollout
 phase lands; before that, the gate is `planned`.
 
-| Gate                               | Where                                                                                                       | Required?                                                                                        | Catches                                                                   |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
-| lint                               | local (husky `pre-commit` → lint-staged, staged files only) + CI                                            | required — wired today                                                                           | syntactic drift, rule violations                                          |
-| typecheck                          | local (husky `pre-push`, whole project) + CI (`ci` job, between `astro sync` and `lint`)                    | required — wired 2026-08-03 by C10X-43; before that date this row was false in **both** halves   | type drift — including in `evals/`, `tests/` and `scripts/`               |
-| build                              | CI                                                                                                          | required — wired today                                                                           | broken production build                                                   |
-| unit + integration                 | local + CI                                                                                                  | required — wired by §3 Phase 1                                                                   | logic regressions, cross-account access, endpoint contract breaks         |
-| migration/schema drift check       | CI, `drift` job between `ci` and `deploy`                                                                   | required — wired by §3 Phase 3 (C10X-29)                                                         | deployed app running against an un-migrated prod schema; a history desync |
-| generated-types check              | CI, inside the `ci` job after the local stack                                                               | required — wired by §3 Phase 3 (C10X-29)                                                         | `src/db/database.types.ts` stale against the migrations that generate it  |
-| DDL diff against the cloud         | GitHub Actions, `workflow_dispatch` only                                                                    | optional, human-triggered — no schedule                                                          | a migration amended after it was pushed; production edited by hand        |
-| post-edit hook                     | local (agent loop)                                                                                          | recommended local, not a CI substitute                                                           | regressions at edit time                                                  |
-| prod smoke on a real flow          | between merge and "done"                                                                                    | optional                                                                                         | environment-specific failures (missing prod secret, silent mock mode)     |
-| LLM-as-judge on generation quality | local (`npm run eval`, key in the shell env) **and** GitHub Actions, `workflow_dispatch` only — no schedule | optional, human-triggered — wired by §3 Phase 5 (C10X-31); the CI leg added 2026-08-02 (C10X-42) | wrong-language or unusable cards                                          |
+| Gate                               | Where                                                                                                                             | Required?                                                                                                            | Catches                                                                                        |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| lint                               | local (husky `pre-commit` → lint-staged, staged files only) + CI                                                                  | required — wired today                                                                                               | syntactic drift, rule violations                                                               |
+| typecheck                          | local (husky `pre-push`, whole project) + CI (`ci` job, between `astro sync` and `lint`)                                          | required — wired 2026-08-03 by C10X-43; before that date this row was false in **both** halves                       | type drift — including in `evals/`, `tests/` and `scripts/`                                    |
+| build                              | CI                                                                                                                                | required — wired today                                                                                               | broken production build                                                                        |
+| unit + integration                 | local + CI                                                                                                                        | required — wired by §3 Phase 1                                                                                       | logic regressions, cross-account access, endpoint contract breaks                              |
+| migration/schema drift check       | CI, `drift` job between `ci` and `deploy`                                                                                         | required — wired by §3 Phase 3 (C10X-29)                                                                             | deployed app running against an un-migrated prod schema; a history desync                      |
+| generated-types check              | CI, inside the `ci` job after the local stack                                                                                     | required — wired by §3 Phase 3 (C10X-29)                                                                             | `src/db/database.types.ts` stale against the migrations that generate it                       |
+| DDL diff against the cloud         | GitHub Actions, `workflow_dispatch` only                                                                                          | optional, human-triggered — no schedule                                                                              | a migration amended after it was pushed; production edited by hand                             |
+| post-edit hook                     | local (agent loop)                                                                                                                | recommended local, not a CI substitute                                                                               | regressions at edit time                                                                       |
+| prod smoke on a real flow          | between merge and "done"                                                                                                          | optional                                                                                                             | environment-specific failures (missing prod secret, silent mock mode)                          |
+| LLM-as-judge on generation quality | local (`npm run eval`, key in the shell env) **and** GitHub Actions, `workflow_dispatch` only — no schedule                       | optional, human-triggered — wired by §3 Phase 5 (C10X-31); the CI leg added 2026-08-02 (C10X-42)                     | wrong-language or unusable cards                                                               |
+| e2e browser journeys               | local only — a bare `npx playwright test` against a hand-started `npm run dev`; no npm script, no CI job, no browser-install step | **never a gate** — human-triggered, no schedule, and nothing may declare it in `needs:`; §3 Phase 6 is `not started` | the guard is MOUNTED and runs on a real browser navigation; an accepted card survives a reload |
 
-e2e on critical flows is deliberately absent: no §3 phase wires it, so
-listing it as a gate would be aspirational. Add it only if a risk survives
-the integration layer.
+**The e2e row is the newest row in this table and deliberately the only one that is not a gate
+at all** — which is why its `Required?` cell reads as a decision rather than as a waiting room.
+Read it against §3 first: **Phase 6 CLAIMS this layer, as `not started`, and nothing WIRES it** —
+no npm script, no CI job, no browser-install step, no `webServer` and no preflight (§4's e2e row;
+§3's sequencing note carries the nine measured harness findings). That distinction is the new
+footing under the one clause of this paragraph that survived 2026-08-05, namely that listing e2e
+as a gate would be **aspirational**: a phase claiming the layer is not a phase enforcing it, and
+the `Where` cell says exactly what a runner would have to type by hand. Read that cell as the
+absence of an entry point, never as a documented one — it does not say the command WORKS as
+typed, and on a fresh checkout it does not, because nothing installs the browser binaries and
+nothing produces the `storageState` file the config consumes. The two sentences around
+it are retired rather than re-based. The opening one said e2e was deliberately absent, which is
+false — a runner and one spec exist, they landed outside the rollout, and §4's e2e row is where
+that is stated. The closing one said to add e2e only if a risk survived the integration layer,
+and it is superseded by the way Phase 6 was scoped: both journeys were chosen because the
+integration layer cannot reach them **by construction** (§6.4 renders `routeType: "endpoint"`
+only and never runs project middleware), not because a risk survived it.
+
+**`never a gate` must not soften into `required — wired by §3 Phase 6` the day that phase
+lands**, which is the one way this row could rot without anybody editing it. Same rule and same
+reason as the DDL diff and the eval below: this project has no notification channel, so a red
+run nobody is committed to reading is not coverage. Nothing may ever declare an e2e job in
+`needs:`.
 
 **The typecheck row is the newest gate and the one this table was wrong about for longest.**
 Until 2026-08-03 it read `lint + typecheck | local (husky pre-commit via lint-staged) + CI |
@@ -781,7 +955,10 @@ the relevant rollout phase ships; before that, the sub-section reads
 
 - **Location**: `tests/`, mirroring the `src/` path of what you test.
 - **Naming**: `*.test.ts`. Only files matching `tests/**/*.test.ts` are
-  collected (`vitest.config.ts`).
+  collected (`vitest.config.ts`). Playwright's specs live under `tests/e2e/` and end
+  `.spec.ts`, which that `include` does not match — but the reverse is not true, so naming
+  one `.test.ts` hands the same file to **both** runners (Playwright's default `testMatch`
+  takes either suffix) and this node-only suite then tries to run a browser spec (§3 Phase 6).
 - **Reference**: `tests/harness.test.ts` — the smallest possible case;
   imports through the `@/` alias and asserts on the result.
 - **Run**: `npm test` (single pass) or `npm run test:watch`. One file while
@@ -860,7 +1037,9 @@ extractions (§7), with one extra rule: extract the decision **and** its inputs.
 ### 6.2 Adding an integration test
 
 - **Location**: `tests/isolation/` for ownership cases; a sibling folder
-  named after the concern otherwise.
+  named after the concern otherwise. Never `tests/e2e/`, though — that is Playwright's
+  `testDir` and takes `.spec.ts`, so a `.test.ts` placed there is collected by this suite
+  **and** by Playwright, whose default `testMatch` matches both suffixes (§3 Phase 6).
 - **Naming**: `*.test.ts`, named after the **resource**, not the scenario
   (`decks.test.ts`, `flashcards.test.ts`). A new case for a resource that
   already has a file goes in that file as another `it()` — do not open
@@ -2771,6 +2950,24 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
   | `noUncheckedIndexedAccess` is on with a zero-error tree                        | 33 diagnostics across 13 files, swept in **one commit** because `no-unnecessary-condition` is `error` and makes every intermediate state red. Justified by measurement rather than preference: C10X-41's F3 shape (`PROMPT_LANGUAGE_NAMES[code]` into a non-optional `string`) now goes red, and the identical probe with the flag removed exits **0** — the gate built in Phases 1-4 could not see this class                                                                        |
   | No `!` assertion was introduced                                                | `no-non-null-assertion` is `error`, so every one of the 33 fixes is `?.`, `??` or an explicit guard; the repo's count of `!` stays zero, checked by two grep shapes and by the lint run                                                                                                                                                                                                                                                                                               |
 
+  > **Corrected 2026-08-05 (`test-plan-refresh-2026-08-05`), both figures in the `18 .astro` row
+  > above — and the row itself is NOT rewritten**, because it is the accurate record of what
+  > C10X-43 measured on 2026-08-03. Measured today: `astro check` reports **135** files and
+  > `tsc --noEmit` resolves **117** roots, against the row's 133 and 115. The delta is exactly two
+  > files with no residue — `playwright.config.ts` and `tests/e2e/seed.spec.ts`, both landed
+  > outside the phased rollout and both confirmed as resolved project members by
+  > `npx tsc --showConfig`; the arithmetic closes in the row's own decomposition, `117 + 18 = 135`,
+  > and the `18 .astro` half is unchanged (measured: 18). **Nothing went red, and that is the gate
+  > working rather than failing** — the FM-1 row in the same table records that the wrapper asserts
+  > on the `Result (N files):` line against a **floor**, never a pinned count, so a rising count
+  > cannot break it. The mechanism is `tsconfig.json:3` (`include: ["**/*"]`, excluding only
+  > `dist` and `context`), which §5's typecheck-gate paragraph names as why the local gate and CI
+  > agree on scope by construction; the same line is why a whole new top-level test directory
+  > enters the gate silently. So `tests/e2e/` is type-checked in CI on every push and PR to `main`
+  > and blocks a local `git push`, and no document said so until this date. Read this as a NUMBER
+  > correction and nothing more: it says the e2e layer **compiles**, never that anything runs it —
+  > §4's e2e row and §3's Phase 6 note are where that boundary is stated.
+
   **Three traps this change paid for, so the next contributor does not.**
   - **A gate's own failure message is part of the gate.** The `pre-push` hook's first real red
     printed "a tsconfig error (`TS5xxx`) makes `astro check`'s own verdict untrustworthy" for an
@@ -3234,12 +3431,13 @@ contributors should respect these unless the underlying assumption changes.
   dark surface: 43 of 48 controls measured 2.3–2.7:1 against a 3:1 bar. (The
   ticket's own suspected cause — "`ring-*` never maps to a real box-shadow" —
   was refuted by measurement; do not re-derive the plan from it.) Catching this
-  needs a computed style in a real browser — i.e. the e2e / visual-diff layer
-  §4 and §5 deliberately do not have. Re-evaluate the moment any §3 phase
-  wires e2e; that is the point at which this becomes cheap rather than a new
-  layer. Until then the guard is the measured acceptance check in the change
-  itself (contrast ≥ 3:1, **WCAG 1.4.11 only**), recorded per control before
-  and after in `context/archive/2026-07-25-focus-ring-a11y/verification.md`.
+  needs a computed style in a real browser, and the layer that would produce one
+  still does not exist: §4 gained a Playwright runner on 2026-08-05, nothing reads
+  a computed style through it, and this project carries **no visual-diff tool at
+  any layer**. Until such an oracle is wired the guard is the measured acceptance
+  check in the change itself (contrast ≥ 3:1, **WCAG 1.4.11 only**), recorded per
+  control before and after in
+  `context/archive/2026-07-25-focus-ring-a11y/verification.md`.
   (Source: C10X-22 / `context/archive/2026-07-25-focus-ring-a11y/`.)
   > **Citation corrected (2026-07-25, impl-review F4).** This bullet used to
   > claim "WCAG 1.4.11 / 2.4.11". Only 1.4.11 (Non-text Contrast) is measured.
@@ -3256,6 +3454,31 @@ contributors should respect these unless the underlying assumption changes.
   > covered by C10X-22. Fixing it is a one-property change
   > (`scroll-padding-top`) but needs its own browser verification; deliberately
   > left out of C10X-22 rather than claimed without evidence.
+  >
+  > **Re-decided 2026-08-05 (`test-plan-refresh-2026-08-05`) — the exclusion STANDS,
+  > and its trigger was mis-keyed rather than fired.** The clause struck from the prose
+  > above read "Re-evaluate the moment any §3 phase wires e2e". **No §3 phase ever did**:
+  > a Playwright runner and one spec landed on 2026-08-05 **outside** the phased rollout
+  > — the C10X-39/40/42/43 pattern one more time — so the condition was never literally
+  > met, and leaving it unreconsidered would have turned it into a dead clause pointing
+  > at a moment that had already passed under another name. §3 Phase 6 now claims the
+  > layer as `not started`, and claiming is not wiring (§5). Re-decided on the merits
+  > instead, and the merits have not moved: a browser runner is not a computed-style
+  > oracle, nothing runs the one that exists (§4's e2e row, §3's Phase 6 note), and no
+  > visual-diff tool exists here at any layer. So the condition is **restated** rather
+  > than deleted — re-evaluate when a computed-style or visual-diff oracle is actually
+  > wired, never when a browser runner merely exists.
+  >
+  > **Re-decided 2026-08-05, separately, for the nested `scroll-padding-top` deferral —
+  > still deferred, and its blocker is restated because it was never the one it sounded
+  > like.** "Needs its own browser verification" reads as a missing capability and was
+  > not one: browser work in this project has always been manual verification recorded
+  > per change (§4's tooling list), so the evidence was collectable on 2026-07-25 and
+  > simply was not collected. A Playwright runner existing changes nothing about that —
+  > nothing runs it, and §3's Phase 6 note records the harness as not yet trustworthy.
+  > What the deferral gains today is an owner rather than a capability: whoever wires
+  > the e2e layer under §3 Phase 6 inherits the cheapest place to collect the evidence.
+  > Until then this stays untested negative space, exactly as the paragraph above says.
 - **Marketing/landing pages and static copy** — snapshot tests break
   constantly and catch nothing. Re-evaluate if the landing gains a real
   flow (e.g. the inline sign-in form parked as C10X-20). (Source: Phase 2
@@ -3276,21 +3499,22 @@ contributors should respect these unless the underlying assumption changes.
   require adding the safeguard first. Re-evaluate if a limit is
   implemented; the cost exposure is partially covered by Risk #6
   (server-side length enforcement). (Source: Phase 3 challenger pass.)
-- **React islands' own fetch-response handling** — untested by _construction_, not
-  by decision, and named here because that distinction was invisible until it cost
-  something. §6.4's "pages are deliberately not rendered" is well known; the islands
-  those pages mount are equally unreachable, and nobody had written it down. The
-  gap is not academic: **the one production bug the C10X-27 audit found lives
+- **React islands' own fetch-response handling** — untested by _construction_ at every
+  layer this project runs, not by decision, and named here because that distinction was
+  invisible until it cost something. §6.4's "pages are deliberately not rendered" is
+  well known; the islands those pages mount are equally unreachable, and nobody had
+  written it down. The gap is not academic: **the one production bug the C10X-27
+  audit found lives
   exactly there** — `StudySession.rate()` checks `!res.ok` on a response that
   middleware turned into an HTML `200`, so every rating is silently discarded while
   the UI reports progress. Four sibling islands parse before checking `ok` and would
-  survive it; only `rate()` inverts the order, and no layer in this plan could see
-  the difference. What follows: an island's response handling is **reviewed by
-  reading, deliberately and every time** — when a change touches a `fetch` in an
-  island, diff its ok/parse/redirect handling against `GeneratorForm.tsx`,
-  `FlashcardWorkspace.tsx` and `CandidateReviewWorkspace.tsx` rather than trusting
-  the suite. Re-evaluate the moment any §3 phase wires e2e; that is the layer this
-  belongs to. (Source: C10X-27 audit, 2026-07-26.)
+  survive it; only `rate()` inverts the order, and no layer this plan carries today can
+  see the difference — §4's Playwright row is a runner nobody runs (§3 Phase 6,
+  `not started`), which is a capability rather than a layer. What follows: an island's
+  response handling is **reviewed by reading, deliberately and every time** — when a
+  change touches a `fetch` in an island, diff its ok/parse/redirect handling against
+  `GeneratorForm.tsx`, `FlashcardWorkspace.tsx` and `CandidateReviewWorkspace.tsx`
+  rather than trusting the suite. (Source: C10X-27 audit, 2026-07-26.)
   > **Narrowed, not closed (C10X-27, 2026-07-26).** The **decision** is now testable and
   > tested; the **JSX remains unreachable**. Rather than add a DOM environment and a
   > component-test layer — which §4 would need a new row and a `checked:` date for — the
@@ -3362,12 +3586,49 @@ contributors should respect these unless the underlying assumption changes.
   > `context/archive/2026-07-31-deck-form-hardening/verification.md`, where the trap worth carrying is that
   > the deck page renders a SECOND `[role="alert"]` (the OpenRouter config banner), so an unscoped
   > `querySelector('[role="alert"]')` reads the wrong node and the case passes on it.
+  >
+  > **Re-decided 2026-08-05 (`test-plan-refresh-2026-08-05`) — the exclusion STANDS, and its
+  > trigger was mis-keyed rather than fired.** The clause struck from the prose above read
+  > "Re-evaluate the moment any §3 phase wires e2e; that is the layer this belongs to".
+  > **No §3 phase ever did**: a Playwright runner and one spec landed on 2026-08-05
+  > **outside** the phased rollout, so the condition was never literally met. §3 Phase 6 now
+  > claims the layer as `not started`, and claiming is not wiring (§5). Re-decided on the
+  > merits — and this is the one exclusion whose merits a wired e2e layer would move only
+  > PARTLY. Phase 6 scopes two journeys, so at most two islands get exercised on one happy
+  > path each, while **four** carry a `fetch` (measured 2026-08-05: `GeneratorForm`,
+  > `FlashcardWorkspace`, `CandidateReviewWorkspace`, `StudySession`) and the defect this
+  > bullet was written from was a wrong ok/parse ORDER on a response no journey
+  > deliberately produces. **One exemplar spec covers one flow, not the class.**
+  > So the review-by-reading rule above survives Phase 6
+  > unchanged, and the restated condition is narrower than the one it replaces: re-evaluate
+  > per island, when a spec actually drives that island's failure branch — never on the
+  > arrival of the layer as such.
 
 ## 8. Freshness Ledger
 
-- Strategy (§1–§5) last reviewed: 2026-07-15
-- Stack versions last verified: 2026-07-15
-- AI-native tool references last verified: 2026-07-15
+- Strategy (§1–§5) last reviewed: 2026-08-05 (`test-plan-refresh-2026-08-05`). §3, §4 and §5 were
+  rewritten by that refresh; §1 and §2 were read and **deliberately left untouched**, because e2e
+  adds a layer of proof for existing risks and introduces no new product failure scenario.
+- Stack versions last verified: 2026-08-05. Every version §4 states was checked against its
+  installed value and **every one matched, so no version cell was edited** — the non-edit is the
+  result, not an omission. The review deliberately also covered the rows a version sweep cannot
+  reach: `getViteConfig()` still wiring the unit+integration row, `vi.mock` still resolving to
+  exactly one file, `db:start` still chaining `db:kong`, `renderToResponse` still rendering
+  `routeType: "endpoint"`, and a11y still wired lint-level only.
+- AI-native tool references last verified: 2026-08-05. `evals/lib/judge.ts` was re-read at the
+  source rather than trusted — the pinned judge model, the `EVAL_JUDGE_MODEL` override,
+  `temperature: 0` and `json_schema` structured outputs — and the four Stack-grounding lines were
+  re-checked for availability.
+- **§4's per-row `checked:` dates deliberately stay older than the two lines above, and that is a
+  decision rather than drift.** A row's date stamps its whole Notes cell; the two lines above stamp
+  versions and mechanisms. The 2026-08-05 review confirmed every version and the mechanism each row
+  turns on, but not every clause those cells carry — e.g. that the Kong recreation is wiped by
+  `npx supabase stop`, which no command run that day observed. Bumping the row dates would have
+  claimed more than was measured, so they were left alone and the gap is recorded here instead.
+- **Every `N/N, M files` suite total in this file counts VITEST files only** — Playwright's specs
+  under `tests/e2e/` are collected by a different runner and enter no figure here, so adding one
+  moves neither number, and a reader must not read a static `M` as evidence that the e2e layer is
+  empty (stated once, rather than by editing figures that were true when they were measured).
 - §3 Phase 4 / Risk #3 coverage claims last **audited against the code**:
   2026-07-26 (C10X-27). Suite state at that moment: 69/69 green, 8 files, local
   stack up, `OPENROUTER_API_KEY` unset. Three claims in this file were found false
@@ -3522,6 +3783,22 @@ contributors should respect these unless the underlying assumption changes.
   is reachable through the browser rather than sealed behind an input stop — an untested branch
   a user actually meets. Named in §7 and in §6.6's C10X-30 entry, carried by manual browser
   checks. Re-evaluate the moment any §3 phase wires e2e.
+  > **Corrected 2026-08-05 (`test-plan-refresh-2026-08-05`), the last sentence only — and
+  > appended rather than rewritten, because this is a dated ledger entry.** That sentence
+  > was the accurate statement of the trigger this entry inherited from §7 on 2026-07-28 and
+  > is left standing as that record. The trigger turned out to be **mis-keyed rather than
+  > fired**: a Playwright runner and one spec landed on 2026-08-05 **outside** the phased
+  > rollout, so no §3 phase wired anything and the condition was never literally met. §3
+  > Phase 6 now claims the layer as `not started`, and claiming is not wiring (§5). This is
+  > the **third and last** site carrying that clause and the only one outside §7 — a
+  > §7-scoped edit list misses it, which is why it is named here. Counted rather than
+  > carried over: the refresh's own plan named **four** anchors, but one of them (the nested
+  > `scroll-padding-top` deferral) never carried this sentence at all — its blocker was
+  > worded "needs its own browser verification" — so four anchors and three clause sites are
+  > two different figures. Everything else in the bullet is untouched and
+  > still true: the three card islands still carry no `maxLength`, their over-length branch
+  > is still the one a user meets, and it still rests on manual browser checks. §7's own
+  > re-decision of the same date is where the merits are re-stated.
 - **A migration is committed and NOT yet pushed to the cloud** as of this entry
   (`20260728104500_flashcard_content_bounds.sql`). The pre-push row check ran read-only against
   production — `bad_front` 0, `bad_back` 0 over 38 rows, maxima 64/157 — so it applies without
@@ -4203,6 +4480,115 @@ contributors should respect these unless the underlying assumption changes.
   and stale `context/changes/…` path are **flagged and deliberately not edited** — that file is
   owned by the Jira skills (`jira-map.md:3-4`). And `customfield_10041` on **C10X-43** is
   `/jira-finish-work`'s to fill.
+
+- **This guide refreshed for the arrival of e2e: 2026-08-05** (`test-plan-refresh-2026-08-05`,
+  triggered by `/10x-test-plan --refresh` on two of the four triggers directly above — the stack
+  changed, and §7's negative space stopped matching). Its entire diff is markdown — `README.md`,
+  `context/foundation/test-plan.md`, `context/foundation/lessons.md` and its own change folder —
+  and its "does not claim" list is longer than its claims by design.
+  **No risk row moves. No coverage claim widens. No test changed, so every suite total in this
+  file — the C10X-43 headline figure and every dated figure beneath it — survives untouched, and
+  this entry deliberately quotes none of them rather than restating one it did not measure.**
+  Measured while the last phase was still in flight, `git status --porcelain -uall` listed only
+  markdown paths and **nothing under `src/`, `tests/`, `evals/` or `scripts/`** — tracked or
+  untracked. Read that as a claim carrying its own moment rather than a reproducible one: at the
+  true close everything is committed, so the command returns nothing at all and the surviving
+  oracle is `git diff --name-only` against the change's base, which lists the three documents
+  above and the change folder.
+  `--porcelain` rather than `git diff --stat` is load-bearing:
+  a diff is blind to an **untracked** file, and plan-review found exactly that — an untracked
+  `tests/e2e/route-guard.spec.ts` taking `npm run typecheck` to 136 while `git diff --stat` read
+  clean. It was removed before implementation; the final run reports `Result (135 files)`.
+- **The one number that moved, and what it revealed.** The type gate reports
+  `Result (135 files): 0 errors`, against the `133` documented on 2026-08-03; the delta is exactly
+  `playwright.config.ts` and `tests/e2e/seed.spec.ts` (`117` roots + `18` `.astro` = `135`), both
+  confirmed as project members by `npx tsc --showConfig` rather than inferred from the arithmetic.
+  So the e2e layer entered the gate silently the day it landed, by `tsconfig.json:3`'s
+  `include: ["**/*"]`, and nothing announced it because the gate asserts against a **floor**. Two
+  sites carried `133` and took **opposite** treatments: `README.md:49` is a live claim and now
+  carries **no total at all**, while §6.6's C10X-43 row is a dated record and keeps its figures
+  under an appended correction block. **`AGENTS.md` was checked on this axis and deliberately NOT
+  edited** — it quotes no total, so there was nothing false in it; the absence of an edit is
+  recorded here as its own note, the C10X-42 precedent, so a reader working the doc-sync list does
+  not hunt for a correction that should not exist.
+- **§7's triggers were mis-keyed, not fired.** The exclusions were keyed on "the moment any §3
+  phase wires e2e" and **no §3 phase ever did** — the harness landed outside the rollout — so the
+  condition was never literally met and the clauses would otherwise have become dead pointers
+  aimed at a moment that had already passed under another name. Each is re-decided on the merits,
+  **stands**, and restates its condition in a reachable form rather than deleting it.
+  **Two figures here are different claims and must not be collapsed**, which is the trap this
+  ledger keeps recording: **four** sites took a dated 2026-08-05 re-decision, but the trigger
+  sentence itself sat at only **three** of them. The fourth, the nested `scroll-padding-top`
+  deferral, never carried that sentence at all — its blocker was worded "needs its own browser
+  verification" — so it re-decides a **blocker** rather than a trigger, and it turned out never to
+  have been a capability blocker in the first place. A hit count is therefore the wrong instrument
+  twice over: at `HEAD` a literal grep for the clause returned **2**, not 3, because one
+  occurrence wrapped across a line break. Every site was checked **per anchor** with the C10X-39
+  pair of patterns instead.
+- **Four deferrals, named so they are decisions rather than gaps**, all owned by the §3 Phase 6
+  change — numbered, because one of them contains a four of its own and the two must not be read
+  as the same list. **(1)** `.gitignore`, which this refresh does not touch at all: four artifact
+  classes stay unignored (`playwright-report/`, `blob-report/`, a root `.last-run.json`,
+  `*-snapshots/`), **latent** because the default reporter produces none of them today.
+  **(2)** A §6.11 "adding an e2e test" subsection — §6 got two trap sentences and nothing else,
+  because a cookbook for a layer nobody can run yet would document a procedure rather than a
+  practice. **(3)** The roadmap id **H-12** and **(4)** the Jira key **C10X-45**, both of which
+  this refresh **names and does not create** (`jira-map.md` is owned by `/jira-backlog-sync`,
+  `jira-map.md:3-4`).
+
+  > **Corrected 2026-08-06 — deferral (4) was reversed the day after this entry was written, and
+  > (3) was not.** The refresh was given a Jira ticket of its own after all, and because keys are
+  > sequential it took **C10X-45** — the very key this bullet reserved for the phase. The phase's
+  > reservation therefore moves up one, to **C10X-46**, corrected in place at §3's Phase 6 note
+  > and in the header block, because both are live forward-guidance rather than dated records.
+  > This bullet is not rewritten: it is the accurate statement of what the refresh decided on
+  > 2026-08-05. Deferral **(3)** stands untouched — **H-12** is still the phase's and still
+  > uncreated — so the bullet directly below survives verbatim, and the consequence a reader
+  > should not have to infer is that this refresh now carries the unusual pair of a **Jira key
+  > with no roadmap row**. The backfill it names is therefore still owed.
+
+- **The known cost of that last deferral, stated now rather than discovered at archive time**:
+  this refresh has **no roadmap row of its own**, so `/10x-archive` will have nothing to close and
+  it will need the same backfill H-04, H-07 and H-08 needed. Accepted deliberately at plan time —
+  the alternative was collapsing this change into the phase it adds, which is the orphan pattern
+  it exists to break.
+- **The prettier hazard §6.6's C10X-43 entry records fired twice during this change, in two shapes,
+  and neither was caught by reading.** Shape one is the documented one, met one document over: a
+  code span split across a line break **inside a blockquote** lost its `> ` continuation marker on
+  a `--write`, this time in `plan.md` rather than in this file — so the hazard covers
+  `context/changes/**` too, since `.prettierignore` carries only `context/archive/**`. Shape two is
+  new: prettier **strips a code span's own padding**, so a sentence whose point rested on the
+  spaces inside a span silently lost the detail it was asserting. Two rules follow, and the second
+  is not implied by the first: inside a blockquote a span must stay on one line (it may wrap
+  freely in ordinary prose), and **a span's padding must never carry meaning** anywhere. Both were
+  caught only because every phase ran prettier on a **copy** before letting it near the original.
+- **This refresh kept catching its OWN drafts asserting something it had not measured, always in
+  the direction that reads as reassurance** — the discipline this ledger applies to C10X-29's
+  `missingLocal` neuter, turned on the document doing the applying. Examples rather than an
+  inventory, and deliberately not totalled, since a count is the very thing that keeps going
+  wrong here. A sentence claiming `npx playwright install` "appears nowhere in the repo" was
+  **self-falsifying**, because writing it put the phrase in the repo; it is now scoped to
+  **executable** surfaces. "Five islands carry a `fetch`" was arithmetic off a neighbouring
+  bullet; measured, it is **four**. A draft of this entry's own header said "five sections"
+  asserted something false about e2e; enumerated, it is **§4, §5, §7 and §8**. Another said the
+  type-gate count "moved four times in four days", when four was the number of measurements.
+  And a draft of the bullet directly above opened "the file now says so at four sites" two
+  sentences before saying the clause "sat at three sites" — the total-versus-breakdown collision,
+  committed inside the paragraph that names it. Every one was caught by running something, none
+  by re-reading.
+- **One correction belongs to the plan rather than to this file, and is recorded so the next
+  reader does not re-derive it.** The `lessons.md` drift the plan characterised as "trailing
+  whitespace" is nothing of the kind: `grep -nE ' +$'` returns **zero** hits file-wide, and the
+  two lines are prettier's `*emphasis*` → `_emphasis_` normalisation — content-neutral, but only
+  because both sites happen to be word-bounded (`_` cannot open emphasis inside a word, so the
+  same normalisation would have changed rendering had they not been).
+- **Still open after this entry, deliberately**: everything the four deferrals name; `roadmap.md:234`,
+  which asserts this project "nie ma warstwy e2e ani visual-diff" and is now **half** false in
+  exactly the way §7's clause was — left for the phase, because `roadmap.md` is not among the three
+  documents this change's scope names and `/10x-archive` owns that file's Status column. And the
+  §5 intro's unqualified "before that, the gate is `planned`" convention, which the e2e row is
+  deliberately kept out of; the paragraph beneath the table blocks the inference by name, and
+  editing the intro was outside the phase's contract.
 
 Refresh (`/10x-test-plan --refresh`) when:
 
