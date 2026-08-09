@@ -987,31 +987,31 @@ hand-made file once Phase 3 lands, so the producer is exercised rather than shad
 
 #### Automated
 
-- [x] 4.1 `route-guard.spec.ts` green, 7 cases, both controls
-- [x] 4.2 Breakage A: `/study` removed → 1 of 7 red on `waitForURL`, controls green, `npm test` 100% green; restored
-- [x] 4.3 Breakage C: guard predicate forced true → 1 of 7 red on the public control; restored
-- [x] 4.4 E1 falsification pair: `/` answering 500 → red with E1, green without; both halves recorded
-- [x] 4.5 `npm run lint`, `npm run typecheck` green
+- [x] 4.1 `route-guard.spec.ts` green, 7 cases, both controls — cf5a724
+- [x] 4.2 Breakage A: `/study` removed → 1 of 7 red on `waitForURL`, controls green, `npm test` 100% green; restored — cf5a724
+- [x] 4.3 Breakage C: guard predicate forced true → 1 of 7 red on the public control; restored — cf5a724
+- [x] 4.4 E1 falsification pair: `/` answering 500 → red with E1, green without; both halves recorded — cf5a724
+- [x] 4.5 `npm run lint`, `npm run typecheck` green — cf5a724
 
 #### Manual
 
-- [x] 4.6 Breakage B run or explicitly recorded as reasoned, with the module-resolution-vs-behavioural distinction
+- [x] 4.6 Breakage B run or explicitly recorded as reasoned, with the module-resolution-vs-behavioural distinction — cf5a724
 
 ### Phase 5: Journey A — an accepted card survives a reload
 
 #### Automated
 
-- [ ] 5.1 `accepted-card-survives-reload.spec.ts` green
-- [ ] 5.2 Breakage: `STATE_ACCEPTED` filter removed → the 0 assertion red, journey B green; restored
-- [ ] 5.3 Breakage: accept transition no-oped → 0 → 1 red on the count; restored
-- [ ] 5.4 Breakage: `exact: true` dropped → result recorded as observed, green included
-- [ ] 5.5 `npm run e2e` green end to end, both deltas 0 (`deck` and `generation_session`)
-- [ ] 5.6 `npm run lint`, `npm run typecheck`, `npm test` green
+- [x] 5.1 `accepted-card-survives-reload.spec.ts` green
+- [x] 5.2 Breakage: `STATE_ACCEPTED` filter removed → the 0 assertion red, journey B green; restored
+- [x] 5.3 Breakage: accept transition no-oped → 0 → 1 red on the count; restored
+- [x] 5.4 Breakage: `exact: true` dropped → result recorded as observed, green included
+- [x] 5.5 `npm run e2e` green end to end, both deltas 0 (`deck` and `generation_session`)
+- [x] 5.6 `npm run lint`, `npm run typecheck`, `npm test` green
 
 #### Manual
 
-- [ ] 5.7 Headed run confirms the accepted card is the one that appears
-- [ ] 5.8 Ctrl-C mid-journey measured, not assumed: does the teardown project run on SIGINT? Answer recorded as observed, and as a named §6.6 gap if it does not
+- [x] 5.7 Headed run confirms the accepted card is the one that appears
+- [x] 5.8 Ctrl-C mid-journey measured, not assumed: does the teardown project run on SIGINT? Answer recorded as observed, and as a named §6.6 gap if it does not
 
 ### Phase 6: Doc-sync and bookkeeping
 

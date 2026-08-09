@@ -156,3 +156,168 @@ Gates re-run after the 1.10 fix: `npm run typecheck` **140 files, 0 errors**; `n
 - **The `PROD_` swap is not yet exercised by hand** (manual criterion 1.9), and the refusal texts
   have not yet been read as a developer would read them (1.10).
 - **The layer is still never a gate** — no CI job, nothing in `needs:`, no schedule (§5).
+
+## Phase 5 — Journey A: an accepted card survives a reload (2026-08-09)
+
+Environment: local Supabase stack up (`/rest/v1/` → 200), `OPENROUTER_API_KEY` unset, no
+`.dev.vars`, port 4321 free before every run (required — `reuseExistingServer` is unset, so a
+listening port is a hard error).
+
+### Gates, as observed
+
+| Gate                | Result                                                                                  |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| `npm run typecheck` | exit 0 — `Result (145 files): 0 errors, 0 warnings`                                     |
+| `npm run lint`      | exit 0 — 3 warnings, all `no-console` in `evals/generation-quality.eval.ts` (unchanged) |
+| `npm test`          | **399 passed / 399, 33 files**, seed `1786288780583`                                    |
+| `npm run e2e`       | **12 passed (12.1s)** — 2 setup, 3 specs across 9 cases, 1 teardown; own dev server     |
+
+Two figures are stated as observed rather than derived. The typecheck count is **145**; this phase
+adds exactly one file to the gate (`tests/e2e/accepted-card-survives-reload.spec.ts`), and the
+140 → 144 movement belongs to Phases 2-4, which this section does not enumerate because it did not
+measure it. And **`npm test` is unchanged by this phase, which is correct rather than suspicious**:
+the deliverable is a `.spec.ts`, which Vitest's `include` does not collect — the property Phase 2's
+`tests/lib/e2e-isolation.test.ts` exists to assert.
+
+### The oracle, and why it sits on the deck page
+
+A content-free count of `getByRole("button", { name: "Edytuj", exact: true })`, **0 → 1 → N → still
+N after `reload()`**, asserted only while the browser is on `/decks/<publicId>`. Each step asserts a
+distinct expected number, so a red names which transition failed — which the breakage runs below
+then exercised, each on a different one.
+
+The zero point is genuine rather than a proxy: `listFlashcards` filters
+`.eq("state_id", STATE_ACCEPTED)` (`src/lib/flashcards.ts:97-104`), so the three cards exist as rows
+while being invisible on the deck page. Every deck-page count is paired with a **presence** anchor
+(`getByRole("heading", { name: deckName, exact: true })`) for journey B's E1 reason: `toHaveCount(0)`
+passes green over a 500, over "Błąd" and over "Nie znaleziono talii", and an absence asserted against
+an unbounded set is not falsifiable.
+
+### Two hydration gates, both measured rather than assumed
+
+Both follow `auth.setup.ts`'s rule — retry the ACTION until its EFFECT is observable — and the
+choice of signal was decided, not taken first-to-hand.
+
+- **Generator island**: the live character counter. The obvious candidate ("select + Nowa talia,
+  wait for the name field") is **not** a signal: with an account holding no decks,
+  `decks[0]?.publicId ?? NEW_DECK` makes `isNewDeck` true in SSR, so the field is in the initial HTML
+  and the guard would exit over a dead island. The counter's text can only change through a React
+  re-render.
+- **Review island**: the bulk toolbar, which `CandidateSelectionBar` renders as `null` until
+  something is selected. Guard-first is mandatory, not decorative — the click TOGGLES, so a retry
+  after a successful click would deselect and hang.
+
+The generator gate was then **observed failing loudly** during the 5.8 work: under a machine starved
+by 301 concurrent process spawns it timed out on `Received string: "0 / 10000"` rather than
+proceeding over an unhydrated island. Accidental evidence that the gate is the right shape.
+
+### Deliberate-breakage runs
+
+Four, each restored and each restore verified by hash (`src/lib/flashcards.ts`
+`270120bb454162b3ee6d7942933182fd`, `cards/batch.ts` `06622bda96c41fa54f2760564f556388`, the spec
+`1dc28e8344194b21f031c6f33fd0b8c9`), with `git status --porcelain -- src/` empty afterwards.
+
+| #    | Edit                                              | Observed                                                                                         | Split                                                                         |
+| ---- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| 5.2  | `.eq("state_id", STATE_ACCEPTED)` removed         | `toHaveCount` **Expected: 0, Received: 3**, `14 × locator resolved to 3 elements`, spec line 205 | **1 of 11 red** (journey A only); all 7 journey-B cases + both controls green |
+| 5.3a | `setFlashcardState(…, [], …)` — the write no-oped | `toHaveCount` **Expected: 2, Received: 3**, spec line 221 (the CANDIDATE count)                  | **1 of 4 red**; the reload assertion never reached                            |
+| 5.3b | `TARGET_STATE.accepted` → `STATE_REJECTED`        | `toHaveCount` **Expected: 1, Received: 0**, spec line 225 (the DECK count)                       | **1 of 4 red**                                                                |
+| 5.4  | `exact: true` dropped from both counting locators | `toHaveCount` **Expected: 2, Received: 3**, `resolved to 3 elements`, spec line 242              | **1 of 4 red**                                                                |
+
+**5.3 became a PAIR, and the plan predicted only one of its two halves.** The criterion named the
+0 → 1 deck assertion; the no-op variant dies earlier, on the candidate count, because a card that was
+never written never leaves the review screen. Routing the accept to `rejected` instead reaches the
+predicted assertion. So the two variants fail **different cases on different assertions** and thereby
+separate "the card never left the review screen" from "it left but never arrived" — §6.10's shape,
+obtained for one extra run. Recorded as observed rather than rounded to the prediction, the same way
+§8 records C10X-29's `missingLocal` neuter and C10X-30's case 8.
+
+**5.4's red is real, and what stayed GREEN is the other half of the finding.** The plan explicitly
+allowed a green here. It is red — but only from the `Akceptuj` side, and only because the spec
+asserts the candidate count at the one moment the bulk toolbar is on screen (`Akceptuj (2 fiszki)`
+matching the bare name under substring rules). That assertion exists for exactly this purpose. The
+**deck-page `Edytuj` counts passed without `exact: true`** (lines 205 and 225, both before the
+failure), so that flag is a layer-wide rule there rather than a live discriminator — no other
+accessible name in `src/` contains `Edytuj`, verified by enumeration (two sites:
+`FlashcardItem.tsx:241`, `CandidateItem.tsx:287`).
+
+### 5.5 — the row-delta oracle, two counts and not one
+
+Counted as the e2e account under RLS, before and after a full `npm run e2e`:
+`{"decks":0,"sessions":0}` → **12 passed** → `{"decks":0,"sessions":0}`. Both deltas **0**.
+
+A deck-only count would have read green over the table journey A is the first spec to write:
+`generation_session` has no deck foreign key at all (`generation_session.sql:24` references
+`auth.users` only; `flashcard.generation_id` is `on delete set null` at `:47`).
+
+**Why a 0 → 0 delta is not vacuous here**, since this file's own history says an oracle satisfied by
+"nothing ever happened" is not one: the journey asserts three cards on the deck page mid-run, so the
+rows demonstrably existed and were demonstrably removed. The `BEFORE: 0/0` additionally is
+retrospective evidence for the teardown across the **three failed** breakage runs above — each
+created a deck and a session, each died mid-spec, and the account was clean before the next run.
+
+### Manual verification
+
+**5.7 — which card crossed, measured rather than eyeballed.** A count cannot say WHICH card became
+part of the deck, so the headed run carried a temporary probe (removed afterwards; spec hash back to
+`1dc28e83…`, zero `PROBE` residue). Observed:
+
+| Stage                        | Observed                                                   |
+| ---------------------------- | ---------------------------------------------------------- |
+| Review screen, before accept | `["Przykładowe pytanie 1", "…2", "…3"]`                    |
+| After the per-card accept    | `["…2", "…3"]` remain                                      |
+| Therefore crossed            | `["Przykładowe pytanie 1"]`                                |
+| Deck page shows              | `["Przykładowe pytanie 1"]`, and `…2` / `…3` asserted at 0 |
+
+The card that left the review screen is the card that arrived in the deck, and nothing else leaked
+in. Card content is deliberately **not** an oracle in the shipped spec — `mockCards` is byte-identical
+across calls, so two generations into one deck produce duplicate fronts — which is why this was a
+one-off probe rather than an assertion.
+
+**5.8 — the interrupt, answered on the reachable path and NAMED as a gap on the other.**
+
+Measured: with the deck and the session both confirmed present at the moment of interruption, an
+**abrupt termination of the run's process tree** leaves the teardown project **unexecuted** and both
+rows orphaned (`{"decks":1,"sessions":1}` after, from `{"decks":0,"sessions":0}` before). The
+per-worker registry file **survives on disk**, so the residue is identifiable — but the next run's
+`removeOutputDirs` wipes it before anything can read it, so the recovery window closes at the next
+`npm run e2e`. This is the registry's residual risk (plan, Phase 3 §3) reached by a second route:
+not "a worker killed between the write and its flush" but "the whole run killed before the teardown
+phase". Both orphaned rows were inspected and deleted; residue re-measured at `0/0`.
+
+**The true console-Ctrl-C path is NOT measured, and the reason belongs in the record.** Node's
+`child.kill("SIGINT")` is `TerminateProcess` on Windows, so the only way to deliver a real Ctrl-C is
+`GenerateConsoleCtrlEvent`. The attempt to do so used `dwProcessGroupId = 0`, which by definition
+signals **every process attached to the caller's console** — including the harness driving this
+change, which it killed three times over. `SetConsoleCtrlHandler(NULL, TRUE)` immunises only the
+calling process, not its console siblings; that was an error of reasoning, not bad luck. The scripts
+were deleted and no further programmatic interrupt was attempted.
+
+That aborted attempt did leave one usable observation. Its logs show the event was delivered (`^C^C`
+in stderr) and **swallowed by `cmd.exe`** — `npx.cmd` answered `Terminate batch job (Y/N)?` while
+Playwright ran to completion, **4 passed including the teardown**. So the interrupt never reached the
+Playwright process, and that run measured nothing about SIGINT handling. Whoever wants the documented
+path must press Ctrl-C in an interactive console; until then §6.6 carries the abrupt-kill answer and
+names the rest as unmeasured.
+
+One further carelessness, recorded because this file's discipline is that the harness is evidence
+too: an earlier attempt passed an **MSYS** shell PID to Windows `taskkill /T /F`, which interprets it
+as a Windows PID and could have force-killed an unrelated process. A measurement harness that can
+damage what it measures is a defect in the measurement.
+
+### What Phase 5 does NOT establish
+
+- **Nothing about CI, and nothing may change that.** The layer is still never a gate — no job,
+  nothing in `needs:`, no schedule (§5). `npm run e2e` is human-triggered, so this date means
+  "exercised", never "watched".
+- **The account carries state between runs** (change.md D-01). The spec asserts only about its own
+  run-unique deck; no spec may assume an empty starting deck list.
+- **Two journeys exercise at most two islands on one happy path each**, while four carry a `fetch`.
+  §7's islands exclusion survives Phase 5 unchanged: the defect it was written from was a wrong
+  ok/parse ORDER on a failure branch no journey deliberately produces.
+- **The true console-Ctrl-C path is unmeasured** (above), and the registry keeps its residual failure
+  mode: an entry written but not flushed before a hard kill is still lost.
+- **`exact: true` on the deck-page `Edytuj` locator is not falsifiable today** — kept as a
+  layer-wide rule, not because it currently discriminates.
+- **The 5459-deck debt is stopped, not repaid.** The teardown scopes to this run's own registry by
+  decision; the pre-existing rows and the 2026-08-05 orphan are left in place.
