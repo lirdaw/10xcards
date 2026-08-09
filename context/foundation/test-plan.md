@@ -4958,6 +4958,24 @@ contributors should respect these unless the underlying assumption changes.
   `npm run e2e` **12 passed** — 15.3 s on a warm dependency cache, 21.1 s on a cold one, starting
   its own dev server with none started by hand. Local stack up, `OPENROUTER_API_KEY` unset, no
   `.dev.vars`, and the e2e account at `{"decks":0,"sessions":0}` before and after everything below.
+
+  > **The `399/399` is the PRE-IMPL-REVIEW figure and the branch has read `402/402` since `43bad70`;
+  > corrected 2026-08-09 by running the suite, not by arithmetic.** This entry was written before
+  > `/10x-impl-review`, whose triage then added three cases to `tests/lib/e2e-env.test.ts` — the
+  > three that pin which SOURCE a refusal blames (`.dev.vars` / the shell / `.env`), after vite's
+  > `loadEnv` was measured to overlay `process.env` on top of the parsed files. Files stay **33**.
+  > The review's other test edit is net zero and is stated so the +3 is not mis-attributed: closing
+  > the `.dev.vars` `export KEY=value` bypass replaced eight first-party-parser cases with eight
+  > that drive real `.dev.vars` text through `buildE2eEnv`. **This is the same defect this ledger
+  > records against C10X-40** — an entry written at the pre-review figure while the change's own
+  > impl-review commit moved it, there by a net +3 as well. Everything else in the entry stands:
+  > typecheck **145 files**, lint **3** warnings, `npm run e2e` **12 passed**, residue `0/0`.
+  >
+  > The "**399 → 397**" in breakage 4.2 above and in §3's Phase 6 note is **not** corrected: it is a
+  > claim about a run executed that day and it was true. Re-run today the same neuter would read
+  > 402 → 400; the asymmetry it demonstrates — `it.each` over the real array silently losing rows
+  > while staying green — is unaffected by the denominator.
+
 - **Fifteen breakage criteria, and EIGHT of them were re-executed rather than cited.** Phases 2, 3
   and 4 shipped with their Progress rows checked and wrote no evidence section, so their observed
   strings, splits and denominators existed nowhere — and this file's own rule is that a split is a
