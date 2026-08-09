@@ -971,31 +971,31 @@ hand-made file once Phase 3 lands, so the producer is exercised rather than shad
 
 #### Automated
 
-- [x] 3.1 `npm run e2e` green with `playwright/.auth/user.json` deleted beforehand
-- [x] 3.2 Written artifact verified: one cookie, derived name, domain `localhost`
-- [x] 3.3 Two deltas across a full run are each 0: `deck` and `generation_session`
-- [x] 3.4 Breakage: setup sign-in forced to fail → loud failure, no `user.json` written; restored
-- [x] 3.5 Breakage: spec throws after creating a deck → run red, both deltas still 0; restored
-- [x] 3.6 `npm test`, `npm run lint`, `npm run typecheck` green
+- [x] 3.1 `npm run e2e` green with `playwright/.auth/user.json` deleted beforehand — 38a45d2
+- [x] 3.2 Written artifact verified: one cookie, derived name, domain `localhost` — 38a45d2
+- [x] 3.3 Two deltas across a full run are each 0: `deck` and `generation_session` — 38a45d2
+- [x] 3.4 Breakage: setup sign-in forced to fail → loud failure, no `user.json` written; restored — 38a45d2
+- [x] 3.5 Breakage: spec throws after creating a deck → run red, both deltas still 0; restored — 38a45d2
+- [x] 3.6 `npm test`, `npm run lint`, `npm run typecheck` green — 38a45d2
 
 #### Manual
 
-- [x] 3.7 Headed run confirms the setup project drives the real sign-in form
-- [x] 3.8 Studio confirms no `E2E …` deck left behind after a full run
+- [x] 3.7 Headed run confirms the setup project drives the real sign-in form — 38a45d2
+- [x] 3.8 Studio confirms no `E2E …` deck left behind after a full run — 38a45d2
 
 ### Phase 4: Journey B — the guard is mounted and runs on a real navigation
 
 #### Automated
 
-- [ ] 4.1 `route-guard.spec.ts` green, 7 cases, both controls
-- [ ] 4.2 Breakage A: `/study` removed → 1 of 7 red on `waitForURL`, controls green, `npm test` 100% green; restored
-- [ ] 4.3 Breakage C: guard predicate forced true → 1 of 7 red on the public control; restored
-- [ ] 4.4 E1 falsification pair: `/` answering 500 → red with E1, green without; both halves recorded
-- [ ] 4.5 `npm run lint`, `npm run typecheck` green
+- [x] 4.1 `route-guard.spec.ts` green, 7 cases, both controls
+- [x] 4.2 Breakage A: `/study` removed → 1 of 7 red on `waitForURL`, controls green, `npm test` 100% green; restored
+- [x] 4.3 Breakage C: guard predicate forced true → 1 of 7 red on the public control; restored
+- [x] 4.4 E1 falsification pair: `/` answering 500 → red with E1, green without; both halves recorded
+- [x] 4.5 `npm run lint`, `npm run typecheck` green
 
 #### Manual
 
-- [ ] 4.6 Breakage B run or explicitly recorded as reasoned, with the module-resolution-vs-behavioural distinction
+- [x] 4.6 Breakage B run or explicitly recorded as reasoned, with the module-resolution-vs-behavioural distinction
 
 ### Phase 5: Journey A — an accepted card survives a reload
 
