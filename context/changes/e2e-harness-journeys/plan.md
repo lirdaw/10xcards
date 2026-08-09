@@ -1001,30 +1001,30 @@ hand-made file once Phase 3 lands, so the producer is exercised rather than shad
 
 #### Automated
 
-- [x] 5.1 `accepted-card-survives-reload.spec.ts` green
-- [x] 5.2 Breakage: `STATE_ACCEPTED` filter removed → the 0 assertion red, journey B green; restored
-- [x] 5.3 Breakage: accept transition no-oped → 0 → 1 red on the count; restored
-- [x] 5.4 Breakage: `exact: true` dropped → result recorded as observed, green included
-- [x] 5.5 `npm run e2e` green end to end, both deltas 0 (`deck` and `generation_session`)
-- [x] 5.6 `npm run lint`, `npm run typecheck`, `npm test` green
+- [x] 5.1 `accepted-card-survives-reload.spec.ts` green — 1ef0d29
+- [x] 5.2 Breakage: `STATE_ACCEPTED` filter removed → the 0 assertion red, journey B green; restored — 1ef0d29
+- [x] 5.3 Breakage: accept transition no-oped → 0 → 1 red on the count; restored — 1ef0d29
+- [x] 5.4 Breakage: `exact: true` dropped → result recorded as observed, green included — 1ef0d29
+- [x] 5.5 `npm run e2e` green end to end, both deltas 0 (`deck` and `generation_session`) — 1ef0d29
+- [x] 5.6 `npm run lint`, `npm run typecheck`, `npm test` green — 1ef0d29
 
 #### Manual
 
-- [x] 5.7 Headed run confirms the accepted card is the one that appears
-- [x] 5.8 Ctrl-C mid-journey measured, not assumed: does the teardown project run on SIGINT? Answer recorded as observed, and as a named §6.6 gap if it does not
+- [x] 5.7 Headed run confirms the accepted card is the one that appears — 1ef0d29
+- [x] 5.8 Ctrl-C mid-journey measured, not assumed: does the teardown project run on SIGINT? Answer recorded as observed, and as a named §6.6 gap if it does not — 1ef0d29
 
 ### Phase 6: Doc-sync and bookkeeping
 
 #### Automated
 
-- [ ] 6.1 `grep -cF "### 6.11" context/foundation/test-plan.md` returns 1
-- [ ] 6.2 `prettier --check` passes on every edited markdown file, and again on a second write
-- [ ] 6.3 `git status --porcelain -uall` lists only intended paths
-- [ ] 6.4 `npm run typecheck`, `npm run lint`, `npm test`, `npm run e2e` green after the edits
-- [ ] 6.5 Every `file:line` and evidence path written into the docs resolves on disk
+- [x] 6.1 `grep -cF "### 6.11" context/foundation/test-plan.md` returns 1
+- [x] 6.2 `prettier --check` passes on every edited markdown file, and again on a second write
+- [x] 6.3 `git status --porcelain -uall` lists only intended paths
+- [x] 6.4 `npm run typecheck`, `npm run lint`, `npm test`, `npm run e2e` green after the edits
+- [x] 6.5 Every `file:line` and evidence path written into the docs resolves on disk
 
 #### Manual
 
-- [ ] 6.6 §5's e2e row re-read and confirmed still **never a gate**
-- [ ] 6.7 Every §6.6 / §8 figure traced to the run that produced it
-- [ ] 6.8 §4's `checked:` date not bumped past what was re-verified
+- [x] 6.6 §5's e2e row re-read and confirmed still **never a gate**
+- [x] 6.7 Every §6.6 / §8 figure traced to the run that produced it
+- [x] 6.8 §4's `checked:` date not bumped past what was re-verified

@@ -1,7 +1,7 @@
 ---
 change_id: e2e-harness-journeys
 title: E2E harness journeys
-status: implementing
+status: implemented
 created: 2026-08-08
 updated: 2026-08-09
 archived_at: null
@@ -63,3 +63,30 @@ branch, merge, or archive steps for the predecessor; it may only state the prere
 things this touches that are genuinely this change's, and are not git work: the predecessor
 archives with **no roadmap row** (`H-12` is still free and still uncreated), and `C10X-45` is
 spent on the refresh, so this phase's Jira key is **C10X-46**.
+
+### D-03 — Phase 6 was widened twice, on purpose, and both widenings are code or evidence
+
+**Decided 2026-08-09, during Phase 6, with the deviation approved rather than assumed.** The
+phase's contract is doc-sync. Two things found while gathering figures for it could not honestly
+be written up without acting on them first, so the scope was widened by explicit decision.
+
+**1 — the layer was FLAKY, and the fix is code (`playwright.config.ts`).** Phase 5's record says
+`npm run e2e` is green; ten runs on 2026-08-09 gave six green and four red, every red on a cold
+Vite dependency cache, reproduced deliberately twice by moving `node_modules/.vite` aside. Writing
+"§3 Phase 6 complete" over a layer that fails on the first run after `npm ci` would have been the
+claim-without-evidence this project's §8 keeps catching. Fixed with `workers: 1`, measured at
+**11 of 11** green on cold caches. A route warm-up was written first and **deleted**, because its
+measured contribution once requests were serialised was zero — the negative result is recorded in
+`verification.md` rather than shipped as a mechanism with a confident comment.
+
+**2 — Phases 2, 3 and 4 had recorded no breakage evidence**, so eight criteria existed as ticked
+Progress rows whose observed strings, splits and denominators were carried nowhere. §6.6's contract
+is "every breakage split with its denominator and observed failure string", which cannot be met by
+citing runs nobody can check. All eight were **re-executed on 2026-08-09**, each restored and each
+restore verified. Consequence, stated in `verification.md` rather than implied: that backfill is
+evidence those guards can go red **today**, never a record of what was observed on the days those
+phases shipped.
+
+Neither widening touches what the plan's "What We're NOT Doing" excludes: still no CI job, no
+journey C, no mass cleanup of the accumulated decks, no visual-diff oracle, no
+`scroll-padding-top` fix, and no hand-edit of `jira-map.md`.

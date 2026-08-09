@@ -321,3 +321,253 @@ damage what it measures is a defect in the measurement.
   layer-wide rule, not because it currently discriminates.
 - **The 5459-deck debt is stopped, not repaid.** The teardown scopes to this run's own registry by
   decision; the pre-existing rows and the 2026-08-05 orphan are left in place.
+
+## Phases 2-4 — breakage evidence, BACKFILLED 2026-08-09
+
+**Why this section is dated after Phase 5's and sits below it.** Phases 2, 3 and 4 shipped with
+their Progress rows checked and wrote nothing here, so eight breakage criteria (2.3, 2.4, 3.4, 3.5,
+4.2, 4.3, 4.4, 4.6) existed as claims about runs whose observed strings, splits and denominators
+were carried nowhere. Phase 6 cannot write §6.6 from that: this file's own opening rule is that a
+split is a claim about a run. **Every run below was therefore re-executed on 2026-08-09 against the
+files as they now stand**, so each string, count and hash is today's rather than a reconstruction —
+which also means each is a claim about the CURRENT tree, not about the tree its phase shipped on.
+
+Environment: local Supabase stack up (`/rest/v1/` → 200), `OPENROUTER_API_KEY` unset, no
+`.dev.vars`, port 4321 free before every run, e2e account at `{"decks":0,"sessions":0}` before and
+after the whole exercise.
+
+**Three of the plan's predictions did not survive contact, and all three are recorded as observed
+rather than rounded to the prediction** — the discipline §8 applies to C10X-29's `missingLocal`
+neuter and C10X-30's case 8. They are 4.3 (as worded, the run never starts), 4.4 (same, for a
+different reason) and 4.6 (fails earlier and in more places than predicted).
+
+### 2.3 — a Vitest file inside Playwright's `testDir`
+
+`tests/e2e/scratch.test.ts` created, then `npx vitest run tests/lib/e2e-isolation.test.ts`:
+**1 of 6 red**, on `keeps Vitest out of the Playwright directory`, at `e2e-isolation.test.ts:201`:
+
+```
+AssertionError: expected [ Array(1) ] to deeply equal []
++ [ "tests/e2e/scratch.test.ts — lives under Playwright's testDir \"tests/e2e/\" and ALSO matches
++   Vitest's include \"tests/**/*.test.ts\", so BOTH runners collect it and this node-only suite
++   tries to drive a browser spec; rename it to *.spec.ts, or move it out of tests/e2e/ if it is
++   a Vitest test" ]
+```
+
+Restore: file deleted, **6 of 6 green**, `git status --porcelain -uall` back to the change's own
+paths. This run also closes manual criterion **2.6** by measurement rather than by reading: the
+message names the offending file, the rule it broke, the consequence, and **two** fixes.
+
+### 2.4 — `page.waitForTimeout` in a spec
+
+`await page.waitForTimeout(100);` inserted at `tests/e2e/seed.spec.ts:31`, then `npm run lint`:
+exit 1, `31:9 error Unexpected use of page.waitForTimeout() playwright/no-wait-for-timeout`, run
+total `4 problems (1 error, 3 warnings)` — the three warnings being the pre-existing `no-console`
+in `evals/generation-quality.eval.ts`, i.e. the error is the only thing this edit added.
+
+Restore: `git checkout`, md5 back to `6bf1c3bfc54ca2f525e392b94ad4aafe`, lint
+`3 problems (0 errors, 3 warnings)`, **exit 0**.
+
+### 3.4 — the setup project's sign-in forced to fail
+
+`E2E_PASSWORD` in `tests/e2e/setup/account.ts` set to `wrong-password-breakage-3-4`.
+`playwright/.auth/user.json` existed before the run (3122 bytes). `npm run e2e` → exit 1:
+
+```
+x [setup] mints a signed-in session by driving the sign-in form (32.4s)
+Error: the sign-in form did not land on /decks. If the browser is still on /auth/signin, GoTrue
+refused these credentials: the constants in tests/e2e/setup/account.ts are out of step with the
+account on this stack. …
+Expected pattern: /\/decks$/
+Received string:  "http://localhost:4321/auth/signin"
+```
+
+Split **1 failed / 2 passed** — reachability and the teardown. The `chromium` project **never ran**
+(`dependencies: ["setup"]`), which is exactly what the criterion asks for: the red is the producer
+failing loudly, not a downstream locator timeout. `playwright/.auth/user.json` is **absent** after
+the run, because the setup deletes it before it tries. Restore: md5 back to
+`100bd17cf205c862fa0710cd51d9e919`.
+
+### 3.5 — a spec that dies after creating a deck, WITH the control that makes its 0-delta mean something
+
+`throw new Error("TEMP breakage probe 3.5 …")` inserted in `seed.spec.ts` immediately after the
+create-dialog submit. `npm run e2e` → exit 1, **1 of 12 red** on that spec, the `teardown` project
+running and passing after it. Row deltas: `{"decks":0,"sessions":0}` before, `{"decks":0,"sessions":0}` after.
+
+**A 0 → 0 delta is satisfied by "nothing was ever written", so it was falsified before it was
+used.** The same breakage re-run with `teardown: "teardown"` commented out of
+`playwright.config.ts` leaves `{"decks":2,"sessions":1}` — journey A's deck and session plus
+seed.spec's deck. So the zero above is the teardown's doing. The two orphans were then deleted as
+the e2e account under RLS (`E2E deck (journey A) 1786292198890`,
+`E2E deck 1786292202157`), residue re-measured at `{"decks":0,"sessions":0}`.
+
+Restores: `seed.spec.ts` md5 back to `6bf1c3bfc54ca2f525e392b94ad4aafe`; `playwright.config.ts`
+diffed line-for-line against a copy taken before the control edit — identical.
+
+### 4.2 — `/study` removed from `PROTECTED_ROUTES`
+
+`npx playwright test route-guard.spec.ts` → **1 of 7 red**, that route only, on
+`TimeoutError: page.waitForURL: Timeout 10000ms exceeded`. The other four protected routes, the
+public control and the signed-in control all green.
+
+`npm test` → **exit 0, fully green** — and the interesting half is the number: **399 → 397**.
+`it.each(PROTECTED_ROUTES)` does not go red when an entry leaves the array, it silently loses two
+rows. That is a sharper statement of what the criterion asked for ("`npm test` 100% green"): the
+Vitest layer is not merely blind to this defect, it shrinks without complaining, which is precisely
+the asymmetry the hardcoded copy in `route-guard.spec.ts:56-65` exists to cover. Restore:
+`src/middleware.ts` md5 back to `2117332b09665068d3b93188ce2383aa`, suite back to 399.
+
+### 4.3 — the guard predicate widened, and the plan's wording does not survive it
+
+**As worded — "force the guard predicate to `true`" — the run never starts, and that is the
+finding.** With every path guarded, `/auth/signin` redirects to itself; Playwright's readiness
+probe follows the loop until undici gives up, the dev server logs
+`[vite] Internal server error: fetch failed` once per attempt, and the run ends on
+`Error: Timed out waiting 120000ms from config.webServer.` Nothing is learned about the guard. An
+intermediate variant exempting only `/auth/` fails the same way one layer over: `/api/auth/signin`
+is then guarded too, the sign-in POST is redirected, and the **setup** goes red instead of journey B.
+
+**Refined so it asks the intended question** — guard everything except `/auth/**` and
+`/api/auth/**` — and the predicted split appears exactly: **1 of 7 red**, on the **public control**,
+at `route-guard.spec.ts:98`:
+
+```
+Error: expect(page).toHaveURL(expected) failed
+Expected: predicate to succeed
+Received: "http://localhost:4321/auth/signin"
+```
+
+All five protected routes green, the signed-in control green. **With 4.2 this is §6.10's pair**: the
+two neuters fail DIFFERENT cases on DIFFERENT assertions, so "the route left the array" is
+separable from "the guard stopped discriminating" rather than both reading as one red. Restore:
+md5 back to `2117332b09665068d3b93188ce2383aa`.
+
+### 4.4 — E1's own falsification, where the GREEN half is the evidence
+
+`throw new Error("TEMP breakage probe 4.4 …")` inserted at `src/pages/index.astro:2`.
+
+**First attempt: the run never starts, for a second reason nobody had named.** `webServer.url` is
+`http://localhost:4321` — i.e. the readiness probe is the very route this breakage takes down — so
+Playwright polls a 500 until `Error: Timed out waiting 120000ms from config.webServer.` The probe
+doubling as the app's public landing page is a real coupling and is recorded here rather than
+worked around silently; the run below moves it to `/auth/signin` for the duration.
+
+| Half             | Spec state                            | Result                                                                                                       |
+| ---------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 1 — E1 present   | `:105` asserts the `10xCards` heading | **1 of 7 red**, the public control, `expect(locator).toBeVisible() failed … element(s) not found`, at `:105` |
+| 2 — E1 commented | that line removed, the rest unchanged | **10 passed, exit 0** — fully green over an app answering 500 on `/`                                         |
+
+Half 2 is the deliverable. Without E1 the public control consists of a URL predicate and the
+ABSENCE of a sign-in heading, and both hold over a dead landing page — the
+absence-in-an-unbounded-set class §6.6 records against the four-policy neuter. Restores:
+`src/pages/index.astro` md5 `29aeb9e82e236733737af4a9e88c0392`, `route-guard.spec.ts` md5
+`d5738f7482e3cb9a99bd489d5d3d8078`, `playwright.config.ts` diffed identical to its pre-breakage copy.
+
+### 4.6 — breakage B, RUN rather than reasoned, and it contradicts its own prediction twice
+
+`src/middleware.ts` renamed to `src/middleware.ts.off`.
+
+**Browser layer: the run dies in the `setup` project and journey B's seven cases never execute.**
+Predicted was "5 of 7 red". Observed is **1 failed / 2 passed**, the failure being
+`auth.setup.ts:136` — `getByText('e2e-harness@example.com', { exact: true })`,
+`element(s) not found` — while the `Wyloguj` assertion one line above passed. The session producer
+is downstream of the same module it would be testing, and `dependencies: ["setup"]` stops
+everything behind it. So this neuter cannot produce the predicted split as long as signing in needs
+the guard mounted; what it demonstrates instead is that the harness fails EARLIER and louder than
+the prediction assumed.
+
+**Vitest layer: four files red, not one, and only one of them for the predicted reason.**
+
+| File                                  | Kind of red                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------------ |
+| `tests/middleware.test.ts`            | **collection** — `Error: Cannot find package '@/middleware' imported from …`   |
+| `tests/lib/no-logging.test.ts`        | assertion — `expected 68 to be greater than or equal to 69` (the walker floor) |
+| `tests/lib/error-param-guard.test.ts` | assertion — its `src/` file list no longer contains the expected member        |
+| `tests/lib/e2e-isolation.test.ts`     | assertion — the same, on its own walker control                                |
+
+Totals: `Test Files 4 failed | 29 passed (33)`, `Tests 3 failed | 373 passed (376)`. So the
+distinction the criterion asks for holds and is stronger than "module-resolution vs behavioural":
+**not one of the four reds is about the guard's BEHAVIOUR** — three are file-census guards noticing
+that a file left `src/`, one is an import that cannot resolve — while the layer that would have had
+something to say about behaviour never got to run. Restore: `mv` back, md5
+`2117332b09665068d3b93188ce2383aa`, suite **399 passed / 399, 33 files**.
+
+## Phase 6 — doc-sync, and the flake the doc-sync measured (2026-08-09)
+
+### Gates, as observed
+
+| Gate                | Result                                                                                  |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| `npm run typecheck` | exit 0 — `Result (145 files): 0 errors, 0 warnings`                                     |
+| `npm run lint`      | exit 0 — 3 warnings, all `no-console` in `evals/generation-quality.eval.ts` (unchanged) |
+| `npm test`          | **399 passed / 399, 33 files**, seed `1786290167803`                                    |
+| `npm run e2e`       | **12 passed** — 15.3 s on a warm dependency cache, 21.1 s on a cold one; own dev server |
+
+The typecheck count is **145**, unchanged from Phase 5: this phase adds no file to the gate, and
+markdown is outside it. `npm test` is likewise unchanged, and correctly so.
+
+### The layer was flaky, and this phase is where that was measured
+
+The Phase 5 record says `npm run e2e` is green. On 2026-08-09 that turned out to be true only on a
+warm Vite dependency cache. **Ten runs at the default worker count: six green at ~12 s, four red.**
+Every red sat on a cold or freshly-invalidated `node_modules/.vite` — runs 1, 5, 6 and 7, of which
+5 and 6 were made cold on purpose by moving that directory aside.
+
+The cause is in the run's own output rather than in the app:
+
+```
+[WebServer] [ERROR] [vite] Internal server error: The file does not exist at
+".../node_modules/.vite/deps_ssr/chunk-UVVZ4HX5.js?v=4f8fd614" which is in the optimize deps
+directory. The dependency might be incompatible with the dep optimizer.
+```
+
+Astro's dev server compiles routes on demand, and Vite re-runs SSR dependency optimisation when it
+discovers new ones, rewriting `deps_ssr/` under a fresh hash; requests already in flight then
+reference a chunk that no longer exists and answer 500. That reaches a spec disguised as an
+application failure — `seed.spec.ts:44` `element(s) not found`, journey A
+`locator.click: Test timeout of 180000ms exceeded` at `:184` with a call log showing the link
+resolved and the click retried for three minutes.
+
+**`webServer.timeout` cannot cover this**, which is why a 120 s boot timeout sized against a
+measured 5.8 s did not help: the readiness probe hits `webServer.url` (`/`) and returns the moment
+ONE route answers. Every other route pays its compile inside a spec's own 30 s test timeout or a
+5 s `expect`, in parallel workers.
+
+### The fix, and the negative result that shaped it
+
+| Configuration                             | Cold-cache runs        |
+| ----------------------------------------- | ---------------------- |
+| default workers, no warm-up               | **0 green / 2**        |
+| default workers, with a route warm-up     | **5 green / 7**        |
+| `--workers=1`, with that warm-up          | **5 green / 5**        |
+| `--workers=1`, without it                 | **6 green / 6**        |
+| shipped config (`workers: 1`, no warm-up) | cold green, warm green |
+
+**The `11 of 11` quoted in `test-plan.md` is the SUM of the two `--workers=1` rows** — 5 with the
+warm-up plus 6 without it — and it is spelled out here because a total and its breakdown are two
+claims, which is the defect §8 records against C10X-39, C10X-40 and C10X-42. Every one of those
+eleven runs deleted `node_modules/.vite` immediately beforehand, so "cold" is a property each run
+was given rather than one it happened to have. The shipped-config row is a separate PAIR (one cold,
+one warm) and is deliberately not folded into the eleven.
+
+A warm-up step was written first — a setup-project pass over `/generate`,
+`/decks/<nobody's-uuid>`, that deck's review route and `/`, asserting no 5xx — and it **is not in
+this repo**, because the two rows above measure its contribution as zero once requests are
+serialised. Shipping a mechanism whose measured value is nil, under a comment claiming it exists
+because of the flake, would have been the kind of claim this project's §8 keeps catching.
+
+What shipped is `workers: 1` in `playwright.config.ts`, with the observed Vite error and both
+measurements in the comment. The price is ~12 s → ~21 s per run on a layer that is human-triggered
+and never a gate. **It is not a retry**: `retries` stays 0 and §6.2's rule that a fresh red is a
+real defect until proven otherwise is untouched — this removes a cause rather than hiding one.
+
+### What Phase 6 does NOT establish
+
+- **Nothing about CI**, and nothing may change that: no job, nothing in `needs:`, no schedule (§5).
+- **The flake is closed on this machine, on this day, at eleven cold-cache runs.** Zero over eleven
+  bounds a rate; it does not prove impossibility, and the underlying Vite behaviour is untouched.
+  A slower machine, a bigger dependency graph or a future `workers` override can reach it again.
+- **The layer does not exercise concurrent users.** Serialising the runner was a fix for the dev
+  server, and it narrows what the layer could ever say about concurrency to nothing.
+- **The Phases 2-4 backfill above measures TODAY's tree.** It is evidence that those guards can go
+  red now, never a record of what was observed on the days those phases shipped.

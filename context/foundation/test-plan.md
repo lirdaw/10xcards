@@ -6,7 +6,40 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-08-05 (`test-plan-refresh-2026-08-05` — a REFRESH, not a §3 rollout phase,
+> Last updated: 2026-08-09 (C10X-46 `e2e-harness-journeys` — **§3 Phase 6 is `complete`**, the
+> first rollout phase to close since C10X-30 and the first new test LAYER since C10X-31's eval).
+> **No §2 risk row moves**, and that is the claim to read first: a browser journey introduces no
+> new failure scenario. What it adds is an execution path nothing else in this project can reach —
+> `tests/middleware.test.ts` has driven the real `PROTECTED_ROUTES` on both branches since
+> C10X-27, and the Container API mounts `NOOP_MIDDLEWARE_FN` and renders only
+> `routeType: "endpoint"`, so **whether the middleware is MOUNTED at all had no witness anywhere**
+> until a real navigation supplied one.
+>
+> **The layer is wired and still never a gate, and holding both is the point.** `npm run e2e`
+> starts and owns its dev server, refuses a non-local `SUPABASE_URL` at **config-module
+> evaluation** — strictly earlier than `globalSetup`, because Playwright starts `webServer` in
+> plugin setup first, an ordering fact that moved the whole design — mints its own session through
+> the real sign-in form, and removes its rows in a teardown project whatever the outcome. There is
+> no CI job, no schedule, and nothing may declare one in `needs:`. §5's row carried a trap written
+> for exactly this day (`never a gate` must not soften into `required — wired by §3 Phase 6`); the
+> day arrived and the row survived it.
+>
+> **Two things this phase measured that nobody had budgeted for.** The layer was **flaky**: ten
+> runs gave six green and four red, every red on a cold Vite dependency cache, reproduced
+> deliberately twice — Vite rewrites `deps_ssr/` under a new hash while Astro compiles routes on
+> demand, so requests in flight answer 500 and reach a spec as `element(s) not found`. Fixed by
+> `workers: 1` at **11 of 11** green on cold caches; a route warm-up was written first and
+> **deleted**, because measured against serialised requests it bought nothing. And **Phases 2-4
+> had recorded no breakage evidence at all**, so eight criteria were re-executed today rather than
+> cited — three of their predictions did not survive contact, including two neuters that prevent
+> the run from starting and therefore prove nothing about anything.
+>
+> §6 gains **§6.11**; §7's three e2e-keyed sites were each checked and each **stands**, with the
+> absence of an edit recorded so nobody hunts for one — including the nested `scroll-padding-top`
+> deferral, which named this phase as its owner and is **declined on the merits**, dated at the
+> site. `roadmap.md` gains **H-12** and one half-false claim corrected on its e2e half only.
+>
+> Previously: 2026-08-05 (`test-plan-refresh-2026-08-05` — a REFRESH, not a §3 rollout phase,
 > and not a change to any product code). **No risk row moves, no coverage claim widens, and no
 > test changed — so no suite figure in this file is restated.** What changes is that a Playwright
 > harness now exists, that it landed **outside** the phased rollout (the C10X-39/40/42/43 pattern
@@ -581,14 +614,14 @@ appear on disk. A fourth value, **`reopened`**, exists because a later audit can
 show a `complete` phase never covered all of its risk — see Phase 4. Treat
 `complete` as a dated claim, not a permanent state.
 
-| #   | Phase name                         | Goal (one line)                                                                                   | Risks covered                                                                                                       | Test types                         | Status        | Change folder                                                                                                                                                              |
-| --- | ---------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Harness + per-account isolation    | Stand up the runner and prove cross-account denial on read and write                              | #1                                                                                                                  | runner bootstrap, integration, RLS | complete      | `context/archive/2026-07-15-verification-harness/`                                                                                                                         |
-| 2   | Endpoint contract                  | Prove the server does not trust the client and does not leak; stop duplication on retry           | #2 (**covered** — S-05 Phase 6), #4 (**covered** — C10X-28), #6 (**covered, server side** — C10X-30, 2026-07-28)    | integration                        | complete      | `context/archive/2026-07-18-ai-candidate-generation-test/` → `context/archive/2026-07-26-ai-candidate-generation-test-2/` → `context/changes/server-side-validation-test/` |
-| 3   | Quality gates + schema drift       | Make green CI mean "tested and prod actually migrated"                                            | #5 (**covered** — the deploy-blocking classes and the stale generated types; C10X-29, 2026-07-28)                   | gates                              | complete      | `context/changes/schema-drift-test/`                                                                                                                                       |
-| 4   | SRS schedule correctness           | Prove the schedule defers by rating, survives restart, and admits only accepted cards             | #3 (**covered** — both halves; closed by C10X-27, 2026-07-26)                                                       | unit + integration                 | complete      | `context/archive/2026-07-24-srs-study-session/` → `context/archive/2026-07-26-srs-study-session-test/`                                                                     |
-| 5   | AI-native generation quality       | Prove cards match the source language and are usable, so the 75% thesis is measurable             | #7 (**covered as far as a proxy can be** — C10X-31, 2026-07-29; the judge does not measure the 75% acceptance rate) | LLM-as-judge                       | complete      | `context/changes/ai-candidate-generation-test-3/`                                                                                                                          |
-| 6   | E2E harness + two browser journeys | Close the non-local seams, then prove the guard is mounted and an accepted card survives a reload | #1 and #6 (**extending — no §2 row changes**; e2e introduces no new failure scenario)                               | e2e (Playwright), human-triggered  | change opened | `context/changes/e2e-harness-journeys/`                                                                                                                                    |
+| #   | Phase name                         | Goal (one line)                                                                                   | Risks covered                                                                                                       | Test types                         | Status   | Change folder                                                                                                                                                              |
+| --- | ---------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Harness + per-account isolation    | Stand up the runner and prove cross-account denial on read and write                              | #1                                                                                                                  | runner bootstrap, integration, RLS | complete | `context/archive/2026-07-15-verification-harness/`                                                                                                                         |
+| 2   | Endpoint contract                  | Prove the server does not trust the client and does not leak; stop duplication on retry           | #2 (**covered** — S-05 Phase 6), #4 (**covered** — C10X-28), #6 (**covered, server side** — C10X-30, 2026-07-28)    | integration                        | complete | `context/archive/2026-07-18-ai-candidate-generation-test/` → `context/archive/2026-07-26-ai-candidate-generation-test-2/` → `context/changes/server-side-validation-test/` |
+| 3   | Quality gates + schema drift       | Make green CI mean "tested and prod actually migrated"                                            | #5 (**covered** — the deploy-blocking classes and the stale generated types; C10X-29, 2026-07-28)                   | gates                              | complete | `context/changes/schema-drift-test/`                                                                                                                                       |
+| 4   | SRS schedule correctness           | Prove the schedule defers by rating, survives restart, and admits only accepted cards             | #3 (**covered** — both halves; closed by C10X-27, 2026-07-26)                                                       | unit + integration                 | complete | `context/archive/2026-07-24-srs-study-session/` → `context/archive/2026-07-26-srs-study-session-test/`                                                                     |
+| 5   | AI-native generation quality       | Prove cards match the source language and are usable, so the 75% thesis is measurable             | #7 (**covered as far as a proxy can be** — C10X-31, 2026-07-29; the judge does not measure the 75% acceptance rate) | LLM-as-judge                       | complete | `context/changes/ai-candidate-generation-test-3/`                                                                                                                          |
+| 6   | E2E harness + two browser journeys | Close the non-local seams, then prove the guard is mounted and an accepted card survives a reload | #1 and #6 (**extending — no §2 row changes**; e2e introduces no new failure scenario)                               | e2e (Playwright), human-triggered  | complete | `context/changes/e2e-harness-journeys/`                                                                                                                                    |
 
 Sequencing notes:
 
@@ -812,20 +845,59 @@ Sequencing notes:
   oracle. Do not assert on card **content**: §6.5 is explicit that mock output is identical on
   every call and is not an oracle.
 
+  **SHIPPED 2026-08-09 as C10X-46 (`e2e-harness-journeys`), roadmap H-12 — the row above is
+  `complete`, dated.** Everything in this note stays as written: it is the mandate the phase was
+  handed, and its nine findings, two scope decisions and oracle guidance were all followed. What
+  the phase adds are three things the note could not have known, and one of them would have made
+  its own design late.
+
+  **The ordering discovery, which moved the preflight out of `globalSetup` before a line of it was
+  written.** `createGlobalSetupTasks` (`playwright/lib/runner/index.js:6003-6010`) orders
+  `removeOutputDirs` → **plugin setup** → globalTeardowns → **globalSetups**, and plugin setup is
+  what starts `webServer` (`:823-834`). So a preflight in `globalSetup` runs **after** the app
+  server is already up — i.e. a `PROD_`-swapped `.env` would boot a server pointed at a cloud
+  project before the guard ever spoke, which is the ordering `tests/setup/preflight.ts:71` exists
+  to forbid. The only point strictly earlier is **config-module evaluation**, which is also where
+  the resolved map has to live anyway, because `webServer.env` is a config field. Sub-phase 6.1's
+  synchronous half therefore sits in `playwright.config.ts`'s own import graph
+  (`tests/e2e/setup/env.ts`), and only the two checks that need I/O or a session — Supabase
+  reachability, a live signed-in control — sit in the setup project.
+
+  **Which of the six harness findings closed, stated per finding rather than as a count.**
+  1 (no preflight) — **closed** at config time, with the two shared predicates EXTRACTED into
+  `tests/setup/env-assertions.ts` rather than copied, so `npm test`'s preflight and the e2e one
+  cannot drift. 2 (`storageState` had no producer) — **closed**: `tests/e2e/setup/auth.setup.ts`
+  mints it by driving the real sign-in form and asserts a signed-in DOM fact before writing.
+  3 (no `webServer`) — **closed**, with `reuseExistingServer` deliberately **unset**, which is what
+  makes the local-host assertion binding rather than descriptive. 4 (isolation incidental) —
+  **closed** by `tests/lib/e2e-isolation.test.ts`, in both directions, with two positive controls.
+  5 — was already closed. 6 (one persistent account) — **decided, not closed**: change.md's D-01
+  keeps the single dedicated account and answers accumulation with a teardown project instead, so
+  the rate-limit inversion the note records is kept on its cheap side and the price — **the account
+  carries state between runs** — is stated wherever a spec author meets it. The three findings that
+  were on no list are closed too: `trace` is now `retain-on-failure` with `retries` still 0, there
+  is an `npm run e2e` script, and `.gitignore` carries the four remaining artifact classes.
+
+  **And one thing this note asserts that the phase measured as FALSE.** The note says `Usuń`
+  over-counts by one and does not name `Edytuj` as ambiguous; the phase found `Edytuj` renders on
+  **two** pages (`FlashcardItem.tsx:241` and `CandidateItem.tsx:287`), so journey A's count is an
+  oracle only while the browser is on `/decks/<publicId>` — which is where it is asserted. Read
+  §6.6's C10X-46 entry for what the layer does and, at equal length, does not prove.
+
 ## 4. Stack
 
 The classic test base for this project. AI-native tools (if any) carry a
 `checked:` date so future readers can see which lines need re-verification.
 
-| Layer               | Tool                                                                                                                                                                                                                                          | Version                                                                     | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| unit + integration  | Vitest                                                                                                                                                                                                                                        | 4.1.10                                                                      | Configured through `getViteConfig()` from `astro/config` (`vitest.config.ts`), which is what resolves the `@/*` alias and `astro:env/server`. The adapter's `@cloudflare/vite-plugin` is stripped there — it fights Astro over the `ssr` environment and tests target Node; checked: 2026-07-15                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| endpoint rendering  | Astro Container API                                                                                                                                                                                                                           | ships with Astro 6                                                          | `renderToResponse` with `routeType: "endpoint"` renders an API route against a real `Request`; checked: 2026-07-15                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| API mocking         | one confined module double — **see §6.9**                                                                                                                                                                                                     | Vitest's own `vi.mock` / `vi.hoisted`; no mocking library                   | Only the external HTTP edge (the LLM provider) is ever doubled; the database is real via local Supabase. Exactly one file does it (`tests/generation/failure-path.test.ts`), doubling **`astro:env/server`** plus a pass-through `globalThis.fetch` to reach the 502/422 branches the harness otherwise seals. Read §6.9 before copying it; checked: 2026-07-26. Since 2026-07-30 a **second** `fetch` seam exists and is NOT a double — `tests/setup/retry-transport.ts`, a suite-wide `setupFiles` wrapper that replays Kong's keep-alive `502` and nothing else; it fabricates no response, so it is not precedent for a second double (§6.9)                                                                                                                                                                                                                                                                                                                                                                               |
-| database under test | Supabase CLI local stack                                                                                                                                                                                                                      | 2.98.2 (devDependency; `^2.23.4` in `package.json` is only the range floor) | Driven by `npm run db:start` / `db:stop` / `db:reset`; RLS is only meaningful against a real Postgres. CI starts the same stack and reads its URL + publishable key from `supabase status -o env`; checked: 2026-07-15. Since 2026-08-01 (C10X-39) `db:start` also chains `db:kong`, an **unsupported** post-`supabase start` recreation of the Kong container at `KONG_UPSTREAM_KEEPALIVE_POOL_SIZE=0`; it is per-machine, wiped by every `npx supabase stop`, and a bare `npx supabase start` does NOT get it — so never read a green run as evidence the stack was in that state, read `.kong_env` (§6.6's C10X-39 entry)                                                                                                                                                                                                                                                                                                                                                                                                   |
-| e2e                 | Playwright                                                                                                                                                                                                                                    | 1.62.1                                                                      | **A harness, not a layer.** `playwright.config.ts` plus one spec under `tests/e2e/` landed 2026-08-05 (`8a12d07`, `5f3c87e`) **outside** the phased rollout, the C10X-39/40/42/43 pattern. **Nothing runs it**: no npm script, no CI job, no browser-install step, no `webServer` and no preflight — so `npx playwright test` needs a hand-started dev server plus a `storageState` file that nothing produces. §3 **Phase 6** is the row that CLAIMS this layer and it is `not started`; claiming is not wiring (§5), and its sequencing note carries the nine measured harness findings — read them before running anything. Both files sit inside the type gate already, which says they COMPILE and nothing more (§6.6's C10X-43 correction); checked: 2026-08-05                                                                                                                                                                                                                                                          |
-| accessibility       | `eslint-plugin-jsx-a11y`                                                                                                                                                                                                                      | 6.10.2                                                                      | Lint-level only; PRD names baseline a11y but no risk in §2 requires an axe run yet                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| AI-native           | LLM-as-judge over a reference set — shipped by §3 Phase 5 (C10X-31); judge `google/gemini-2.5-flash` via OpenRouter, `temperature: 0`, structured outputs, `EVAL_JUDGE_MODEL` override; CI dispatch leg added by C10X-42; checked: 2026-08-02 | judge pinned in `evals/lib/judge.ts` as a revisable constant                | **Two invocations, one code path.** Locally: `npm run eval` with `OPENROUTER_API_KEY` in the SHELL env — a `.env` key feeds only the generator's seam and the inverse preflight rejects it. In CI since 2026-08-02: the **Generation quality eval** workflow (`workflow_dispatch` only, `.github/workflows/eval.yml`), which exports the repository secret `OPENROUTER_EVAL_KEY` to the step as `OPENROUTER_API_KEY` and takes optional `judge_model` / `generator_model` inputs. Both write `eval-report.log` + `eval-summary.log`; the workflow additionally captures the console stream and uploads all three. NOT part of `npm test` in either case (collection-level exclusion via `vitest.eval.config.ts`), and never a gate — nothing may declare it in `needs:`. **When NOT to use**: any assertion a deterministic check can make (JSON shape, card count, field presence, language tag) — those live in the ordinary suite (`tests/lib/eval-scoring.test.ts`). The judge is for usability and language fidelity only |
+| Layer               | Tool                                                                                                                                                                                                                                          | Version                                                                     | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| unit + integration  | Vitest                                                                                                                                                                                                                                        | 4.1.10                                                                      | Configured through `getViteConfig()` from `astro/config` (`vitest.config.ts`), which is what resolves the `@/*` alias and `astro:env/server`. The adapter's `@cloudflare/vite-plugin` is stripped there — it fights Astro over the `ssr` environment and tests target Node; checked: 2026-07-15                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| endpoint rendering  | Astro Container API                                                                                                                                                                                                                           | ships with Astro 6                                                          | `renderToResponse` with `routeType: "endpoint"` renders an API route against a real `Request`; checked: 2026-07-15                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| API mocking         | one confined module double — **see §6.9**                                                                                                                                                                                                     | Vitest's own `vi.mock` / `vi.hoisted`; no mocking library                   | Only the external HTTP edge (the LLM provider) is ever doubled; the database is real via local Supabase. Exactly one file does it (`tests/generation/failure-path.test.ts`), doubling **`astro:env/server`** plus a pass-through `globalThis.fetch` to reach the 502/422 branches the harness otherwise seals. Read §6.9 before copying it; checked: 2026-07-26. Since 2026-07-30 a **second** `fetch` seam exists and is NOT a double — `tests/setup/retry-transport.ts`, a suite-wide `setupFiles` wrapper that replays Kong's keep-alive `502` and nothing else; it fabricates no response, so it is not precedent for a second double (§6.9)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| database under test | Supabase CLI local stack                                                                                                                                                                                                                      | 2.98.2 (devDependency; `^2.23.4` in `package.json` is only the range floor) | Driven by `npm run db:start` / `db:stop` / `db:reset`; RLS is only meaningful against a real Postgres. CI starts the same stack and reads its URL + publishable key from `supabase status -o env`; checked: 2026-07-15. Since 2026-08-01 (C10X-39) `db:start` also chains `db:kong`, an **unsupported** post-`supabase start` recreation of the Kong container at `KONG_UPSTREAM_KEEPALIVE_POOL_SIZE=0`; it is per-machine, wiped by every `npx supabase stop`, and a bare `npx supabase start` does NOT get it — so never read a green run as evidence the stack was in that state, read `.kong_env` (§6.6's C10X-39 entry)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| e2e                 | Playwright, with `eslint-plugin-playwright` 2.11.0 as the layer's lint tool                                                                                                                                                                   | 1.62.1                                                                      | **A layer since 2026-08-09 (C10X-46), and still never a gate (§5).** `npm run e2e` is the entry point; it owns its own dev server (`webServer`, `reuseExistingServer` deliberately unset), refuses any non-local `SUPABASE_URL` **at config-module evaluation** — strictly before a server exists, because plugin setup precedes `globalSetup` — and runs a `setup` project that mints `playwright/.auth/user.json` through the real sign-in form plus a `teardown` project that removes the run's rows whatever the outcome. Three specs, **not one**: `seed.spec.ts`, `route-guard.spec.ts`, `accepted-card-survives-reload.spec.ts`. `workers: 1` is a measured fix, not a preference (§6.6's C10X-46 entry). **The two stale clauses this row carried until 2026-08-09 are retired**: "plus one spec" and "nothing runs it". One-off setup on a fresh checkout: `npx playwright install chromium`, which the preflight names by command when it is missing. **What the CI gates buy here, stated so it cannot be over-read**: `tests/e2e/**` sits inside `npm run typecheck` and, since C10X-46, inside `npm run lint`'s Playwright rules too — both fail-closed `ci` steps — so the layer's source **compiles and lints in CI while the layer itself never runs there**. Same shape as §6.6's C10X-43 correction: linting a file is not executing a journey; checked: 2026-08-09 |
+| accessibility       | `eslint-plugin-jsx-a11y`                                                                                                                                                                                                                      | 6.10.2                                                                      | Lint-level only; PRD names baseline a11y but no risk in §2 requires an axe run yet                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| AI-native           | LLM-as-judge over a reference set — shipped by §3 Phase 5 (C10X-31); judge `google/gemini-2.5-flash` via OpenRouter, `temperature: 0`, structured outputs, `EVAL_JUDGE_MODEL` override; CI dispatch leg added by C10X-42; checked: 2026-08-02 | judge pinned in `evals/lib/judge.ts` as a revisable constant                | **Two invocations, one code path.** Locally: `npm run eval` with `OPENROUTER_API_KEY` in the SHELL env — a `.env` key feeds only the generator's seam and the inverse preflight rejects it. In CI since 2026-08-02: the **Generation quality eval** workflow (`workflow_dispatch` only, `.github/workflows/eval.yml`), which exports the repository secret `OPENROUTER_EVAL_KEY` to the step as `OPENROUTER_API_KEY` and takes optional `judge_model` / `generator_model` inputs. Both write `eval-report.log` + `eval-summary.log`; the workflow additionally captures the console stream and uploads all three. NOT part of `npm test` in either case (collection-level exclusion via `vitest.eval.config.ts`), and never a gate — nothing may declare it in `needs:`. **When NOT to use**: any assertion a deterministic check can make (JSON shape, card count, field presence, language tag) — those live in the ordinary suite (`tests/lib/eval-scoring.test.ts`). The judge is for usability and language fidelity only                                                                                                                                                                                                                                                                                                                                                        |
 
 **Stack grounding tools (current session):**
 
@@ -838,7 +910,14 @@ The classic test base for this project. AI-native tools (if any) carry a
   computed style in a real browser as the only thing that catches its class. `and no phase claims e2e` is false as of
   this refresh — §3 **Phase 6** claims the layer, as `not started`; claiming is not wiring (§5). What has not changed is
   the tool: browser work in this project is still manual verification recorded per change, never automation;
-  checked: 2026-08-05
+  checked: 2026-08-05.
+  **Dated note, 2026-08-09 (C10X-46), and the `checked:` date above is deliberately NOT bumped** —
+  what moved is one clause, not this row's tooling. Phase 6 is `complete`, so "as `not started`" is
+  the record of 2026-08-05 rather than the state today. The row's own subject survives untouched and
+  is worth re-reading against the new layer: **`claude-in-chrome` is still not used, and an e2e layer
+  is not a substitute for it.** Playwright drives Chromium; nothing in this project drives the
+  developer's own browser session, and the manual browser matrices every change records are still
+  manual
 - Provider/platform: Supabase MCP (requires interactive auth, unavailable in headless runs), Atlassian/Jira MCP — noted for Phase 3 gate work only; GitHub Actions is the CI surface every gate in §5 must map onto; checked: 2026-07-15
 
 ## 5. Quality Gates
@@ -847,43 +926,52 @@ The full set of gates that must pass before a change reaches production.
 "Required after §3 Phase `<N>`" means the gate is enforced once that rollout
 phase lands; before that, the gate is `planned`.
 
-| Gate                               | Where                                                                                                                             | Required?                                                                                                            | Catches                                                                                        |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| lint                               | local (husky `pre-commit` → lint-staged, staged files only) + CI                                                                  | required — wired today                                                                                               | syntactic drift, rule violations                                                               |
-| typecheck                          | local (husky `pre-push`, whole project) + CI (`ci` job, between `astro sync` and `lint`)                                          | required — wired 2026-08-03 by C10X-43; before that date this row was false in **both** halves                       | type drift — including in `evals/`, `tests/` and `scripts/`                                    |
-| build                              | CI                                                                                                                                | required — wired today                                                                                               | broken production build                                                                        |
-| unit + integration                 | local + CI                                                                                                                        | required — wired by §3 Phase 1                                                                                       | logic regressions, cross-account access, endpoint contract breaks                              |
-| migration/schema drift check       | CI, `drift` job between `ci` and `deploy`                                                                                         | required — wired by §3 Phase 3 (C10X-29)                                                                             | deployed app running against an un-migrated prod schema; a history desync                      |
-| generated-types check              | CI, inside the `ci` job after the local stack                                                                                     | required — wired by §3 Phase 3 (C10X-29)                                                                             | `src/db/database.types.ts` stale against the migrations that generate it                       |
-| DDL diff against the cloud         | GitHub Actions, `workflow_dispatch` only                                                                                          | optional, human-triggered — no schedule                                                                              | a migration amended after it was pushed; production edited by hand                             |
-| post-edit hook                     | local (agent loop)                                                                                                                | recommended local, not a CI substitute                                                                               | regressions at edit time                                                                       |
-| prod smoke on a real flow          | between merge and "done"                                                                                                          | optional                                                                                                             | environment-specific failures (missing prod secret, silent mock mode)                          |
-| LLM-as-judge on generation quality | local (`npm run eval`, key in the shell env) **and** GitHub Actions, `workflow_dispatch` only — no schedule                       | optional, human-triggered — wired by §3 Phase 5 (C10X-31); the CI leg added 2026-08-02 (C10X-42)                     | wrong-language or unusable cards                                                               |
-| e2e browser journeys               | local only — a bare `npx playwright test` against a hand-started `npm run dev`; no npm script, no CI job, no browser-install step | **never a gate** — human-triggered, no schedule, and nothing may declare it in `needs:`; §3 Phase 6 is `not started` | the guard is MOUNTED and runs on a real browser navigation; an accepted card survives a reload |
+| Gate                               | Where                                                                                                                                    | Required?                                                                                                                                                                | Catches                                                                                        |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| lint                               | local (husky `pre-commit` → lint-staged, staged files only) + CI                                                                         | required — wired today                                                                                                                                                   | syntactic drift, rule violations                                                               |
+| typecheck                          | local (husky `pre-push`, whole project) + CI (`ci` job, between `astro sync` and `lint`)                                                 | required — wired 2026-08-03 by C10X-43; before that date this row was false in **both** halves                                                                           | type drift — including in `evals/`, `tests/` and `scripts/`                                    |
+| build                              | CI                                                                                                                                       | required — wired today                                                                                                                                                   | broken production build                                                                        |
+| unit + integration                 | local + CI                                                                                                                               | required — wired by §3 Phase 1                                                                                                                                           | logic regressions, cross-account access, endpoint contract breaks                              |
+| migration/schema drift check       | CI, `drift` job between `ci` and `deploy`                                                                                                | required — wired by §3 Phase 3 (C10X-29)                                                                                                                                 | deployed app running against an un-migrated prod schema; a history desync                      |
+| generated-types check              | CI, inside the `ci` job after the local stack                                                                                            | required — wired by §3 Phase 3 (C10X-29)                                                                                                                                 | `src/db/database.types.ts` stale against the migrations that generate it                       |
+| DDL diff against the cloud         | GitHub Actions, `workflow_dispatch` only                                                                                                 | optional, human-triggered — no schedule                                                                                                                                  | a migration amended after it was pushed; production edited by hand                             |
+| post-edit hook                     | local (agent loop)                                                                                                                       | recommended local, not a CI substitute                                                                                                                                   | regressions at edit time                                                                       |
+| prod smoke on a real flow          | between merge and "done"                                                                                                                 | optional                                                                                                                                                                 | environment-specific failures (missing prod secret, silent mock mode)                          |
+| LLM-as-judge on generation quality | local (`npm run eval`, key in the shell env) **and** GitHub Actions, `workflow_dispatch` only — no schedule                              | optional, human-triggered — wired by §3 Phase 5 (C10X-31); the CI leg added 2026-08-02 (C10X-42)                                                                         | wrong-language or unusable cards                                                               |
+| e2e browser journeys               | local only — `npm run e2e`, which starts and owns its own dev server; no CI job. One-off per checkout: `npx playwright install chromium` | **never a gate** — human-triggered, no schedule, and nothing may declare it in `needs:`. §3 Phase 6 is `complete` as of 2026-08-09 and that changes nothing in this cell | the guard is MOUNTED and runs on a real browser navigation; an accepted card survives a reload |
 
 **The e2e row is the newest row in this table and deliberately the only one that is not a gate
 at all** — which is why its `Required?` cell reads as a decision rather than as a waiting room.
-Read it against §3 first: **Phase 6 CLAIMS this layer, as `not started`, and nothing WIRES it** —
-no npm script, no CI job, no browser-install step, no `webServer` and no preflight (§4's e2e row;
-§3's sequencing note carries the nine measured harness findings). That distinction is the new
-footing under the one clause of this paragraph that survived 2026-08-05, namely that listing e2e
-as a gate would be **aspirational**: a phase claiming the layer is not a phase enforcing it, and
-the `Where` cell says exactly what a runner would have to type by hand. Read that cell as the
-absence of an entry point, never as a documented one — it does not say the command WORKS as
-typed, and on a fresh checkout it does not, because nothing installs the browser binaries and
-nothing produces the `storageState` file the config consumes. The two sentences around
-it are retired rather than re-based. The opening one said e2e was deliberately absent, which is
-false — a runner and one spec exist, they landed outside the rollout, and §4's e2e row is where
-that is stated. The closing one said to add e2e only if a risk survived the integration layer,
-and it is superseded by the way Phase 6 was scoped: both journeys were chosen because the
-integration layer cannot reach them **by construction** (§6.4 renders `routeType: "endpoint"`
-only and never runs project middleware), not because a risk survived it.
+**As of 2026-08-09 the layer is WIRED and still not a gate, and holding those two facts together
+is the whole point of this paragraph.** `npm run e2e` exists, starts its own dev server, refuses a
+non-local stack before that server boots, produces its own session and cleans up after itself
+(§4's e2e row; §3's Phase 6 note records which of the nine harness findings closed). None of that
+is a step toward CI: there is no job, no schedule, and nothing may declare one in `needs:`.
+
+The `Where` cell now describes an entry point that WORKS, which it did not before — the earlier
+version named a command a fresh checkout could not run, because nothing installed the browser
+binaries and nothing produced the `storageState` file. One prerequisite survives and is in the
+cell: `npx playwright install chromium`, once per checkout, and the preflight names it by command
+when it is missing. The two sentences that used to sit here are retired rather than re-based. The
+opening one said e2e was deliberately absent, which stopped being true on 2026-08-05. The closing
+one said to add e2e only if a risk survived the integration layer, and it is superseded by the way
+Phase 6 was scoped: both journeys were chosen because the integration layer cannot reach them
+**by construction** (§6.4 renders `routeType: "endpoint"` only and never runs project middleware),
+not because a risk survived it.
+
+**One thing about CI must not be misread in either direction.** The layer's SOURCE is gated:
+`tests/e2e/**` has sat inside `npm run typecheck` since 2026-08-05, and since C10X-46 it is also
+inside `npm run lint`'s Playwright rules — both fail-closed `ci` steps, so a `page.waitForTimeout`
+or a type error in a spec reddens the `ci` job. That is not this row softening. It is the
+compiles-vs-runs distinction §6.6's C10X-43 correction already had to make once: **the gates say
+the specs compile and lint, never that anything ran them.**
 
 **`never a gate` must not soften into `required — wired by §3 Phase 6` the day that phase
 lands**, which is the one way this row could rot without anybody editing it. Same rule and same
 reason as the DDL diff and the eval below: this project has no notification channel, so a red
 run nobody is committed to reading is not coverage. Nothing may ever declare an e2e job in
-`needs:`.
+`needs:`. **That day was 2026-08-09 and the row survived it** — the sentence above was written as
+a trap for exactly this edit, the phase landed `complete`, and the only cell that moved is `Where`.
 
 **The typecheck row is the newest gate and the one this table was wrong about for longest.**
 Until 2026-08-03 it read `lint + typecheck | local (husky pre-commit via lint-staged) + CI |
@@ -3029,6 +3117,130 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
   hash-verified restore: `context/changes/typecheck-gate/plan.md`'s Progress section (after
   archiving: `context/archive/<date>-typecheck-gate/plan.md`).
 
+- **§3 Phase 6 (`e2e-harness-journeys`, C10X-46, 2026-08-09)** — the first new TEST LAYER in this
+  project since C10X-31's eval, and the first §3 rollout phase to close since C10X-30. Risks #1 and
+  #6 are **extended, not re-covered**: no §2 row moves, because a browser journey introduces no new
+  failure scenario — it reaches an execution path no existing layer can reach. Read that boundary
+  first, because the layer's value is entirely in it: `tests/middleware.test.ts` has driven
+  `it.each` over the real `PROTECTED_ROUTES` on both branches since C10X-27, and the Container API
+  mounts `NOOP_MIDDLEWARE_FN` and renders only `routeType: "endpoint"` — so **nothing in this
+  project could see whether the middleware is MOUNTED at all** until a real browser navigation did.
+
+  Two things about the phase's own shape belong in the first paragraph. The harness it inherited
+  existed already — a runner and two specs landed 2026-08-05 **outside** the phased rollout, the
+  C10X-39/40/42/43 pattern — so this phase's first job was to make something runnable that had
+  never run. And the layer is **never a gate** (§5): no CI job, no schedule, nothing in `needs:`.
+
+  | Claim                                                                             | What proves it                                                                                                                                                                                                                                                                                                                     |
+  | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | The guard is MOUNTED and executes on a real browser navigation                    | `tests/e2e/route-guard.spec.ts`, five protected page routes driven signed-out, the oracle being the browser's FINAL URL — never a `fetch` status, because `fetch` follows the 302 to a 200 and that is exactly how the C10X-27 bug hid                                                                                             |
+  | …and the redirect is SELECTIVE, not an app that funnels everything to sign-in     | the public control on `/`, which asserts the `10xCards` heading is **present** and only then that the sign-in heading is absent — the presence half being the load-bearing one, see breakage 4.4                                                                                                                                   |
+  | …and with a session the same guard lets the caller through                        | the signed-in control on `/decks`, asserting the `Talie` heading is present, for the same reason                                                                                                                                                                                                                                   |
+  | An accepted candidate becomes part of the deck and survives a reload              | `tests/e2e/accepted-card-survives-reload.spec.ts`: a content-free count of `getByRole("button", { name: "Edytuj", exact: true })` at **0 → 1 → N → still N after `reload()`**, asserted only while the browser is on `/decks/<publicId>`, each step a distinct expected number so a red names which transition failed              |
+  | …and the zero point is genuine rather than a proxy                                | `listFlashcards` filters `.eq("state_id", STATE_ACCEPTED)` (`src/lib/flashcards.ts:97-104`), so the generated cards exist as rows while being invisible on the deck page — breakage 5.2 turns that assertion red by removing the filter                                                                                            |
+  | The harness cannot run against anything but the local stack                       | `tests/e2e/setup/env.ts`, asserted at **config-module evaluation** — strictly before a server exists, because Playwright orders plugin setup (which starts `webServer`) BEFORE `globalSetup`. The decidable half is a pure function under `tests/lib/e2e-env.test.ts` with every input fabricated and a whole-map positive control |
+  | …and that assertion is BINDING on the child, not merely descriptive of the runner | the verified map is handed to `webServer.env`, which outranks `process.env`, which outranks `.env`. `reuseExistingServer` is deliberately unset, so an already-listening port is a hard error rather than an attach to a server nothing verified                                                                                   |
+  | …including the one source `webServer.env` cannot outrank                          | `@astrojs/cloudflare` merges `.dev.vars` into the child's `process.env` afterwards, so the merge under assertion is the two REAL sources and the refusal names **which file** carries the offending value (breakage 1.8)                                                                                                           |
+  | The two shared predicates cannot drift between the two preflights                 | `assertAnonKey` and `assertLocal` were EXTRACTED into `tests/setup/env-assertions.ts` and are imported by both `tests/setup/preflight.ts` and the e2e side — not copied, which is the class §6.6 records the cost of four times                                                                                                    |
+  | The session artifact has a producer, and it is correct by construction            | `tests/e2e/setup/auth.setup.ts` drives the real sign-in form, so name, value, encoding, chunking, domain and expiry all come from the app and the browser — `lessons.md`'s "never hand-assemble an `@supabase/ssr` cookie" satisfied structurally rather than by care                                                              |
+  | …and it asserts it is signed in BEFORE writing                                    | `context.storageState()` will happily serialise `{"cookies":[],"origins":[]}`; two DOM facts are asserted first (the shell exists, and it belongs to THIS account), because otherwise every downstream test runs signed out and journey B's control reports a harness defect AS a guard defect                                     |
+  | Cleanup survives a mid-spec failure                                               | a `teardown` PROJECT, wired as `chromium`'s `teardown` so it runs whatever the outcome, acting as the same account under RLS and scoped to a per-worker on-disk registry written BEFORE each row is created                                                                                                                        |
+  | …and it reaches the table a deck-scoped teardown cannot                           | `generation_session` has no deck FK at all, so the run-delta oracle is **two counts and not one** — `{"decks":0,"sessions":0}` before and after a full run, both deltas 0                                                                                                                                                          |
+  | …and that 0 → 0 is not vacuous                                                    | the control: the same failing run with the teardown project unwired leaves `{"decks":2,"sessions":1}`                                                                                                                                                                                                                              |
+  | The two runners cannot silently collect each other's files                        | `tests/lib/e2e-isolation.test.ts`, both directions, with two positive controls (the walker reaches the files that exist; the predicate fires on a fabricated path)                                                                                                                                                                 |
+  | The five `/10x-e2e` anti-patterns are lint-enforced rather than review-enforced   | `eslint-plugin-playwright` scoped to `tests/e2e/**`, with `no-wait-for-timeout`, `no-wait-for-selector`, `no-element-handle`, `prefer-locator`, `no-skipped-test` and `expect-expect` raised to `error`                                                                                                                            |
+
+  **Deliberate-breakage runs — fifteen criteria, and the eight belonging to Phases 2-4 were
+  RE-EXECUTED on 2026-08-09** because those phases recorded their splits nowhere and this file's own
+  rule is that a split is a claim about a run. Every string below is from a run against the tree as
+  it now stands.
+
+  | #   | Neuter                                                    | Observed                                                                                                                                                              |
+  | --- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | 1.5 | cloud `SUPABASE_URL` in `.env`                            | exit 1 **while Playwright is still loading the config** — the stack trace names `playwright.config.ts:11` → `resolveE2eEnv` → `buildE2eEnv` → `assertLocal`           |
+  | 1.6 | a hand-started dev server on 4321                         | `Error: http://localhost:4321 is already used, make sure that nothing is running on the port/url…` — a hard error, never a silent attach                              |
+  | 1.7 | the chromium binary directory renamed away                | `E2E preflight failed: the chromium binary Playwright needs is not installed. Run: npx playwright install chromium`                                                   |
+  | 1.8 | cloud `SUPABASE_URL` in a `.dev.vars` over a valid `.env` | throws before any server starts, naming **`.dev.vars`** rather than `.env` — and the assertion behind it was itself proved falsifiable, **1 of 26** red               |
+  | 2.3 | `tests/e2e/scratch.test.ts`                               | **1 of 6** red, naming the file, the rule and two fixes                                                                                                               |
+  | 2.4 | `page.waitForTimeout(100)` in a spec                      | `npm run lint` exit 1, `error Unexpected use of page.waitForTimeout() playwright/no-wait-for-timeout`; the 3 pre-existing `no-console` warnings unchanged             |
+  | 3.4 | the setup project's sign-in forced to fail                | **1 failed / 2 passed** — the `chromium` project never runs, and `playwright/.auth/user.json` is absent afterwards. The red is the producer, not a downstream timeout |
+  | 3.5 | a spec throwing after it creates a deck                   | **1 of 12** red, the teardown still running and passing, both row deltas **0** — with the unwired-teardown control leaving `{"decks":2,"sessions":1}`                 |
+  | 4.2 | `/study` removed from `PROTECTED_ROUTES`                  | **1 of 7** red in the browser, that route only, on `waitForURL` — while `npm test` stays **green and silently loses two cases, 399 → 397**                            |
+  | 4.3 | the guard widened to everything but the auth surfaces     | **1 of 7** red on the **public control**, `Received: "http://localhost:4321/auth/signin"` — a different case failing on a different assertion (§6.10's pair)          |
+  | 4.4 | `/` made to answer 500, E1 present / E1 removed           | **1 of 7** red on the public control, then — with only that one line removed — **10 passed, exit 0** over the same dead landing page                                  |
+  | 4.6 | `src/middleware.ts` renamed away                          | the browser run dies in the **setup** project (journey B never executes); Vitest goes red in **four files**, none of them about the guard's behaviour                 |
+  | 5.2 | the `STATE_ACCEPTED` filter removed from `listFlashcards` | **1 of 11** red, `Expected: 0, Received: 3`, journey B untouched                                                                                                      |
+  | 5.3 | the accept transition no-oped, then routed to `rejected`  | a **pair**: the first dies on the CANDIDATE count, the second on the DECK count — separating "never left the review screen" from "left but never arrived"             |
+  | 5.4 | `exact: true` dropped from the counting locators          | **1 of 4** red, from the `Akceptuj` side only; the deck-page `Edytuj` counts passed without it                                                                        |
+
+  **Three of the plan's predictions did not survive contact, and each is recorded as observed
+  rather than rounded** — the discipline this file applies to C10X-29's `missingLocal` neuter and
+  C10X-30's case 8. **4.3 as worded** ("force the guard predicate to `true`") makes `/auth/signin`
+  redirect to itself, so the run never starts and ends on
+  `Timed out waiting 120000ms from config.webServer` — nothing is learned; it needed the auth
+  surfaces exempted to ask its intended question. **4.4's first attempt** failed the same way for a
+  different reason: `webServer.url` is `/`, i.e. the readiness probe is the route the breakage takes
+  down, which is a real coupling and is written down rather than worked around silently. And
+  **4.6 fails EARLIER than predicted in the browser and in MORE places than predicted in Vitest** —
+  the session producer is itself downstream of the middleware, so `dependencies: ["setup"]` stops
+  everything behind it, while on the Vitest side three walker guards go red simply because a file
+  left `src/`. The general form is now a rule in §6.11: **check what your neuter does to the harness
+  before you read its colour.**
+
+  **The layer was measured FLAKY and the cause was removed rather than retried past.** Ten runs at
+  the default worker count on 2026-08-09: six green at ~12 s, four red, every red on a cold or
+  freshly-invalidated `node_modules/.vite`, reproduced deliberately twice. The cause is in the run's
+  own output, which reports a `deps_ssr/chunk-….js` that
+  `is in the optimize deps directory` and no longer exists — i.e. Astro compiles routes on demand while Vite
+  rewrites `deps_ssr/` under a new hash, and requests in flight answer 500, reaching a spec as
+  `element(s) not found` or a click that never becomes actionable. `webServer.timeout` cannot cover
+  it: the readiness probe hits `/` and returns the moment ONE route answers. The fix is
+  **`workers: 1`**, measured at **11 of 11 green** on cold caches — a SUM of two measured rows, 5
+  with the warm-up and 6 without it — against 5 of 7 for the
+  alternative, at a cost of ~12 s → ~21 s. A route warm-up was written first and **deleted**,
+  because its measured contribution once requests were serialised was zero. `retries` stays **0**:
+  this removes a cause, it does not hide one.
+
+  **What this does NOT prove — read this before citing Risk #1 or #6 as more covered than they are.**
+  - **The layer is never a gate and is not watched.** No CI job, no schedule, nothing in `needs:`,
+    and `npm run e2e` runs only when a human runs it. This date means "exercised", never "watched" —
+    the same reading §2's Risk #7 row has demanded of the eval since C10X-31.
+  - **The gates cover the specs' SOURCE, not their execution.** `tests/e2e/**` sits inside
+    `npm run typecheck` and now inside `npm run lint`'s Playwright rules, both fail-closed `ci`
+    steps — so a green `ci` job says the layer **compiles and lints**, never that any journey ran.
+    Exactly the distinction the C10X-43 entry above had to make once already.
+  - **Two journeys exercise at most two islands, on one happy path each, while four carry a
+    `fetch`.** §7's islands exclusion survives unchanged: the defect it was written from is a wrong
+    ok/parse ORDER on a failure branch no journey deliberately produces. One exemplar spec covers
+    one flow, not the class.
+  - **The account carries state between runs** (change.md D-01), so no spec may assume an empty
+    starting deck list, and every count must be scoped to the spec's own rows.
+  - **A hand-started server is outside the guarantee.** `reuseExistingServer` unset is what makes
+    the local-host assertion binding; anyone who sets it — and Playwright's own port-collision
+    message suggests exactly that — disarms it. That hazard was found and deliberately not fixed:
+    intercepting the tool's own advice would need a config-time port probe.
+  - **The session's durability rests on GoTrue behaviour this project does not own**, and any
+    `npx supabase stop` or `npm run db:reset` kills it. The producer is the answer to that, not the
+    mechanism.
+  - **The cleanup registry keeps a residual failure mode**: a worker killed between the registration
+    write and its flush still loses that entry — strictly narrower than the inline pattern it
+    replaces, which lost the row on ANY failure, but not zero. Measured on a second route to the
+    same gap: an abrupt kill of the run's process tree leaves the teardown unexecuted and both rows
+    orphaned, and the next run's `removeOutputDirs` then wipes the evidence. **The true console
+    Ctrl-C path is unmeasured** and the reason is on record in the change's `verification.md`.
+  - **The flake is closed at eleven cold-cache runs on one machine on one day.** Zero over eleven
+    bounds a rate; it does not prove impossibility, and the Vite behaviour underneath is untouched.
+  - **Nothing here exercises concurrent users** — serialising the runner was a fix for the dev
+    server, and it narrows what this layer could ever say about concurrency to nothing.
+  - **The 5459-deck debt is stopped, not repaid.** The teardown scopes to the run's own registry by
+    decision; the pre-existing rows and the 2026-08-05 orphan are deliberately left in place.
+
+  Full evidence — every breakage edit with its observed failure string and denominator, the
+  verified restores, the ten-run flake dataset with its two deliberate reproductions, and the
+  Phases 2-4 backfill:
+  `context/changes/e2e-harness-journeys/verification.md` (after archiving:
+  `context/archive/<date>-e2e-harness-journeys/verification.md`).
+
 ### 6.7 Adding a test for the SRS / study path
 
 (Added by §3 Phase 4. It sits after §6.6 so the existing §6.6 references in
@@ -3404,6 +3616,101 @@ text match would also read identical for a constraint that came back `NOT VALID`
 the restored bound behaviourally too, inside a rolled-back transaction and with an in-range
 insert as the positive control. §6.6's C10X-30 entry records both runs with their splits.
 
+### 6.11 Adding an e2e (browser) test
+
+(Added by C10X-46 / §3 Phase 6. It sits after §6.10 so every existing §6.x anchor keeps pointing
+where it did. Before this date §6 carried two trap sentences about e2e and no procedure, which was
+correct while nothing could run the layer and is not now.)
+
+**Read §5 before you read anything else here: this layer is never a gate.** It has no CI job, no
+schedule, and nothing may declare one in `needs:`. A green run means "somebody exercised it on that
+date", never "a signal is being watched" — the same reading §2's Risk #7 row demands of the eval.
+
+- **Location**: `tests/e2e/`, which is Playwright's `testDir`. Helpers may live in
+  `tests/e2e/setup/` and `tests/e2e/teardown/`; the rule is about Vitest's `include`, not about the
+  directory's contents.
+- **Naming**: `*.spec.ts`. **Never `*.test.ts` under `tests/e2e/`** — that matches Vitest's
+  `include` (`tests/**/*.test.ts`) as well as Playwright's default pattern, so BOTH runners collect
+  the file and this node-only suite tries to drive a browser. You do not have to remember this:
+  `tests/lib/e2e-isolation.test.ts` fails and names the file, the rule and two fixes. The `setup`
+  and `teardown` projects carry an explicit `testMatch` for the opposite reason — the default
+  pattern needs `.test.` or `.spec.` in the filename, and a project collecting **zero** tests
+  satisfies `dependencies: ["setup"]` trivially.
+- **Reference**: `tests/e2e/seed.spec.ts` — the smallest complete example, and the file `/10x-e2e`
+  learns this project's conventions from. `route-guard.spec.ts` for a signed-out case,
+  `accepted-card-survives-reload.spec.ts` for a multi-screen journey with a counting oracle.
+- **Run**: `npm run e2e` for the whole layer, `npx playwright test <file>` for one spec — either way
+  Playwright starts and owns the dev server, so **port 4321 must be free**. A server you started by
+  hand is a hard error, not a silent attach, and that is deliberate: `reuseExistingServer` is unset
+  because a foreign server leaves no oracle for which Supabase project it points at.
+- **Prerequisites**: the local stack up (`npm run db:start`) and, once per checkout,
+  `npx playwright install chromium`. Both failures are named by the config-time preflight in the
+  imperative — it tells you the command to run rather than the check that failed.
+- **Check §6.6 first**, as §6.2 requires: the C10X-46 entry there tabulates what this layer already
+  claims and, at equal length, what it does not.
+
+Seven project-specific facts that are invisible from the spec files and will cost you an afternoon:
+
+- **The account is SHARED and carries state between runs** (change.md D-01). One dedicated account
+  signs in per run, deliberately — per-run accounts would re-expose the 30-sign-ins / 5-min / IP
+  limit that this harness currently does not touch. The price is the rule: **no spec may assume an
+  empty starting deck list**, and every count must be scoped to rows the spec itself created.
+- **Cleanup is never a step in the test body.** Declare what you are about to create with the
+  `registry` fixture from `tests/e2e/fixtures.ts` (import `test`/`expect` from there rather than
+  from `@playwright/test`), and the `teardown` project removes it after the run whatever the
+  outcome. **Register BEFORE the row exists**, not after: the name is minted first, so registering
+  costs nothing and closes the window that produced the incident this pattern exists for —
+  `seed.spec.ts` used to delete its own deck on its last line and `E2E deck 1785947414992` has sat
+  orphaned since 2026-08-05 because a failure earlier in the spec skipped that line permanently.
+- **Register the generation too, not only the deck.** `flashcard` and `flashcard_schedule` cascade
+  from `deck`, so deleting the deck takes them; **`generation_session` has no deck foreign key at
+  all**, so a deck-only registration leaks one row per generation, permanently, on a stable
+  account. Scope it by a SHORT leading marker inside `source_text` — a PostgREST filter carrying a
+  long value answers **414** before the query runs (§6.6's C10X-28 trap), and a journey's source
+  text is deliberately long.
+- **Every accessible name matches as a case-insensitive SUBSTRING by default**, so `exact: true` is
+  the rule and not a flourish. Measured pairs in this app: `Akceptuj` (per-card) also matches
+  `Akceptuj (3 fiszki)` (bulk toolbar), and `getByLabel("Password")` also matches the
+  `Show password` toggle button, which fails on a strict-mode violation rather than on a count.
+- **Three more locator hazards, each measured.** `Edytuj` renders on **two** pages — the deck page
+  and the review screen — so a count of it is an oracle of the deck's contents **only while the
+  browser is on `/decks/<publicId>`**. `Usuń` over-counts by one under `getByRole` (the deck-delete
+  button in the sticky header) and by two in the raw DOM. And `role="alert"` is present on **every**
+  authenticated page in mock mode (the OpenRouter config banner, first in DOM order), so no
+  assertion may select it unscoped.
+- **Wait for the EFFECT of an action, never for time, and retry the ACTION.** Every `<dialog>` is
+  permanently mounted and opened imperatively, and every form island is React-controlled, so a
+  click or a `fill()` landing before hydration is silently lost — and the obvious wait does not
+  catch it, because `fill()` followed by `toHaveValue` passes at the instant the DOM value is set
+  and React wipes it on its first render. Reuse `seed.spec.ts`'s `toPass` helper shape rather than
+  re-deriving it, and **guard first**: a retry after a successful click on a toggle undoes it and
+  hangs forever. `page.waitForTimeout` is a lint error (`playwright/no-wait-for-timeout`), as are
+  `waitForSelector`, element handles, skipped tests and a spec with no assertion.
+- **`workers: 1` is load-bearing and measured** (§6.6's C10X-46 entry). Astro's dev server compiles
+  routes on demand and Vite re-runs SSR dependency optimisation while doing it, so concurrent first
+  requests hit chunks that no longer exist and answer 500 — reaching a spec as a missing element
+  or a click that never becomes actionable. Do not raise it to buy back the ~9 s.
+
+**Do not assert on card content.** `mockCards` output is byte-identical across calls, so two
+generations into one deck produce duplicate fronts — the same reason §6.5 gives for using
+`generation_id` rather than `front` as an identity. Content is usable as a one-off probe during a
+manual check; it is not an oracle.
+
+**And write an assertion that can be red for the right reason.** `toHaveCount(0)` and "the sign-in
+heading is absent" both pass green over a page answering **500**, which is measured rather than
+argued: with journey B's presence assertion removed, its public control stayed **fully green** over
+a landing page that threw. Pair every absence with a presence anchor on the same page — a heading
+that only the correct page renders — exactly as §6.2 pairs every denial with a positive control.
+
+**The deliberate-breakage expectation is the same as everywhere else in this file**, with one
+addition this layer earned. Neuter the thing your spec claims to observe, record the observed
+failure string and the split with its denominator, restore, and verify the restore by hash. The
+addition: **check what your neuter actually does to the harness before you read its colour.** Two
+of this layer's planned breakage runs never started — one made `/auth/signin` redirect to itself,
+one took down the route `webServer.url` probes — and both ended on
+`Timed out waiting 120000ms from config.webServer` rather than on any assertion. A neuter that
+prevents the run is not evidence about the guard.
+
 ## 7. What We Deliberately Don't Test
 
 Exclusions agreed during the rollout (Phase 2 interview, Q5). Future
@@ -3469,6 +3776,16 @@ contributors should respect these unless the underlying assumption changes.
   > than deleted — re-evaluate when a computed-style or visual-diff oracle is actually
   > wired, never when a browser runner merely exists.
   >
+  > **Checked again 2026-08-09 (C10X-46) — the exclusion STANDS, and the absence of an edit
+  > is recorded so nobody hunts for one.** This is the first date on which the restated
+  > condition could have been met: §3 Phase 6 shipped, so the layer is wired and runs. It
+  > wires **neither** oracle — nothing in it reads a computed style, and this project still
+  > carries no visual-diff tool at any layer. That is exactly why the 2026-08-05 restatement
+  > was worth making in those terms rather than in "a browser runner exists" terms. One clause
+  > above is now stale in WORDING only and is left standing as the dated record: "nothing runs
+  > the one that exists" was true when written, and `npm run e2e` runs it today. The decision
+  > it supports is untouched.
+  >
   > **Re-decided 2026-08-05, separately, for the nested `scroll-padding-top` deferral —
   > still deferred, and its blocker is restated because it was never the one it sounded
   > like.** "Needs its own browser verification" reads as a missing capability and was
@@ -3479,6 +3796,21 @@ contributors should respect these unless the underlying assumption changes.
   > What the deferral gains today is an owner rather than a capability: whoever wires
   > the e2e layer under §3 Phase 6 inherits the cheapest place to collect the evidence.
   > Until then this stays untested negative space, exactly as the paragraph above says.
+  >
+  > **The owner named above arrived on 2026-08-09 (C10X-46) and DECLINED it, which is a
+  > decision and is dated here so it does not read as an omission at the next review.**
+  > Phase 6 wired the e2e layer and its "What We're NOT Doing" excludes `scroll-padding-top`
+  > explicitly. Three reasons, none of them capacity. The evidence WCAG 2.4.11 needs is a
+  > browser matrix of Tab-driven focus against two `sticky` bars — an interaction neither of
+  > this phase's two happy-path journeys performs, so "the layer exists" bought nothing here.
+  > Focus Not Obscured is outside every oracle the phase built: its assertions read URLs,
+  > accessible names and row counts, never geometry. And a one-property fix landing without
+  > that matrix would be the claim-without-evidence C10X-22's own impl-review refused. **The
+  > ownership is therefore re-stated rather than left pointing at a phase that has closed:
+  > it belongs to whoever next collects a manual browser matrix on the deck page** — the
+  > `/10x-e2e` manual-verification step of any change touching `AuthenticatedLayout.astro`
+  > or either sticky bar is the cheapest such moment. Until then it stays untested negative
+  > space.
 - **Marketing/landing pages and static copy** — snapshot tests break
   constantly and catch nothing. Re-evaluate if the landing gains a real
   flow (e.g. the inline sign-in form parked as C10X-20). (Source: Phase 2
@@ -3603,6 +3935,18 @@ contributors should respect these unless the underlying assumption changes.
   > unchanged, and the restated condition is narrower than the one it replaces: re-evaluate
   > per island, when a spec actually drives that island's failure branch — never on the
   > arrival of the layer as such.
+  >
+  > **Checked against the shipped layer 2026-08-09 (C10X-46) — the exclusion STANDS, and the
+  > 2026-08-05 prediction held exactly.** §3 Phase 6 landed with two journeys, and they drive
+  > `GeneratorForm` and `CandidateReviewWorkspace` on one happy path each; `FlashcardWorkspace`
+  > and `StudySession` are untouched, and no spec drives ANY island's failure branch. So the
+  > per-island condition is not met for a single island, and the review-by-reading rule above
+  > is unchanged. Two smaller notes rather than a rewrite. The counting hazard this bullet
+  > records was re-measured and is now enforced where it bites: `exact: true` is a layer-wide
+  > rule in §6.11, and `role="alert"` being present on every authenticated page is written
+  > there too. And the layer's specs are themselves under `npm run lint`'s Playwright rules and
+  > `npm run typecheck` in CI — which says they compile and lint, never that an island's
+  > `fetch` handling was executed.
 
 ## 8. Freshness Ledger
 
@@ -4589,6 +4933,75 @@ contributors should respect these unless the underlying assumption changes.
   §5 intro's unqualified "before that, the gate is `planned`" convention, which the e2e row is
   deliberately kept out of; the paragraph beneath the table blocks the inference by name, and
   editing the intro was outside the phase's contract.
+
+- **§3 Phase 6 / the e2e layer last proven by execution: 2026-08-09** (C10X-46, change folder
+  `e2e-harness-journeys`, roadmap H-12). The first §3 rollout phase to close since C10X-30, and the
+  first new test LAYER since C10X-31's eval. Vitest suite **399 passed / 399, 33 files**, seed
+  `1786290167803` — **unchanged by this phase, and correctly so**: its deliverables are `.spec.ts`
+  files, which Vitest's `include` does not collect, and that is precisely the property Phase 2's
+  `tests/lib/e2e-isolation.test.ts` exists to assert. `npm run typecheck` exit 0,
+  `Result (145 files): 0 errors, 0 warnings`; `npm run lint` exit 0 with **3** warnings, all
+  `no-console` in `evals/generation-quality.eval.ts`; `npm run build` **run rather than assumed**,
+  exit 0 (the standing `@astrojs/sitemap` `site` warning unchanged).
+  `npm run e2e` **12 passed** — 15.3 s on a warm dependency cache, 21.1 s on a cold one, starting
+  its own dev server with none started by hand. Local stack up, `OPENROUTER_API_KEY` unset, no
+  `.dev.vars`, and the e2e account at `{"decks":0,"sessions":0}` before and after everything below.
+- **Fifteen breakage criteria, and EIGHT of them were re-executed rather than cited.** Phases 2, 3
+  and 4 shipped with their Progress rows checked and wrote no evidence section, so their observed
+  strings, splits and denominators existed nowhere — and this file's own rule is that a split is a
+  claim about a run. Rather than write §6.6 from claims nobody could check, criteria 2.3, 2.4, 3.4,
+  3.5, 4.2, 4.3, 4.4 and 4.6 were re-run on 2026-08-09 against the tree as it now stands, each
+  restored and each restore verified by hash or by a line-for-line diff. Consequence stated rather
+  than implied: that backfill is evidence those guards can go red **today**, never a record of what
+  was observed on the days those phases shipped.
+- **Three predictions did not survive contact, and one measurement is sharper than the criterion
+  that asked for it.** 4.3 as worded and 4.4's first attempt both end on
+  `Timed out waiting 120000ms from config.webServer` — the run never starts, so nothing is learned;
+  the general form is now a rule in §6.11. 4.6 fails earlier than predicted in the browser (the
+  session producer is downstream of the middleware it would test) and in more places than predicted
+  in Vitest (four files, three of them file-census guards noticing a file left `src/`). And 4.2's
+  Vitest half is better than "100% green": the suite stays green **and silently loses two cases,
+  399 → 397**, because `it.each` over the real array simply drops rows — which is the asymmetry the
+  hardcoded route copy in the spec exists to cover, measured rather than argued.
+- **The layer was measured FLAKY, and this phase is where that was found.** Phase 5's record says
+  `npm run e2e` is green; on 2026-08-09 that turned out to hold only on a warm Vite dependency
+  cache. Ten runs at the default worker count: six green at ~12 s, four red, every red on a cold or
+  freshly-invalidated `node_modules/.vite`, reproduced deliberately twice by moving that directory
+  aside. Cause in the run's own output, not in the app — Vite rewrites `deps_ssr/` under a new hash
+  while Astro compiles routes on demand, and requests in flight answer 500. Fixed by **`workers: 1`**
+  (11 of 11 green on cold caches — 5 with the warm-up plus 6 without it, a sum stated with its
+  breakdown because this ledger has been caught on that three times — against 5 of 7 for the
+  alternative), at ~12 s → ~21 s per run. A
+  route warm-up was written first and **deleted** because its measured contribution was zero once
+  requests were serialised — a negative result recorded rather than shipped as a mechanism with a
+  confident comment. `retries` stays **0**; this removes a cause, not a symptom.
+- **`.gitignore` gained four artifact classes and they are LATENT, not observed** —
+  `playwright-report/`, `blob-report/`, a root-anchored `.last-run.json` and `*-snapshots/`. The
+  default reporter produces none of them today; they are listed so the first person to add an HTML
+  reporter or a screenshot assertion does not commit them. The anchoring choice is deliberate and
+  says so in a comment: an anchored ignore does not cover a moved `outputDir`.
+- **§7's three e2e-keyed sites were checked and all three STAND, with the absence of an edit
+  recorded at each.** This was the first date on which their restated conditions could have been
+  met, because the layer is now wired rather than merely present. The focus-ring exclusion wires
+  neither a computed-style nor a visual-diff oracle. The islands exclusion's 2026-08-05 prediction
+  held exactly: two journeys drive two of the four `fetch`-carrying islands, on happy paths, so not
+  one island's failure branch is exercised. And the nested `scroll-padding-top` deferral — whose
+  2026-08-05 re-decision named **this phase** as its owner — is **declined on the merits and dated
+  at the site**, with the ownership re-stated so it points at the next manual browser matrix rather
+  than at a phase that has closed.
+- **The predecessor's roadmap debt is not repeated, and the predecessor's own is now visible.**
+  `roadmap.md` gains the **H-12** row and detail block for this change, so `/10x-archive` has
+  something to close — the omission that produced the H-04/H-07/H-08 backfills. `roadmap.md:234`'s
+  claim that this project "nie ma warstwy e2e ani visual-diff" was **half** false as of 2026-08-05
+  and is corrected on the e2e half only; the visual-diff half stands untouched and is still true.
+  What is NOT fixed here: `test-plan-refresh-2026-08-05` still has no roadmap row of its own, which
+  its own §8 entry predicted and accepted.
+- **Still open after this entry, deliberately**: the layer is never a gate and must not become one;
+  the true console Ctrl-C path is unmeasured (the change's `verification.md` records why, including
+  a measurement attempt that damaged what it measured); the registry's residual failure mode
+  survives; §7's islands exclusion survives per island; the 5459-deck debt is stopped, not repaid;
+  and `customfield_10041` on **C10X-46** is `/jira-finish-work`'s to fill —
+  `context/foundation/jira-map.md` is owned by the Jira skills and was not hand-edited here.
 
 Refresh (`/10x-test-plan --refresh`) when:
 

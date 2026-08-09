@@ -50,6 +50,7 @@ npm run dev
 - `npm run lint` - Run ESLint with **type-aware rules** — note this is not the same thing as a type check: it reads types to decide rules, and reports no `tsc` diagnostic. That distinction is why `npm run typecheck` exists as a separate script
 - `npm run lint:fix` - Auto-fix ESLint issues
 - `npm run format` - Run Prettier. Note `context/archive/**` is in `.prettierignore`, so archived evidence is never reformatted (dated corrections are appended to it, never rewrites)
+- `npm run e2e` - The Playwright browser layer (three specs). It **starts and owns its own dev server**, so port 4321 must be free — a server you started by hand is a hard error rather than a silent attach, deliberately, because attaching to a foreign server leaves no way to tell which Supabase project it points at. It refuses any non-local `SUPABASE_URL` **before** that server boots, mints its own signed-in session by driving the real sign-in form, and removes the rows it created in a teardown that runs whatever the outcome. Requires the local stack (`npm run db:start`) and, once per checkout, `npx playwright install chromium` — the preflight names that command when the browser is missing. **Local only and human-triggered: there is no CI job, no schedule, and nothing may declare one in `needs:`.** What a green run does **not** prove: the specs' source is type-checked and lint-checked in CI, but the journeys themselves never run there, so a green `ci` job says this layer compiles and lints — never that anything exercised it
 
 ## Project Structure
 

@@ -56,6 +56,37 @@ export default defineConfig({
   // nobody should trust.
   retries: 0,
 
+  // ONE WORKER, and it is a MEASURED fix for a false-red class rather than a preference.
+  //
+  // On 2026-08-09 this layer was flaky: ten runs at the default worker count gave six green at
+  // ~12 s and four red, and every red sat on a cold or freshly-invalidated `node_modules/.vite`.
+  // Reproduced deliberately by removing that directory. The cause is in the run's own output, not
+  // in the app:
+  //
+  //   [WebServer] [ERROR] [vite] Internal server error: The file does not exist at
+  //   ".../node_modules/.vite/deps_ssr/chunk-UVVZ4HX5.js?v=4f8fd614" which is in the optimize deps
+  //   directory. The dependency might be incompatible with the dep optimizer.
+  //
+  // Astro's dev server compiles routes on demand and Vite re-runs SSR dependency optimisation when
+  // it discovers new ones, rewriting `deps_ssr/` under a new hash. Requests already in flight then
+  // reference a chunk that no longer exists and answer 500, which reaches a spec as
+  // `element(s) not found` or a `locator.click` that never becomes actionable — a defect of the
+  // dev server under concurrency, arriving dressed as an application failure.
+  //
+  // `webServer.timeout` cannot cover it: Playwright's readiness probe hits `webServer.url` (`/`)
+  // and returns the moment ONE route answers, while every other route pays its compile inside a
+  // spec's own 30 s test timeout or a 5 s `expect`, in parallel workers.
+  //
+  // Measured, cold cache each time: default workers **5 of 7 green** even after a route warm-up
+  // was tried; `--workers=1` **11 of 11 green** (5 with that warm-up, 6 without it — which is why
+  // the warm-up is not in this repo: it bought nothing once the requests were serialised). The
+  // price is ~12 s → ~21 s per run, paid by a human-triggered layer that is never a gate (§5).
+  //
+  // What this does NOT do, so the next reader does not over-read it: it does not make the layer
+  // exercise concurrent users, and it is not a retry — test-plan.md §6.2's rule that a fresh red
+  // is a real defect until proven otherwise is untouched. It removes a cause; it hides nothing.
+  workers: 1,
+
   projects: [
     {
       name: "setup",
