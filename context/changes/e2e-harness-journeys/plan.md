@@ -957,31 +957,31 @@ hand-made file once Phase 3 lands, so the producer is exercised rather than shad
 
 #### Automated
 
-- [x] 2.1 `npm run lint` exits 0 after triage; warning count recorded as observed
-- [x] 2.2 `npm test` green; isolation guard passes with both positive controls
-- [x] 2.3 Breakage: `tests/e2e/scratch.test.ts` → isolation guard red naming the file; removed
-- [x] 2.4 Breakage: `page.waitForTimeout(100)` in a spec → lint red on the Playwright rule; removed
-- [x] 2.5 `npm run typecheck` exits 0
+- [x] 2.1 `npm run lint` exits 0 after triage; warning count recorded as observed — 95a460e
+- [x] 2.2 `npm test` green; isolation guard passes with both positive controls — 95a460e
+- [x] 2.3 Breakage: `tests/e2e/scratch.test.ts` → isolation guard red naming the file; removed — 95a460e
+- [x] 2.4 Breakage: `page.waitForTimeout(100)` in a spec → lint red on the Playwright rule; removed — 95a460e
+- [x] 2.5 `npm run typecheck` exits 0 — 95a460e
 
 #### Manual
 
-- [x] 2.6 The isolation guard's message names the rule and the fix, not merely a path match
+- [x] 2.6 The isolation guard's message names the rule and the fix, not merely a path match — 95a460e
 
 ### Phase 3: A reproducible session, and cleanup that survives a failure
 
 #### Automated
 
-- [ ] 3.1 `npm run e2e` green with `playwright/.auth/user.json` deleted beforehand
-- [ ] 3.2 Written artifact verified: one cookie, derived name, domain `localhost`
-- [ ] 3.3 Two deltas across a full run are each 0: `deck` and `generation_session`
-- [ ] 3.4 Breakage: setup sign-in forced to fail → loud failure, no `user.json` written; restored
-- [ ] 3.5 Breakage: spec throws after creating a deck → run red, both deltas still 0; restored
-- [ ] 3.6 `npm test`, `npm run lint`, `npm run typecheck` green
+- [x] 3.1 `npm run e2e` green with `playwright/.auth/user.json` deleted beforehand
+- [x] 3.2 Written artifact verified: one cookie, derived name, domain `localhost`
+- [x] 3.3 Two deltas across a full run are each 0: `deck` and `generation_session`
+- [x] 3.4 Breakage: setup sign-in forced to fail → loud failure, no `user.json` written; restored
+- [x] 3.5 Breakage: spec throws after creating a deck → run red, both deltas still 0; restored
+- [x] 3.6 `npm test`, `npm run lint`, `npm run typecheck` green
 
 #### Manual
 
-- [ ] 3.7 Headed run confirms the setup project drives the real sign-in form
-- [ ] 3.8 Studio confirms no `E2E …` deck left behind after a full run
+- [x] 3.7 Headed run confirms the setup project drives the real sign-in form
+- [x] 3.8 Studio confirms no `E2E …` deck left behind after a full run
 
 ### Phase 4: Journey B — the guard is mounted and runs on a real navigation
 

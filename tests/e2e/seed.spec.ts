@@ -1,6 +1,12 @@
 // SEED TEST — wzorzec, z którego /10x-e2e uczy się Twoich konwencji.
 // Ryzyko (test-plan.md): utworzona talia musi przetrwać odświeżenie strony.
-import { test, expect, type Page } from "@playwright/test";
+// Sprzątanie NIE jest krokiem testu — `test`/`expect` biorą się z ./fixtures.ts, które dokłada
+// fixture `registry`. Powód jest zmierzony, nie stylistyczny: ten plik kasował talię własną
+// ostatnią linijką, więc awaria WCZEŚNIEJ w spec-u pomijała sprzątanie na stałe — i tak się
+// stało: `E2E deck 1785947414992` wisi osierocona od 2026-08-05. Rejestracja przed zapisem +
+// projekt teardown domykają obie połowy tej dziury.
+import type { Page } from "@playwright/test";
+import { test, expect } from "./fixtures.ts";
 
 // Otwarcie modala to wyspa React: przycisk istnieje w SSR, zanim Astro podepnie onClick.
 // Klikamy i czekamy, aż dialog naprawdę się otworzy; jeśli klik przepadł (przed hydracją),
@@ -15,8 +21,12 @@ async function openModal(page: Page, triggerName: string, dialogName: string) {
   return dialog;
 }
 
-test("utworzona talia przetrwa odświeżenie strony", async ({ page }) => {
+test("utworzona talia przetrwa odświeżenie strony", async ({ page, registry }) => {
   const deckName = `E2E deck ${Date.now()}`; // unikalne dane => brak kolizji między przebiegami
+
+  // PRZED zapisem, nie po. Nazwa jest wybrana już teraz, więc rejestracja nic nie kosztuje, a
+  // zamyka okno, w którym spec ginący między utworzeniem a zapisem zostawia wiersz na zawsze.
+  registry.deck(deckName);
 
   await page.goto("/decks"); // start zalogowany dzięki storageState
 
@@ -33,11 +43,6 @@ test("utworzona talia przetrwa odświeżenie strony", async ({ page }) => {
   await page.reload();
   await expect(page.getByRole("link", { name: deckName })).toBeVisible();
 
-  // Cleanup: wejdź w talię i usuń ją, żeby kolejny przebieg startował czysto.
-  await page.getByRole("link", { name: deckName }).click();
-  const deleteDialog = await openModal(page, "Usuń", "Usuń talię");
-  await deleteDialog.getByRole("button", { name: "Usuń" }).click();
-
-  await page.goto("/decks");
-  await expect(page.getByRole("link", { name: deckName })).toHaveCount(0);
+  // Koniec testu. Talię usuwa projekt `teardown` (tests/e2e/teardown/cleanup.teardown.ts) po
+  // całym przebiegu, niezależnie od jego wyniku — patrz komentarz przy imporcie.
 });

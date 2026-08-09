@@ -70,8 +70,45 @@ function refuse(problem: string, hint: string): never {
   throw new Error(`E2E preflight failed: ${problem}\n${hint}`);
 }
 
+/**
+ * Where the setup project writes the signed-in session and the `chromium` project reads it.
+ *
+ * It lives in THIS module rather than beside the account it belongs to because `playwright.config.ts`
+ * is its other reader, and this is the only module the config already imports — so single-sourcing
+ * it here costs no new dependency at config-module evaluation.
+ *
+ * Single-sourced at all because the drift is silent by construction: a producer writing one path
+ * while the consumer reads another leaves every downstream test running SIGNED OUT, and journey B's
+ * positive control is the only thing that would notice — reporting it as a guard defect. Same
+ * failure shape as the cookie-name derivation below, one layer up.
+ */
+export const AUTH_STATE_FILE = "playwright/.auth/user.json";
+
 /** For the two shared credential predicates, which take a `Fail` and know nothing of hints. */
 const failCredentials: Fail = (problem: string): never => refuse(problem, CREDENTIALS_HINT);
+
+/**
+ * The verified map, as a NAMED shape rather than a `Record<string, string>` bag.
+ *
+ * `noUncheckedIndexedAccess` types every read off a bag as `string | undefined`, so each consumer
+ * would have to launder the value through a `?? ""` or a non-null assertion — and both spellings
+ * turn "the preflight guarantees this is present" into "whatever was there, or nothing", at the
+ * three call sites furthest from the guarantee. Structurally still a `{ [k: string]: string }`,
+ * which is what `webServer.env` takes.
+ */
+// A `type`, NOT an `interface`, and the distinction is load-bearing rather than stylistic:
+// TypeScript infers an implicit index signature for an object type ALIAS but never for an
+// interface, so `interface E2eEnv` fails to satisfy `webServer.env`'s `{ [key: string]: string }`
+// with "Index signature for type 'string' is missing". Measured — this line WAS an interface until
+// `npm run typecheck` said otherwise.
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
+export type E2eEnv = {
+  SUPABASE_URL: string;
+  SUPABASE_KEY: string;
+  /** Always `""` — see the forcing below. */
+  OPENROUTER_API_KEY: string;
+  E2E_SESSION_COOKIE_NAME: string;
+};
 
 /**
  * The environment the dev server is allowed to boot with, or a throw naming the reason.
@@ -91,7 +128,7 @@ const failCredentials: Fail = (problem: string): never => refuse(problem, CREDEN
 export function buildE2eEnv(
   source: Record<string, string | undefined>,
   opts: { browserExists: boolean; devVars?: Record<string, string> },
-): Record<string, string> {
+): E2eEnv {
   const devVars = opts.devVars ?? {};
 
   // The two REAL sources, in the child's own order: `.env` < `.dev.vars`. The forced values are
@@ -147,7 +184,7 @@ export function buildE2eEnv(
  * Deliberately assertion-free: everything worth testing lives in `buildE2eEnv`, so nothing hides
  * behind this seam.
  */
-export function resolveE2eEnv(): Record<string, string> {
+export function resolveE2eEnv(): E2eEnv {
   const cwd = process.cwd();
   return buildE2eEnv(loadEnv("development", cwd, ""), {
     browserExists: fs.existsSync(chromium.executablePath()),

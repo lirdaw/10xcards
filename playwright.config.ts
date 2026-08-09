@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-import { resolveE2eEnv } from "./tests/e2e/setup/env.ts";
+import { AUTH_STATE_FILE, resolveE2eEnv } from "./tests/e2e/setup/env.ts";
 
 // Called at MODULE SCOPE on purpose — this is the whole design of the phase. Playwright orders
 // its startup tasks `removeOutputDirs` → plugin setup → globalTeardowns → globalSetups
@@ -67,8 +67,23 @@ export default defineConfig({
     },
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"], storageState: "playwright/.auth/user.json" },
+      use: { ...devices["Desktop Chrome"], storageState: AUTH_STATE_FILE },
       dependencies: ["setup"],
+      // Runs after this project finishes WHATEVER its outcome, which is the whole point: inline
+      // cleanup is cleanup that only happens when nothing went wrong, and it has already failed
+      // here once (`E2E deck 1785947414992`, orphaned 2026-08-05).
+      teardown: "teardown",
+    },
+    {
+      name: "teardown",
+      // Same reason as `setup`'s: the default pattern needs `.test.` or `.spec.` in the filename,
+      // and `cleanup.teardown.ts` carries neither — without this the project collects ZERO tests
+      // and every run reports a clean teardown that never ran.
+      testMatch: /.*\.teardown\.ts/,
+      // It drives no browser at all (it talks to Postgres as the e2e account), so the session
+      // artifact is neither needed nor read here. Explicit so a future move of `storageState` back
+      // into top-level `use` cannot make this project depend on a file it never produces.
+      use: { storageState: undefined },
     },
   ],
 });
