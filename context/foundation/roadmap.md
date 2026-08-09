@@ -3,7 +3,7 @@ project: 10xcards
 version: 1
 status: draft
 created: 2026-07-04
-updated: 2026-08-03
+updated: 2026-08-09
 prd_version: 1
 main_goal: quality
 top_blocker: capacity
@@ -63,7 +63,7 @@ powtórek — oraz sekundarne kryterium sukcesu, czyli powrót do kolejnej sesji
 | H-09 | deck-error-param-guard         | mieć bramki, które nie wygasają po cichu przy zwykłym refaktorze — zbiór `?error=` egzekwowany u producentów, skan odczytu na całym `src/`      | MVP (S-01…S-06)  | Guardrails, FR-015                                                   | done   |
 | H-10 | eval-ci-dispatch               | uruchomić eval jakości generacji z zakładki Actions — na żądanie, na realnym modelu, bez klucza i bez konfiguracji na czyjejkolwiek maszynie    | MVP (S-01…S-06)  | §Success Criteria (75% akceptacji — proxy), NFR: język kart          | done   |
 | H-11 | typecheck-gate                 | ufać, że zielona gałąź naprawdę się kompiluje — bramka typów w CI i przed pushem, obejmująca `src/`, `tests/`, `evals/`, `scripts/` i `.astro`  | MVP (S-01…S-06)  | §Success Criteria (75% akceptacji — pośrednio: instrument Ryzyka #7) | done   |
-| H-12 | e2e-harness-journeys           | mieć dowód z prawdziwej przeglądarki, że guard tras chronionych jest ZAMONTOWANY, a zaakceptowana fiszka trafia do talii i przeżywa odświeżenie | MVP (S-01…S-06)  | §Access Control (trasy fiszek i nauki są zamknięte), FR-005, FR-006  | doing  |
+| H-12 | e2e-harness-journeys           | mieć dowód z prawdziwej przeglądarki, że guard tras chronionych jest ZAMONTOWANY, a zaakceptowana fiszka trafia do talii i przeżywa odświeżenie | MVP (S-01…S-06)  | §Access Control (trasy fiszek i nauki są zamknięte), FR-005, FR-006  | done   |
 
 Prefiks **`H-` (hardening)** oznacza pracę PO zamknięciu zakresu MVP: `F-01…F-03` i
 `S-01…S-06` są `done` i ta granica zostaje nienaruszona. Elementy `H-` nie są vertical
@@ -374,7 +374,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Ta warstwa **nigdy nie jest bramką** i nic tego nie może zmiękczyć: brak joba w CI, brak harmonogramu, nic nie deklaruje jej w `needs:`. Zielony przebieg znaczy „ktoś ją tego dnia uruchomił", nigdy „sygnał jest obserwowany" — ta sama lektura, której `test-plan.md` wymaga od evalu. Cztery granice warto trzymać jawnie. Po pierwsze, bramki CI obejmują ŹRÓDŁO specek (`npm run typecheck` i reguły `eslint-plugin-playwright` w `npm run lint`), więc zielony job `ci` mówi, że warstwa **się kompiluje i przechodzi lint**, a nie że jakakolwiek podróż została wykonana — to rozróżnienie C10X-43 musiało już raz zapisać. Po drugie, dwie podróże ćwiczą najwyżej dwie wyspy React, każdą na jednej ścieżce szczęśliwej, podczas gdy `fetch` niesie ich cztery — wyłączenie wysp z `test-plan.md` §7 przeżywa tę zmianę bez zmian. Po trzecie, konto e2e jest **jedno i stałe** (decyzja D-01), więc niesie stan między przebiegami i żaden spec nie może zakładać pustej listy talii; przyrost wierszy domyka teardown, nie wyrzucanie konta. Po czwarte, `workers: 1` to **zmierzona naprawa**, nie preferencja: przy domyślnej równoległości warstwa dawała cztery czerwienie na dziesięć przebiegów, zawsze przy zimnym cache zależności Vite, który przepisuje `deps_ssr/` pod nowym hashem w trakcie kompilowania tras na żądanie — żądania w locie dostają wtedy 500 i docierają do speca przebrane za awarię aplikacji. Serializacja daje 11/11 zielonych na zimnym cache kosztem ~12 s → ~21 s; `retries` zostaje **0**, bo to usunięcie przyczyny, nie ukrycie objawu. Dług 5459 talii na bazie deweloperskiej jest **zatrzymany, nie spłacony**.
-- **Status:** doing
+- **Status:** done
 
 ## Backlog Handoff
 
@@ -433,6 +433,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **H-09: (hardening) reguły chroniące kanał `?error=` przestają być zaczepione o pisownię, a stają się zaczepione o konstrukcję: zbiór komunikatów jest egzekwowany w miejscu, gdzie wartości do niego wchodzą (a nie tylko tam, gdzie stoi literał obok napisu `error=`), a skan strony odczytu obejmuje każdy plik `.astro` w `src/`, nie tylko `src/pages/`.** — Archived 2026-08-01 → `context/archive/2026-08-01-deck-error-param-guard/`. Lesson: —.
 - **H-10: (hardening) instrument, który do tej pory żył wyłącznie na maszynie jednej osoby, staje się zdolnością projektu: każdy z prawem zapisu wchodzi w zakładkę Actions, uruchamia **Generation quality eval**, opcjonalnie podmienia model generatora albo sędziego, i po kilku minutach czyta 11-wierszową tabelę werdyktu w logu zadania — bez klucza OpenRouter, bez `npm ci` i bez lokalnego stacka u siebie. Pełny zapis (każda karta, każdy werdykt i uzasadnienie sędziego, plus surowy strumień konsoli) wisi przy przebiegu jako artefakt nazwany numerem próby, więc reguła kalibracyjna „czerwony przypadek powtarza się raz, zanim się w niego uwierzy" zostawia oba przebiegi obok siebie. Eval zapisuje przy okazji swój raport na dysk także lokalnie — jedna ścieżka kodu, więc CI nie ma gałęzi, której nikt nigdy nie uruchomił.** — Archived 2026-08-02 → `context/archive/2026-08-02-eval-ci-dispatch/`. Lesson: —.
 - **H-11: (hardening) zespół przestaje czytać zielony `lint` + `build` + `npm test` jako dowód, że kod się kompiluje: `npm run typecheck` (`astro sync` → `tsc --noEmit` → `astro check`) obejmuje `src/`, `tests/`, `evals/`, `scripts/`, konfiguracje w korzeniu i 18 plików `.astro`, których `tsc` nie widzi w ogóle. Działa w jobie `ci` (fail-closed, między `astro sync` a `lint`) i lokalnie w hooku `pre-push`. Przy okazji naprawiony husky, który **nigdy nie był w tym drzewie zainstalowany** (brak skryptu `prepare`), oraz włączone `noUncheckedIndexedAccess` (33 diagnostyki w 13 plikach, jeden commit).** — Archived 2026-08-03 → `context/archive/2026-08-02-typecheck-gate/`. Lesson: —.
+- **H-12: (hardening) projekt przestaje wierzyć na słowo, że middleware chroniący trasy w ogóle się wykonuje: `npm run e2e` prowadzi prawdziwą przeglądarkę przez pięć tras chronionych bez sesji i sprawdza KOŃCOWY URL (nigdy status `fetch`-a, bo `fetch` idzie za 302 na `/auth/signin` i widzi 200 — dokładnie tak ukrył się bug C10X-27), a drugą podróżą przechodzi generację → przegląd → akceptację i pokazuje, że zaakceptowana fiszka jest w talii także po `reload()`. Warstwa jest samowystarczalna: sama startuje serwer deweloperski, odmawia startu przeciw czemukolwiek innemu niż lokalny stack **zanim** ten serwer wstanie, sama tworzy sesję przez prawdziwy formularz logowania i sama sprząta swoje wiersze — w projekcie `teardown`, który biegnie niezależnie od wyniku, bo sprzątanie w ciele testu już raz zawiodło (`E2E deck 1785947414992`, osierocona 2026-08-05).** — Archived 2026-08-09 → `context/archive/2026-08-08-e2e-harness-journeys/`. Lesson: —.
 
 ## Parked ideas (post-MVP → Jira "Pomysł")
 
