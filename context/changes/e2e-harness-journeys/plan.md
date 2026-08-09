@@ -939,33 +939,33 @@ hand-made file once Phase 3 lands, so the producer is exercised rather than shad
 
 #### Automated
 
-- [x] 1.1 `npm run typecheck` exits 0, `Result (N files)` recorded as observed
-- [x] 1.2 `npm run lint` exits 0, pre-existing warning count unchanged
-- [x] 1.3 `npm test` green (also the neutrality check for the `preflight.ts` extraction); `tests/lib/e2e-env.test.ts` passes; suite total recorded as observed
-- [x] 1.4 `npm run e2e` starts its own dev server and completes with none running by hand; `--list` shows the `setup` project collecting a non-zero number of tests
-- [x] 1.5 Breakage: cloud `SUPABASE_URL` → config throws before any server starts; restored
-- [x] 1.6 Breakage: hand-started server on 4321 → Playwright's "already used" hard error
-- [x] 1.7 Breakage: chromium binary hidden → the `npx playwright install chromium` message; restored
-- [x] 1.8 Breakage: cloud `SUPABASE_URL` in a `.dev.vars` over a valid `.env` → throws before any server starts, message names `.dev.vars`; file deleted, green
+- [x] 1.1 `npm run typecheck` exits 0, `Result (N files)` recorded as observed — deec1d6
+- [x] 1.2 `npm run lint` exits 0, pre-existing warning count unchanged — deec1d6
+- [x] 1.3 `npm test` green (also the neutrality check for the `preflight.ts` extraction); `tests/lib/e2e-env.test.ts` passes; suite total recorded as observed — deec1d6
+- [x] 1.4 `npm run e2e` starts its own dev server and completes with none running by hand; `--list` shows the `setup` project collecting a non-zero number of tests — deec1d6
+- [x] 1.5 Breakage: cloud `SUPABASE_URL` → config throws before any server starts; restored — deec1d6
+- [x] 1.6 Breakage: hand-started server on 4321 → Playwright's "already used" hard error — deec1d6
+- [x] 1.7 Breakage: chromium binary hidden → the `npx playwright install chromium` message; restored — deec1d6
+- [x] 1.8 Breakage: cloud `SUPABASE_URL` in a `.dev.vars` over a valid `.env` → throws before any server starts, message names `.dev.vars`; file deleted, green — deec1d6
 
 #### Manual
 
-- [x] 1.9 `PROD_` swap exercised by hand: refusal names the host, no request reached it, swap back green
-- [x] 1.10 Each refusal message read as a developer would — names the fix, does not diagnose the wrong file
+- [x] 1.9 `PROD_` swap exercised by hand: refusal names the host, no request reached it, swap back green — deec1d6
+- [x] 1.10 Each refusal message read as a developer would — names the fix, does not diagnose the wrong file — deec1d6
 
 ### Phase 2: Enforcement — the conventions stop depending on a reviewer
 
 #### Automated
 
-- [ ] 2.1 `npm run lint` exits 0 after triage; warning count recorded as observed
-- [ ] 2.2 `npm test` green; isolation guard passes with both positive controls
-- [ ] 2.3 Breakage: `tests/e2e/scratch.test.ts` → isolation guard red naming the file; removed
-- [ ] 2.4 Breakage: `page.waitForTimeout(100)` in a spec → lint red on the Playwright rule; removed
-- [ ] 2.5 `npm run typecheck` exits 0
+- [x] 2.1 `npm run lint` exits 0 after triage; warning count recorded as observed
+- [x] 2.2 `npm test` green; isolation guard passes with both positive controls
+- [x] 2.3 Breakage: `tests/e2e/scratch.test.ts` → isolation guard red naming the file; removed
+- [x] 2.4 Breakage: `page.waitForTimeout(100)` in a spec → lint red on the Playwright rule; removed
+- [x] 2.5 `npm run typecheck` exits 0
 
 #### Manual
 
-- [ ] 2.6 The isolation guard's message names the rule and the fix, not merely a path match
+- [x] 2.6 The isolation guard's message names the rule and the fix, not merely a path match
 
 ### Phase 3: A reproducible session, and cleanup that survives a failure
 
