@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "eval": "vitest run -c vitest.eval.config.ts",
+    "e2e": "playwright test",
     "db:start": "supabase start && npm run db:kong",
     "db:kong": "node --experimental-strip-types scripts/disable-kong-keepalive.ts",
     "db:stop": "supabase stop",
