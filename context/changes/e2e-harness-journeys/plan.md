@@ -1017,14 +1017,14 @@ hand-made file once Phase 3 lands, so the producer is exercised rather than shad
 
 #### Automated
 
-- [x] 6.1 `grep -cF "### 6.11" context/foundation/test-plan.md` returns 1
-- [x] 6.2 `prettier --check` passes on every edited markdown file, and again on a second write
-- [x] 6.3 `git status --porcelain -uall` lists only intended paths
-- [x] 6.4 `npm run typecheck`, `npm run lint`, `npm test`, `npm run e2e` green after the edits
-- [x] 6.5 Every `file:line` and evidence path written into the docs resolves on disk
+- [x] 6.1 `grep -cF "### 6.11" context/foundation/test-plan.md` returns 1 — 827072e
+- [x] 6.2 `prettier --check` passes on every edited markdown file, and again on a second write — 827072e
+- [x] 6.3 `git status --porcelain -uall` lists only intended paths — 827072e
+- [x] 6.4 `npm run typecheck`, `npm run lint`, `npm test`, `npm run e2e` green after the edits — 827072e
+- [x] 6.5 Every `file:line` and evidence path written into the docs resolves on disk — 827072e
 
 #### Manual
 
-- [x] 6.6 §5's e2e row re-read and confirmed still **never a gate**
-- [x] 6.7 Every §6.6 / §8 figure traced to the run that produced it
-- [x] 6.8 §4's `checked:` date not bumped past what was re-verified
+- [x] 6.6 §5's e2e row re-read and confirmed still **never a gate** — 827072e
+- [x] 6.7 Every §6.6 / §8 figure traced to the run that produced it — 827072e
+- [x] 6.8 §4's `checked:` date not bumped past what was re-verified — 827072e
