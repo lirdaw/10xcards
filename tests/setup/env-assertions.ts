@@ -95,6 +95,23 @@ export function assertLocal(url: string, fail: Fail, origin = "SUPABASE_URL"): v
 }
 
 /**
+ * Supabase reports a re-used email as this; every other `signUp` error is real.
+ *
+ * Shared for the same reason as the two predicates above: both harnesses provision accounts by
+ * calling `signUp` and tolerating exactly this outcome — `tests/fixtures/accounts.ts` for Vitest's
+ * per-run A/B accounts, `tests/e2e/setup/account.ts` for the single dedicated e2e account. It stood
+ * duplicated byte-for-byte in both until 2026-08-09; nothing blocked reuse there, unlike the
+ * `astro:env/server` import that kept `assertMockGeneration` with its caller.
+ *
+ * Two clauses because GoTrue answers this in two shapes: a machine-readable `code` on current
+ * versions, and the legacy message text. Dropping the second silently turns "the account already
+ * exists" back into a thrown provisioning error on an older stack.
+ */
+export function isAlreadyRegistered(error: { code?: string; message: string }): boolean {
+  return error.code === "user_already_exists" || /already registered/i.test(error.message);
+}
+
+/**
  * The `@supabase/ssr` session cookie name, derived from the project URL.
  *
  * `sb-${hostname.split(".")[0]}-auth-token` — so `127.0.0.1` → `sb-127-auth-token` and

@@ -1,8 +1,9 @@
+import { parseEnv } from "node:util";
 import { describe, expect, it } from "vitest";
 // `@/*` maps to `src/*` only, and the subject here is the Playwright harness's config-time
 // preflight under `tests/e2e/setup/` — see test-plan.md §6.1 on why its test still sits in
 // tests/lib/ beside the suite's other pure-function files rather than in a folder of its own.
-import { buildE2eEnv, parseDevVars } from "../e2e/setup/env.ts";
+import { buildE2eEnv } from "../e2e/setup/env.ts";
 
 // The decidable half of the e2e preflight. `resolveE2eEnv()` beside it reads `.env` through
 // vite's `loadEnv`, parses `.dev.vars` and stats the chromium binary; this half owns every
@@ -111,6 +112,32 @@ describe("buildE2eEnv", () => {
     expect(() => buildE2eEnv(source, { browserExists: false })).toThrow(/abcdefgh\.supabase\.co/);
   });
 
+  // THE ORIGIN IS PART OF THE VERDICT. vite's `loadEnv` with an empty prefix overlays
+  // `process.env` on top of the parsed files, so a shell-supplied value arrives inside `source`
+  // and — checked only against `.dev.vars` — would be blamed on `.env`, sending the reader to edit
+  // a file that does not contain it (the C10X-43 trap: correct verdict, wrong diagnosis).
+  describe("names WHERE the offending value came from", () => {
+    const cloud = "https://abcdefgh.supabase.co";
+
+    it("blames the shell when the shell is what loadEnv let win", () => {
+      const opts = { ...BROWSER_PRESENT, shellEnv: { SUPABASE_URL: cloud } };
+
+      expect(() => buildE2eEnv(localSource({ SUPABASE_URL: cloud }), opts)).toThrow(/from the shell environment/);
+    });
+
+    it("blames .env when the shell carries no such value", () => {
+      const opts = { ...BROWSER_PRESENT, shellEnv: { SOMETHING_ELSE: "x" } };
+
+      expect(() => buildE2eEnv(localSource({ SUPABASE_URL: cloud }), opts)).toThrow(/SUPABASE_URL \(from \.env\)/);
+    });
+
+    it("blames .dev.vars ahead of both, because it outranks both inside the child", () => {
+      const opts = { ...BROWSER_PRESENT, devVars: { SUPABASE_URL: cloud }, shellEnv: { SUPABASE_URL: cloud } };
+
+      expect(() => buildE2eEnv(localSource(), opts)).toThrow(/from \.dev\.vars/);
+    });
+  });
+
   // `.dev.vars` OUTRANKS everything this preflight controls. @astrojs/cloudflare runs
   // `Object.assign(process.env, parsed)` at `astro:config:done` INSIDE the child
   // (@astrojs/cloudflare/dist/index.js:292-303) — after `webServer.env` has already landed.
@@ -156,36 +183,58 @@ describe("buildE2eEnv", () => {
   });
 });
 
-// The `.dev.vars` layer above is only as good as what reads the file. This repo carries no
-// `dotenv` dependency to borrow, so the parser is first-party — and it is exported rather than
-// hidden inside the I/O wrapper, so nothing worth testing sits behind that seam.
-describe("parseDevVars", () => {
-  it.each([
-    ["a bare value", "SUPABASE_URL=http://127.0.0.1:54321", { SUPABASE_URL: "http://127.0.0.1:54321" }],
-    ["a double-quoted value", 'SUPABASE_KEY="sb_publishable_x"', { SUPABASE_KEY: "sb_publishable_x" }],
-    ["a single-quoted value", "SUPABASE_KEY='sb_publishable_x'", { SUPABASE_KEY: "sb_publishable_x" }],
-    [
-      "padding around the separator",
-      "  SUPABASE_URL = http://localhost:54321  ",
-      { SUPABASE_URL: "http://localhost:54321" },
-    ],
-    ["a value containing '='", "TOKEN=abc=def==", { TOKEN: "abc=def==" }],
-    ["an empty value", "OPENROUTER_API_KEY=", { OPENROUTER_API_KEY: "" }],
-  ])("parses %s", (_label, text, expected) => {
-    expect(parseDevVars(text)).toEqual(expected);
-  });
+// The `.dev.vars` layer above is only as good as what READS the file, and until 2026-08-09 this
+// block tested a first-party parser that read it differently from the server it was protecting.
+//
+// That divergence was the defect (impl-review F1). `@astrojs/cloudflare` parses `.dev.vars` with
+// `node:util`'s `parseEnv` (`dist/index.js:20,292-303`), which strips a leading `export `; the
+// hand-rolled parser split on the first `=` and filed `export SUPABASE_URL=…` under the key
+// `"export SUPABASE_URL"`. `buildE2eEnv` therefore never saw it and returned GREEN while the
+// child booted against a cloud project with a real OPENROUTER_API_KEY — on the one source
+// `webServer.env` cannot outrank, where the assertion is the entire guarantee.
+//
+// `readDevVars` now calls `parseEnv` itself, so there is no first-party parser left to unit-test
+// and testing Node's would be testing Node. What replaces it is the claim that actually matters
+// and that no case above could make: text in the file's REAL syntax, parsed the way the server
+// parses it, reaches the assertions. The `export` rows are the regression pins for F1.
+describe("a .dev.vars file is refused in every syntax the child understands", () => {
+  const CLOUD_URL = "https://abcdefgh.supabase.co";
 
-  it("ignores comments and blank lines without losing the real entries", () => {
-    const text = ["# a comment", "", "SUPABASE_URL=http://127.0.0.1:54321", "   ", "# SUPABASE_KEY=commented_out"].join(
-      "\n",
+  /** Exactly what `readDevVars` does to the file's bytes, so these cases enter by the real door. */
+  const devVarsFrom = (text: string): Record<string, string> =>
+    Object.fromEntries(
+      Object.entries(parseEnv(text)).filter((entry): entry is [string, string] => entry[1] !== undefined),
     );
 
-    expect(parseDevVars(text)).toEqual({ SUPABASE_URL: "http://127.0.0.1:54321" });
+  it.each([
+    ["a bare assignment", `SUPABASE_URL=${CLOUD_URL}`],
+    ["an `export` prefix — the F1 bypass", `export SUPABASE_URL=${CLOUD_URL}`],
+    ["a double-quoted value", `SUPABASE_URL="${CLOUD_URL}"`],
+    ["a single-quoted value", `SUPABASE_URL='${CLOUD_URL}'`],
+    ["padding around the separator", `  SUPABASE_URL = ${CLOUD_URL}  `],
+    ["an `export` prefix under a comment", `# local override\nexport SUPABASE_URL=${CLOUD_URL}`],
+  ])("rejects a cloud SUPABASE_URL written as %s", (_label, text) => {
+    const opts = { ...BROWSER_PRESENT, devVars: devVarsFrom(text) };
+
+    expect(() => buildE2eEnv(localSource(), opts)).toThrow(/SUPABASE_URL \(from \.dev\.vars\)/);
   });
 
-  it("returns an empty map for an empty file", () => {
-    // The positive control's mirror: a parser that invented entries would fail here, and a
-    // parser that dropped everything would fail every case above.
-    expect(parseDevVars("")).toEqual({});
+  it("rejects an `export`-prefixed OPENROUTER_API_KEY, which the forcing cannot reach", () => {
+    // The other half of F1: this key lands on top of the forced `""` INSIDE the child, so the
+    // assertion is the only thing covering it — and the bypass made the assertion blind.
+    const opts = { ...BROWSER_PRESENT, devVars: devVarsFrom("export OPENROUTER_API_KEY=sk-or-v1-real") };
+
+    expect(() => buildE2eEnv(localSource(), opts)).toThrow(/OPENROUTER_API_KEY \(from \.dev\.vars\)/);
+  });
+
+  it("still accepts a .dev.vars that carries nothing this preflight objects to", () => {
+    // The positive control. Without it every case above is satisfied by a function that refuses
+    // any `.dev.vars` at all, which would be a different bug wearing this one's costume.
+    const opts = { ...BROWSER_PRESENT, devVars: devVarsFrom("export SOME_UNRELATED_FLAG=1\n# nothing else here") };
+
+    expect(buildE2eEnv(localSource(), opts)).toMatchObject({
+      SUPABASE_URL: "http://127.0.0.1:54321",
+      OPENROUTER_API_KEY: "",
+    });
   });
 });

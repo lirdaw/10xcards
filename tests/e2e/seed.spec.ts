@@ -11,11 +11,17 @@ import { test, expect } from "./fixtures.ts";
 // Otwarcie modala to wyspa React: przycisk istnieje w SSR, zanim Astro podepnie onClick.
 // Klikamy i czekamy, aż dialog naprawdę się otworzy; jeśli klik przepadł (przed hydracją),
 // Playwright ponawia. Guard isVisible() chroni przed klikaniem w już otwarty modal.
+// `exact: true` WSZĘDZIE, gdzie dopasowujemy nazwę — to reguła całej warstwy (test-plan.md §6.11),
+// nie ozdobnik. Domyślnie Playwright dopasowuje nazwę dostępną jako PODCIĄG bez rozróżniania
+// wielkości liter, więc `Nowa talia` złapałoby też `Nowa talia (kopia)`, a `Akceptuj` — `Akceptuj
+// (3 fiszki)` (zmierzone w journey A). Żaden lokator w TYM pliku nie jest dziś niejednoznaczny;
+// stoi tu dlatego, że to jest plik, z którego /10x-e2e uczy się konwencji — wzorzec uczący czegoś
+// innego niż deklarowana reguła jest gorszy niż brak wzorca.
 async function openModal(page: Page, triggerName: string, dialogName: string) {
-  const dialog = page.getByRole("dialog", { name: dialogName });
+  const dialog = page.getByRole("dialog", { name: dialogName, exact: true });
   await expect(async () => {
     if (await dialog.isVisible()) return;
-    await page.getByRole("button", { name: triggerName }).click();
+    await page.getByRole("button", { name: triggerName, exact: true }).click();
     await expect(dialog).toBeVisible({ timeout: 1500 });
   }).toPass({ timeout: 15000 });
   return dialog;
@@ -32,16 +38,16 @@ test("utworzona talia przetrwa odświeżenie strony", async ({ page, registry })
 
   // Tworzenie talii — po ROLI, w obrębie otwartego dialogu.
   const createDialog = await openModal(page, "Nowa talia", "Nowa talia");
-  await createDialog.getByRole("textbox", { name: "Nazwa talii" }).fill(deckName);
-  await createDialog.getByRole("button", { name: "Utwórz" }).click();
+  await createDialog.getByRole("textbox", { name: "Nazwa talii", exact: true }).fill(deckName);
+  await createDialog.getByRole("button", { name: "Utwórz", exact: true }).click();
 
   // Trwałość sprawdzamy WPROST na liście — nie zakładamy, dokąd przekierował POST.
   await page.goto("/decks");
-  await expect(page.getByRole("link", { name: deckName })).toBeVisible();
+  await expect(page.getByRole("link", { name: deckName, exact: true })).toBeVisible();
 
   // Sedno ryzyka: po odświeżeniu talia nadal istnieje (czekamy na STAN, nie na czas).
   await page.reload();
-  await expect(page.getByRole("link", { name: deckName })).toBeVisible();
+  await expect(page.getByRole("link", { name: deckName, exact: true })).toBeVisible();
 
   // Koniec testu. Talię usuwa projekt `teardown` (tests/e2e/teardown/cleanup.teardown.ts) po
   // całym przebiegu, niezależnie od jego wyniku — patrz komentarz przy imporcie.

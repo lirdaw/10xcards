@@ -25,6 +25,7 @@
 // being re-read here from an unasserted source.
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { isAlreadyRegistered } from "../../setup/env-assertions.ts";
 import type { Database } from "@/db/database.types";
 
 export const E2E_EMAIL = "e2e-harness@example.com";
@@ -34,11 +35,6 @@ export const E2E_PASSWORD = "e2e-harness-passw0rd";
 // `playwright.config.ts` is its other reader, and env.ts is the only module that config already
 // imports — so single-sourcing it there costs no new dependency at config-module evaluation,
 // where this file's `@supabase/supabase-js` import has no business being.
-
-/** Supabase reports a re-used email as this; every other signUp error is real. */
-function isAlreadyRegistered(error: { code?: string; message: string }): boolean {
-  return error.code === "user_already_exists" || /already registered/i.test(error.message);
-}
 
 /**
  * A throwaway anon client. `persistSession: false` keeps it from caching anything to disk — the

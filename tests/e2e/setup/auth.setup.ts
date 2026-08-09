@@ -36,8 +36,9 @@ setup("the local Supabase stack is reachable", async () => {
     signal: AbortSignal.timeout(5_000),
   });
 
-  // Ordered after the config's local-host assertion, never before it: preflight.ts:138's rule is
-  // that no request may reach a host the harness has not already established as local.
+  // Ordered after the config's local-host assertion, never before it. The rule is the one
+  // `tests/setup/preflight.ts` states at its `assertLocal` call — no request may reach a host the
+  // harness has not already established as local. Cited by symbol, not by line number.
   expect(
     response.ok,
     `the Supabase stack at ${env.SUPABASE_URL} answered ${response.status}. Run: npm run db:start`,

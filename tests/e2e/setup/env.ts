@@ -6,8 +6,10 @@
 // `_startProcess()` + `_waitForProcess()` (:823-834). So `globalSetup` runs AFTER the app server
 // is already up: a check placed there would let a `PROD_`-swapped `.env` boot a server pointed at
 // a cloud project before the guard ever spoke, violating the ordering discipline
-// `tests/setup/preflight.ts:138` exists to state ("never even send a request to a non-local
-// host"). Config-module evaluation is the only point strictly earlier — and it is where the
+// `tests/setup/preflight.ts` states at its `assertLocal` call ("Before reachability: never even
+// send a request to a non-local host") — cited by SYMBOL rather than by line, because this change
+// shortened that file and a pinned number rots the moment either file moves.
+// Config-module evaluation is the only point strictly earlier — and it is where the
 // resolved map has to be anyway, because `webServer.env` is a config field.
 //
 // WHY THE MAP IS THE LEVER, NOT THE ASSERTION. An assertion over `process.env` in the RUNNER says
@@ -30,6 +32,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { parseEnv } from "node:util";
 import { chromium } from "@playwright/test";
 import { loadEnv } from "vite";
 import { assertAnonKey, assertLocal, sessionCookieName, type Fail } from "../../setup/env-assertions.ts";
@@ -127,9 +131,14 @@ export type E2eEnv = {
  */
 export function buildE2eEnv(
   source: Record<string, string | undefined>,
-  opts: { browserExists: boolean; devVars?: Record<string, string> },
+  opts: {
+    browserExists: boolean;
+    devVars?: Record<string, string>;
+    shellEnv?: Record<string, string | undefined>;
+  },
 ): E2eEnv {
   const devVars = opts.devVars ?? {};
+  const shellEnv = opts.shellEnv ?? {};
 
   // The two REAL sources, in the child's own order: `.env` < `.dev.vars`. The forced values are
   // deliberately NOT in this merge — they are our own injection, and layering them here would
@@ -137,8 +146,21 @@ export function buildE2eEnv(
   // silencing the very case it exists for. (Found by the test, not by reading.)
   const effective: Record<string, string | undefined> = { ...source, ...devVars };
 
-  // Which file a reader must edit. A refusal that names the wrong one is worse than none.
-  const originOf = (key: string): string => `${key} (from ${key in devVars ? ".dev.vars" : ".env"})`;
+  // Which file a reader must edit. A refusal that names the wrong one is worse than none — the
+  // C10X-43 `pre-push` trap, a correct verdict carrying a wrong diagnosis.
+  //
+  // THREE origins, not two. `source` is vite's `loadEnv(mode, dir, "")`, and with an empty prefix
+  // that overlays `process.env` ON TOP of the parsed files (measured: a shell
+  // `SUPABASE_URL=…` wins over `.env`). So a value from the ambient shell arrives inside `source`
+  // and, checked only against `devVars`, would be reported as "(from .env)" — sending the reader
+  // to edit a file that does not contain it. Where the shell and `.env` agree the two are
+  // indistinguishable and either answer is actionable; the shell is named only when it is the
+  // value that actually won.
+  const originOf = (key: string): string => {
+    if (key in devVars) return `${key} (from .dev.vars)`;
+    if (shellEnv[key] !== undefined && shellEnv[key] === source[key]) return `${key} (from the shell environment)`;
+    return `${key} (from .env)`;
+  };
 
   const url = effective.SUPABASE_URL;
   const key = effective.SUPABASE_KEY;
@@ -179,53 +201,60 @@ export function buildE2eEnv(
 }
 
 /**
+ * The repository root, derived from THIS module rather than from `process.cwd()`.
+ *
+ * The child resolves `.dev.vars` from `new URL(".dev.vars", config.root)` — the Astro project
+ * root — so a runner resolving it from the working directory would assert against a file the
+ * server does not read the moment `npm run e2e` is invoked from anywhere but the root. Same
+ * divergence class as the parser below, one layer up: the preflight and the child have to be
+ * talking about the same file before they can be talking about the same values.
+ */
+const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
+
+/**
  * The thin I/O wrapper `playwright.config.ts` calls at module scope.
  *
  * Deliberately assertion-free: everything worth testing lives in `buildE2eEnv`, so nothing hides
  * behind this seam.
  */
 export function resolveE2eEnv(): E2eEnv {
-  const cwd = process.cwd();
-  return buildE2eEnv(loadEnv("development", cwd, ""), {
+  return buildE2eEnv(loadEnv("development", REPO_ROOT, ""), {
     browserExists: fs.existsSync(chromium.executablePath()),
-    devVars: readDevVars(path.join(cwd, ".dev.vars")),
+    devVars: readDevVars(path.join(REPO_ROOT, ".dev.vars")),
+    // Supplied so `originOf` can tell a shell-supplied value from a `.env` one — `loadEnv` merges
+    // them and the merged map alone cannot say which won. An INPUT, never read inside the pure
+    // half, so the unit test can fabricate it (§6.1's C10X-34 rule).
+    shellEnv: process.env,
   });
 }
 
+/**
+ * Reads `.dev.vars` with `node:util`'s `parseEnv` — THE SAME FUNCTION THE CHILD USES, and that
+ * identity is the entire point rather than a convenience.
+ *
+ * A hand-rolled parser stood here until 2026-08-09 and was bypassable by one keyword.
+ * `@astrojs/cloudflare` parses this file with `parseEnv` (`dist/index.js:20,292-303`), which
+ * strips a leading `export `; the hand-rolled one split on the first `=` and therefore filed
+ * `export SUPABASE_URL=…` under the key `"export SUPABASE_URL"`. The assertion never saw it, the
+ * preflight went green, and the child booted with whatever that line named — on the ONE source
+ * `webServer.env` cannot outrank, i.e. exactly where the assertion is the whole guarantee.
+ * Measured before the swap: a cloud `SUPABASE_URL` and a real `OPENROUTER_API_KEY` both passed.
+ *
+ * Two parsers reading one file IS the defect; borrowing the child's closes the class by
+ * construction rather than by keeping two implementations in step — the same reasoning that put
+ * `assertAnonKey` / `assertLocal` in one shared module instead of two copies. It also retires the
+ * old docstring's "every shape it does not parse simply stays invisible": there is no longer a
+ * shape this reader understands differently from the server it is protecting.
+ */
 function readDevVars(file: string): Record<string, string> | undefined {
   if (!fs.existsSync(file)) return undefined;
-  return parseDevVars(fs.readFileSync(file, "utf8"));
-}
 
-/**
- * A minimal `.dev.vars` (dotenv-format) reader.
- *
- * First-party because this repo carries no `dotenv` dependency to borrow, and exported because
- * the `.dev.vars` assertions in `buildE2eEnv` are only as good as what reads the file — so it
- * belongs in front of the I/O seam, not behind it. Deliberately narrow: `KEY=value`, optional
- * surrounding quotes, `#` comments and blank lines. It does NOT implement dotenv's multi-line
- * values or variable expansion, because a value this preflight would wave through on a parse
- * miss is a value it must instead refuse — and every shape it does not parse simply stays
- * invisible, which is the failure direction to watch if a refusal ever reads as a false green.
- */
-export function parseDevVars(text: string): Record<string, string> {
-  const parsed: Record<string, string> = {};
-
-  for (const line of text.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (trimmed === "" || trimmed.startsWith("#")) continue;
-
-    const separator = trimmed.indexOf("=");
-    if (separator === -1) continue;
-
-    const key = trimmed.slice(0, separator).trim();
-    if (key === "") continue;
-
-    // Split on the FIRST `=` only: a token or URL carrying its own `=` must survive whole.
-    const raw = trimmed.slice(separator + 1).trim();
-    const quoted = raw.length >= 2 && (raw.startsWith('"') || raw.startsWith("'")) && raw.at(-1) === raw[0];
-    parsed[key] = quoted ? raw.slice(1, -1) : raw;
-  }
-
-  return parsed;
+  // `parseEnv` is typed `NodeJS.Dict<string>`, so its values are `string | undefined`. Narrowing
+  // by filtering rather than casting keeps `originOf`'s `key in devVars` honest: a key that
+  // survives here is a key that genuinely carries a value.
+  return Object.fromEntries(
+    Object.entries(parseEnv(fs.readFileSync(file, "utf8"))).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined,
+    ),
+  );
 }

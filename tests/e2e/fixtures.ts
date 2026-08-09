@@ -83,6 +83,7 @@ export const test = base.extend<object, { registry: E2eRegistry }>({
           append({ kind: "deck", name });
         },
         generation: (marker) => {
+          assertLiteralMarker(marker);
           append({ kind: "generation", marker });
         },
       });
@@ -90,5 +91,31 @@ export const test = base.extend<object, { registry: E2eRegistry }>({
     { scope: "worker" },
   ],
 });
+
+/**
+ * A generation marker becomes a `LIKE` pattern in a DELETE, so it must carry no wildcards.
+ *
+ * The teardown issues `.like("source_text", `${marker}%`)`. `%` and `_` are LIKE metacharacters,
+ * so `e2e_` would match `e2eX…` and a marker containing `%` would match essentially everything the
+ * account owns — deleting a concurrent or previous run's `generation_session` rows, with the
+ * residue check reading `0` because it uses the SAME over-matching predicate. RLS caps the blast
+ * radius at the shared e2e account (`generation_session_delete` is
+ * `using (user_id = (select auth.uid()))`), so no other user's rows are reachable; within that
+ * account it is a real over-match.
+ *
+ * Enforced HERE, where the marker is minted, rather than in the teardown: this is the call the
+ * spec author writes, so the refusal lands next to the person who can fix it. Until 2026-08-09 the
+ * rule existed only as prose in one spec's comment — an obligation on the next author, which is
+ * the "closed by construction is not closed by a test" distinction this repo draws elsewhere.
+ */
+function assertLiteralMarker(marker: string): void {
+  if (/[%_\\]/.test(marker)) {
+    throw new Error(
+      `Registry marker ${JSON.stringify(marker)} contains a LIKE metacharacter (% _ \\). ` +
+        `The teardown turns this marker into \`LIKE '<marker>%'\`, so a wildcard here deletes rows ` +
+        `this run did not create. Use a literal prefix such as \`e2e-\${Date.now()}\`.`,
+    );
+  }
+}
 
 export { expect } from "@playwright/test";

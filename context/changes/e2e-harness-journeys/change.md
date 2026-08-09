@@ -1,7 +1,7 @@
 ---
 change_id: e2e-harness-journeys
 title: E2E harness journeys
-status: implemented
+status: impl_reviewed
 created: 2026-08-08
 updated: 2026-08-09
 archived_at: null

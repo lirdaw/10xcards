@@ -2,6 +2,7 @@ import { inject } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_KEY } from "astro:env/server";
 import { signInAndCaptureCookies } from "./session";
+import { isAlreadyRegistered } from "../setup/env-assertions";
 
 // Two real, signed-in accounts for the whole run: A (the owner) and B (the intruder).
 //
@@ -32,11 +33,6 @@ declare module "vitest" {
 }
 
 const PASSWORD = "harness-passw0rd";
-
-/** Supabase reports a re-used email as this; every other signUp error is real. */
-function isAlreadyRegistered(error: { code?: string; message: string }): boolean {
-  return error.code === "user_already_exists" || /already registered/i.test(error.message);
-}
 
 async function provision(label: string, runId: string): Promise<TestAccount> {
   if (!SUPABASE_URL || !SUPABASE_KEY) {
