@@ -1,10 +1,10 @@
 ---
 change_id: test-plan-refresh-2026-08-05
 title: Refresh test-plan.md for the arrival of e2e — add §3 Phase 6, correct what is now false
-status: impl_reviewed
+status: archived
 created: 2026-08-05
-updated: 2026-08-06
-archived_at: null
+updated: 2026-08-08
+archived_at: 2026-08-08T18:50:44Z
 ---
 
 ## Notes

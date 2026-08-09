@@ -126,3 +126,16 @@ supabase/.temp/
 
 /test-results/
 /.playwright-cli/
+
+# The remaining Playwright artifact classes. LATENT, not observed: the default `list` reporter
+# produces none of these today — they appear the moment someone adds an HTML/blob reporter or a
+# screenshot assertion. Listed anyway so the first person to do so does not commit them.
+#
+# Root-anchored deliberately, matching the two entries above: an anchored ignore does NOT cover a
+# moved `outputDir`, and that is the intended tradeoff — a relocated output directory should have
+# to be ignored explicitly rather than swept up by a pattern nobody re-reads.
+/playwright-report/
+/blob-report/
+/.last-run.json
+# NOT anchored: snapshot directories are created beside the spec that owns them, wherever it sits.
+*-snapshots/
