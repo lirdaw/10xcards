@@ -571,3 +571,65 @@ real defect until proven otherwise is untouched — this removes a cause rather 
   server, and it narrows what the layer could ever say about concurrency to nothing.
 - **The Phases 2-4 backfill above measures TODAY's tree.** It is evidence that those guards can go
   red now, never a record of what was observed on the days those phases shipped.
+
+## Post-review observation — ONE unexplained journey-A red, unreproduced in 78 runs (2026-08-09)
+
+Recorded because this project's rule is that an unexplained red is a finding until something
+explains it, and because the alternative — silence — is how the next person rediscovers it from
+scratch. **It is not a diagnosis. The failure string was NOT captured, and that was a measurement
+error of mine**: the run's output was truncated to its last three lines, and `retain-on-failure`
+had written a trace which the next run's `removeOutputDirs` then wiped. Everything below is what
+survives that mistake.
+
+**What happened.** On the first `npm run e2e` after commit `43bad70` (the impl-review's nine
+triaged fixes), `accepted-card-survives-reload.spec.ts` failed — `1 failed / 11 passed` — and the
+run took **30.9 s**. The teardown still ran and the row residue was `0/0`, so nothing was orphaned.
+
+**What it is not.** Two hypotheses were tested and both are dead:
+
+- **The commit did not change the code.** `lint-staged` runs `eslint --fix` and `prettier --write`
+  over staged files, so the committed bytes could have differed from the tested ones. They do not:
+  `git diff a0e7d19 HEAD` — the hook's own backup stash against the commit — is **empty**.
+- **mtime churn and a cold Vite cache are not sufficient**, together or apart. `touch`ing every
+  file under `src/` (which is what a stash/restore cycle does to the dev server's module graph) is
+  green ×3; the same with `node_modules/.vite` deleted is green ×3.
+
+**The reproduction attempts, enumerated rather than totalled** — a total and its breakdown are two
+claims, and this file has already caught itself on that once:
+
+| Condition                                              | Runs   | Wall clock    | Result              |
+| ------------------------------------------------------ | ------ | ------------- | ------------------- |
+| journey A alone (filtered, 4 tests)                    | 1      | 14.3 s        | green               |
+| full run, plain                                        | 1      | 15.2 s        | green               |
+| full run, `node_modules/.vite` deleted first           | 3      | 22.0 – 22.3 s | green               |
+| full run, immediately after `npm test`                 | 2      | 15.6 – 15.8 s | green               |
+| full run, serial loop                                  | 15     | 14.9 – 15.2 s | green               |
+| full run, after `typecheck` + `lint` + `test`          | 5      | 20.6 – 21.3 s | green               |
+| full run, after `touch`ing all of `src/` (± cold Vite) | 6      | 15.4 – 22.0 s | green               |
+| full run, uninterrupted hunt loop                      | 45     | 15 – 18 s     | green               |
+| **total**                                              | **78** | —             | **78 green, 0 red** |
+
+77 of those are full 12-test runs; the first is filtered to journey A. So the observed rate is
+**≤ 1 in 79**, against exactly one occurrence ever.
+
+**The one thing the numbers do say.** The duration distribution is tight and the red sits far
+outside it: 45 consecutive runs span **15–18 s**, and the slowest condition reproducible on demand
+(cold Vite cache, or a heavy `typecheck`+`lint`+`test` immediately before) tops out at **22.3 s**.
+The red was **30.9 s** — roughly 1.7× the maximum ever observed in 78 runs. That reads as a
+**consumed timeout** rather than as slowness, which is what makes ordinary CPU contention an
+unlikely explanation: contention is reproducible here and it never reddens.
+
+**The named suspect, unconfirmed.** Kong's keep-alive `502`, measured on this very stack by C10X-39.
+It fits the signature better than the Vite dep-optimisation flake does — waiting out a timeout
+rather than failing fast on a missing element — and **this layer absorbs nothing of the kind**:
+`tests/setup/retry-transport.ts` is a Vitest `setupFiles` entry, and Playwright does not load it.
+That gap is real and independent of whether it caused this particular red; it is the same boundary
+the impl-review's F2 names from the other side.
+
+**A by-product worth keeping.** Those 78 runs, and the 45-run uninterrupted loop in particular, are
+a much stronger stability measurement than the eleven cold-cache runs the `workers: 1` fix was
+signed off on — and the teardown survived all of them with a final row residue of `0/0` and a
+`git status --porcelain -uall` that is empty.
+
+Full per-run logs are outside the repo (scratchpad, `e2e-flake/`), so they are **not** durable
+evidence; the durable claim is this section.

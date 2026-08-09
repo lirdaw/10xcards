@@ -3230,6 +3230,18 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
     Ctrl-C path is unmeasured** and the reason is on record in the change's `verification.md`.
   - **The flake is closed at eleven cold-cache runs on one machine on one day.** Zero over eleven
     bounds a rate; it does not prove impossibility, and the Vite behaviour underneath is untouched.
+  - **And it did not prove impossibility — one unexplained red was observed the same day, after this
+    entry was written** (impl-review triage, 2026-08-09). `accepted-card-survives-reload.spec.ts`
+    failed once on the committed tree at **30.9 s**, against a steady state of 15–18 s over 45
+    consecutive runs and a 22.3 s ceiling for the slowest condition reproducible on demand — i.e. a
+    consumed timeout rather than slowness. It did **not** reproduce in **78** runs across five
+    targeted conditions (cold Vite cache, heavy preceding load, `src/` mtime churn, combinations, a
+    45-run uninterrupted loop), the teardown ran and left residue `0/0`, and the commit was proved
+    not to have changed the code. **The failure string was not captured**, so the cause is unknown;
+    the named-but-unconfirmed suspect is Kong's keep-alive `502` (C10X-39), which this layer absorbs
+    nothing of — `tests/setup/retry-transport.ts` is a Vitest `setupFiles` entry and Playwright never
+    loads it. Recorded so the next reader starts from an observation rather than from scratch. Full
+    enumeration: the change's `verification.md`, "Post-review observation".
   - **Nothing here exercises concurrent users** — serialising the runner was a fix for the dev
     server, and it narrows what this layer could ever say about concurrency to nothing.
   - **The 5459-deck debt is stopped, not repaid.** The teardown scopes to the run's own registry by
