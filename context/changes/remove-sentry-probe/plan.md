@@ -514,16 +514,16 @@ which is why the oracle is against the prod host rather than a local build.
 
 #### Automated
 
-- [ ] 1.1 Type gate passes: `npm run typecheck`
-- [ ] 1.2 Lint passes: `npm run lint`
-- [ ] 1.3 Build passes: `npm run build`
-- [ ] 1.4 Full suite passes with no new failures: `npm test`
-- [ ] 1.5 The route is gone from the tree: `git ls-files src/pages/api/shipprobe.ts` returns nothing
+- [x] 1.1 Type gate passes: `npm run typecheck`
+- [x] 1.2 Lint passes: `npm run lint`
+- [x] 1.3 Build passes: `npm run build`
+- [x] 1.4 Full suite passes with no new failures: `npm test`
+- [x] 1.5 The route is gone from the tree: `git ls-files src/pages/api/shipprobe.ts` returns nothing
 
 #### Manual
 
-- [ ] 1.6 Production baseline reading taken BEFORE any merge, returned `500`, recorded with host and timestamp
-- [ ] 1.7 Local post-deletion pre-check returned `404` on the dev server, recorded as a pre-check and NOT as half of the production pair
+- [x] 1.6 Production baseline reading taken BEFORE any merge, returned `500`, recorded with host and timestamp
+- [x] 1.7 Local post-deletion pre-check returned `404` on the dev server, recorded as a pre-check and NOT as half of the production pair
 
 ### Phase 2: Extract the sampling discriminator and put it under test
 
