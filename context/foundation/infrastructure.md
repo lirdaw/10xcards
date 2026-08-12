@@ -32,14 +32,14 @@ dropped nothing — every serverless-only platform stays eligible. Runtime is no
 drop either: non-Cloudflare platforms remain viable but require an `@astrojs/node` adapter
 swap (a real, one-time migration cost off `workerd`).
 
-| Platform | CLI-first | Managed/Serverless | Agent docs | Stable deploy API | MCP / Integration | Total |
-|---|---|---|---|---|---|---|
-| **Cloudflare Workers** | Pass | Pass | Pass | Pass | Pass | **5 Pass** |
-| **Vercel** | Pass | Pass | Pass | Pass | Partial | 4 Pass, 1 Partial |
-| **Netlify** | Partial | Pass | Pass | Pass | Pass | 4 Pass, 1 Partial |
-| **Railway** | Pass | Pass | Pass | Pass | Partial | 4 Pass, 1 Partial |
-| **Render** | Partial | Pass | Partial | Pass | Pass | 3 Pass, 2 Partial |
-| **Fly.io** | Partial | Partial | Pass | Pass | Partial | 2 Pass, 3 Partial |
+| Platform               | CLI-first | Managed/Serverless | Agent docs | Stable deploy API | MCP / Integration | Total             |
+| ---------------------- | --------- | ------------------ | ---------- | ----------------- | ----------------- | ----------------- |
+| **Cloudflare Workers** | Pass      | Pass               | Pass       | Pass              | Pass              | **5 Pass**        |
+| **Vercel**             | Pass      | Pass               | Pass       | Pass              | Partial           | 4 Pass, 1 Partial |
+| **Netlify**            | Partial   | Pass               | Pass       | Pass              | Pass              | 4 Pass, 1 Partial |
+| **Railway**            | Pass      | Pass               | Pass       | Pass              | Partial           | 4 Pass, 1 Partial |
+| **Render**             | Partial   | Pass               | Partial    | Pass              | Pass              | 3 Pass, 2 Partial |
+| **Fly.io**             | Partial   | Partial            | Pass       | Pass              | Partial           | 2 Pass, 3 Partial |
 
 **Per-platform notes:**
 
@@ -131,9 +131,9 @@ generation workload.
   mostly redundant — but some edge differences only appear post-deploy if you rely on the
   old flow.
 - **50 subrequests/request limit (free).** One request doing Supabase auth + a few queries
-  + OpenRouter climbs the counter faster than the simple flow suggests.
+  - OpenRouter climbs the counter faster than the simple flow suggests.
 - **Supabase region vs. Cloudflare edge.** The worker starts near the user, but every
-  Supabase query travels to *its* region. For a single-region audience the edge yields ~0
+  Supabase query travels to _its_ region. For a single-region audience the edge yields ~0
   gain and can add a hop — co-locate Supabase near users, not "globally."
 - **Secrets: `wrangler secret put` (prod) vs `.env` (local)** are two separate worlds. It is
   easy to deploy with a missing `SUPABASE_KEY`; `createClient` then returns `null` and the app
@@ -146,7 +146,7 @@ generation workload.
   via the Workers Builds GitHub integration. Preview URLs are public by default — gate with
   Cloudflare Access if the preview must stay private.
 - **Secrets**: production secrets live in Workers Secrets, set via `wrangler secret put
-  SUPABASE_URL` / `SUPABASE_KEY` (and the OpenRouter key); local dev reads `.env`
+SUPABASE_URL` / `SUPABASE_KEY` (and the OpenRouter key); local dev reads `.env`
   (git-ignored; do NOT also create `.dev.vars` — it silently shadows `.env`). GitHub Actions
   build reads them from repository secrets. Rotation =
   `wrangler secret put` again (overwrites) + redeploy. Never commit them to `wrangler.jsonc`.
@@ -164,25 +164,32 @@ generation workload.
 
 ## Risk Register
 
-| Risk | Source | Likelihood | Impact | Mitigation |
-|---|---|---|---|---|
-| `nodejs_compat` gap breaks `@supabase/ssr` / OpenRouter SDK at runtime | Devil's advocate | M | H | Keep `compatibility_flags: ["nodejs_compat"]`; smoke-test auth + a real generation call against a deployed preview (not just `astro dev`) before promoting. |
-| LLM generation exceeds 10 ms CPU on free tier → user-facing error | Pre-mortem | M | H | Budget for the $5 paid plan before real usage; keep response parsing lean; honor FR-018 with visible retry. |
-| Worker bundle crosses 3 MB gzip (free) / 10 MB (paid) → deploys bounce | Devil's advocate | M | M | Monitor bundle size in CI; move to paid (10 MB) before it bites; tree-shake heavy deps. |
-| Pages vs Workers command mismatch deploys into a dead path | Devil's advocate | M | M | Deploy plan must pin **Workers** (`wrangler deploy`) explicitly; update `tech-stack.md` `deployment_target` from `cloudflare-pages` to `cloudflare-workers`. |
-| Astro 6 beta ships a breaking change | Unknown unknowns / Research finding | M | M | Pin Astro + adapter versions; watch the changelog; run `npx astro sync` + build in CI on every bump. |
-| Missing `SUPABASE_KEY` secret → app silently runs unauthenticated (`createClient` → null) | Unknown unknowns | L | H | Add a deploy-time check that both secrets are set; treat a null client as a hard failure in a health endpoint, not a silent skip. |
-| `@astrojs/cloudflare` `base` bug drops prefix on static assets ([#16276](https://github.com/withastro/astro/issues/16276)) | Research finding | L | M | Avoid a sub-path `base`; if required, verify asset URLs on a preview deploy. |
-| Supabase region far from single-region audience adds latency hop | Unknown unknowns | L | M | Provision Supabase in the region closest to the target users; do not assume edge cancels DB latency. |
-| 50 subrequests/request limit (free) exceeded by auth + queries + LLM in one request | Unknown unknowns | L | M | Keep per-request fan-out low; batch Supabase queries; paid tier raises the limit. |
+| Risk                                                                                                                       | Source                              | Likelihood | Impact | Mitigation                                                                                                                                                   |
+| -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | ---------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `nodejs_compat` gap breaks `@supabase/ssr` / OpenRouter SDK at runtime                                                     | Devil's advocate                    | M          | H      | Keep `compatibility_flags: ["nodejs_compat"]`; smoke-test auth + a real generation call against a deployed preview (not just `astro dev`) before promoting.  |
+| LLM generation exceeds 10 ms CPU on free tier → user-facing error                                                          | Pre-mortem                          | M          | H      | Budget for the $5 paid plan before real usage; keep response parsing lean; honor FR-018 with visible retry.                                                  |
+| Worker bundle crosses 3 MB gzip (free) / 10 MB (paid) → deploys bounce                                                     | Devil's advocate                    | M          | M      | Monitor bundle size in CI; move to paid (10 MB) before it bites; tree-shake heavy deps.                                                                      |
+| Pages vs Workers command mismatch deploys into a dead path                                                                 | Devil's advocate                    | M          | M      | Deploy plan must pin **Workers** (`wrangler deploy`) explicitly; update `tech-stack.md` `deployment_target` from `cloudflare-pages` to `cloudflare-workers`. |
+| Astro 6 beta ships a breaking change                                                                                       | Unknown unknowns / Research finding | M          | M      | Pin Astro + adapter versions; watch the changelog; run `npx astro sync` + build in CI on every bump.                                                         |
+| Missing `SUPABASE_KEY` secret → app silently runs unauthenticated (`createClient` → null)                                  | Unknown unknowns                    | L          | H      | Add a deploy-time check that both secrets are set; treat a null client as a hard failure in a health endpoint, not a silent skip.                            |
+| `@astrojs/cloudflare` `base` bug drops prefix on static assets ([#16276](https://github.com/withastro/astro/issues/16276)) | Research finding                    | L          | M      | Avoid a sub-path `base`; if required, verify asset URLs on a preview deploy.                                                                                 |
+| Supabase region far from single-region audience adds latency hop                                                           | Unknown unknowns                    | L          | M      | Provision Supabase in the region closest to the target users; do not assume edge cancels DB latency.                                                         |
+| 50 subrequests/request limit (free) exceeded by auth + queries + LLM in one request                                        | Unknown unknowns                    | L          | M      | Keep per-request fan-out low; batch Supabase queries; paid tier raises the limit.                                                                            |
 
 ## Getting Started
 
 Validated against the pinned stack (Astro 6, `@astrojs/cloudflare` v13+, Node 22):
 
 1. **Confirm the adapter targets Workers** (not the legacy Pages flow). `@astrojs/cloudflare`
-   v13+ is required for Astro 6; ensure `wrangler.jsonc` has `main: ./dist/_worker.js/index.js`,
+   v13+ is required for Astro 6; ensure `wrangler.jsonc` has `main: ./src/worker.ts`,
    `compatibility_flags: ["nodejs_compat"]`, and the assets binding to `./dist`.
+   The `main` value was corrected on 2026-08-12 (C10X-53): it read `./dist/_worker.js/index.js`,
+   which is the legacy Pages layout this very step warns against, and was wrong under the v13
+   adapter both before and after that change. `main` is a SOURCE entry that the Cloudflare Vite
+   plugin bundles; the file that actually deploys is the generated `dist/server/wrangler.json`,
+   where `main` reads `entry.mjs`. Since C10X-53 that source entry is this project's own
+   `src/worker.ts` (it wraps the adapter handler in Sentry) rather than the adapter's
+   `@astrojs/cloudflare/entrypoints/server` specifier.
 2. **Dev on the real runtime**: `npm run dev` already runs on `workerd` via the Cloudflare
    Vite plugin — a separate `wrangler dev` is redundant for local fidelity.
 3. **Set production secrets**: `npx wrangler secret put SUPABASE_URL`, `... SUPABASE_KEY`,
@@ -201,6 +208,7 @@ Validated against the pinned stack (Astro 6, `@astrojs/cloudflare` v13+, Node 22
 ## Out of Scope
 
 The following were not evaluated in this research:
+
 - Docker image configuration
 - CI/CD pipeline setup
 - Production-scale architecture (multi-region, HA, DR)

@@ -435,28 +435,28 @@ harmlessly — nothing reads it after revert.
 
 #### Automated
 
-- [x] 1.1 `npm run typecheck` exits 0
-- [x] 1.2 `npm run lint` exits 0
-- [x] 1.3 `npm test` green with the local stack up
-- [x] 1.4 `npm run build` exits 0 and generated `dist/server/wrangler.json` carries `version_metadata` + rewritten `main` (inspected)
-- [x] 1.5 `git grep -i "sentry_dsn"` shows no DSN value anywhere in the repo
+- [x] 1.1 `npm run typecheck` exits 0 — 8629eb7
+- [x] 1.2 `npm run lint` exits 0 — 8629eb7
+- [x] 1.3 `npm test` green with the local stack up — 8629eb7
+- [x] 1.4 `npm run build` exits 0 and generated `dist/server/wrangler.json` carries `version_metadata` + rewritten `main` (inspected) — 8629eb7
+- [x] 1.5 `git grep -i "sentry_dsn"` shows no DSN value anywhere in the repo — 8629eb7
 
 #### Manual
 
-- [x] 1.6 `npm run dev` without `SENTRY_DSN`: app works as before (no-op branch, adapter env wiring intact)
+- [x] 1.6 `npm run dev` without `SENTRY_DSN`: app works as before (no-op branch, adapter env wiring intact) — 8629eb7
 
 ### Phase 2: Repo hygiene, docs, and the manual-deploy runbook
 
 #### Automated
 
-- [ ] 2.1 `npm run typecheck` exits 0
-- [ ] 2.2 `npm run lint` exits 0
-- [ ] 2.3 `npm test` green (e2e-env fixed-map test pins `SENTRY_DSN: ""`)
-- [ ] 2.4 `npm run e2e` passes with the local stack up
-- [ ] 2.5 `npm run build` exits 0
+- [x] 2.1 `npm run typecheck` exits 0
+- [x] 2.2 `npm run lint` exits 0
+- [x] 2.3 `npm test` green (e2e-env fixed-map test pins `SENTRY_DSN: ""`)
+- [x] 2.4 `npm run e2e` passes with the local stack up
+- [x] 2.5 `npm run build` exits 0
 
 #### Manual
 
-- [ ] 2.6 Ambient fake `SENTRY_DSN` in shell → `npm run e2e` still green (blank pinned by unit test + merge order)
-- [ ] 2.7 AGENTS.md carve-out reads correctly beside the `scripts/` exception
-- [ ] 2.8 Runbook complete enough to execute the deploy without questions
+- [x] 2.6 Ambient fake `SENTRY_DSN` in shell → `npm run e2e` still green (blank pinned by unit test + merge order)
+- [x] 2.7 AGENTS.md carve-out reads correctly beside the `scripts/` exception
+- [x] 2.8 Runbook complete enough to execute the deploy without questions
