@@ -75,9 +75,9 @@ Independently corroborated beyond the criteria:
   three times (`test-plan.md` §8: "all of them pointers rather than claims — and pointers rot
   silently"). Phase 3's criterion 3.4 could not catch it: it searched for `shipprobe`, not for the
   symbols the change relocated.
-- **Fix**: Repoint the symbol only — `patrz `DEPENDENCY_NOISE`w`src/lib/sentry-sampling.ts`` —
-  leaving the bullet's tense and every other word untouched, so the recorded decision not to
-  re-tense it still holds.
+- **Fix**: Repoint the symbol only — the bullet's "patrz `DEPENDENCY_NOISE` w …" now names
+  `src/lib/sentry-sampling.ts` — leaving the bullet's tense and every other word untouched, so the
+  recorded decision not to re-tense it still holds.
 - **Decision**: FIXED — symbol repointed to `src/lib/sentry-sampling.ts`; tense and every other word of the bullet untouched.
 
 ### F2 — "Both halves are required" overstates the protection for the dominant first-party class
