@@ -510,3 +510,178 @@ a count is not.
 The H-14 `## Done` entry was **appended to** (a dated `Nota`), which is not the same act as writing a
 `## Done` entry for this change — the thing the plan forbids. That bullet already carried a
 hand-appended dated correction from the C10X-53 ship, so the idiom is the file's own.
+
+## Phase 4 — ship, and the production pair closed
+
+### The ship itself
+
+| Step             | Value                                                                    |
+| ---------------- | ------------------------------------------------------------------------ |
+| Branch pushed    | `C10X-54-remove-sentry-probe` (5 commits + `87c89a0`)                    |
+| PR               | [#32](https://github.com/lirdaw/10xcards/pull/32), base `main`           |
+| PR-check run     | `31632876837` — `ci` success; `drift`/`deploy` **skipped**, as they must |
+| Merge            | `4df23c7`, a real merge commit (matching PR #31's shape, 2 parents)      |
+| Pipeline on main | `31633355909`                                                            |
+
+`drift` and `deploy` skipping on the PR run is not a gap — both are gated on a push to `main`
+(`README.md` § CI), so the PR run can only ever prove `ci`. This change carries **no migration**, so
+`drift` had nothing new to compare and passed on the merge run in 10 s.
+
+**`npm ci` failed twice today on a cause that is not this change, and it is recorded rather than
+quietly re-run.** Both the PR run and the first attempt of the merge run died in `npm ci` before any
+gate executed:
+
+```
+npm error path /home/runner/work/10xcards/10xcards/node_modules/supabase
+npm error command sh -c node scripts/postinstall.js
+npm error Downloading https://github.com/supabase/cli/releases/download/v2.98.2/supabase_2.98.2_checksums.txt
+npm error FetchError: request to … failed, reason: socket hang up
+npm error   code: 'ECONNRESET',
+```
+
+The `supabase` devDependency's `postinstall` fetches the CLI binary from `github.com` at install
+time, so every CI run depends on that download. Both failures cleared on `gh run rerun --failed`
+against the **same commit with no code change**, which is what attributes them to the network rather
+than to the tree. The consequence worth carrying: **a red `ci` job here is not automatically evidence
+about the change under test** — read which step failed before believing it. This is the C10X-39 class
+(a transport flake wearing a test failure's clothes) one layer out, in CI rather than in the local
+stack. Not filed as a defect of this change; noted because a reader of this log would otherwise see
+two reds and no explanation.
+
+### 4.1 — the `deploy` job's conclusion
+
+```
+$ gh run view 31633355909 --json jobs --jq '.jobs[] | "\(.name): \(.status)/\(.conclusion)"'
+ci: completed/success
+drift: completed/success
+deploy: completed/success
+```
+
+| Job      | Conclusion  | Started              | Completed            |
+| -------- | ----------- | -------------------- | -------------------- |
+| `ci`     | **success** | 2026-08-12T19:36:19Z | 2026-08-12T19:40:19Z |
+| `drift`  | **success** | 2026-08-12T19:40:22Z | 2026-08-12T19:40:32Z |
+| `deploy` | **success** | 2026-08-12T19:40:35Z | 2026-08-12T19:41:29Z |
+
+`success` and **not `skipped`** is the criterion's own wording, and it is the half that matters: a
+skipped deploy ships nothing, and the `404` would then be measuring the previous Worker.
+
+**A second, independent corroboration that a NEW Worker is live** — because "the job said success" and
+"the deployed code changed" are two claims, and only the first is what a green tick asserts:
+
+```
+deploy  Uploaded 10xcards (4.13 sec)
+deploy  Deployed 10xcards triggers (0.43 sec)
+deploy    https://10xcards.lirdaw.workers.dev
+deploy  Current Version ID: 0cf04ec7-3427-4925-ac41-b8de64a8c5fc
+```
+
+The Version ID moved from `1d12e051-a595-4e2f-a2d4-47c57e7e7f2d` (the C10X-53 deploy that put the
+probe on production, quoted at the top of this file) to `0cf04ec7-3427-4925-ac41-b8de64a8c5fc`. And
+the host wrangler printed is `10xcards.lirdaw.workers.dev` — **the same host Phase 1 read**, which is
+the precondition the plan sets for the pair being valid at all.
+
+### 4.2 — the pair, closed
+
+Same command, same host, same series discipline as Phase 1:
+
+```
+$ date -u +%Y-%m-%dT%H:%M:%SZ
+2026-08-12T19:42:01Z
+$ curl -s -o /dev/null -w "%{http_code}\n" https://10xcards.lirdaw.workers.dev/api/shipprobe
+404
+```
+
+| Reading              | Host                          | Path             | Status  | Timestamp            |
+| -------------------- | ----------------------------- | ---------------- | ------- | -------------------- |
+| **Phase 1** (before) | `10xcards.lirdaw.workers.dev` | `/api/shipprobe` | **500** | 2026-08-12T18:41:25Z |
+| **Phase 4** (after)  | `10xcards.lirdaw.workers.dev` | `/api/shipprobe` | **404** | 2026-08-12T19:42:01Z |
+
+**One host, one path, one method, two states, 60 minutes and one deploy apart.** That is the whole
+oracle, and it is why the `500` had to be taken before the merge: it is unrecoverable now.
+
+Positive controls, taken in the same series — without them a `404` is equally compatible with a typo'd
+URL, a wrong host or a dead Worker, the three failures this project has hit before:
+
+| Request                | Status  | Phase 1 | What it establishes                                              |
+| ---------------------- | ------- | ------- | ---------------------------------------------------------------- |
+| `GET /`                | **200** | 200     | The host is alive and still serving the app after the deploy     |
+| `GET /auth/signin`     | **200** | 200     | A second real route still renders — the deploy broke nothing     |
+| `GET /api/nonexistent` | **404** | 404     | The established shape of "no such API route" on this host        |
+| `GET /api/shipprobe`   | **404** | **500** | **The probe has joined that class — the only cell that changed** |
+
+Every control reproduces its Phase 1 value; exactly one cell moved, and it is the one under test. The
+response headers confirm the Worker is answering rather than an intermediary:
+
+```
+HTTP/1.1 404 Not Found
+Content-Type: text/html
+Server: cloudflare
+CF-RAY: a2a1f60acacddf72-PRG
+```
+
+`Content-Type: text/html` (against Phase 1's `Content-Length: 0` on the empty body of an uncaught
+throw) is the second visible difference: this is the 404 page, not a silenced exception.
+
+### 4.3 — the Sentry spot check, and why it came out stronger than "a spot check"
+
+A `404` is a routed response, not an exception, so nothing should reach Sentry from those requests.
+The plan states this as **a spot check, not a gate**, and the reason it is weak as written is worth
+keeping in view: **an absence proves nothing unless something establishes that a presence would have
+been visible.** A quiet Sentry is equally compatible with "the route is gone" and with "monitoring
+died" — and after this deletion nothing in this project can provoke a first-party error on prod to
+tell them apart.
+
+The deploy handed the check a discriminator the plan did not anticipate, so the silence became
+measurable instead of merely observed. **The Worker's Version ID is Sentry's `release` tag** (via the
+`CF_VERSION_METADATA` binding, runbook §5), and this change moved it. So "did anything arrive from the
+NEW Worker?" is a query, not an impression:
+
+| Query (same project, same 24h window, same `All Envs`, same sort)   | Result                             |
+| ------------------------------------------------------------------- | ---------------------------------- |
+| `release:0cf04ec7-3427-4925-ac41-b8de64a8c5fc` — **the new Worker** | **No issues match your search**    |
+| `release:1d12e051-a595-4e2f-a2d4-47c57e7e7f2d` — **the old Worker** | **1 issue, 5/5 events**, `1hr ago` |
+
+The second row is the **positive control**, and it is what makes the first row evidence: the two
+queries differ in exactly one character sequence, so "no issues" cannot be a wrong tag name, a
+mistyped syntax, an unprojected filter or a release tag nobody sets. The one issue it returns is
+`10XCARDS-6` — culprit `https://10xcards.lirdaw.workers.dev/api/shipprobe`, `environment: production`
+100 %, `logger: console` — i.e. **the probe's own events, from Phase 1, on the exact host and path
+under test.** The pipeline demonstrably captured this route an hour earlier and captured nothing from
+it after the deploy.
+
+The issue's own detail view pins the timing to the second rather than to Sentry's rounded "1hr ago":
+
+| Field           | Value                                                          |
+| --------------- | -------------------------------------------------------------- |
+| Events (total)  | **5** — unchanged across two readings, 19:47Z and 19:52Z       |
+| Last seen       | **Aug 12, 20:45:59.227 CEST = 18:45:59Z**, release `1d12e051…` |
+| First seen      | 2 hours earlier, also release `1d12e051…`                      |
+| Latest event id | `ac39a524`                                                     |
+| Stack frame     | `at Module.GET (chunks/shipprobe_CaPrVLDS.mjs:4:9)`            |
+
+`18:45:59Z` is Phase 1's second baseline reading (the `curl` at 18:45:46Z). **Four requests to
+`/api/shipprobe` after the deploy — 19:42:01Z, 19:45:28Z and 19:52:02Z — moved that counter by
+nothing.** The stack frame is its own small corroboration: the captured events point into
+`chunks/shipprobe_*.mjs`, a compiled chunk the new build no longer emits.
+
+The unfiltered stream agrees and closes the one gap a release-scoped query leaves — an event carrying
+**no** release tag, which runbook §5 is explicit is a distinct case rather than an absence: the
+project holds **`1-6 of 6`** issues, newest `Last Seen` `1hr ago`, no new issue and no moved counter.
+Read after the runbook's **5-minute** silence window had elapsed on the 19:42 and 19:45 requests, per
+its own instruction not to treat silence as a result too early.
+
+**What this still does NOT prove**, unchanged by any of the above: that Sentry invokes `beforeSend` at
+all today. Everything here is evidence about the OLD release plus an absence under the new one, and an
+absence cannot exercise a code path. The truth table proves the decision is right, the wiring guard
+proves `src/worker.ts` still makes it, and the deleted probe was the last thing that could have proved
+the SDK calls either. That is the accepted cost of this change, recorded here rather than softened.
+
+**One observation outside this change's scope, recorded so it is not lost**: `10XCARDS-6` is still
+`New` (unresolved), as are the four other C10X-53 test artifacts. The archived runbook's §6 close-out
+asks for those to be **resolved** — that item belongs to C10X-53's ship, not to this change, and
+nothing here touched them. Left for whoever closes that loop; flagged because a stale deliberate-error
+issue sitting open is exactly the false alarm §6 exists to prevent.
+
+Cost of the whole Phase 1 + Phase 4 measurement: **two unsampled Sentry events**, both from Phase 1's
+`500` readings, and the last this route will ever produce.
