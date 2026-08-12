@@ -305,3 +305,208 @@ than just the case titles — `sentry-sampling.test.ts:54`, `:66`, `:75`, `:84`,
 `sentry-wiring.test.ts:131` for 2.10 — and it confirms the import survived the 2.10 edit by reading
 it back (`src/worker.ts:3`) before running, so "co-presence did not satisfy the guard" is an
 observation rather than an intention.
+
+## Phase 3 — doc-sync
+
+Six targets, each chosen by reading its **section header and preamble** rather than by line number
+(`lessons.md:236`). Which of them is a live declaration and which is a dated snapshot decides whether
+it was overwritten or appended to, so that classification is recorded per target rather than left to
+be inferred from the diff.
+
+| Target                                       | Kind                                          | Treatment                                                                            |
+| -------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `roadmap.md` § H-15 **Outcome**              | live declaration (`Status: not started`)      | **overwritten** — it described an intention; it now describes what shipped           |
+| `roadmap.md` § H-15 **Unknowns**             | live declaration                              | **overwritten** into a dated decision (plain deletion; guarded replacement DECLINED) |
+| `roadmap.md` § Done → the H-14 entry         | dated historical record                       | **appended** — a `Nota 2026-08-12 (C10X-54)`; the original sentence stands verbatim  |
+| `src/worker.ts` comment above the delegation | live code comment                             | **appended** — a short dated note pointing at the two tests                          |
+| `deploy-runbook.md` §5 and §6 (archived)     | dated snapshot, frozen                        | **two appended correction blocks**; no surrounding step rewritten                    |
+| `test-plan.md` §7 dependency-log exclusion   | live exclusion carrying dated correction rows | **appended** dated correction; the exclusion itself still STANDS                     |
+
+### Why the roadmap **Risk** bullet was deliberately NOT edited
+
+H-15's `Risk` bullet is present-tense about the probe ("Sonda **jest** publiczna i nieuwierzytelniona
+świadomie…", plus the `PROTECTED_ROUTES` stopgap). It was read and left alone, for two reasons, so the
+absence of an edit is a decision rather than an oversight:
+
+- the plan's Contract for this target is explicit — **"Outcome and Unknowns only"**;
+- it matches the file's own convention. **H-14's `Risk` bullet is still present-tense today**, months
+  after that item shipped, because a `Risk` bullet records _why the item exists_, not the current state
+  of production. Re-tensing H-15's alone would make it the odd one out.
+
+Both bullets immediately above it now carry the dated resolution, so a reader of the block cannot come
+away thinking the route is live.
+
+### 3.1 — live docs are formatter-clean
+
+```
+$ npx prettier --check context/foundation/roadmap.md context/foundation/test-plan.md
+Checking formatting...
+All matched files use Prettier code style!
+EXIT=0
+```
+
+### 3.2 — the archive-is-ignored PAIR, and the plan's own command measured FALSE
+
+The criterion exists because `prettier --check` reports an **ignored** file and a **clean** file
+identically (§6.6's C10X-43 trap). The plan's second half named the runbook itself and predicted it
+would print. **Measured, it does not — and it did not at `HEAD` either:**
+
+```
+$ npx prettier --list-different context/archive/.../deploy-runbook.md
+(no output)                                                              EXIT=0
+$ npx prettier --ignore-path /dev/null --list-different context/archive/.../deploy-runbook.md
+(no output)                                                              EXIT=0
+```
+
+The file is **prettier-clean**, so that exact pair proves nothing: both halves are silent for
+different reasons and the command cannot distinguish them. Confirmed against `HEAD` (the pre-edit
+copy extracted with `git show` and checked with the ignore disabled) → also silent, so this is a
+property of the file, not something these edits introduced.
+
+**Substituted with a control that CAN print**, over the same ignore rule and the same tree:
+
+| Command                                                                           | Result                |
+| --------------------------------------------------------------------------------- | --------------------- |
+| `npx prettier --list-different "context/archive/**/*.md"`                         | **no output**, exit 0 |
+| `npx prettier --ignore-path /dev/null --list-different "context/archive/**/*.md"` | **116 files printed** |
+
+That is strictly stronger than the single-file form the plan wrote: 116 files under
+`context/archive/**` would be reported, and the ignore silences **all** of them, so the first line's
+silence is attributable to `.prettierignore` and to nothing else. `npm run format` therefore still
+cannot touch the archive, which is the property the criterion is actually about.
+
+**One thing the first attempt got wrong, recorded rather than smoothed over.** Before the fix below,
+the runbook _was_ prettier-different — because of these edits, not because of the archive. Prettier
+wanted exactly one thing: a blank line between the new §6 correction blockquote and the next list
+item. That would have satisfied criterion 3.2 as written, for the wrong reason entirely (my
+formatting being off, dressed up as the archive being un-prettier). Fixed, and the fix is visible in
+the control itself: the archive's different-file count went **117 → 116**, and the file that left the
+list is this one.
+
+### 3.3 — the gates still pass after the `src/worker.ts` comment edit
+
+| Check               | Result                                                                                                     |
+| ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `npm run typecheck` | OK — **149 files**, 0 errors, 0 warnings (floor 50); unchanged from Phase 2, as a comment edit should      |
+| `npm run lint`      | exit 0 — 0 errors, the same **3** pre-existing `no-console` warnings in `evals/generation-quality.eval.ts` |
+
+**Not required by the criterion, run anyway, and it is the one thing this phase could plausibly have
+broken:** `tests/lib/sentry-wiring.test.ts` reads `src/worker.ts` **per line**, and this phase edits
+that file. `npx vitest run tests/lib/sentry-wiring.test.ts tests/lib/sentry-sampling.test.ts` →
+**18 passed**, seed `1786561989382`. The note was deliberately written to contain no `beforeSend`,
+no `DEPENDENCY_NOISE` and no `Math.random()` token, so it cannot trip the guard's negative control.
+
+### 3.4 — no live document claims the probe exists
+
+Repo-wide, excluding `context/archive/`, `dist/`, `node_modules/` and `.git/`:
+
+| File                                     | Hits | Verdict                                                                                         |
+| ---------------------------------------- | ---- | ----------------------------------------------------------------------------------------------- |
+| `context/changes/remove-sentry-probe/**` | 40   | this change's own folder — allowed by the criterion                                             |
+| `context/foundation/roadmap.md`          | 4    | the resolved H-15 entry (At-a-glance row, Outcome, Risk) + the H-14 note                        |
+| `context/foundation/jira-map.md`         | 1    | excluded **by decision** — jira-\* owned and gitignored; `/jira-finish-work` updates the ticket |
+| `context/foundation/test-plan.md`        | 1    | the new §7 correction, which states the route was deleted                                       |
+| `src/worker.ts`                          | 1    | the new dated note: "the public `/api/shipprobe` route is GONE"                                 |
+| `src/lib/sentry-sampling.ts`             | 1    | "…and that route is deleted by this change"                                                     |
+| `tests/lib/sentry-sampling.test.ts`      | 1    | "…and this change deletes that route"                                                           |
+| `tests/lib/sentry-wiring.test.ts`        | 1    | "…was the last end-to-end instrument for that property"                                         |
+| `.idea/workspace.xml`                    | 1    | untracked IDE state, gitignored (`.gitignore:9`) — not a document                               |
+
+**Four of those hits are outside the criterion's own enumeration, and that is a plan-vs-reality note
+rather than a failure.** The criterion was written before Phase 2 existed and lists only the change
+folder, the roadmap and `jira-map.md`; `src/worker.ts`, `src/lib/sentry-sampling.ts` and the two test
+files are Phase 2's own deliverables. Each was read: **every one describes the deletion in the past or
+in the deleting tense — none claims the route exists.** No hit anywhere instructs a reader to call it.
+
+### 3.5 — append vs overwrite, decided at the CHARACTER level
+
+The rule (`lessons.md:236`) is that a live declaration may be overwritten and a dated snapshot may
+only be appended to. Which of the two happened is not a matter of intention, so it was measured:
+`git diff --numstat` per target, plus a prefix test on every changed line.
+
+| Target                                 | numstat   | Verdict                                             |
+| -------------------------------------- | --------- | --------------------------------------------------- |
+| `deploy-runbook.md` (archived, FROZEN) | **+38/0** | pure insertion — not one existing line removed      |
+| `test-plan.md` §7 (live exclusion)     | **+24/0** | pure insertion — the exclusion's own text untouched |
+| `src/worker.ts` (live comment)         | **+7/0**  | pure insertion                                      |
+| `roadmap.md`                           | +3/−3     | three changed lines, classified individually below  |
+
+The roadmap's three changed lines, each tested by asking whether the OLD text survives verbatim as a
+prefix of the new one:
+
+| Line                    | Kind           | Result                                                                   |
+| ----------------------- | -------------- | ------------------------------------------------------------------------ |
+| H-15 **Outcome**        | LIVE           | rewritten (diverges at char 179; 446 → 1558) — permitted and intended    |
+| H-15 **Unknowns**       | LIVE           | rewritten (diverges at char 16; 269 → 845) — permitted and intended      |
+| H-14 entry in `## Done` | DATED SNAPSHOT | **APPEND-ONLY** — all 1456 original chars preserved verbatim, +640 added |
+
+So no frozen document lost a character anywhere in this phase.
+
+> **A tooling trap met on the way, worth carrying because it produced a confident wrong answer.**
+> The first extraction listed "removed lines" with `grep -E "^-[^-]"` and reported **zero removals
+> for every file, roadmap included** — which is false: a removed markdown bullet appears in the diff
+> as `-- **Outcome:** …`, i.e. a `-` marker followed by the bullet's own `-`, and the pattern
+> excludes exactly that. `--numstat` disagreed, which is how it was caught. Read a diff's markers
+> with `grep "^-" | grep -v "^---"`, never with a "not another dash" class, whenever the content
+> itself can start with a dash.
+
+### 3.7 — "renders correctly", made falsifiable instead of eyeballed
+
+A human skim cannot see the failure that matters here — a blockquote silently merged into the
+preceding paragraph, or a list split in two so every following bullet leaves it. Both were therefore
+asserted by parsing the documents with a real CommonMark parser
+(`mdast-util-from-markdown@2.0.3`, already in `node_modules`) and checking the resulting tree:
+
+| Assertion                                                                         | Result   |
+| --------------------------------------------------------------------------------- | -------- |
+| §5 correction is a top-level blockquote (4 paragraphs)                            | **PASS** |
+| "Then, in the first terminal:" is still its own node                              | **PASS** |
+| the original "Do the cheap one first…" survives as a SEPARATE paragraph           | **PASS** |
+| §6 correction is a blockquote NESTED INSIDE the `/api/shipprobe` bullet           | **PASS** |
+| "Settle the alert rule" is still a SIBLING in the same 5-bullet list              | **PASS** |
+| test-plan §7 correction is nested inside the exclusion (2 paragraphs)             | **PASS** |
+| "Rate limiting on generation" is still a SIBLING in the same list                 | **PASS** |
+| roadmap H-15 keeps all nine standard bullets, in order                            | **PASS** |
+| the H-14 `## Done` entry is still one item in a 23-bullet list                    | **PASS** |
+| no inline code span crosses a line break INSIDE a blockquote (the C10X-43 hazard) | **PASS** |
+
+**Two positive controls, because a green structural check is worth nothing until it has been seen
+red.** Both were run against the real file and restored, with the restore verified by hash
+(`md5 cd56b8dc131467145637eeff1692b9b5`, identical both times):
+
+- **A — un-indent the §6 correction blockquote by two spaces.** Goes red on both nesting assertions,
+  and the §6 list collapses from **5 bullets to 2**: the correction and everything after it leave
+  the list. Real, and precisely the damage a visual skim reads past.
+- **B — delete the blank line before "Settle the alert rule".** **Structure is IDENTICAL — 5
+  bullets, blockquote still nested, all checks green** — while `prettier --list-different` still
+  flags the file. So that blank line, added earlier in this phase, is **cosmetic and not
+  load-bearing**: it buys the prettier-clean property (which is what criterion 3.2's honesty rests
+  on), never the rendering. Recorded because the earlier note in this file could be read as claiming
+  the render was at risk. It was not.
+
+**The boundary, stated rather than implied**: this proves STRUCTURE, not typography. A parser cannot
+tell that a sentence is clumsy or a date is wrong; what it can tell — and what a reader cannot — is
+that every block landed in the container it was aimed at.
+
+Two scan caveats found while doing it, both recorded rather than tuned away. The code-span check
+first ran over whole files and reported **five** split spans in `test-plan.md`; all five are
+**pre-existing** (lines 977–2034), none inside a blockquote, and this change touches only line 3842
+onward — so the check was narrowed to blockquotes, which is what the recorded hazard is actually
+about. And the first version of the roadmap bullet assertion demanded **7** bullets against a
+correct 9-bullet block; it now asserts the nine bullet NAMES in order, which is falsifiable in a way
+a count is not.
+
+### 3.6 — the two things `/10x-archive` owns, asserted rather than eyeballed
+
+`/10x-archive` owns the Status flip and the `## Done` entry (`lessons.md:180`):
+
+| Claim                                    | Measurement                                |
+| ---------------------------------------- | ------------------------------------------ |
+| H-15 detail-block `Status`               | `not started` — untouched                  |
+| H-15 At-a-glance status cell             | `not started` — untouched                  |
+| `## Done` bullet count, `HEAD` → now     | **23 → 23** — no entry added               |
+| `## Done` section mentioning this change | **0** occurrences of `remove-sentry-probe` |
+
+The H-14 `## Done` entry was **appended to** (a dated `Nota`), which is not the same act as writing a
+`## Done` entry for this change — the thing the plan forbids. That bullet already carried a
+hand-appended dated correction from the C10X-53 ship, so the idiom is the file's own.

@@ -529,35 +529,35 @@ which is why the oracle is against the prod host rather than a local build.
 
 #### Automated
 
-- [x] 2.1 Type gate passes: `npm run typecheck`
-- [x] 2.2 Lint passes: `npm run lint`
-- [x] 2.3 Build passes and the `@/*` import resolves in the Worker entry: `npm run build`
-- [x] 2.4 The new test passes: `npx vitest run tests/lib/sentry-sampling.test.ts`
-- [x] 2.5 The wiring guard passes: `npx vitest run tests/lib/sentry-wiring.test.ts`
-- [x] 2.6 Full suite passes: `npm test`
-- [x] 2.7 Env guard passes over the new module: `npx vitest run tests/lib/no-env-access.test.ts`
-- [x] 2.8 Logging guard passes over the new module: `npx vitest run tests/lib/no-logging.test.ts`
+- [x] 2.1 Type gate passes: `npm run typecheck` — 1852533
+- [x] 2.2 Lint passes: `npm run lint` — 1852533
+- [x] 2.3 Build passes and the `@/*` import resolves in the Worker entry: `npm run build` — 1852533
+- [x] 2.4 The new test passes: `npx vitest run tests/lib/sentry-sampling.test.ts` — 1852533
+- [x] 2.5 The wiring guard passes: `npx vitest run tests/lib/sentry-wiring.test.ts` — 1852533
+- [x] 2.6 Full suite passes: `npm test` — 1852533
+- [x] 2.7 Env guard passes over the new module: `npx vitest run tests/lib/no-env-access.test.ts` — 1852533
+- [x] 2.8 Logging guard passes over the new module: `npx vitest run tests/lib/no-logging.test.ts` — 1852533
 
 #### Manual
 
-- [x] 2.9 Deliberate-breakage run recorded with observed failure string and red/green split; restored and hash-verified
-- [x] 2.10 Second deliberate-breakage run: re-inlining the decision turns `sentry-wiring.test.ts` red while `sentry-sampling.test.ts` stays green; recorded, restored and hash-verified
-- [x] 2.11 `git diff src/worker.ts` shows `WorkerEnv`, the `dsn` read, both integrations and the adapter import unchanged
+- [x] 2.9 Deliberate-breakage run recorded with observed failure string and red/green split; restored and hash-verified — 1852533
+- [x] 2.10 Second deliberate-breakage run: re-inlining the decision turns `sentry-wiring.test.ts` red while `sentry-sampling.test.ts` stays green; recorded, restored and hash-verified — 1852533
+- [x] 2.11 `git diff src/worker.ts` shows `WorkerEnv`, the `dsn` read, both integrations and the adapter import unchanged — 1852533
 
 ### Phase 3: Doc-sync
 
 #### Automated
 
-- [ ] 3.1 Live docs are formatter-clean: `npx prettier --check` on `roadmap.md` and `test-plan.md`
-- [ ] 3.2 The archived runbook is proved ignored as a PAIR after the corrections land: `--list-different` silent, `--ignore-path /dev/null --list-different` prints the file
-- [ ] 3.3 Type gate and lint still pass after the `src/worker.ts` comment edit
-- [ ] 3.4 No live document still claims the probe exists (repo-wide search outside `context/archive/` and `dist/`; `context/foundation/jira-map.md` excluded by decision)
+- [x] 3.1 Live docs are formatter-clean: `npx prettier --check` on `roadmap.md` and `test-plan.md`
+- [x] 3.2 The archived runbook is proved ignored as a PAIR after the corrections land: `--list-different` silent, `--ignore-path /dev/null --list-different` prints the file
+- [x] 3.3 Type gate and lint still pass after the `src/worker.ts` comment edit
+- [x] 3.4 No live document still claims the probe exists (repo-wide search outside `context/archive/` and `dist/`; `context/foundation/jira-map.md` excluded by decision)
 
 #### Manual
 
-- [ ] 3.5 Every doc-sync target chosen by section header, not line number; dated snapshots appended to rather than overwritten
-- [ ] 3.6 Roadmap H-15 `Status` still `not started`, no `## Done` entry added
-- [ ] 3.7 The archived runbook renders correctly after manual formatting
+- [x] 3.5 Every doc-sync target chosen by section header, not line number; dated snapshots appended to rather than overwritten
+- [x] 3.6 Roadmap H-15 `Status` still `not started`, no `## Done` entry added
+- [x] 3.7 The archived runbook renders correctly after manual formatting
 
 ### Phase 4: Ship and prove it on production
 

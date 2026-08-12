@@ -370,6 +370,31 @@ npx wrangler tail 10xcards
 
 Then, in the first terminal:
 
+> **Dated correction, 2026-08-12 (C10X-54) — the `/api/shipprobe` opening below NO LONGER EXISTS.
+> Read past it and start at the dependency half.** The route was deleted from the repo and shipped
+> out of production by C10X-54 (roadmap **H-15**), which is exactly the removal the paragraph below
+> names as owed. The steps are not rewritten — they were runnable and correct on their own date.
+>
+> **What that does to this step, stated so the silence is not misread.** On production the path now
+> answers **404**, and a 404 is not an exception, so it produces **no Sentry event at all**. Do not
+> take that silence to "If no event arrives" below: it would be a false alarm by construction, and
+> misreading silence as broken monitoring is the exact failure this step spends three paragraphs
+> guarding against.
+>
+> **What remains is the dependency half, unchanged and now the ONLY half**: the series of 20, with
+> the existing issue's **event counter** as the oracle — write the counter down before firing. The
+> correction further down this step closes with "§5 now opens with `/api/shipprobe`, whose single
+> unsampled event proves the same three links with no counting at all"; that sentence is superseded
+> here and the counting is no longer optional.
+>
+> **The one-request first-party proof is gone and has no replacement on production.** The regression
+> class it implicitly guarded — the sampling discriminator that `d381c07` fixed — moved into CI
+> instead: `src/lib/sentry-sampling.ts` with `tests/lib/sentry-sampling.test.ts` and
+> `tests/lib/sentry-wiring.test.ts`. That is cheaper and runs on every push, and it proves nothing
+> whatsoever about the deployed Worker. Full record: change `remove-sentry-probe` —
+> `context/changes/remove-sentry-probe/verification.md` (after archiving:
+> `context/archive/<date>-remove-sentry-probe/verification.md`).
+
 **Do the cheap one first: `GET /api/shipprobe`.** That route exists precisely so this step is one
 request rather than twenty — it throws, so it lands in the UNSAMPLED first-party class and a single
 call must produce exactly one event. It is also the only way to provoke a first-party error on
@@ -512,6 +537,19 @@ look at this project starts from a false alarm.
   quota — self-masking, because past the cap unrelated errors stop arriving too. Roadmap **H-15**
   owns the removal; the one-line stopgap if noise appears first is adding `/api/shipprobe` to
   `PROTECTED_ROUTES` in `src/middleware.ts`.
+
+  > **Resolved 2026-08-12 by C10X-54 (roadmap H-15).** The route was deleted from the repo and
+  > shipped out of production; the oracle was a pair on the same host — `500` before the merge,
+  > `404` after the deploy. It did not become permanent by default, and the `PROTECTED_ROUTES`
+  > stopgap was never needed. The bullet is not rewritten: it is the instruction that produced the
+  > decision, and it stated the cost correctly. What it could not anticipate is that the removal
+  > would carry a compensating guard — the sampling discriminator is now a pure function under test
+  > (`src/lib/sentry-sampling.ts`, `tests/lib/sentry-sampling.test.ts`,
+  > `tests/lib/sentry-wiring.test.ts`), which is why deleting the probe did not simply lose a
+  > property. See the correction under §5 for what this step can and cannot still prove, and
+  > `context/changes/remove-sentry-probe/verification.md` (after archiving:
+  > `context/archive/<date>-remove-sentry-probe/verification.md`) for the readings.
+
 - **Settle the alert rule** you deferred in step 1.2 — either keep Sentry's default (notifies on
   every new issue) or narrow it. Nobody is on call for this, so decide who the notification is
   actually for.

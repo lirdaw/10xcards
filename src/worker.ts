@@ -59,6 +59,13 @@ export default Sentry.withSentry(
     // line supplying `beforeSend` is the line that calls the imported function, because a file
     // that imports the helper and re-implements the decision two lines down is the exact defect
     // wearing the costume of a fix.
+    //
+    // Dated note, 2026-08-12 (C10X-54): the public `/api/shipprobe` route is GONE — deleted from
+    // this repo and from production. It was the only way to provoke a FIRST-PARTY error on the
+    // deployed Worker, so if you change the sampling, no production instrument will tell you that
+    // you broke it. What holds that property now is `tests/lib/sentry-sampling.test.ts` (the truth
+    // table) plus `tests/lib/sentry-wiring.test.ts` (this line). The reasoning behind the
+    // discriminator itself is in `@/lib/sentry-sampling`, not restated here.
     beforeSend: (event) => sampleSentryEvent(event, Math.random()),
   }),
   handler,
