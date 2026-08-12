@@ -3839,6 +3839,30 @@ contributors should respect these unless the underlying assumption changes.
   configured `"warn"` and `npm run lint` exits **0** on a warning (measured, C10X-28).
   Re-evaluate if a dependency is ever found logging request bodies. (Source: C10X-28 /
   `context/changes/ai-candidate-generation-test-2/`.)
+  > **Dated correction, 2026-08-12 (C10X-54), and it is narrower than it will look.** The exclusion
+  > above **stands**: no test here reads a real log sink, the dependency lines themselves are still
+  > unowned, and pinning `node_modules` internals is still refused for the reason given. What moved
+  > is one layer up from those lines. Since C10X-53 they have a monitored sink
+  > (`Sentry.captureConsoleIntegration` in `src/worker.ts`), and the DECISION that separates them
+  > from first-party output — recognised dependency noise thinned to ~10 %, first-party errors
+  > passed **unsampled** — had **zero** coverage at any layer until this date. It is now a pure
+  > function, `src/lib/sentry-sampling.ts`, held by two files with different claims:
+  > `tests/lib/sentry-sampling.test.ts` (a truth table over fabricated events driving the REAL
+  > `DEPENDENCY_NOISE` array) and `tests/lib/sentry-wiring.test.ts` (a per-LINE guard that
+  > `src/worker.ts`'s `beforeSend` still delegates to it — the truth table stays fully green through
+  > an unwiring, which is why it is two files and not one). It earned a test rather than a comment
+  > because the class already shipped once: the first version discriminated on the
+  > `logger === "console"` stamp alone and therefore dropped ~90 % of real application errors
+  > **silently**, caught only by measurement during the C10X-53 ship (21 deliberate errors → 3
+  > events) and fixed in `d381c07`.
+  >
+  > **Read the boundary in the same breath, because this is where the entry could be over-read.** No
+  > §2 risk row moves and no coverage claim widens. Nothing in this project loads `src/worker.ts`,
+  > so **no layer asserts that Sentry invokes `beforeSend` at all** — the one instrument that would
+  > have surfaced a recurrence end-to-end was the public `/api/shipprobe` route, and the same change
+  > deleted it from production. The truth table proves the decision is right; the guard proves that
+  > file still makes it; neither proves the SDK calls it. (Source: C10X-54 /
+  > `context/changes/remove-sentry-probe/`.)
 - **Rate limiting on generation** — no rate limit exists, so a test would
   require adding the safeguard first. Re-evaluate if a limit is
   implemented; the cost exposure is partially covered by Risk #6
