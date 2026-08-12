@@ -548,16 +548,16 @@ which is why the oracle is against the prod host rather than a local build.
 
 #### Automated
 
-- [x] 3.1 Live docs are formatter-clean: `npx prettier --check` on `roadmap.md` and `test-plan.md`
-- [x] 3.2 The archived runbook is proved ignored as a PAIR after the corrections land: `--list-different` silent, `--ignore-path /dev/null --list-different` prints the file
-- [x] 3.3 Type gate and lint still pass after the `src/worker.ts` comment edit
-- [x] 3.4 No live document still claims the probe exists (repo-wide search outside `context/archive/` and `dist/`; `context/foundation/jira-map.md` excluded by decision)
+- [x] 3.1 Live docs are formatter-clean: `npx prettier --check` on `roadmap.md` and `test-plan.md` — d1b0a68
+- [x] 3.2 The archived runbook is proved ignored as a PAIR after the corrections land: `--list-different` silent, `--ignore-path /dev/null --list-different` prints the file — d1b0a68
+- [x] 3.3 Type gate and lint still pass after the `src/worker.ts` comment edit — d1b0a68
+- [x] 3.4 No live document still claims the probe exists (repo-wide search outside `context/archive/` and `dist/`; `context/foundation/jira-map.md` excluded by decision) — d1b0a68
 
 #### Manual
 
-- [x] 3.5 Every doc-sync target chosen by section header, not line number; dated snapshots appended to rather than overwritten
-- [x] 3.6 Roadmap H-15 `Status` still `not started`, no `## Done` entry added
-- [x] 3.7 The archived runbook renders correctly after manual formatting
+- [x] 3.5 Every doc-sync target chosen by section header, not line number; dated snapshots appended to rather than overwritten — d1b0a68
+- [x] 3.6 Roadmap H-15 `Status` still `not started`, no `## Done` entry added — d1b0a68
+- [x] 3.7 The archived runbook renders correctly after manual formatting — d1b0a68
 
 ### Phase 4: Ship and prove it on production
 
