@@ -359,7 +359,23 @@ npx wrangler tail 10xcards
 
 Then, in the first terminal:
 
-A **series of 20 again**, and for the same reason as step 2 — this is the step where a sampled-away
+**Do the cheap one first: `GET /api/shipprobe`.** That route exists precisely so this step is one
+request rather than twenty — it throws, so it lands in the UNSAMPLED first-party class and a single
+call must produce exactly one event. It is also the only way to provoke a first-party error on
+production at all, because every other route answers its failures with owned copy.
+
+```powershell
+curl.exe -s -o NUL -w "%{http_code}`n" https://<prod-host>/api/shipprobe
+```
+
+Expect `500`, and an event titled `C10X-53 deliberate probe: …` in Sentry within a minute. **If that
+event arrives, the three things this step exists to prove are already proved**: the secret is on the
+Worker CI deploys to, its value is not corrupted, and transport works from Cloudflare. The route is
+public and unguarded on purpose, and it is temporary — roadmap **H-15** owns removing it.
+
+Then do the dependency half below, which proves the OTHER class and its sampling.
+
+A **series of 20**, and for the same reason as step 2 — this is the step where a sampled-away
 single request would send you hunting a secret that is perfectly fine:
 
 ```bash
@@ -467,7 +483,13 @@ printed nothing"** — that branch says the provocation missed, not that the dep
 The event you provoked is a test artifact, not a signal. Leaving it open means the next person to
 look at this project starts from a false alarm.
 
-- **Resolve** the issue step 5 created, in the real project.
+- **Resolve** the issues step 5 created, in the real project — both the probe error and the
+  dependency warning.
+- **Decide when `/api/shipprobe` goes away**, and do not let it become permanent by default. It is
+  public and unguarded, every call is one unsampled event, and a loop against it exhausts the Sentry
+  quota — self-masking, because past the cap unrelated errors stop arriving too. Roadmap **H-15**
+  owns the removal; the one-line stopgap if noise appears first is adding `/api/shipprobe` to
+  `PROTECTED_ROUTES` in `src/middleware.ts`.
 - **Settle the alert rule** you deferred in step 1.2 — either keep Sentry's default (notifies on
   every new issue) or narrow it. Nobody is on call for this, so decide who the notification is
   actually for.
