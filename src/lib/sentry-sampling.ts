@@ -59,6 +59,17 @@ const DEPENDENCY_EVENT_SAMPLE_RATE = 0.1;
  * stamp alone would catch first-party errors, and the signature alone would catch a first-party
  * error that merely mentions a Supabase package by name.
  *
+ * **The residual that sentence does NOT cover, measured 2026-08-12 (C10X-54 impl-review F2).** The
+ * transport half only protects the NON-console subclass — and the measurement above is that Astro
+ * re-emits route errors through its own logger, which leaves that subclass nearly empty in
+ * production. So a genuine first-party error whose OWN TEXT names a noise package IS sampled:
+ * `{ logger: "console", message: "…via @supabase/ssr client" }` is dropped at a roll of `0.99`.
+ * What keeps this narrow rather than serious is the haystack's own shape — only `message` and each
+ * `exception.values` entry's `type`/`value` enter it, never the stack frames — so an ordinary
+ * exception thrown near a Supabase call does not match. Pinned by a case in
+ * `tests/lib/sentry-sampling.test.ts`, so the behaviour is documented rather than rediscovered;
+ * narrowing the patterns is the re-tuning this module already defers to measured volume.
+ *
  * **The roll is a PARAMETER, and that is the whole reason this function exists.** `Math.random()`
  * inside the decision makes the decision untestable; the project's established fix is to pass the
  * value in, exactly as `rateCard` takes `now` (test-plan.md §6.7) and `visibleConfigStatuses` takes

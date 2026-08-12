@@ -132,6 +132,40 @@ describe("sampleSentryEvent", () => {
 
       expect(sampleSentryEvent(firstParty, ROLL_DROP)).toBe(firstParty);
     });
+
+    // THE RESIDUAL, pinned as behaviour rather than left to be rediscovered (impl-review F2). The
+    // case directly above pairs with a NON-console event, and that is the only subclass the
+    // transport half actually protects — while the measurement this module documents is that Astro
+    // re-emits route errors through its own logger, which leaves that subclass nearly empty in
+    // production. So a first-party error whose OWN TEXT names a noise package IS sampled. This
+    // asserts the shipped behaviour, not the desirable one: if the discriminator is ever narrowed
+    // (the re-tuning the module defers to measured volume), this case is the one that must change,
+    // and its failure is the reminder that the boundary moved.
+    it("DROPS a console-stamped first-party error whose own text names a noise package", () => {
+      const firstParty = event({ logger: "console", message: "Failed to create deck via @supabase/ssr client" });
+
+      expect(sampleSentryEvent(firstParty, ROLL_DROP)).toBeNull();
+    });
+
+    // …and the boundary that keeps that residual narrow: the haystack is built from `message` and
+    // each `exception.values` entry's `type`/`value` only, never from the stack frames. An ordinary
+    // exception thrown near a Supabase call therefore does NOT match, even though its stack would.
+    it("sends a first-party exception whose stack would mention a noise package but whose text does not", () => {
+      const firstParty = event({
+        logger: "console",
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'id')",
+              stacktrace: { frames: [{ filename: "/node_modules/@supabase/ssr/dist/module/cookies.js" }] },
+            },
+          ],
+        },
+      });
+
+      expect(sampleSentryEvent(firstParty, ROLL_DROP)).toBe(firstParty);
+    });
   });
 
   // The comparison is strict `<`, so a roll EQUAL to the rate drops. Pinning the boundary is what

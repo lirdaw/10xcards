@@ -45,16 +45,22 @@ const DELEGATES = /(?<![\w$])sampleSentryEvent\s*\(/;
 const IMPORTS_HELPER = /import\s*\{[^}]*\bsampleSentryEvent\b[^}]*\}\s*from\s*["']@\/lib\/sentry-sampling["']/;
 
 /**
- * Lines with comment-only lines dropped — the same helper shape `error-param-guard.test.ts` needed
- * the moment its scan reached `.ts`. Load-bearing here rather than defensive: the comment block
- * directly above the delegation NAMES `beforeSend` while explaining this very rule, so a scan that
- * did not skip comments would report the documentation of the guard as a violation of it.
+ * Lines with comment-only AND blank lines dropped — the same helper shape
+ * `error-param-guard.test.ts` needed the moment its scan reached `.ts`. Load-bearing here rather
+ * than defensive: the comment block directly above the delegation NAMES `beforeSend` while
+ * explaining this very rule, so a scan that did not skip comments would report the documentation of
+ * the guard as a violation of it.
+ *
+ * Blanks are dropped for the floor's sake rather than the patterns' (impl-review F3): neither
+ * pattern below can match whitespace, but a count that included blanks let three deleted code lines
+ * be masked by three blank ones, which is exactly the slack the floor's own comment disclaims.
+ * `index` is assigned BEFORE the filter, so the reported line numbers stay the file's own.
  */
 function codeLines(file: string): { text: string; index: number }[] {
   return readFileSync(file, "utf8")
     .split(/\r?\n/)
     .map((text, index) => ({ text, index }))
-    .filter(({ text }) => !/^\s*(\/\/|\*|\/\*)/.test(text));
+    .filter(({ text }) => text.trim() !== "" && !/^\s*(\/\/|\*|\/\*)/.test(text));
 }
 
 describe("src/worker.ts delegates beforeSend to the extracted sampling decision", () => {
@@ -66,11 +72,13 @@ describe("src/worker.ts delegates beforeSend to the extracted sampling decision"
   // something the adapter no longer loads, or replaced by a stub would leave every assertion below
   // vacuously true. The named token is the one that makes this file the Sentry wrapper at all.
   it("reads the real Worker entry", () => {
-    // Floor AT the measured value (20 non-comment lines), not a round number below it — slack here
+    // Floor AT the measured value (17 lines of real code), not a round number below it — slack here
     // gives away the shrink direction, and shrink is the silent one. Same rule as
     // `error-param-guard.test.ts`'s unregistered-file floor and `form-endpoint-guards.test.ts`'s
-    // emission floor. Comment lines are already dropped, so documenting this file does not move it.
-    expect(lines.length).toBeGreaterThanOrEqual(20);
+    // emission floor. Comment AND blank lines are already dropped, so neither documenting this file
+    // nor re-spacing it moves the count — which is what makes "AT the measured value" literal
+    // rather than approximate (impl-review F3: it read 20 while three of those were blank).
+    expect(lines.length).toBeGreaterThanOrEqual(17);
     expect(source).toContain("Sentry.withSentry");
   });
 
