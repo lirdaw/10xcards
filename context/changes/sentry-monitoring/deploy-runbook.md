@@ -14,22 +14,55 @@
 >
 > **A green deploy proves nothing about Sentry. Only an arrived event does.** Step 5 is not
 > optional — and step 2 exists so that step 5's _silence_ is diagnosable instead of ambiguous.
+>
+> **Corrected 2026-08-12, during the ship, by measurement — read this before running any step
+> below.** This document was written in `6c637ad`; the impl-review then added dependency-event
+> sampling in `9ab2978` and nobody came back here. Steps 2 and 5 provoke a **dependency console
+> warning**, which is exactly the class that `src/worker.ts` samples at a rate of
+> `DEPENDENCY_EVENT_SAMPLE_RATE = 0.1`.
+> So **one provocation is a coin flip, not a certainty**: one request to `/decks` emits
+> **three** warnings (measured), giving `1 - 0.9³ ≈ 27 %` that any event survives. Both steps
+> below now fire a **series**, and their oracle is a **count**, never "did something appear".
+> A single silent request is not evidence of anything.
+
+### The three things this runbook got wrong, measured 2026-08-12
+
+Kept as a list rather than folded into the steps, because each one produced hours of false
+suspicion and the next reader deserves them up front.
+
+1. **`npm run dev` does not exercise the wrapper.** Measured: dev emitted **45** warnings with a
+   valid, unquoted DSN in `.env` and sent **zero** events, while the built Worker under
+   `npm run preview` sent immediately on the same code. The DSN was independently proved good —
+   a raw envelope POSTed straight at the ingest endpoint, bypassing the SDK, returned **HTTP
+   200**. The likely mechanism is that `@astrojs/cloudflare` hands `@cloudflare/vite-plugin` a
+   `viteEnvironment: { name: "ssr" }`, so `astro dev` runs Astro's SSR environment rather than
+   `wrangler.jsonc`'s `main` — **the effect is measured, the mechanism is a hypothesis.** Step 2
+   therefore runs against `npm run preview`, not `npm run dev`.
+2. **`dist/server/.dev.vars` is written with QUOTED values, and wrangler does not strip them.**
+   The SDK then receives a DSN containing literal `"` characters, treats it as malformed, and
+   takes its silent no-op branch — indistinguishable from a missing secret. Measured as a pair:
+   quoted → 30 warnings, **0** envelopes; the same file unquoted → 30 warnings, **2** envelopes,
+   which is the 10 % sampling working exactly as designed. `verification.md` noticed the quoting
+   but only as a nuisance for reading the file, not as something that invalidates the value.
+   **This is a preview-harness artifact and NOT a production defect**: `wrangler secret put`
+   stores the raw pasted value, unquoted.
+3. **The oracle must be a count over a series.** See the sampling note above.
 
 ## Prerequisites
 
 **P1 and P3 are the two that can block for days** — they depend on someone else granting you
 access, so check them first and today. The rest you can obtain as you go, and the table says how.
 
-| #   | What                                                             | How to confirm you have it                                                                                                                                                                                                                                                                                                                                                                        |
-| --- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P1  | A Sentry login with rights to create a project in the target org | Log in and check that **Projects → Create Project** is not greyed out                                                                                                                                                                                                                                                                                                                             |
-| P2  | An authenticated wrangler                                        | `npx wrangler whoami` prints your account. If not: `npx wrangler login`                                                                                                                                                                                                                                                                                                                           |
-| P3  | Rights to merge to `main`                                        | The repo's branch protection decides this, not this document                                                                                                                                                                                                                                                                                                                                      |
-| P4  | The branch                                                       | `C10X-53-sentry-monitoring`                                                                                                                                                                                                                                                                                                                                                                       |
-| P5  | The prod hostname                                                | Not recorded in this repo. Take it from the last successful `deploy` job's log (wrangler prints the `*.workers.dev` URL), or from the Cloudflare dashboard → Workers → `10xcards`                                                                                                                                                                                                                 |
-| P6  | The prod Supabase project ref                                    | Needed for step 5's cookie name. Open the Supabase dashboard for the **production** project; the ref is the first label of its API URL. This repo records `bhwnautkdfzrhepkuozx` as of 2026-08-12 — **confirm it rather than trusting this line**, because the prod `SUPABASE_URL` is a Cloudflare secret nobody can read back, so a stale ref here would make step 5 silently prove nothing      |
-| P7  | An authenticated `gh` with access to this repo's Actions         | `gh run list --limit 1` prints a run. Step 4 uses it to confirm the deploy, and the retry path uses `gh run rerun`                                                                                                                                                                                                                                                                                |
-| P8  | A working local checkout — step 2 actually runs the app          | `npm install` done; Docker running (the local Supabase stack needs it, ~7 GB RAM); port 4321 free for `npm run dev`; and **no `.dev.vars` file** (`Test-Path .dev.vars` → `False`) — if one exists, Cloudflare ignores `.env` entirely and step 2's DSN is silently dropped, which presents as "the warning fires but no event arrives" and sends you hunting a typo in a DSN that was never read |
+| #   | What                                                             | How to confirm you have it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| --- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1  | A Sentry login with rights to create a project in the target org | Log in and check that **Projects → Create Project** is not greyed out                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| P2  | An authenticated wrangler                                        | `npx wrangler whoami` prints your account. If not: `npx wrangler login`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| P3  | Rights to merge to `main`                                        | The repo's branch protection decides this, not this document                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| P4  | The branch                                                       | `C10X-53-sentry-monitoring`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| P5  | The prod hostname                                                | Not recorded in this repo. Take it from the last successful `deploy` job's log (wrangler prints the `*.workers.dev` URL), or from the Cloudflare dashboard → Workers → `10xcards`                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| P6  | The prod Supabase project ref                                    | Needed for step 5's cookie name. Open the Supabase dashboard for the **production** project; the ref is the first label of its API URL. This repo records `bhwnautkdfzrhepkuozx` as of 2026-08-12 — **confirm it rather than trusting this line**, because the prod `SUPABASE_URL` is a Cloudflare secret nobody can read back, so a stale ref here would make step 5 silently prove nothing                                                                                                                                                                                                                                                                   |
+| P7  | An authenticated `gh` with access to this repo's Actions         | `gh run list --limit 1` prints a run. Step 4 uses it to confirm the deploy, and the retry path uses `gh run rerun`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| P8  | A working local checkout — step 2 actually runs the app          | `npm install` done; Docker running (the local Supabase stack needs it, ~7 GB RAM); a free port for `npm run preview` (step 2 builds and serves `dist/`, so 4321 does **not** have to be free and a `npm run dev` you already have running is irrelevant to it); and **no root `.dev.vars` file** (`Test-Path .dev.vars` → `False`) — if one exists, Cloudflare ignores `.env` entirely and the build's DSN is silently dropped, which presents as "the warning fires but no event arrives" and sends you hunting a typo in a DSN that was never read. Note this is the ROOT file; `dist/server/.dev.vars` is a build artifact and step 2 edits it deliberately |
 
 **What Sentry will receive, so you can sign this off rather than discover it.** The wrapper sets
 no `sendDefaultPii`, so the SDK's PII defaults apply (off): no cookie header, no request body, no
@@ -99,34 +132,59 @@ git check-ignore .env && echo "ignored — safe to paste"
 SENTRY_DSN=https://<key>@<org>.ingest.<region>.sentry.io/<project-id>
 ```
 
-Start the app and provoke the same dependency warning step 5 uses, against the LOCAL Supabase
-ref (`127.0.0.1` → cookie name `sb-127-auth-token`):
+Now build and serve the **built Worker**, because `npm run dev` does not run it (finding 1 above),
+and strip the quotes the build writes (finding 2 above). All three commands, in this order:
 
 ```bash
 npm run db:start          # if the local stack is not already up
-npm run dev
+npm run build             # regenerates dist/server/.dev.vars FROM .env
+```
+
+Then open `dist/server/.dev.vars` and remove the surrounding quotes from the `SENTRY_DSN` row so
+it reads `SENTRY_DSN=https://…` and not `SENTRY_DSN="https://…"`. This is the **build artifact**
+under `dist/server/`, not the root `.dev.vars` that section 0 forbids — creating that one is
+still prohibited. A one-command check that you got it right, which prints no secret:
+
+```bash
+awk -F= '/^SENTRY_DSN=/{v=substr($0,index($0,"=")+1); print (v ~ /^"/ ? "STILL QUOTED - fix it" : "unquoted - ok"), length(v)}' dist/server/.dev.vars
 ```
 
 ```bash
+npm run preview           # serves dist/, i.e. the real wrapper; NOT npm run dev
+```
+
+Note the port: `astro preview` does not use 4321. Take the URL it prints (`--port 4323` if you
+want it fixed) and use that host in the provocation below.
+
+Fire a **series of 20**, not one — sampling is why (see the correction at the top). Twenty
+requests emit ~60 warnings, so at a 0.1 rate roughly 6 events should survive and the chance of
+seeing **none** is `0.9⁶⁰ ≈ 0.2 %`. That is what turns silence into a result instead of noise.
+
+```bash
 # bash
-curl -s -o /dev/null -w "%{http_code}\n" \
-  -H "Cookie: sb-127-auth-token=base64-bm90anNvbg" \
-  http://localhost:4321/decks
+for i in $(seq 1 20); do
+  curl -s -o /dev/null -H "Cookie: sb-127-auth-token=base64-bm90anNvbg" http://localhost:4323/decks
+done
 ```
 
 ```powershell
 # PowerShell — call curl.exe by its full name. Bare `curl` is an ALIAS for Invoke-WebRequest,
 # whose -H/-w are not the same flags; and on Windows PowerShell 5.1 (this machine)
 # -SkipHttpErrorCheck does not exist and -MaximumRedirection 0 throws on the 302 you expect.
-curl.exe -s -o NUL -w "%{http_code}`n" -H "Cookie: sb-127-auth-token=base64-bm90anNvbg" http://localhost:4321/decks
+1..20 | ForEach-Object { curl.exe -s -o NUL -H "Cookie: sb-127-auth-token=base64-bm90anNvbg" http://localhost:4323/decks }
 ```
+
+Run one of them singly first with ``-w "%{http_code}`n"`` if you want to see the status: expect a
+`302`. The HTTP code is **not** the oracle — a request with no cookie at all returns `302` too.
 
 **Two things must both be true, and check them in this order:**
 
-1. **The terminal running `npm run dev` prints the warning** —
+1. **The terminal running `npm run preview` prints the warning ~60 times** —
    `@supabase/ssr: chunked cookie decoded to invalid JSON, treating as absent`. This is the
-   stimulus itself, and it is what tells you the provocation fired at all.
-2. **A `warning` event with that same message appears in Sentry** within a minute.
+   stimulus itself, and it is what tells you the provocation fired at all. Count it rather than
+   glance at it; three warnings per request is the measured ratio.
+2. **Several `warning` events with that same message appear in Sentry** within a minute. Expect
+   roughly a tenth of the warnings, not all of them.
 
 If both hold you have proved four things that step 5 would otherwise leave as suspects: the
 wrapper is wired, the console integration captures dependency output, the provocation actually
@@ -138,27 +196,62 @@ prod cookie name (P6).**
 The whole design of this runbook is that step 2 shrinks step 5's suspect list, so a failure here
 must not be improvised past. Split it by which of the two checks failed:
 
-- **No warning in the dev terminal** — the provocation never fired. The cookie name is wrong for
-  your local stack (it derives from `SUPABASE_URL`: `127.0.0.1` → `sb-127-auth-token`,
+- **No warning in the preview terminal** — the provocation never fired. The cookie name is wrong
+  for your local stack (it derives from `SUPABASE_URL`: `127.0.0.1` → `sb-127-auth-token`,
   `localhost` → `sb-localhost-auth-token`), or the value lost its `base64-` prefix, or the local
   Supabase stack is down (`npm run db:start`). Nothing about Sentry is implicated yet.
-- **Warning in the terminal, but no event in Sentry** — the provocation fired and the transport
-  did not. Suspect the DSN (typo, wrong project, trailing whitespace on paste), then the Sentry
-  project's inbound filters or quota. This is the one case where you should not proceed: the
-  identical failure in prod would be indistinguishable from a missing secret.
+- **Warnings in the terminal, but no event in Sentry** — the provocation fired and the transport
+  did not. Work the suspects in this order, because the first two are the ones that actually
+  happened on 2026-08-12:
+  1. **The quotes are still on the `dist/server/.dev.vars` value.** Re-run the `awk` check above.
+     This is silent by construction and looks exactly like a missing secret.
+  2. **You are running `npm run dev` rather than `npm run preview`.** The wrapper is not in that
+     path at all.
+  3. The DSN itself — typo, wrong project, trailing whitespace on paste. **Settle this
+     independently instead of guessing**: POST a raw envelope straight at the ingest endpoint,
+     bypassing the SDK entirely. A `200` with an `id` means the DSN, the network and the
+     project's quota are all fine and the fault is on the SDK side of the wrapper.
+
+     ```bash
+     # reads the DSN from .env, prints no secret
+     python - <<'PY'
+     import re,json,urllib.request,uuid,datetime
+     dsn=[l.split("=",1)[1].strip().strip('"') for l in open(".env",encoding="utf-8") if l.startswith("SENTRY_DSN=")][0]
+     key,host,proj=re.match(r"https://([^@]+)@([^/]+)/(\d+)$",dsn).groups()
+     eid=uuid.uuid4().hex; now=datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00","Z")
+     body="\n".join([json.dumps({"event_id":eid,"sent_at":now}),json.dumps({"type":"event"}),
+       json.dumps({"event_id":eid,"timestamp":now,"platform":"other","level":"warning","message":"raw envelope probe"})])
+     r=urllib.request.urlopen(urllib.request.Request(f"https://{host}/api/{proj}/envelope/",data=body.encode(),method="POST",
+       headers={"Content-Type":"application/x-sentry-envelope","X-Sentry-Auth":f"Sentry sentry_version=7, sentry_key={key}, sentry_client=probe/1.0"}),timeout=20)
+     print("HTTP",r.status,r.read().decode()[:120])
+     PY
+     ```
+
+  4. The Sentry project's inbound filters or quota — **Stats / Usage** settles it in thirty
+     seconds.
+
+  If the raw envelope arrives and the SDK still sends nothing, do not proceed: the identical
+  failure in prod would be indistinguishable from a missing secret. To see whether the SDK even
+  attempts a send, point the DSN at a local sink (`http://k@localhost:4444/1`) and watch for a
+  `POST /api/1/envelope/` — no POST means the client never initialised.
 
 ### 2b. The negative control — run it now, on the same provocation
 
-Remove `SENTRY_DSN` from `.env`, restart `npm run dev`, and issue **the exact same request
-again**.
+Blank the `SENTRY_DSN` row in `dist/server/.dev.vars`, restart `npm run preview`, and issue **the
+exact same series of 20 again**. Do not rebuild in between — a rebuild would rewrite that file
+from `.env` and quietly restore the DSN.
 
 **Before you issue it, write down the current event count and "last seen" timestamp** of the
 issue step 2 created. Then:
 
-- the dev terminal **must still print the warning** — otherwise you are proving nothing, only
-  that the stimulus stopped happening;
+- the preview terminal **must still print ~60 warnings** — otherwise you are proving nothing,
+  only that the stimulus stopped happening;
 - the Sentry issue's **event count and "last seen" must not move**, checked after waiting at
-  least as long as step 2's event took to arrive.
+  least as long as step 2's events took to arrive.
+
+The series matters here as much as in step 2, and for the opposite reason: with one request, "the
+counter did not move" is the _expected_ outcome about 73 % of the time even when the DSN is
+working perfectly, so a single-shot negative control passes vacuously.
 
 Both halves are load-bearing and each closes a different way of passing this check vacuously.
 Watching the ISSUE LIST is not enough: Sentry groups a repeat of the same message into the
@@ -170,12 +263,16 @@ works" from "nothing was ever tested".
 
 **Then close the loop, because "the counter did not move" still has two meanings.** It also does
 not move when the Sentry project has stopped accepting anything at all — quota exhausted, spike
-protection, a rate limit you tripped while testing. Put the scratch DSN back, restart, fire the
-same request once more, and confirm the counter **does** move again. Only that third reading turns
-the pair into evidence about the no-op branch rather than about the project's health.
+protection, a rate limit you tripped while testing. Put the scratch DSN back **unquoted**,
+restart, fire the same series once more, and confirm the counter **does** move again. Only that
+third reading turns the pair into evidence about the no-op branch rather than about the project's
+health.
 
-Then remove `SENTRY_DSN` from `.env` for good: local dev is meant to be silent, and the e2e
-harness blanks it anyway.
+Then remove `SENTRY_DSN` from `.env` for good — **if that is what you want**. Local dev is meant
+to be silent and the e2e harness blanks it anyway, so this is the tidy default; but `.env` is
+your own gitignored file and keeping a scratch DSN there costs nothing. What you should **not**
+leave there is the REAL project's DSN, for the reason step 5's oracle depends on: that project
+must never have seen the chunked-cookie message before.
 
 ## 3. Set the Cloudflare secret
 
@@ -262,16 +359,22 @@ npx wrangler tail 10xcards
 
 Then, in the first terminal:
 
+A **series of 20 again**, and for the same reason as step 2 — this is the step where a sampled-away
+single request would send you hunting a secret that is perfectly fine:
+
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" \
-  -H "Cookie: sb-<prod-ref>-auth-token=base64-bm90anNvbg" \
-  https://<prod-host>/decks
+for i in $(seq 1 20); do
+  curl -s -o /dev/null -H "Cookie: sb-<prod-ref>-auth-token=base64-bm90anNvbg" https://<prod-host>/decks
+done
 ```
 
 ```powershell
 # PowerShell — curl.exe by full name (see step 2 for why bare `curl` will not do)
-curl.exe -s -o NUL -w "%{http_code}`n" -H "Cookie: sb-<prod-ref>-auth-token=base64-bm90anNvbg" https://<prod-host>/decks
+1..20 | ForEach-Object { curl.exe -s -o NUL -H "Cookie: sb-<prod-ref>-auth-token=base64-bm90anNvbg" https://<prod-host>/decks }
 ```
+
+Fire one singly first, with ``-w "%{http_code}`n"``, to confirm the `302` before committing to the
+series.
 
 - **Why this provocation and not a crash:** the app deliberately has no route that throws
   uncaught — every API `catch` answers with owned copy. So the thing to provoke is the other half
@@ -290,13 +393,18 @@ curl.exe -s -o NUL -w "%{http_code}`n" -H "Cookie: sb-<prod-ref>-auth-token=base
 
 **Read the two oracles together — that pairing is what makes a failure diagnosable:**
 
-- **`wrangler tail` must print the `@supabase/ssr` warning.** This says the stimulus fired on the
-  deployed Worker. It is available because `wrangler.jsonc` sets `observability.enabled`, and it
-  is completely independent of Sentry.
-- **The REAL Sentry project must show a new event** at level `warning` with that same message.
-  Because step 2 used the scratch project, this project has never seen this message before, so a
-  first-ever issue here is unambiguous. Find it by searching `message:"chunked cookie"` and
-  sorting by last seen; give it **up to 5 minutes** before treating silence as a result.
+- **`wrangler tail` must print the `@supabase/ssr` warning ~60 times.** This says the stimulus
+  fired on the deployed Worker. It is available because `wrangler.jsonc` sets
+  `observability.enabled`, and it is completely independent of Sentry. Count them: if the tail
+  shows far fewer than three per request, the provocation is only partly landing and the Sentry
+  side cannot be read yet.
+- **The REAL Sentry project must show several new events** at level `warning` with that same
+  message — expect roughly a tenth of what the tail printed, not all of it. Because step 2 used
+  the scratch project, this project has never seen this message before, so a first-ever issue
+  here is unambiguous. Find it via **Issues** (the plain issue stream — not the `/issues/warnings/`
+  sub-view, which is a different feed and showed nothing on 2026-08-12) by searching
+  `message:"chunked cookie"` or clearing the search entirely and sorting by last seen; give it
+  **up to 5 minutes** before treating silence as a result.
 - **That event should carry the deploy's version id as its `release`** (shown on the event under
   Release / in the tag list), which comes from the `CF_VERSION_METADATA` binding and confirms the
   binding reached the deployed Worker rather than just the source config. An event with **no**
@@ -312,7 +420,11 @@ The tail decides which half of the system to suspect, so read it before anything
 **The tail printed the warning, but Sentry is empty** — the provocation worked and the transport
 did not. The fault is on the Sentry side of the wrapper:
 
-1. **The secret is missing.** The no-op branch is silent by design, so this is the first suspect.
+0. **You fired fewer than the full series.** Check this before anything else, because it is the
+   cheapest and it is the mistake this document itself used to instruct. At a 0.1 sample rate a
+   handful of requests can legitimately produce nothing. Sixty tail warnings is the threshold at
+   which silence becomes evidence.
+1. **The secret is missing.** The no-op branch is silent by design, so this is the next suspect.
    `npx wrangler secret list` shows whether the NAME exists.
 2. **The secret exists but its VALUE is corrupted.** A non-empty but malformed DSN does not take
    the no-op branch — the SDK initialises and quietly sends nothing. `secret list` is structurally

@@ -46,6 +46,23 @@ through `src/worker.ts`'s default export in workerd. Four such runs are recorded
 evidence about the wrapper composing correctly and its no-op branch holding under real requests; it
 is **not** evidence about the with-DSN transport path, which only a deployed Worker can show.
 
+> **Corrected 2026-08-12 during the ship, by measurement, and the correction is larger than the
+> criterion.** The clause "through `src/worker.ts`'s default export in workerd" is an
+> **inference**, flagged here as "supported indirectly", and it does not survive contact:
+> `npm run dev` emitted **45** dependency warnings with a valid, unquoted DSN in `.env` and sent
+> **zero** events, while the built Worker under `npm run preview` sent on the first series. The
+> DSN was proved good independently — a raw envelope POSTed at the ingest endpoint, bypassing the
+> SDK, returned **HTTP 200**. So the e2e runs are evidence that **the app works**, not that
+> requests traverse `src/worker.ts`; had the wrapper never been in the dev path at all, those 12
+> journeys would have passed identically. The likely mechanism is `@astrojs/cloudflare` passing
+> `viteEnvironment: { name: "ssr" }` to `@cloudflare/vite-plugin`, so `astro dev` runs Astro's SSR
+> environment rather than `wrangler.jsonc`'s `main` — **the effect is measured, the mechanism is
+> not.** What this criterion still supports, unchanged, is its own headline: `npm run dev` works
+> with no `SENTRY_DSN`. What it never supported is the wrapper being exercised. The BUILD path is
+> separately confirmed: `dist/server/entry.mjs` is 170 bytes and does
+> `import { w } from "./chunks/worker-entry_*.mjs"`, re-exporting it — and that chunk is the one
+> carrying `withSentry`.
+
 **2.4 / 2.6 — the e2e blank holds against an ambient DSN.** Reproduced independently, twice, by
 exporting `SENTRY_DSN=https://fake@fake.ingest.example/1` into the shell before `npm run e2e`: 12
 passed both times. The mechanism is pinned where it is falsifiable — `tests/lib/e2e-env.test.ts:100`
@@ -88,6 +105,16 @@ correction worth carrying**: a first readout reported that artifact as still set
 the adapter writes values **quoted**, so a naive split on `=` sees `""` as a two-character value.
 The oracle that settles it is the raw line length (11 in `.env`, 13 in `.dev.vars`), not a
 non-empty test on the split field.
+
+> **Extended 2026-08-12 during the ship — the quoting is not merely a reading nuisance, it is
+> load-bearing.** This note treats the quotes as an obstacle to _measuring_ the file. They also
+> break it: wrangler does **not** strip them, so the SDK receives a DSN containing literal `"`
+> characters, judges it malformed, and takes its silent no-op branch — presenting exactly as a
+> missing secret. Measured as a pair on the same build: quoted → 30 warnings, **0** envelopes;
+> the identical file unquoted → 30 warnings, **2** envelopes, i.e. the 10 % sampling working as
+> designed. **This is a preview-harness artifact and not a production defect** —
+> `wrangler secret put` stores the raw pasted value — but it is what makes any local proof via
+> `npm run preview` silently fail, and `deploy-runbook.md` §2 now carries the strip step.
 
 **F4 — `infrastructure.md` corruptions repaired.** `:133-134` re-wrapped so `queries + OpenRouter`
 sits mid-line, which is the durable form: the `+` can no longer be read as a list marker on a future
