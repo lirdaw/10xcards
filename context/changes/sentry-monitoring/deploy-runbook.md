@@ -491,10 +491,19 @@ set; after a revert nothing reads it.
 
 ## What this buys, and what it does not
 
-**Does:** uncaught exceptions at the Worker's `fetch` boundary, plus `warn`/`error` output from
+**Does:** errors thrown by first-party code (routes, middleware), plus `warn`/`error` output from
 dependencies (`@supabase/ssr` cookie parsing, `@supabase/auth-js` fetch failures) — the "in scope
 but unowned" boundary `test-plan.md` §7 records for Risk #4 finally has a monitored sink. Every
 event carries the deploy's version id.
+
+**How a first-party error actually gets there is worth one sentence, because it is not what it
+looks like and it decides how the sampling had to be written** (measured 2026-08-12). It does
+**not** propagate to the Worker's `fetch` boundary: **Astro catches route errors** and re-emits
+them through its own logger, so they reach Sentry through the same console integration as
+dependency output, stamped `logger = "console"`. That is why `src/worker.ts` samples on the noise's
+**signature** (`DEPENDENCY_NOISE`) rather than on that stamp — an earlier version sampled on the
+stamp and thereby dropped ~90 % of real application errors, silently. The two classes now behave
+differently on purpose: **first-party errors arrive at 100 %, dependency noise is thinned to ~10 %.**
 
 **Does not:**
 
