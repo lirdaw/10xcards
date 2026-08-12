@@ -1,10 +1,10 @@
 ---
 change_id: remove-sentry-probe
 title: Remove the public /api/shipprobe error probe from production
-status: impl_reviewed
+status: archived
 created: 2026-08-12
 updated: 2026-08-12
-archived_at: null
+archived_at: 2026-08-12T20:47:21Z
 ---
 
 ## Notes
