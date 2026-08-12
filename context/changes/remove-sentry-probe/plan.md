@@ -563,9 +563,9 @@ which is why the oracle is against the prod host rather than a local build.
 
 #### Automated
 
-- [x] 4.1 The `deploy` job's conclusion is `success`
+- [x] 4.1 The `deploy` job's conclusion is `success` — da4d1d2
 
 #### Manual
 
-- [x] 4.2 `GET /api/shipprobe` returns `404` on the same prod host that returned `500` in Phase 1, both readings recorded
-- [x] 4.3 Spot check: no new Sentry event produced by that request
+- [x] 4.2 `GET /api/shipprobe` returns `404` on the same prod host that returned `500` in Phase 1, both readings recorded — da4d1d2
+- [x] 4.3 Spot check: no new Sentry event produced by that request — da4d1d2
