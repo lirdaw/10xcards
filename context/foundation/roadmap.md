@@ -104,6 +104,7 @@ Fundamenty poniżej zakładają, że to istnieje, i NIE budują tego ponownie.
 - **Auth:** present — Supabase SSR w pełni podpięte (`src/lib/supabase.ts`, `src/middleware.ts` z `PROTECTED_ROUTES=["/dashboard"]`, `locals.user`, e2e signup+signin+confirm-email).
 - **Deploy / infra:** present — `wrangler.jsonc` (KV `SESSION`), `.github/workflows/ci.yml` auto-deploy on merge (Node 22).
 - **Observability:** partial — tylko wbudowane Cloudflare observability (`wrangler.jsonc`); brak logowania/error-trackingu/metryk w kodzie aplikacji.
+  > Skorygowano 2026-08-12 (C10X-53). Zdanie powyżej **nie jest przepisywane**, bo cała sekcja `## Baseline` jest datowanym snapshotem stanu na `2026-07-04` i jako zapis historyczny było prawdziwe. Od tej daty error-tracking w kodzie aplikacji ISTNIEJE: `src/worker.ts` opakowuje handler adaptera w `Sentry.withSentry`. Żywy opis stanu niesie **H-14**, nie ten wiersz.
 - **Testy:** absent — brak runnera (vitest/playwright), brak testów, brak `context/foundation/test-plan.md`.
 
 ## Foundations

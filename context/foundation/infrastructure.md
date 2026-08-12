@@ -130,8 +130,8 @@ generation workload.
 - **`astro dev` / `preview` now run on real workerd** (Vite plugin), so `wrangler dev` is
   mostly redundant — but some edge differences only appear post-deploy if you rely on the
   old flow.
-- **50 subrequests/request limit (free).** One request doing Supabase auth + a few queries
-  - OpenRouter climbs the counter faster than the simple flow suggests.
+- **50 subrequests/request limit (free).** One request doing Supabase auth + a few
+  queries + OpenRouter climbs the counter faster than the simple flow suggests.
 - **Supabase region vs. Cloudflare edge.** The worker starts near the user, but every
   Supabase query travels to _its_ region. For a single-region audience the edge yields ~0
   gain and can add a hop — co-locate Supabase near users, not "globally."
@@ -145,8 +145,8 @@ generation workload.
   `*.workers.dev` preview URL without promoting to production; branch/PR previews wire up
   via the Workers Builds GitHub integration. Preview URLs are public by default — gate with
   Cloudflare Access if the preview must stay private.
-- **Secrets**: production secrets live in Workers Secrets, set via `wrangler secret put
-SUPABASE_URL` / `SUPABASE_KEY` (and the OpenRouter key); local dev reads `.env`
+- **Secrets**: production secrets live in Workers Secrets, set via
+  `wrangler secret put SUPABASE_URL` / `SUPABASE_KEY` (and the OpenRouter key); local dev reads `.env`
   (git-ignored; do NOT also create `.dev.vars` — it silently shadows `.env`). GitHub Actions
   build reads them from repository secrets. Rotation =
   `wrangler secret put` again (overwrites) + redeploy. Never commit them to `wrangler.jsonc`.

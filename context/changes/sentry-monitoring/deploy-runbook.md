@@ -42,10 +42,14 @@ code under `src/` emits no log output at all, and a test enforces that.
 
 ## 0. What must NOT happen
 
-- **No DSN in any file in this repo.** Not `.env.example`, not `wrangler.jsonc`, not a comment,
-  not a test fixture. The DSN reaches the Worker only as a Cloudflare secret (prod) or via a
-  gitignored `.env` (local, step 2). `src/worker.ts` reads it off the Worker `env` and there is
-  no `process.env` fallback on Workers, so there is no other channel to be tempted by.
+- **No DSN VALUE in any tracked file in this repo.** Not `wrangler.jsonc`, not a comment, not a
+  test fixture. The DSN reaches the Worker only as a Cloudflare secret (prod) or via a gitignored
+  `.env` (local, step 2). `src/worker.ts` reads it off the Worker `env` and there is no
+  `process.env` fallback on Workers, so there is no other channel to be tempted by.
+  The rule is about the **value**, not the key name: `.env.example` carries a documented, empty
+  `SENTRY_DSN=` row, which is the template telling a developer the variable exists — it is not a
+  DSN and is not an exception being carved out here. What must never appear is a real
+  `https://<key>@…ingest…` string, in that file or any other.
 - **Never create `.dev.vars`.** `.env` and `.dev.vars` are mutually exclusive in Cloudflare's
   local tooling — if `.dev.vars` exists, `.env` is silently ignored (`lessons.md`). It is also
   the one source the e2e preflight cannot blank, which is why `tests/e2e/setup/env.ts` refuses
