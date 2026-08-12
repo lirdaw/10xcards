@@ -22,6 +22,27 @@ interface WorkerEnv {
   SENTRY_DSN?: string;
 }
 
+// Sampling applied ONLY to dependency-emitted warn/error events, never to real exceptions.
+//
+// The storm is structural rather than hypothetical: `src/middleware.ts` authenticates on EVERY
+// request, so a Supabase outage makes `@supabase/auth-js` emit one error-level line per inbound
+// request, site-wide. Unsampled, that is one event per request until the outage ends, and
+// exhausting the plan's quota is self-masking — once the cap is hit, UNRELATED errors stop
+// arriving and this project has no notification channel to say so.
+//
+// A blanket `sampleRate` would be the wrong instrument, because it cannot tell the storm from the
+// signal: it would also drop 90% of the rare, unique, uncaught exception this monitoring exists to
+// surface. The discriminator that makes the narrow version possible is that the integration stamps
+// its own events (`logger = "console"`, mechanism `auto.core.capture_console`), so the two classes
+// are separable at `beforeSend`.
+//
+// Why sampling this class loses little: the dependency conditions worth acting on PERSIST — a
+// corrupt session cookie keeps firing until the cookie is overwritten, an outage lasts minutes —
+// so a survivor arrives quickly. What sampling drops is the one-off, which is also the least
+// actionable. Re-tune on measured volume after the first weeks in production; this value is
+// reasoned, not measured, and the comment says so deliberately.
+const DEPENDENCY_EVENT_SAMPLE_RATE = 0.1;
+
 export default Sentry.withSentry(
   (env: WorkerEnv) => ({
     dsn: env.SENTRY_DSN,
@@ -32,7 +53,32 @@ export default Sentry.withSentry(
     // all and is guarded to keep it that way (`tests/lib/no-logging.test.ts`), so this captures
     // NONE of the swallowed-error audit findings (C10X-48…52) — those are dropped results, and
     // each ticket owns checking its own error.
-    integrations: [Sentry.captureConsoleIntegration({ levels: ["warn", "error"] })],
+    integrations: [
+      Sentry.captureConsoleIntegration({ levels: ["warn", "error"] }),
+      // Naming this one is NOT redundant — it is the trap this line exists to close.
+      // `httpServerIntegration` is a DEFAULT integration, and passing `integrations` as an ARRAY
+      // merges with the defaults instead of replacing them (`getIntegrationsToSetup` in
+      // `@sentry/core`), so it runs whether or not it appears here. Its default
+      // `maxRequestBodySize: "medium"` attaches up to 10 000 bytes of every non-GET request body
+      // to every event, gated only by method — NOT by `sendDefaultPii`, which gates cookies and
+      // IP but never bodies. That body is the whole of `/api/auth/signin`'s form (`password` in
+      // clear) and essentially all of `/api/generate`'s pasted `sourceText`: exactly the material
+      // test-plan.md §2 Risk #4 exists to keep out of a third party. Listing the integration here
+      // displaces the default instance, so `"none"` wins.
+      //
+      // Two boundaries, so the next reader does not over-read this. Cookies were never at risk —
+      // the SDK excludes them upstream — so the Supabase session token is a separate, already
+      // closed question. And URLs and query strings are still attached, so a `?q=` search term
+      // does reach Sentry; that is a live decision, not an oversight.
+      Sentry.httpServerIntegration({ maxRequestBodySize: "none" }),
+    ],
+    // Uncaught exceptions are never sampled — they pass through untouched. Only the
+    // dependency-emitted class above is thinned; see DEPENDENCY_EVENT_SAMPLE_RATE for why the
+    // narrow form is the correct instrument here and the blanket one is not.
+    beforeSend(event) {
+      if (event.logger !== "console") return event;
+      return Math.random() < DEPENDENCY_EVENT_SAMPLE_RATE ? event : null;
+    },
   }),
   handler,
 );
