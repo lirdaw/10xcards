@@ -449,14 +449,14 @@ harmlessly — nothing reads it after revert.
 
 #### Automated
 
-- [x] 2.1 `npm run typecheck` exits 0
-- [x] 2.2 `npm run lint` exits 0
-- [x] 2.3 `npm test` green (e2e-env fixed-map test pins `SENTRY_DSN: ""`)
-- [x] 2.4 `npm run e2e` passes with the local stack up
-- [x] 2.5 `npm run build` exits 0
+- [x] 2.1 `npm run typecheck` exits 0 — 6c637ad
+- [x] 2.2 `npm run lint` exits 0 — 6c637ad
+- [x] 2.3 `npm test` green (e2e-env fixed-map test pins `SENTRY_DSN: ""`) — 6c637ad
+- [x] 2.4 `npm run e2e` passes with the local stack up — 6c637ad
+- [x] 2.5 `npm run build` exits 0 — 6c637ad
 
 #### Manual
 
-- [x] 2.6 Ambient fake `SENTRY_DSN` in shell → `npm run e2e` still green (blank pinned by unit test + merge order)
-- [x] 2.7 AGENTS.md carve-out reads correctly beside the `scripts/` exception
-- [x] 2.8 Runbook complete enough to execute the deploy without questions
+- [x] 2.6 Ambient fake `SENTRY_DSN` in shell → `npm run e2e` still green (blank pinned by unit test + merge order) — 6c637ad
+- [x] 2.7 AGENTS.md carve-out reads correctly beside the `scripts/` exception — 6c637ad
+- [x] 2.8 Runbook complete enough to execute the deploy without questions — 6c637ad
