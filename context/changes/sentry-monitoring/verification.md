@@ -98,6 +98,35 @@ exceptions pass untouched, the dependency class is sampled at `DEPENDENCY_EVENT_
 Verified in the artifact — the shipped chunk carries `if (event.logger !== "console") return event;`.
 **The rate is reasoned, not measured**; re-tune on production volume.
 
+> **Corrected 2026-08-12 during the ship, by measurement, and this one changed the CODE.** The
+> sentence "real exceptions pass untouched" was the design intent and was **false in this
+> application**. `logger === "console"` does not separate the two classes, because **Astro catches
+> route errors and re-emits them through its own logger** — so a genuine first-party exception
+> arrives stamped `logger = "console"` exactly like a dependency warning, and the old `beforeSend`
+> sampled it. Measured against the built Worker under `npm run preview`: **21** deliberate uncaught
+> errors thrown from a temporary route produced **3** events (~14 %, i.e. the 0.1 rate), each tagged
+> `console` in the Sentry UI. Since this app has no route that throws PAST Astro — the runbook says
+> so itself — the unsampled branch would essentially never have fired in production, so ~90 % of
+> real application errors would have been dropped silently.
+>
+> Fixed by keying the sampling on the noise's **signature** (`DEPENDENCY_NOISE`, matching
+> `@supabase/ssr` and `@supabase/auth-js`) instead of on its transport, fail-open: anything not
+> positively recognised as known dependency noise passes through. Re-measured against the built
+> Worker with the DSN pointed at a local sink so envelopes could be counted exactly:
+>
+> | Class                              | Emitted                       | Envelopes | Expected   |
+> | ---------------------------------- | ----------------------------- | --------- | ---------- |
+> | first-party uncaught error         | 25 requests                   | **25**    | 25 (100 %) |
+> | `@supabase/ssr` dependency warning | 180 warnings over 60 requests | **6**     | thinned    |
+>
+> **One thing is measured but NOT explained, and is recorded rather than smoothed over.** One
+> request emits three identical warning lines, so 180 lines at a 0.1 rate would predict ~18
+> envelopes, not 6. The observed count matches "~10 % of REQUESTS" (60 → 6) far better than "~10 %
+> of LINES", which suggests the three identical lines within one request collapse into one event
+> before `beforeSend` — Sentry's default dedupe integration is the obvious candidate. It was not
+> isolated. The load-bearing claims do not depend on it: the first-party class is at **100 %** and
+> the dependency class is demonstrably thinned.
+
 **F2 — local `.env` no longer carries a live DSN.** Blanked in place, key kept. The other four keys
 are untouched, including the `PROD_SUPABASE_URL`/`PROD_SUPABASE_KEY` pair; line count unchanged
 13 → 13. Rebuilt, and `dist/server/.dev.vars` now carries `SENTRY_DSN=""`. **One measurement

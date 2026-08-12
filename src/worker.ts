@@ -32,10 +32,26 @@ interface WorkerEnv {
 //
 // A blanket `sampleRate` would be the wrong instrument, because it cannot tell the storm from the
 // signal: it would also drop 90% of the rare, unique, uncaught exception this monitoring exists to
-// surface. The discriminator that makes the narrow version possible is that the integration stamps
-// its own events (`logger = "console"`, mechanism `auto.core.capture_console`), so the two classes
-// are separable at `beforeSend`.
+// surface.
 //
+// **`logger === "console"` is NOT a usable discriminator here, and that was measured rather than
+// reasoned (2026-08-12, during the ship).** The first version of this file sampled on exactly that
+// stamp, on the premise that only dependency output arrives through the console integration. It
+// does not: **Astro catches route errors and re-emits them through its own logger**, so a genuine
+// first-party exception reaches Sentry stamped `logger = "console"` like any dependency warning.
+// Measured against the built Worker: 21 deliberate uncaught errors thrown from a temporary route
+// produced **3** events (~14 %, i.e. the 0.1 rate), each tagged `console`. Since this app has no
+// route that throws PAST Astro, the unsampled branch would essentially never fire in production —
+// so the old discriminator silently dropped ~90 % of real application errors, which is the exact
+// opposite of what this monitoring exists to do.
+//
+// The discriminator is therefore the noise's own SIGNATURE, not its transport. It is deliberately
+// **fail-open**: an event that cannot be positively identified as known dependency noise passes
+// through untouched. The asymmetry is the point — an unrecognised event costs quota, a dropped one
+// costs blindness, and only the second failure is invisible. Adding a pattern here is a decision
+// to accept losing 90 % of that message, so add one only for output a dependency emits per-request.
+const DEPENDENCY_NOISE = [/@supabase\/ssr/, /@supabase\/auth-js/];
+
 // Why sampling this class loses little: the dependency conditions worth acting on PERSIST — a
 // corrupt session cookie keeps firing until the cookie is overwritten, an outage lasts minutes —
 // so a survivor arrives quickly. What sampling drops is the one-off, which is also the least
@@ -72,11 +88,18 @@ export default Sentry.withSentry(
       // does reach Sentry; that is a live decision, not an oversight.
       Sentry.httpServerIntegration({ maxRequestBodySize: "none" }),
     ],
-    // Uncaught exceptions are never sampled — they pass through untouched. Only the
-    // dependency-emitted class above is thinned; see DEPENDENCY_EVENT_SAMPLE_RATE for why the
-    // narrow form is the correct instrument here and the blanket one is not.
+    // Everything that is not RECOGNISED dependency noise passes through untouched — including
+    // every first-party error, which reaches here through the console integration too (see
+    // DEPENDENCY_NOISE for the measurement that forced this shape). Both halves of the test are
+    // required: the transport stamp alone would catch first-party errors, and the signature alone
+    // would catch a first-party error that merely mentions a Supabase package by name.
     beforeSend(event) {
       if (event.logger !== "console") return event;
+      const haystack = [
+        typeof event.message === "string" ? event.message : "",
+        ...(event.exception?.values ?? []).map((value) => `${value.type ?? ""} ${value.value ?? ""}`),
+      ].join("\n");
+      if (!DEPENDENCY_NOISE.some((pattern) => pattern.test(haystack))) return event;
       return Math.random() < DEPENDENCY_EVENT_SAMPLE_RATE ? event : null;
     },
   }),
