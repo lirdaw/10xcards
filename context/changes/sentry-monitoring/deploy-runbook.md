@@ -66,12 +66,23 @@ access, so check them first and today. The rest you can obtain as you go, and th
 
 **What Sentry will receive, so you can sign this off rather than discover it.** The wrapper sets
 no `sendDefaultPii`, so the SDK's PII defaults apply (off): no cookie header, no request body, no
-user identity is attached. There is no tracing and no Logs product. What is sent is uncaught
-exceptions at the `fetch` boundary plus `warn`/`error` output emitted by dependencies. The one
-thing worth knowing precisely: `@supabase/auth-js` logs a fetch `TypeError` (message + stack) on
-transport failure, never the request `init` — measured, and recorded in
-`tests/lib/no-logging.test.ts`. **Pasted source text is not on any of these paths**; first-party
-code under `src/` emits no log output at all, and a test enforces that.
+**account** identity is attached.
+
+> **Corrected 2026-08-12, after the first real production event, and in the direction that matters
+> for a privacy sign-off.** This sentence originally ended "no user identity is attached", and that
+> is **false as stated**. The two halves that hold are the ones worth having: the request **body**
+> is absent (the `maxRequestBodySize: "none"` override works on the deployed Worker, checked on the
+> event itself) and **cookies** are absent, so the Supabase session token never travels. What IS
+> attached is the caller's **IP address** — the event carries a `user` tag reading `ip:<address>`
+> plus a **Geography** context derived from it — and the request **headers**, which on Cloudflare
+> include `Cf-Ipcountry` and `Cf-Ray`. An IP is personal data under GDPR, so "no user identity" was
+> the wrong summary even though no account, e-mail or session is involved. Do not sign a privacy
+> statement off the old wording. There is no tracing and no Logs product. What is sent is uncaught
+> exceptions at the `fetch` boundary plus `warn`/`error` output emitted by dependencies. The one
+> thing worth knowing precisely: `@supabase/auth-js` logs a fetch `TypeError` (message + stack) on
+> transport failure, never the request `init` — measured, and recorded in
+> `tests/lib/no-logging.test.ts`. **Pasted source text is not on any of these paths**; first-party
+> code under `src/` emits no log output at all, and a test enforces that.
 
 ## 0. What must NOT happen
 
@@ -415,12 +426,23 @@ series.
   shows far fewer than three per request, the provocation is only partly landing and the Sentry
   side cannot be read yet.
 - **The REAL Sentry project must show several new events** at level `warning` with that same
-  message — expect roughly a tenth of what the tail printed, not all of it. Because step 2 used
-  the scratch project, this project has never seen this message before, so a first-ever issue
-  here is unambiguous. Find it via **Issues** (the plain issue stream — not the `/issues/warnings/`
+  message — expect roughly a tenth of what the tail printed, not all of it.
+
+  > **The oracle here changed on 2026-08-12 and the original is no longer available.** It used to
+  > read: "because step 2 used the scratch project, this project has never seen this message
+  > before, so a first-ever issue here is unambiguous." That was true until step 2 was run against
+  > the REAL project rather than a scratch one, which is what happened — the project now carries a
+  > `chunked cookie` issue whose culprit is a `localhost` URL. So **"a new issue appeared" is no
+  > longer the test**; the test is that the existing issue's **event counter moves**, and that the
+  > new events carry a **prod** `url` tag and the deploy's `release`. Write the counter down before
+  > firing. This costs little in practice, because §5 now opens with `/api/shipprobe`, whose single
+  > unsampled event proves the same three links with no counting at all.
+
+  Find it via **Issues** (the plain issue stream — not the `/issues/warnings/`
   sub-view, which is a different feed and showed nothing on 2026-08-12) by searching
   `message:"chunked cookie"` or clearing the search entirely and sorting by last seen; give it
   **up to 5 minutes** before treating silence as a result.
+
 - **That event should carry the deploy's version id as its `release`** (shown on the event under
   Release / in the tag list), which comes from the `CF_VERSION_METADATA` binding and confirms the
   binding reached the deployed Worker rather than just the source config. An event with **no**
