@@ -62,6 +62,14 @@ Fix:
 The journeys assert on mock output; a real key also makes the run place billed calls.
 `;
 
+const SENTRY_HINT = `
+Fix:
+  remove SENTRY_DSN from .dev.vars.
+
+A DSN in .env or the shell is fine — the map below blanks it for the run. .dev.vars is the one
+file it cannot outrank, so a DSN there would make e2e runs report real events to a real project.
+`;
+
 const BROWSER_HINT = `
 Fix:
   npx playwright install chromium
@@ -111,6 +119,8 @@ export type E2eEnv = {
   SUPABASE_KEY: string;
   /** Always `""` — see the forcing below. */
   OPENROUTER_API_KEY: string;
+  /** Always `""` — see the forcing below. */
+  SENTRY_DSN: string;
   E2E_SESSION_COOKIE_NAME: string;
 };
 
@@ -182,6 +192,24 @@ export function buildE2eEnv(
     );
   }
 
+  // The monitoring seam, and it is the ONE assertion here that is deliberately narrower than its
+  // neighbour. `src/worker.ts` is the Worker entry, so every dev request — and therefore every
+  // request an e2e journey makes — runs through `withSentry`; a DSN in scope would make the run
+  // report real events to a real project. The FORCING below covers `.env` and the shell, and that
+  // is enough for them: an optional local DSN is the documented workflow (`src/worker.ts`), so
+  // refusing on `effective` would break a legitimate setup to fix a problem the blank already
+  // solves. `.dev.vars` is the exception for the same reason as OPENROUTER_API_KEY above — it
+  // lands on top of the forced value INSIDE the child — so there, and only there, the assertion is
+  // the whole guarantee.
+  if (devVars.SENTRY_DSN) {
+    refuse(
+      `${originOf("SENTRY_DSN")} is set. Every dev request runs through the Worker entry's Sentry ` +
+        `wrapper, so the run would report real events from test traffic — and .dev.vars is the one ` +
+        `source this preflight cannot blank.`,
+      SENTRY_HINT,
+    );
+  }
+
   // LAST, so a missing browser never masks a data-safety seam above it.
   if (!opts.browserExists) {
     refuse("the chromium binary Playwright needs is not installed.", BROWSER_HINT);
@@ -193,6 +221,10 @@ export function buildE2eEnv(
     // '' rather than an absent entry: astro/templates/env.mjs maps '' → undefined, while an
     // absent entry would let `process.env` flow through webServer.env's merge untouched.
     OPENROUTER_API_KEY: "",
+    // Same mechanism, different reader: nothing in `astro:env` sees this one — `src/worker.ts`
+    // reads it off the Worker `env`, and '' is falsy there, which is the SDK's no-transport
+    // branch. An absent entry would let an ambient DSN through `webServer.env`'s merge untouched.
+    SENTRY_DSN: "",
     // Inert for the child (no astro:env schema entry reads it); it is here because the plan's
     // contract returns one map and the setup project needs the derivation to check that the
     // storageState it wrote could PAIR with this server. Pairing, never liveness.

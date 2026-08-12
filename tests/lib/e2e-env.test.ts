@@ -90,6 +90,28 @@ describe("buildE2eEnv", () => {
     expect(env.OPENROUTER_API_KEY).toBe("");
   });
 
+  // The monitoring seam. `src/worker.ts` is the Worker entry, so every dev request an e2e journey
+  // makes runs through `withSentry` — an ambient DSN would report real events from test traffic.
+  it("forces SENTRY_DSN to the empty string in the returned map", () => {
+    // '' is falsy where the wrapper reads it, which is the SDK's no-transport branch. Pinned so
+    // that removing the blank is a RED rather than a silent return to emitting events.
+    const env = buildE2eEnv(localSource({ SENTRY_DSN: "https://fake@fake.ingest.example/1" }), BROWSER_PRESENT);
+
+    expect(env.SENTRY_DSN).toBe("");
+  });
+
+  // The deliberate ASYMMETRY with OPENROUTER_API_KEY above, pinned so it cannot be "tidied" into
+  // symmetry. A key is refused wherever it comes from; a DSN is refused only from `.dev.vars`,
+  // because an optional local DSN in `.env` is the documented workflow (`src/worker.ts`) and the
+  // forcing already covers it. Without this case, tightening the assertion to `effective` would
+  // break that workflow with every test still green.
+  it("blanks a .env or shell SENTRY_DSN rather than refusing it", () => {
+    const dsn = "https://fake@fake.ingest.example/1";
+    const opts = { ...BROWSER_PRESENT, shellEnv: { SENTRY_DSN: dsn } };
+
+    expect(() => buildE2eEnv(localSource({ SENTRY_DSN: dsn }), opts)).not.toThrow();
+  });
+
   it.each([
     ["http://127.0.0.1:54321", "sb-127-auth-token"],
     ["http://localhost:54321", "sb-localhost-auth-token"],
@@ -171,6 +193,15 @@ describe("buildE2eEnv", () => {
       expect(() => buildE2eEnv(localSource(), opts)).toThrow(/OPENROUTER_API_KEY/);
     });
 
+    it("refuses a SENTRY_DSN that only .dev.vars carries", () => {
+      // The assertion half of the pair. The forcing blanks `.env` and the shell; this file lands
+      // on top of the forced `""` inside the child, so here refusing is the only guarantee — and
+      // it is why the DSN seam is asserted at all despite `.env` being allowed to carry one.
+      const opts = { ...BROWSER_PRESENT, devVars: { SENTRY_DSN: "https://fake@fake.ingest.example/1" } };
+
+      expect(() => buildE2eEnv(localSource(), opts)).toThrow(/SENTRY_DSN \(from \.dev\.vars\)/);
+    });
+
     it("resolves clean when .dev.vars carries only local values", () => {
       // A developer who legitimately keeps a local `.dev.vars` gets the same protection, not a
       // blanket refusal — which is why the file is PARSED rather than merely detected.
@@ -235,6 +266,7 @@ describe("a .dev.vars file is refused in every syntax the child understands", ()
     expect(buildE2eEnv(localSource(), opts)).toMatchObject({
       SUPABASE_URL: "http://127.0.0.1:54321",
       OPENROUTER_API_KEY: "",
+      SENTRY_DSN: "",
     });
   });
 });
