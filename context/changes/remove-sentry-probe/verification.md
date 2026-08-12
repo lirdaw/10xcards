@@ -158,3 +158,150 @@ gate asserts a floor and not an equality (`test-plan.md` has recorded this numbe
 No guard test went red. In particular the tightest tree-walking scan
 (`tests/lib/error-param-guard.test.ts`, `>= 69` against a measured 71 → 70) keeps its spare, and the
 three name-pinning guards (`no-logging`, `no-env-access`, `form-endpoint-guards`) name other files.
+
+## Phase 2 — the sampling discriminator, extracted and under test
+
+### 2.1–2.8 — automated verification
+
+| #   | Check                                              | Result                                                                                                     |
+| --- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 2.1 | `npm run typecheck`                                | OK — **149 files**, 0 errors, 0 warnings (floor 50). 146 → 149 is the three files this phase adds          |
+| 2.2 | `npm run lint`                                     | exit 0 — 0 errors, the same **3** pre-existing `no-console` warnings in `evals/generation-quality.eval.ts` |
+| 2.3 | `npm run build`                                    | exit 0 — see the alias measurement below                                                                   |
+| 2.4 | `npx vitest run tests/lib/sentry-sampling.test.ts` | **14 passed**                                                                                              |
+| 2.5 | `npx vitest run tests/lib/sentry-wiring.test.ts`   | **4 passed**                                                                                               |
+| 2.6 | `npm test`                                         | **423 passed / 423, 35 files**, seed `1786561000244` (405/33 before → **+18 cases, +2 files**)             |
+| 2.7 | `npx vitest run tests/lib/no-env-access.test.ts`   | passed — the new module reads no env                                                                       |
+| 2.8 | `npx vitest run tests/lib/no-logging.test.ts`      | passed — the new module writes no log line                                                                 |
+
+**The `@/*` alias in the Worker entry was MEASURED, not inferred from a green exit.** The plan named
+this the one unproven step: the alias is known to resolve for `src/middleware.ts` in the same SSR
+bundle, but `src/worker.ts` is `wrangler.jsonc`'s `main` and had never imported a first-party module.
+A build can exit 0 while an import is dropped, so the check is the emitted bundle:
+
+```
+$ grep -n -A3 "auth-js/" dist/server/chunks/worker-entry_<hash>.mjs
+31157: const DEPENDENCY_NOISE = [/@supabase\/ssr/, /@supabase\/auth-js/];
+31158: const DEPENDENCY_EVENT_SAMPLE_RATE = 0.1;
+31159: function sampleSentryEvent(event, roll) {
+31160:   if (event.logger !== "console") return event;
+```
+
+The extracted module is inlined into the Worker entry chunk. **The fallback the plan reserved
+(`./lib/sentry-sampling`) was not needed and was not used.** The chunk's filename carries a content
+hash and changes on every rebuild, so it is written here as `<hash>` deliberately — re-derive it
+rather than copying it.
+
+### 2.9 — deliberate breakage: the pre-`d381c07` discriminator
+
+The regression this file exists for, restored: sample on the `logger === "console"` stamp alone,
+dropping the `DEPENDENCY_NOISE` signature test — i.e. the shape that silently dropped ~90 % of real
+application errors in production and was caught only by measurement.
+
+```diff
+ export function sampleSentryEvent<T extends SentryEvent>(event: T, roll: number): T | null {
+   if (event.logger !== "console") return event;
+-  const haystack = [ … ].join("\n");
+-  if (!DEPENDENCY_NOISE.some((pattern) => pattern.test(haystack))) return event;
+   return roll < DEPENDENCY_EVENT_SAMPLE_RATE ? event : null;
+ }
+```
+
+**Split: 5 of 14 red in `sentry-sampling.test.ts`, 0 of 4 in `sentry-wiring.test.ts`.** Observed
+failure string, identical on all five:
+
+```
+AssertionError: expected null to be { logger: 'console', …(1) } // Object.is equality
+```
+
+| Case                                                                        | Result  |
+| --------------------------------------------------------------------------- | ------- |
+| sends an error stamped logger: console at a roll that would drop            | **red** |
+| sends an error carried in exception.values rather than message              | **red** |
+| sends an event with neither a message nor an exception                      | **red** |
+| sends an event whose message is not a string                                | **red** |
+| sends a console event whose text matches no noise pattern                   | **red** |
+| all six dependency-noise cases (both packages × message/exception/survivor) | green   |
+| both rate-boundary cases                                                    | green   |
+| the non-console case                                                        | green   |
+
+**The green half is the evidence, not decoration.** Every first-party case went red and every
+dependency case stayed green — which is what shows those five observe the discriminator's
+first-party branch rather than an incidental drop. `sentry-wiring.test.ts` stayed fully green
+throughout, correctly: the wiring was untouched, only the decision was broken.
+
+Restored from a pristine copy taken before the edit; `md5sum src/lib/sentry-sampling.ts` back to
+`026ff134a2d0988a5d5aafa6a6207909`, identical.
+
+### 2.10 — deliberate breakage: re-inlining the decision in `beforeSend`
+
+The seam's own falsifiability. `beforeSend` re-implements the decision inline —
+**with `import { sampleSentryEvent } from "@/lib/sentry-sampling";` left in place**, so co-presence
+of the import cannot satisfy the guard. That is the point of the per-LINE rule and the reason this
+file is not a "does the file mention the helper?" check.
+
+```diff
+-    beforeSend: (event) => sampleSentryEvent(event, Math.random()),
++    beforeSend(event) {
++      if (event.logger !== "console") return event;
++      … inline haystack + [/@supabase\/ssr/, /@supabase\/auth-js/] + Math.random() < 0.1 …
++    },
+```
+
+**Split: 1 of 4 red in `sentry-wiring.test.ts`; `sentry-sampling.test.ts` 14 of 14 GREEN.**
+
+```
+AssertionError: expected [ Array(1) ] to deeply equal []
++   "src/worker.ts:62: beforeSend(event) {",
+```
+
+The red names file and line. **The green is the deliverable here**: it is what proves the two files
+observe different claims — the truth table cannot see an unwiring, and the guard cannot see a wrong
+decision. Neither substitutes for the other, which is why the plan asked for both.
+
+Restored; `md5sum src/worker.ts` back to `59af37fcdf30443d2ebe31da355e0346`, identical, and both
+files re-run **18 passed**.
+
+### 2.11 — what `src/worker.ts` did NOT change
+
+`git diff src/worker.ts` — the Worker-entry shape is the constraint, and it is intact. Asserted
+**mechanically** rather than by reading the diff, because "I looked and it was a context line" is the
+weaker claim: the changed lines are extracted with `-U0` (which strips context entirely) and searched
+for any of the five elements that must not move.
+
+```
+$ git diff -U0 src/worker.ts | grep -E "^[+-][^+-]" \
+    | grep -E "WorkerEnv|SENTRY_DSN|captureConsoleIntegration|httpServerIntegration|entrypoints/server"
+(no output)
+```
+
+An empty result over a NON-empty changed-line set is the evidence — the same command prints 55
+changed lines before the second `grep` filters them, so this is not a pattern matching nothing.
+
+| Element                                                        | State                                                    |
+| -------------------------------------------------------------- | -------------------------------------------------------- |
+| `import handler from "@astrojs/cloudflare/entrypoints/server"` | unchanged (context line in the diff)                     |
+| `interface WorkerEnv { SENTRY_DSN?: string }`                  | unchanged                                                |
+| `dsn: env.SENTRY_DSN`                                          | unchanged                                                |
+| `Sentry.captureConsoleIntegration({ levels: … })`              | unchanged                                                |
+| `Sentry.httpServerIntegration({ maxRequestBodySize: "none" })` | unchanged                                                |
+| the two `DEPENDENCY_*` constants + their comments              | **removed** — they moved to `src/lib/sentry-sampling.ts` |
+| `beforeSend`                                                   | **one-line delegation** supplying `Math.random()`        |
+
+Boundary, stated because the two new files together still do not reach it: nothing in this project
+loads `src/worker.ts`, so **no layer asserts that Sentry actually invokes `beforeSend`**. After the
+probe's deletion nothing can. The truth table proves the decision is right; the guard proves this
+file still makes it; neither proves the SDK calls it.
+
+### All three manual checks were RE-EXECUTED at the gate, and reproduced exactly
+
+Run twice on 2026-08-12: once during implementation, once live at the manual-verification gate, from
+freshly taken pristine copies both times. Same splits, same failure strings, same restore hashes —
+`5 of 14` / `0 of 4` for 2.9, `1 of 4` / `14 of 14 green` for 2.10, and both restores back to
+`026ff134a2d0988a5d5aafa6a6207909` (sampling) and `59af37fcdf30443d2ebe31da355e0346` (worker).
+
+The second run adds two things the first did not have. It pins the failing ASSERTION sites rather
+than just the case titles — `sentry-sampling.test.ts:54`, `:66`, `:75`, `:84`, `:133` for 2.9 and
+`sentry-wiring.test.ts:131` for 2.10 — and it confirms the import survived the 2.10 edit by reading
+it back (`src/worker.ts:3`) before running, so "co-presence did not satisfy the guard" is an
+observation rather than an intention.

@@ -514,35 +514,35 @@ which is why the oracle is against the prod host rather than a local build.
 
 #### Automated
 
-- [x] 1.1 Type gate passes: `npm run typecheck`
-- [x] 1.2 Lint passes: `npm run lint`
-- [x] 1.3 Build passes: `npm run build`
-- [x] 1.4 Full suite passes with no new failures: `npm test`
-- [x] 1.5 The route is gone from the tree: `git ls-files src/pages/api/shipprobe.ts` returns nothing
+- [x] 1.1 Type gate passes: `npm run typecheck` — 7b69668
+- [x] 1.2 Lint passes: `npm run lint` — 7b69668
+- [x] 1.3 Build passes: `npm run build` — 7b69668
+- [x] 1.4 Full suite passes with no new failures: `npm test` — 7b69668
+- [x] 1.5 The route is gone from the tree: `git ls-files src/pages/api/shipprobe.ts` returns nothing — 7b69668
 
 #### Manual
 
-- [x] 1.6 Production baseline reading taken BEFORE any merge, returned `500`, recorded with host and timestamp
-- [x] 1.7 Local post-deletion pre-check returned `404` on the dev server, recorded as a pre-check and NOT as half of the production pair
+- [x] 1.6 Production baseline reading taken BEFORE any merge, returned `500`, recorded with host and timestamp — 7b69668
+- [x] 1.7 Local post-deletion pre-check returned `404` on the dev server, recorded as a pre-check and NOT as half of the production pair — 7b69668
 
 ### Phase 2: Extract the sampling discriminator and put it under test
 
 #### Automated
 
-- [ ] 2.1 Type gate passes: `npm run typecheck`
-- [ ] 2.2 Lint passes: `npm run lint`
-- [ ] 2.3 Build passes and the `@/*` import resolves in the Worker entry: `npm run build`
-- [ ] 2.4 The new test passes: `npx vitest run tests/lib/sentry-sampling.test.ts`
-- [ ] 2.5 The wiring guard passes: `npx vitest run tests/lib/sentry-wiring.test.ts`
-- [ ] 2.6 Full suite passes: `npm test`
-- [ ] 2.7 Env guard passes over the new module: `npx vitest run tests/lib/no-env-access.test.ts`
-- [ ] 2.8 Logging guard passes over the new module: `npx vitest run tests/lib/no-logging.test.ts`
+- [x] 2.1 Type gate passes: `npm run typecheck`
+- [x] 2.2 Lint passes: `npm run lint`
+- [x] 2.3 Build passes and the `@/*` import resolves in the Worker entry: `npm run build`
+- [x] 2.4 The new test passes: `npx vitest run tests/lib/sentry-sampling.test.ts`
+- [x] 2.5 The wiring guard passes: `npx vitest run tests/lib/sentry-wiring.test.ts`
+- [x] 2.6 Full suite passes: `npm test`
+- [x] 2.7 Env guard passes over the new module: `npx vitest run tests/lib/no-env-access.test.ts`
+- [x] 2.8 Logging guard passes over the new module: `npx vitest run tests/lib/no-logging.test.ts`
 
 #### Manual
 
-- [ ] 2.9 Deliberate-breakage run recorded with observed failure string and red/green split; restored and hash-verified
-- [ ] 2.10 Second deliberate-breakage run: re-inlining the decision turns `sentry-wiring.test.ts` red while `sentry-sampling.test.ts` stays green; recorded, restored and hash-verified
-- [ ] 2.11 `git diff src/worker.ts` shows `WorkerEnv`, the `dsn` read, both integrations and the adapter import unchanged
+- [x] 2.9 Deliberate-breakage run recorded with observed failure string and red/green split; restored and hash-verified
+- [x] 2.10 Second deliberate-breakage run: re-inlining the decision turns `sentry-wiring.test.ts` red while `sentry-sampling.test.ts` stays green; recorded, restored and hash-verified
+- [x] 2.11 `git diff src/worker.ts` shows `WorkerEnv`, the `dsn` read, both integrations and the adapter import unchanged
 
 ### Phase 3: Doc-sync
 
