@@ -1,7 +1,7 @@
 ---
 change_id: bug-generation-compensation-swallowed
 title: Swallowed compensation error leaves a lying succeeded session and a dead retry
-status: planned
+status: plan_reviewed
 created: 2026-08-12
 updated: 2026-08-13
 archived_at: null
@@ -24,6 +24,34 @@ foreign key produces (C10X-37/C10X-40).
   first attempt's orphan deck survived. The failures are correlated (research §2), so both
   swallows usually happen together. The twin at `:387` is a different branch with its own test
   tree and stays with **C10X-49**.
+
+  > **Corrected 2026-08-13 by plan-review F1 — the decision stands, its justification did not.**
+  > Hardening `:400` gives **detection**, not deletion: the orphan deck survives a failed undo
+  > however loudly it is reported, so on its own this buys a permanent `409` in place of a
+  > permanent 500. Nor can the heal delete the orphan — `generation_session` carries no deck FK
+  > and the deck is read back through cards that do not exist, so it is unreachable from the
+  > poisoned session by construction. What restores the retry is **D-06**; `:400`'s hardening is
+  > what makes the state visible when it happens, which is a smaller claim than this bullet made.
+
+- **D-06 — On the healed path only, an owned EMPTY deck of the requested name is ADOPTED rather
+  than refused** (added 2026-08-13 by plan-review F1). Gated on the heal, never on emptiness
+  alone: an empty deck the user created by hand is not an orphan, and
+  `tests/generation/generate.test.ts:805` pins exactly that case — a deck made through
+  `/api/decks`, never generated into — while `:441` pins the populated twin. Both are
+  deliberately key-**less**, so the heal-gate is what keeps them green; gating on emptiness turns
+  `:805` red.
+
+- **D-07 — The heal clears ONLY the `idempotency_key`; retirement stays the compensation's job**
+  (added 2026-08-13 by plan-review F2). The heal cannot tell a poisoned row from one the user
+  emptied by deleting its cards — research §6 measures the two as byte-identical — and in the
+  second case `saved_count` is **truthful**. Reusing the retirement there would overwrite a true
+  audit row with a false failure: this ticket's own defect class, one path over.
+
+- **D-08 — `retriable` is read with ABSENT meaning retriable** (added 2026-08-13 by plan-review
+  F3). Measured: 2 of 20 `return json(...)` sites carry the flag, so a strict read would remove
+  "Ponów" from every transient 500 — including `:402` when the compensation succeeded, where the
+  retry works today. The endpoint instead marks the genuinely non-retriable returns
+  `retriable: false`, so a forgotten flag keeps the affordance rather than silently removing it.
 - **D-02 — Fix families (a) + (c); no migration.** Research §7's family (b) is rejected here: it
   trades this failure mode for a new one (cards landed, status flip failed → the retry writes
   duplicates) and does not touch the §6 dead-end reachable with no failed write at all.
