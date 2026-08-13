@@ -3,7 +3,8 @@ import { z } from "zod";
 import type { Json } from "@/db/database.types";
 import { createClient } from "@/lib/supabase";
 import { createDeck, deckNameExists, deleteDeck } from "@/lib/decks";
-import { deckIdByPublicId } from "@/lib/flashcards";
+import { countFlashcardsInAnyState, deckIdByPublicId } from "@/lib/flashcards";
+import { classifyReplay } from "@/lib/generation-replay";
 import { generateCandidates, resolveModel, OpenRouterError } from "@/lib/openrouter";
 import { getActiveLanguage } from "@/lib/languages";
 import { SOURCE_MAX, COUNT_MIN, COUNT_MAX } from "@/lib/generation-limits";
@@ -17,6 +18,7 @@ import {
   SUPABASE_UNCONFIGURED_MESSAGE,
 } from "@/lib/redirect-errors";
 import {
+  clearSessionIdempotencyKey,
   createGenerationSession,
   findSucceededSessionByIdempotencyKey,
   generationResultByGenerationId,
@@ -103,6 +105,18 @@ function json(status: number, body: unknown) {
 type Client = NonNullable<ReturnType<typeof createClient>>;
 
 /**
+ * What a replay attempt leaves the caller holding.
+ *
+ * `answered` carries a finished Response — either the replay itself or the query-failure
+ * 500 — and both call sites just return it. `empty` carries nothing on purpose: the
+ * session exists and has no cards behind it, and what to DO about that is the one thing
+ * the two call sites disagree on, so this helper must not decide it (C10X-48). The top
+ * lookup heals the row and falls through into an ordinary generation; the 23505 branch,
+ * which has already paid for a generation, heals and refuses.
+ */
+type ReplayOutcome = { kind: "answered"; response: Response } | { kind: "empty" };
+
+/**
  * Answers with an already-persisted generation instead of running a new one.
  *
  * A replay is a benign 200 — the same shape /api/study uses for `alreadyApplied`. From
@@ -112,25 +126,40 @@ type Client = NonNullable<ReturnType<typeof createClient>>;
  * `counts` come from the session's own counters, not from the cards read back, so a
  * replay reports what the MODEL and Zod did — identical to the original answer — even if
  * some of those cards have since been rejected or deleted on the review screen.
+ *
+ * The three-way split is `classifyReplay` (@/lib/generation-replay), not an `if` here:
+ * this function used to read `if (error || !data)` — one branch over two facts that mean
+ * opposite things — and mapping "the session is empty" onto the outage copy is what made
+ * a poisoned row a PERMANENT 500 for its key. That module's header carries the reasoning
+ * and its own tests; this one keeps only the I/O and the two response bodies, both
+ * unchanged from before the split.
  */
 async function replaySession(
   supabase: Client,
   session: { id: number; public_id: string; generated_count: number; saved_count: number },
-) {
-  const { data, error } = await generationResultByGenerationId(supabase, session.id);
-  if (error || !data) {
-    return json(500, { error: "Nie udało się odtworzyć wyników generacji" });
+): Promise<ReplayOutcome> {
+  const classified = classifyReplay(await generationResultByGenerationId(supabase, session.id));
+  if (classified.kind === "query-failed") {
+    // Unchanged copy, and deliberately so: we know nothing about the user's cards here, so
+    // the message must not claim anything about them.
+    return { kind: "answered", response: json(500, { error: "Nie udało się odtworzyć wyników generacji" }) };
   }
-  return json(200, {
-    candidates: data.candidates,
-    counts: {
-      generated: session.generated_count,
-      saved: session.saved_count,
-      skipped: session.generated_count - session.saved_count,
-    },
-    deckPublicId: data.deckPublicId,
-    sessionPublicId: session.public_id,
-  });
+  if (classified.kind === "empty") {
+    return { kind: "empty" };
+  }
+  return {
+    kind: "answered",
+    response: json(200, {
+      candidates: classified.result.candidates,
+      counts: {
+        generated: session.generated_count,
+        saved: session.saved_count,
+        skipped: session.generated_count - session.saved_count,
+      },
+      deckPublicId: classified.result.deckPublicId,
+      sessionPublicId: session.public_id,
+    }),
+  };
 }
 
 export const POST: APIRoute = async (context) => {
@@ -175,6 +204,13 @@ export const POST: APIRoute = async (context) => {
   // yet. That is the pre-existing behaviour pinned by the newDeckName case in
   // tests/generation/generate.test.ts — sequential retry, the flow a human actually
   // performs, is fully covered. ---
+  //
+  // Since 2026-08-13 (C10X-48) this branch also HEALS. A key can resolve to a succeeded
+  // session with zero cards behind it — a compensation that failed leaves exactly that row,
+  // and so does a user deleting every card of a real generation — and until now both meant a
+  // permanent 500 for that key, forever, which is FR-018 inverted about as hard as it can be.
+  // `healedKey` records that this request disarmed such a row; the deck branch below reads it.
+  let healedKey = false;
   if (idempotencyKey) {
     // Branch on the query error first: mistaking a transient failure for "never seen this
     // key" is how a dedup layer silently starts duplicating again (lessons: error-vs-empty).
@@ -183,7 +219,33 @@ export const POST: APIRoute = async (context) => {
       return json(500, { error: "Nie udało się odczytać sesji generacji" });
     }
     if (replayed) {
-      return replaySession(supabase, replayed);
+      const outcome = await replaySession(supabase, replayed);
+      if (outcome.kind === "answered") {
+        return outcome.response;
+      }
+
+      // ORDERING IS THE SAFETY PROPERTY, not defensive nicety: clear the key, CONFIRM a row
+      // was matched, and only then fall through. Inverted, the fall-through inserts a session
+      // carrying this same key with `status='succeeded'`, collides with the still-poisoned row
+      // on generation_session_idempotency_key_uidx, lands in the 23505 handler below, finds
+      // the same empty row and returns the same 500 — now AFTER a paid LLM call. The
+      // confirmation is what bounds the cost of the failure.
+      //
+      // `clearSessionIdempotencyKey`, never the retirement (D-07). This code cannot tell a
+      // poisoned row from one the user emptied deliberately, and in the second case
+      // `saved_count` is TRUTHFUL — retiring it would overwrite a true audit row with a false
+      // failure, which is this ticket's own defect class one path over. See the helper's
+      // header, which is also where the `.select()` on that write is justified: under RLS a
+      // zero-row UPDATE resolves `{ data: null, error: null }`, so `!cleared` is the arm that
+      // matters here and `clearError` alone would not see it.
+      const { data: cleared, error: clearError } = await clearSessionIdempotencyKey(supabase, replayed.id);
+      if (clearError || !cleared) {
+        return json(500, {
+          error: "Nie udało się odblokować ponowienia generacji. Spróbuj ponownie.",
+          retriable: true,
+        });
+      }
+      healedKey = true;
     }
   }
 
@@ -250,8 +312,51 @@ export const POST: APIRoute = async (context) => {
     if (error) {
       return json(500, { error: "Nie udało się odczytać talii" });
     }
-    if (existing) {
+    // ADOPTION, and read the gate before the emptiness test — the order of these two
+    // conditions is the decision (D-06, plan-review F1). Clearing the key above is not enough
+    // on this path: the attempt that poisoned the session usually left its deck behind too
+    // (the same failed round-trip swallowed both undos), and that orphan makes this very
+    // lookup answer a permanent 409 — trading a permanent 500 for a permanent 409 and fixing
+    // nothing the ticket was reported for. The orphan cannot simply be deleted instead:
+    // generation_session carries no deck FK and its deck is read back THROUGH its cards, of
+    // which there are none, so from the poisoned session the deck is unreachable by
+    // construction.
+    //
+    // GATED ON THE HEAL, NEVER ON EMPTINESS ALONE. An empty deck the user made by hand is not
+    // an orphan, and adopting it would silently generate into somebody's deliberately-empty
+    // deck; tests/generation/generate.test.ts pins that ordinary 409 with a deck created
+    // through /api/decks and never generated into. Both duplicate-name cases there are
+    // deliberately key-LESS, so `healedKey` is exactly what keeps them green.
+    if (existing && !healedKey) {
       return json(409, { error: DECK_NAME_TAKEN_MESSAGE });
+    }
+    if (existing) {
+      // Two more round-trips, on the healed path only. `deckNameExists` projects public_id
+      // alone, and the emptiness question is about cards rather than about the deck row.
+      const { data: adopted, error: adoptError } = await deckIdByPublicId(supabase, existing.public_id);
+      if (adoptError) {
+        return json(500, { error: "Nie udało się odczytać talii" });
+      }
+      if (!adopted) {
+        // Vanished between the two reads. Refuse in the ordinary way rather than inventing a
+        // branch: the name is, as far as this request can tell, still someone's.
+        return json(409, { error: DECK_NAME_TAKEN_MESSAGE });
+      }
+      // State-AGNOSTIC on purpose: countFlashcards filters `state_id = STATE_ACCEPTED`, so a
+      // deck full of candidates would read as 0 through it (see countFlashcardsInAnyState's
+      // header). A null count is not proof of emptiness either, so it refuses too.
+      const { count, error: countError } = await countFlashcardsInAnyState(supabase, adopted.id);
+      if (countError) {
+        return json(500, { error: "Nie udało się odczytać talii" });
+      }
+      if (count !== 0) {
+        return json(409, { error: DECK_NAME_TAKEN_MESSAGE });
+      }
+      deckId = adopted.id;
+      deckPublicIdOut = existing.public_id;
+      // `createdDeckPublicId` stays NULL, and that is load-bearing: this request did not
+      // create this deck, so the failure branches below must never delete it. They would
+      // otherwise destroy a deck that predates them.
     }
   } else {
     // Unreachable: the schema's refine guarantees exactly one of the two.
@@ -344,7 +449,14 @@ export const POST: APIRoute = async (context) => {
   // --- Success. Create the NEW deck now (deferred from pre-LLM so a failed generation
   // doesn't orphan an empty deck or block retry with a 23505 — F1). The upfront
   // name-availability check makes a real 23505 here a rare TOCTOU; still mapped. ---
-  if (newDeckName) {
+  //
+  // `deckId === null` is the second half of the condition, and it is the ADOPTION check: the
+  // healed path above may already have resolved this name to an owned empty deck, and creating
+  // a second one under it is impossible (deck_user_name_unique) — it would answer 409 for a
+  // deck this request was told to use. One fact rather than two that have to agree: every
+  // branch that resolves a deck sets deckId, and the defensive guard directly below already
+  // depends on exactly that invariant.
+  if (newDeckName && deckId === null) {
     const { data: deck, error } = await createDeck(supabase, user.id, newDeckName);
     if (error) {
       const taken = error.code === "23505";
@@ -383,10 +495,34 @@ export const POST: APIRoute = async (context) => {
     // request 2 finds nothing, generates, and only collides HERE. A 23505 therefore means
     // request 1 committed — its cards DID land — so this is a replay, not a failure.
     // Without this branch the user sees an error while holding a full set of candidates.
+    //
+    // What this branch answers when it does NOT return a replay. Built up rather than
+    // returned early, so the deck undo below still runs on every one of these paths.
+    let sessionFailure: { error: string; retriable?: boolean } = { error: "Nie udało się zapisać sesji generacji" };
     if (idempotencyKey && sessionError.code === "23505") {
-      const { data: won, error } = await findSucceededSessionByIdempotencyKey(supabase, idempotencyKey);
-      if (!error && won) {
-        return replaySession(supabase, won);
+      const { data: won, error: wonError } = await findSucceededSessionByIdempotencyKey(supabase, idempotencyKey);
+      if (wonError) {
+        // Used to be folded into the generic 500 by `if (!error && won)` — a swallow, and the
+        // sibling of the one C10X-48 exists for. The two states are not the same thing: the
+        // winner's session may well hold the user's cards and we simply could not read it, so
+        // say so and let them try again rather than reporting the write we failed at.
+        sessionFailure = { error: "Nie udało się odczytać sesji generacji", retriable: true };
+      } else if (won) {
+        const outcome = await replaySession(supabase, won);
+        if (outcome.kind === "answered") {
+          return outcome.response;
+        }
+
+        // THE ASYMMETRY WITH THE TOP LOOKUP IS DELIBERATE — heal, then REFUSE, where that one
+        // heals and falls through. This code has already paid for a generation, so falling
+        // through here would buy a SECOND one on a single click. Clearing the winner's key
+        // costs one round-trip and is what makes the user's next attempt generate cleanly:
+        // it finds no key at all, so nothing to collide with and nothing to replay.
+        const { data: cleared, error: clearError } = await clearSessionIdempotencyKey(supabase, won.id);
+        sessionFailure =
+          clearError || !cleared
+            ? { error: "Nie udało się odblokować ponowienia generacji. Spróbuj ponownie.", retriable: true }
+            : { error: "Nie udało się zapisać sesji generacji. Spróbuj ponownie.", retriable: true };
       }
     }
     // Undo a deck THIS request created (impl-review F4). Without it the deck survives while
@@ -407,7 +543,7 @@ export const POST: APIRoute = async (context) => {
     if (createdDeckPublicId) {
       await deleteDeck(supabase, createdDeckPublicId);
     }
-    return json(500, { error: "Nie udało się zapisać sesji generacji" });
+    return json(500, sessionFailure);
   }
 
   const { error: cardsError } = await insertCandidates(supabase, deckId, session.id, result.cards);

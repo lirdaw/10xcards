@@ -738,29 +738,29 @@ Three things follow, and all three belong in the code rather than in memory:
 
 #### Automated
 
-- [x] 2.1 Type checking passes: `npm run typecheck`
-- [x] 2.2 Linting passes: `npm run lint`
-- [x] 2.3 Full suite still green: `npm test`
-- [x] 2.4 Build passes: `npm run build`
+- [x] 2.1 Type checking passes: `npm run typecheck` — 46f4678
+- [x] 2.2 Linting passes: `npm run lint` — 46f4678
+- [x] 2.3 Full suite still green: `npm test` — 46f4678
+- [x] 2.4 Build passes: `npm run build` — 46f4678
 
 #### Manual
 
-- [x] 2.5 Every `await` in `generate.ts` branches on its result, except the two owned by C10X-49 and C10X-50
+- [x] 2.5 Every `await` in `generate.ts` branches on its result, except the two owned by C10X-49 and C10X-50 — 46f4678
 
 ### Phase 3: The self-healing replay
 
 #### Automated
 
-- [ ] 3.1 Type checking passes: `npm run typecheck`
-- [ ] 3.2 Linting passes: `npm run lint`
-- [ ] 3.3 Full suite still green, including the three existing idempotency controls: `npm test`
-- [ ] 3.4 The existing replay-after-language-deactivation case still passes
-- [ ] 3.5 Both existing duplicate-name cases still 409: `generate.test.ts:441` (populated) and `:805` (hand-made empty)
+- [x] 3.1 Type checking passes: `npm run typecheck`
+- [x] 3.2 Linting passes: `npm run lint`
+- [x] 3.3 Full suite still green, including the three existing idempotency controls: `npm test`
+- [x] 3.4 The existing replay-after-language-deactivation case still passes
+- [x] 3.5 Both existing duplicate-name cases still 409: `generate.test.ts:441` (populated) and `:805` (hand-made empty)
 
 #### Manual
 
-- [ ] 3.6 Traced by hand: the row whose key was cleared is provably out of the partial index before the fall-through inserts its session
-- [ ] 3.7 Traced by hand: an adopted deck leaves `createdDeckPublicId` null, so no failure branch below deletes a deck this request did not create
+- [x] 3.6 Traced by hand: the row whose key was cleared is provably out of the partial index before the fall-through inserts its session
+- [x] 3.7 Traced by hand: an adopted deck leaves `createdDeckPublicId` null, so no failure branch below deletes a deck this request did not create
 
 ### Phase 4: The island reads `retriable`
 
