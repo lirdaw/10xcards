@@ -598,29 +598,29 @@ committed and never pushed.
 
 #### Automated
 
-- [x] 1.1 `npm run typecheck` exits 0
-- [x] 1.2 `npm run lint` exits 0, 3 pre-existing `no-console` warnings unchanged
-- [x] 1.3 `npm run build` exits 0
-- [x] 1.4 `npm test` green, `generate.test.ts:871` still passing
-- [x] 1.5 `git diff -- supabase/` empty
+- [x] 1.1 `npm run typecheck` exits 0 — f6e5713
+- [x] 1.2 `npm run lint` exits 0, 3 pre-existing `no-console` warnings unchanged — f6e5713
+- [x] 1.3 `npm run build` exits 0 — f6e5713
+- [x] 1.4 `npm test` green, `generate.test.ts:871` still passing — f6e5713
+- [x] 1.5 `git diff -- supabase/` empty — f6e5713
 
 #### Manual
 
-- [x] 1.6 No comment in `:552-599` claims something the code does not do
-- [x] 1.7 New literal absent from `redirect-errors.ts`; set-size assertion untouched
+- [x] 1.6 No comment in `:552-599` claims something the code does not do — f6e5713
+- [x] 1.7 New literal absent from `redirect-errors.ts`; set-size assertion untouched — f6e5713
 
 ### Phase 2: The helper's contract, in the suite
 
 #### Automated
 
-- [ ] 2.1 New case passes; suite green on a fresh un-pinned seed
-- [ ] 2.2 Suite total re-measured by running the file, not by arithmetic
-- [ ] 2.3 Breakage run recorded with observed string, split and denominator; two predicted reds, both positive controls green
-- [ ] 2.4 Restore verified by `md5sum`; `git diff -- src/` empty
+- [x] 2.1 New case passes; suite green on a fresh un-pinned seed
+- [x] 2.2 Suite total re-measured by running the file, not by arithmetic
+- [x] 2.3 Breakage run recorded with observed string, split and denominator; two predicted reds, both positive controls green
+- [x] 2.4 Restore verified by `md5sum`; `git diff -- src/` empty
 
 #### Manual
 
-- [ ] 2.5 Phase records that the endpoint fix has no automated witness
+- [x] 2.5 Phase records that the endpoint fix has no automated witness
 
 ### Phase 3: Reachability — one recorded DCL run, and the promise the copy makes
 
