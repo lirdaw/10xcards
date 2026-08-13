@@ -218,3 +218,226 @@ scope would have changed. It did not.
 
 One row and no more was left behind by the neutered runs, and it was deleted with its id and
 `source_text` recorded above. The two SQL probes ran inside `begin … rollback`.
+
+---
+
+## Phase 4 — manual reachability runs, both sites
+
+**The boundary, stated before the coverage.** Nothing committed can make either
+`createGenerationSession` insert fail — B3/B5 above prove the wiring is untouched by the
+failure and the truth table never sees the endpoint at all. This phase owns the other half:
+that `/api/generate` actually reaches each `if (auditError)` branch and answers with the new
+body. Two recorded DCL runs, each against a control differing in exactly one privilege.
+
+**Environment, checked before the first revoke.** `SUPABASE_URL=http://127.0.0.1:54321`,
+cloud credentials parked under `PROD_`, **no `.dev.vars`**, `OPENROUTER_API_KEY` unset —
+confirmed independently by the mock-mode banner ("Uwaga: OpenRouter nie jest
+skonfigurowany…") on `/auth/signup` before sign-up. Local Supabase stack up
+(`supabase_db_10x-astro-starter`), branch `C10X-50-bug-generation-failed-audit-swallowed`.
+
+**One operational aside, unrelated to the code under test but worth recording so a future
+runner does not mistake it for a defect.** The first `npm run dev` boot of this session hit
+the C10X-46 §6.11 class verbatim — Vite re-optimized `astro/env/runtime` mid-boot and the
+next few requests to `/auth/signin` / `/auth/signup` answered `200` with an **empty body**
+(no error, no HTML), then a hard SSR crash (`Invalid hook call … Cannot read properties of
+null (reading 'useState')`) once the reload landed on a stale `deps_ssr` chunk. It settled on
+its own after ~10 s and every later boot (two more restarts, for the bogus-key set/unset)
+came up clean in under 2 s with no re-optimization at all. Recorded because it is the same
+class §6.11 describes for `npm run e2e`, seen here for the first time outside that layer.
+
+**The throwaway account** — `c10x50-phase4@example.com`, created through the real sign-up
+form (confirmations disabled locally), zero decks at the start. Fresh rather than the e2e
+harness account, for the same reason C10X-49 gives: nothing here needs to be parked on an
+account another layer signs into every run.
+
+### 4.1 Grants BEFORE (baseline, both sites)
+
+`information_schema.role_table_grants`, `grantee='authenticated'`:
+
+```
+deck               |DELETE INSERT REFERENCES SELECT TRIGGER TRUNCATE UPDATE
+flashcard          |DELETE INSERT REFERENCES SELECT TRIGGER TRUNCATE UPDATE
+generation_session |DELETE INSERT REFERENCES SELECT TRIGGER TRUNCATE UPDATE
+```
+
+`deck` and `flashcard` are dumped alongside `generation_session` and **never touched by
+either site** — unlike C10X-49, this ticket's two branches sit before any deck exists
+(newDeckName's `createDeck` is deferred to the success path, past both catch blocks), so a
+single revoke is sufficient at both sites and the write-up says so rather than copying "two"
+from the sibling.
+
+### 4.2 Site A — transport failure, one revoke
+
+```sql
+revoke insert on public.generation_session from authenticated;
+```
+
+`has_table_privilege('authenticated','public.generation_session','INSERT')` → **f**.
+
+A bogus `OPENROUTER_API_KEY` was set in `.env` (`sk-or-v1-bogus-c10x50-manual-run-…`) and the
+dev server restarted to pick it up — confirmed live: the mock-mode banner **disappeared** from
+`/generate`, proving the key was read as configured rather than absent.
+
+**Run 1 — the real form, clicking Generuj.** Deck name `C10X-50 phase4 site A`, source text
+marked `[c10x50-siteA]`. The banner rendered:
+
+```
+Nie udało się wygenerować fiszek, a szczegóły tego błędu nie zostały zapisane — nie wpływa to
+na Twoje fiszki. Spróbuj ponownie.
+```
+
+with a **"Ponów" button present** — expected and different from C10X-49's sibling run:
+`retriable` stays `true` on both of this ticket's arms (D-09), so the button must survive
+where C10X-49's did not. Clicking it produced a second `POST /api/generate`,
+**status 502** (network-panel capture).
+
+**Run 2 — `fetch` from the page context, verbatim on the wire** (fresh marker
+`[c10x50-siteA2]`, same account, same revoked state):
+
+```
+status = 502
+body   = {"error":"Nie udało się wygenerować fiszek, a szczegóły tego błędu nie zostały zapisane — nie wpływa to na Twoje fiszki. Spróbuj ponownie.","retriable":true}
+```
+
+**Read directly in psql** — no session, no deck, for either marker:
+
+```
+select count(*) from generation_session gs join auth.users u on u.id=gs.user_id
+where u.email='c10x50-phase4@example.com';  →  0
+
+select d.name from deck d join auth.users u on u.id=d.user_id
+where u.email='c10x50-phase4@example.com';  →  (0 rows)
+```
+
+Zero decks is not a coincidence of this run — it is structural at this site (§4.1): the
+`newDeckName` deck is created only after `generateCandidates` returns, and here it never
+does.
+
+**Control run — one variable, a different answer.** `INSERT` re-granted, bogus key kept, a
+fresh deck name (`C10X-50 phase4 control`) and marker (`[c10x50-siteA-control]`):
+
+```
+status = 502
+body   = {"error":"Nie udało się wygenerować fiszek. Spróbuj ponownie.","retriable":true}
+```
+
+— the **ordinary** literal, no audit clause. And in the database:
+
+```
+ id     | status | source_text                                                                | error_message        | saved_count
+ 106846 | failed | [c10x50-siteA-control] Wire capture for the control run, grant restored.  | OpenRouter HTTP 401  | 0
+```
+
+A landed `failed` row, `error_message = "OpenRouter HTTP 401"` — proof a REAL call was made
+with the bogus key rather than the request short-circuiting to `mockCards` (which would carry
+no `(mock)`-suffixed `model` and no such error). One privilege apart, two different bodies,
+two different database outcomes — the pair a single run cannot give.
+
+### 4.3 Site B — zero-saved, one revoke, via the temporary spec
+
+`generation_session` `INSERT` revoked again (`has_table_privilege` → **f**). §6.9's second
+double, admissible on its own terms (plan §Phase 4 item 2): unreachable otherwise (`mockCards`
+always passes Zod), temporary, run alone, deleted, deletion proved, explicitly not precedent —
+`tests/generation/tmp-c10x50-site-b.test.ts`, reusing `failure-path.test.ts`'s confined
+`astro:env/server` + pass-through `fetch` double verbatim, queuing one card that breaches
+`FRONT_MAX` so `saved === 0` for its real reason.
+
+**Run 1 — revoked**, `npx vitest run tests/generation/tmp-c10x50-site-b.test.ts
+--disable-console-intercept --reporter=verbose` (the flag was needed: `--disable-console-intercept`
+is what makes the printed wire capture visible — C10X-48's own recorded trap):
+
+```
+C10X50_ACCOUNT_EMAIL harness-a-msru13px@example.com
+C10X50_SOURCE_TEXT   [msru14my:c10x50-site-b] zero-saved audit-insert reachability probe
+C10X50_STATUS        422
+C10X50_BODY          {"error":"Model nie zwrócił poprawnych fiszek, a szczegóły tego błędu nie zostały zapisane — nie wpływa to na Twoje fiszki. Spróbuj ponownie.","retriable":true}
+ ✓ 1 passed (1)
+```
+
+psql, scoped by the printed marker: **0 rows**.
+
+**Run 2 — control**, `INSERT` re-granted, same file, same invocation (a fresh `harness-a-…`
+account and a fresh `Date.now()` marker every invocation — globalSetup re-provisions on each
+process start, so the two runs never collide):
+
+```
+C10X50_ACCOUNT_EMAIL harness-a-msru1g03@example.com
+C10X50_SOURCE_TEXT   [msru1gvs:c10x50-site-b] zero-saved audit-insert reachability probe
+C10X50_STATUS        422
+C10X50_BODY          {"error":"Model nie zwrócił poprawnych fiszek. Spróbuj ponownie.","retriable":true}
+ ✓ 1 passed (1)
+```
+
+psql: **1 row landed**:
+
+```
+ id     | status | source_text                                                          | error_message                      | generated_count | saved_count
+ 106847 | failed | [msru1gvs:c10x50-site-b] zero-saved audit-insert reachability probe | Model nie zwrócił poprawnych kart  | 1                | 0
+```
+
+`error_message` is the fixed Site-B literal (never the upstream string, per this site's own
+contract), `generated_count > 0` and `saved_count = 0` is the pair that separates this branch
+from Site A's. One privilege apart, two different bodies, two different database outcomes —
+the same shape as Site A's pair.
+
+**Deletion, proved rather than assumed.**
+
+```
+rm tests/generation/tmp-c10x50-site-b.test.ts
+git status --porcelain -uall -- tests/   →  (empty)
+grep -rn "c10x50-site-b|tmp-c10x50-site-b" (excluding node_modules)  →  (empty)
+```
+
+### 4.4 Restore, verified by three catalogue oracles plus the suite
+
+`INSERT` was already re-granted by both control runs, so the three oracles below cover the
+one table both sites touched:
+
+1. **`information_schema` projection — identical to the §4.1 baseline, line for line**, all
+   three tables back to `DELETE INSERT REFERENCES SELECT TRIGGER TRUNCATE UPDATE`.
+2. **Raw ACL from `pg_class.relacl`**, compared against the two sibling tables neither site
+   ever touched:
+
+   ```
+   deck               |{postgres=arwdDxtm/postgres,authenticated=arwdDxtm/postgres,service_role=arwdDxtm/postgres}
+   flashcard          |{postgres=arwdDxtm/postgres,authenticated=arwdDxtm/postgres,service_role=arwdDxtm/postgres}
+   generation_session |{postgres=arwdDxtm/postgres,authenticated=arwdDxtm/postgres,service_role=arwdDxtm/postgres}
+   ```
+
+   Byte for byte identical across all three.
+
+3. **Behaviourally** — `has_table_privilege('authenticated','public.generation_session','INSERT')`
+   and `…('public.deck','INSERT')` both **t**.
+
+Then the fourth, behavioural check the three catalogue reads cannot give: the full suite —
+**467 passed / 467, 38 files**, seed `1786644587897`, exit 0 — the same figure Phase 3
+recorded, unmoved by anything in this phase. `git diff -- src/` empty; `git diff -- supabase/`
+empty (no migration, this change ships none). `.env` restored to its pre-Phase-4 content
+(the bogus `OPENROUTER_API_KEY` block added and removed, nothing else touched — confirmed by
+re-reading the file rather than by memory); no `.dev.vars` exists.
+
+### 4.5 What this phase proves, and what it does not
+
+- **It proves both branches are reachable in production and answer with the new body — the
+  half no committed test can reach (§3.7's B5).** Site A's response, Site B's response and
+  their psql pairs are each one-privilege-apart, so a message that fires on every failure is
+  ruled out by the control.
+- **It says nothing about delivery.** `npm run dev`'s `astro dev` process never loads
+  `src/worker.ts`, so `Sentry.captureException` ran with no client configured on every run in
+  this phase — the same "no-op with no client" state the test runner is in, and the same
+  state `generate.ts`'s own header comment names ("under `npm run dev` without a DSN"). That
+  every one of the four provoked requests above answered 502/422 rather than an uncaught
+  framework 500 is the incidental evidence the plan calls for (criterion 4.6): a throw inside
+  the capture statement would have replaced the intended status with a 500, and none did.
+  This is **not** proof an event arrived anywhere — D-05 and `follow-ups/sentry-delivery.md`
+  own that boundary, unchanged by this phase.
+- **The account's artifact of record is one `failed` row, not an orphan deck.** Unlike
+  C10X-49, both of this ticket's branches sit strictly before deck creation (§4.1), so there
+  is no deck to leave behind — `c10x50-phase4@example.com` ends this phase holding exactly the
+  Site-A control run's row (`106846`) and zero decks.
+- **Nothing bridges §3 and §4.** The suite owns each helper's contract on its landed arm
+  (Phase 3, and the four pre-existing `failure-path.test.ts` cases); this phase owns each
+  endpoint's use of the failure arm; no test in this project can join them, for the same
+  structural reason C10X-49's `research.md` §8 gives for its own branch.
+- **These are observations, not regression guards.** Nothing re-runs them, and a future edit
+  to either branch will not turn anything red.

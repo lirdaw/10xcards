@@ -885,35 +885,35 @@ not involved.
 
 #### Automated
 
-- [x] 3.1 New and existing cases pass: `npx vitest run tests/generation/generate.test.ts tests/lib/audit-failure-wiring.test.ts`
-- [x] 3.2 Full suite green, count measured by running with its per-file breakdown: `npm test`
-- [x] 3.3 Breakage B1 — `WITH CHECK` neutered: denial red, positive control green; policy restored and `diff`ed
-- [x] 3.4 Breakage B2 (pair) — (a) `source_text` verbatim → row privacy case red; (b) cause `details` verbatim → cause privacy case red, (a)'s green; retention/`code`/fingerprint green in both
-- [x] 3.5 Breakage B3 — Site A capture line deleted: wiring guard red, truth table fully green
-- [x] 3.6 Breakage B4 (pair) — (a) inline object instead of the builder → guard red on delegation, import green; (b) `auditError` back as the first argument → guard red on the first-argument rule, delegation/privacy green
-- [x] 3.7 Breakage B5 — Site A's failed-audit arm returns the ordinary literal (both arms identical; the capture stays, so the wiring guard is untouched): **predicted GREEN**, recorded as the coverage boundary
-- [x] 3.8 Every restore verified: `git diff -- src/` empty plus per-file `md5sum`
+- [x] 3.1 New and existing cases pass: `npx vitest run tests/generation/generate.test.ts tests/lib/audit-failure-wiring.test.ts` — 8a43e56
+- [x] 3.2 Full suite green, count measured by running with its per-file breakdown: `npm test` — 8a43e56
+- [x] 3.3 Breakage B1 — `WITH CHECK` neutered: denial red, positive control green; policy restored and `diff`ed — 8a43e56
+- [x] 3.4 Breakage B2 (pair) — (a) `source_text` verbatim → row privacy case red; (b) cause `details` verbatim → cause privacy case red, (a)'s green; retention/`code`/fingerprint green in both — 8a43e56
+- [x] 3.5 Breakage B3 — Site A capture line deleted: wiring guard red, truth table fully green — 8a43e56
+- [x] 3.6 Breakage B4 (pair) — (a) inline object instead of the builder → guard red on delegation, import green; (b) `auditError` back as the first argument → guard red on the first-argument rule, delegation/privacy green — 8a43e56
+- [x] 3.7 Breakage B5 — Site A's failed-audit arm returns the ordinary literal (both arms identical; the capture stays, so the wiring guard is untouched): **predicted GREEN**, recorded as the coverage boundary — 8a43e56
+- [x] 3.8 Every restore verified: `git diff -- src/` empty plus per-file `md5sum` — 8a43e56
 
 #### Manual
 
-- [x] 3.9 Each run's observed failure string and split recorded from a `--reporter=verbose` run
-- [x] 3.10 B5's green written up as a finding, not as a pass
+- [x] 3.9 Each run's observed failure string and split recorded from a `--reporter=verbose` run — 8a43e56
+- [x] 3.10 B5's green written up as a finding, not as a pass — 8a43e56
 
 ### Phase 4: Manual reachability runs — both sites
 
 #### Automated
 
-- [ ] 4.1 Full suite green after every restore: `npm test`
-- [ ] 4.2 No committed residue from the temporary spec (`git status --porcelain -uall`, marker grep)
-- [ ] 4.3 Grants restored: `information_schema` projection matches line for line; `has_table_privilege` is `t`
+- [x] 4.1 Full suite green after every restore: `npm test`
+- [x] 4.2 No committed residue from the temporary spec (`git status --porcelain -uall`, marker grep)
+- [x] 4.3 Grants restored: `information_schema` projection matches line for line; `has_table_privilege` is `t`
 
 #### Manual
 
-- [ ] 4.4 Site A: failed-audit 502 on the wire, no row in `psql`, plus the one-privilege-apart control
-- [ ] 4.5 Site B: the same pair at 422, via the temporary spec, then deleted
-- [ ] 4.6 Sentry confirmed a local no-op that does not disturb the response path — recorded as incidental, not as delivery
-- [ ] 4.7 Throwaway account and artifacts named in `verification.md`
-- [ ] 4.8 The §6.9 second-double deviation recorded on its own terms in `verification.md`, and explicitly not as precedent
+- [x] 4.4 Site A: failed-audit 502 on the wire, no row in `psql`, plus the one-privilege-apart control
+- [x] 4.5 Site B: the same pair at 422, via the temporary spec, then deleted
+- [x] 4.6 Sentry confirmed a local no-op that does not disturb the response path — recorded as incidental, not as delivery
+- [x] 4.7 Throwaway account and artifacts named in `verification.md`
+- [x] 4.8 The §6.9 second-double deviation recorded on its own terms in `verification.md`, and explicitly not as precedent
 
 ### Phase 5: Doc-sync and bookkeeping
 
