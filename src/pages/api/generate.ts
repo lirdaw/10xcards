@@ -412,15 +412,55 @@ export const POST: APIRoute = async (context) => {
 
   const { error: cardsError } = await insertCandidates(supabase, deckId, session.id, result.cards);
   if (cardsError) {
-    // The session was already saved as `succeeded`, but no cards landed. Compensate so
-    // the audit doesn't over-report saved cards (impl-review F2); best-effort.
-    await retireGenerationSession(supabase, session.id, "Zapis kart nie powiódł się");
+    // The session was already saved as `succeeded`, but no cards landed. Compensate so the
+    // audit doesn't over-report saved cards (impl-review F2) — and, since 2026-08-13
+    // (C10X-48), READ the result of that compensation instead of discarding it.
+    //
+    // "Best-effort" is gone from this branch, and it was never a decision: it entered the
+    // file as a comment, and the comment is what let the one caller drop the result. On the
+    // likeliest road to `cardsError` the compensation is EXPECTED to fail too — the card
+    // insert and this update share one connection, one token and one proxy — so the swallow
+    // was silent exactly when it mattered.
+    //
+    // Both writes are checked on `data`, not on `error` alone. Under RLS a zero-row
+    // UPDATE/DELETE resolves `{ data: null, error: null }`, so `if (error)` would still have
+    // swallowed the case that matters; the explicit `.select(...).maybeSingle()` on both
+    // helpers is what makes a zero-row write visible at all (see their headers, and
+    // src/lib/decks.ts:37-42 for the precedent).
+    const { data: retired, error: retireError } = await retireGenerationSession(
+      supabase,
+      session.id,
+      "Zapis kart nie powiódł się",
+    );
     // Same undo as the session-insert branch above (impl-review F4): no cards landed, so a
     // deck this request created is empty and would otherwise 409 every future "Ponów".
+    // `createdDeckPublicId` is null on the existing-deck path, where the undo is correctly
+    // not attempted at all — an undo that never ran has not failed, hence the `true` default.
+    let deckUndone = true;
     if (createdDeckPublicId) {
-      await deleteDeck(supabase, createdDeckPublicId);
+      const { data: deleted, error: deleteError } = await deleteDeck(supabase, createdDeckPublicId);
+      deckUndone = !deleteError && deleted !== null;
     }
-    return json(500, { error: "Nie udało się zapisać wygenerowanych fiszek" });
+
+    // WHAT THIS BRANCH GUARANTEES, and — read this second half before concluding the bug is
+    // fixed here — what it still does not. It makes a failed compensation NAMEABLE, and the
+    // response is the ONLY witness there is: nothing in `src/` writes a log line and nothing
+    // in this project reads a log sink (test-plan §7). It REPAIRS NOTHING. On a failed
+    // retirement the row stands as `succeeded, saved_count > 0`, keyed, with zero cards
+    // behind it — poisoned; on a failed deck undo the orphan deck survives. What clears the
+    // poisoned row is the self-heal on the NEXT attempt's replay lookup, which is why this
+    // answers `retriable: true` instead of presenting the state as terminal.
+    if (!retireError && retired && deckUndone) {
+      return json(500, { error: "Nie udało się zapisać wygenerowanych fiszek" });
+    }
+    // Inline literal, alongside its siblings in this handler — deliberately NOT a member of
+    // REDIRECT_MESSAGES, whose members are values the deck pages render out of a URL and
+    // whose size is pinned.
+    return json(500, {
+      error:
+        "Nie udało się zapisać wygenerowanych fiszek, a wycofanie nieudanego zapisu nie powiodło się. Spróbuj ponownie.",
+      retriable: true,
+    });
   }
 
   return json(200, {
