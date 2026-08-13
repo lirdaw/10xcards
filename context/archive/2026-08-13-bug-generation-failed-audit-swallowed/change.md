@@ -1,10 +1,10 @@
 ---
 change_id: bug-generation-failed-audit-swallowed
 title: Unchecked "failed" audit-row insert on both generation failure paths
-status: impl_reviewed
+status: archived
 created: 2026-08-13
 updated: 2026-08-13
-archived_at: null
+archived_at: 2026-08-13T19:28:26Z
 ---
 
 ## Notes
