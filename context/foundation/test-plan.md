@@ -6,7 +6,47 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-08-13 (C10X-48 `bug-generation-compensation-swallowed` — **not a §3 rollout
+> Last updated: 2026-08-13 (C10X-49 `bug-generation-deck-undo-swallowed` — **not a §3 rollout phase
+> and not a coverage widening: no §2 risk row moves, no §3 phase status changes, and §3's table is
+> untouched.** The second entry of the same day, and the sibling of the one below it: C10X-48 fixed
+> one swallowed compensating write in `generate.ts`, this one fixes the other, and **the remaining
+> exception is now C10X-50's alone.**
+>
+> **Read the boundary before the coverage, because this entry is one committed test and one manual
+> run and they do not meet.** The endpoint branch it fixes — the `deleteDeck` undo after a failed
+> `generation_session` insert — is **unreachable from this suite**, and that is an identity rather
+> than an inconvenience: `findSucceededSessionByIdempotencyKey`'s filter set is _the same set_ as
+> the partial unique index's predicate, so no seeded row can collide on the INSERT while escaping
+> the lookup that runs before it, and `failure-path.test.ts`'s seam never doubles the database. So
+> the **suite** owns the HELPER's contract — `deleteDeck` had **no caller anywhere in `tests/`**
+> until now, so the zero-row-vs-landed distinction the whole fix branches on was asserted nowhere —
+> and **one recorded manual DCL run** owns the endpoint's use of it. **Nothing bridges the two, and
+> no test in this project can.**
+>
+> **What the fix is, in one sentence, and why its flag is the surprising part.** The undo's
+> `{data, error}` is read on both arms into a `deckUndone` boolean, and a failed undo replaces
+> `sessionFailure` with a distinct `500` that names the leftover deck and carries
+> **`retriable: false`** — this handler's first `false` on a 500. That is not a softening of
+> C10X-48's absent-means-retriable rule but its own test applied honestly: "Ponów" replays
+> `lastPayload` VERBATIM, the orphan deck now exists, so the repeat is a deterministic `409` at
+> `deckNameExists` — i.e. offering the button would reproduce this ticket's own defect one click
+> later. With no button the copy is the user's ONLY route out, which is why it names two of them
+> and why the browser check confirming the reload-then-select route is real is load-bearing rather
+> than a nicety.
+>
+> **The orphan deck survives, deliberately: this change detects, it does not delete.** A plan
+> promising otherwise would have been overclaiming, and the manual run's two orphan decks are left
+> in the local dev DB as the artifact of record.
+>
+> Suite **435 → 437, 36 files** (+2, both in `tests/isolation/decks.test.ts`, 5 → 7), each half
+> measured by RUNNING rather than by arithmetic. **435, not the 434 recorded below** — that figure
+> is C10X-48's pre-impl-review one, and §8 carries the discrepancy as a dated correction rather
+> than a rewrite. One breakage run, **2 of 7 red across two layers on one neuter**, both predicted
+> and named before it ran, with **both positive controls green** as the attribution. Evidence:
+> `context/changes/bug-generation-deck-undo-swallowed/verification.md` (after archiving:
+> `context/archive/<date>-bug-generation-deck-undo-swallowed/verification.md`).
+>
+> Previously: 2026-08-13 (C10X-48 `bug-generation-compensation-swallowed` — **not a §3 rollout
 > phase, and not a coverage widening either: no §2 risk row moves and no phase status changes.**
 > What moves is that the replay path's DEAD END has tests at all. `failGenerationSession` had **no
 > caller anywhere in `tests/`** and the archived mutation register lists the whole function as 5
@@ -1734,6 +1774,60 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   > and one whose prediction was measured FALSE, plus the DCL run's three restore oracles:
   > `context/changes/bug-generation-compensation-swallowed/verification.md` (after archiving:
   > `context/archive/<date>-bug-generation-compensation-swallowed/verification.md`).
+  >
+  > **Corrected 2026-08-13 (C10X-49 `bug-generation-deck-undo-swallowed`) — one clause of the
+  > paragraph above, and the sentence is deliberately NOT rewritten, because it is the accurate
+  > record of what was true on the day C10X-48 shipped.** "The two remaining swallowed `await`s …
+  > the deck undo after a failed session insert (C10X-49)" describes **one** remaining exception as
+  > of this date, not two: that undo is checked, and the remaining exception is **C10X-50's alone**
+  > (the two failure-path `createGenerationSession` inserts, `generate.ts:426` and `:477`). What
+  > does NOT change is the sentence's other half — the island is still untouched by any test — and
+  > C10X-49 leans on it harder rather than less. The note directly below is that change's own.
+
+  > **Extended 2026-08-13 (C10X-49 `bug-generation-deck-undo-swallowed`) — the sibling of the entry
+  > above: same file, same class, the other call site, the same day.** **No §2 risk row moves and
+  > no §3 phase status changes.** With this the "swallowed compensating write" class is closed in
+  > `generate.ts` on both undo sites; what is left over is C10X-50's two audit-row inserts.
+  >
+  > **Read the boundary before the coverage, because this entry is ONE committed test and ONE
+  > manual run and they do not meet.** The branch fixed — the `deleteDeck` undo after a failed
+  > `generation_session` insert — is **unreachable from this suite**, and as an identity rather
+  > than an inconvenience: `findSucceededSessionByIdempotencyKey` filters on exactly the set the
+  > partial unique index predicates on, so no seeded row can collide on the INSERT while escaping
+  > the lookup that runs before it, and `failure-path.test.ts`'s seam never doubles the database
+  > (§6.9). So the **suite** owns the HELPER's contract and **one recorded manual DCL run** owns
+  > the endpoint's use of it. **Nothing bridges them, and no test in this project can.**
+  >
+  > **What the suite gains, and why it had nothing before.** `deleteDeck` had **no caller anywhere
+  > in `tests/`** — `tests/isolation/decks.test.ts:86-100` drives the DELETE _endpoint_
+  > cross-account and nothing asserted the helper's own return value — so the
+  > zero-row-vs-landed distinction the whole fix branches on was asserted nowhere. Suite
+  > **435 → 437, 36 files** (+2, both in `decks.test.ts`, 5 → 7): B's client against A's deck
+  > resolves `{data: null, error: null}` **with A's row re-read as A** (row-based, never
+  > return-based — a null `data` over a deck that actually vanished would pass on the return and
+  > leak in the database), and A's own delete resolves `data` non-null with the row gone. One
+  > neuter (`.maybeSingle()` dropped) goes **2 of 7 red across two layers** — `expected [] to be null`
+  > on the helper, `expected 302 to be 404` on the endpoint, because `[]` is truthy so
+  > `delete.ts:37`'s `if (!deleted)` stops firing — with **both positive controls green**, which is
+  > the attribution: the neuter removes the zero-row SIGNAL, it does not break deletes.
+  >
+  > **The control had to become its own `it()`, and that is a rule worth carrying.** Written first
+  > inside the denial case (the C10X-48 precedent), it was **never observed green under the neuter
+  > at all** — Vitest aborts a case at its first failed `expect`, so a control sitting after the
+  > denial does not RUN under the very breakage it exists to be attributed against. Measured before
+  > the split: `2 failed | 4 passed (6)`, the control among the cases that never executed. **A
+  > control sharing an `it()` with the assertion it attributes is not a control.**
+  >
+  > **Two boundaries rather than a summary.** The orphan deck **survives a failed undo** — this
+  > change detects, it does not delete (D-01) — so a reader must not take "the swallow is closed"
+  > as "the deck goes away". And the island half is untouched as always (§7), but load-bearing in a
+  > way it usually is not: the new response carries **`retriable: false`**, so the banner has **no
+  > button** and its copy is the user's only route out. That the flag reaches `GeneratorForm` and
+  > that the reload-then-select route the copy promises is real both rest entirely on Phase 3's
+  > browser check. Full record — the breakage run with its observed strings, the DCL run with its
+  > control and four restore oracles, and the browser observations:
+  > `context/changes/bug-generation-deck-undo-swallowed/verification.md` (after archiving:
+  > `context/archive/<date>-bug-generation-deck-undo-swallowed/verification.md`).
 
 - **Phase 4 (`srs-study-session`, 2026-07-24; audited 2026-07-26; closed by C10X-27
   the same day)** — Risk #3 is **covered, both halves**. "The schedule writes the wrong
@@ -5184,6 +5278,22 @@ contributors should respect these unless the underlying assumption changes.
   and unchanged by this change; `npm run build` exit 0; `git diff -- src/ supabase/` **empty** after
   every breakage restore, each additionally verified by per-file `md5sum`. **No migration ships**,
   so nothing under `supabase/` is touched and the C10X-29 drift gate is not involved.
+
+  > **The `434` is the PRE-IMPL-REVIEW figure and the branch has read `435` since `7a8694e`;
+  > corrected 2026-08-13 by C10X-49 running the suite, not by arithmetic.** This entry was written
+  > before C10X-48's own impl-review commit, which then added one case
+  > (`refuses to adopt a deck that HOLDS cards, even on the healed path`) to
+  > `tests/generation/generate.test.ts`. **This is the third time this ledger has caught itself on
+  > exactly this** — C10X-40's entry was written at its pre-review figure and so was C10X-46's, and
+  > both say so in the same words. Nothing is wrong with the suite; the number is one behind.
+  > **Corroborated at the FILE rather than inferred from the total**, which is what makes it a
+  > measurement: this entry states its splits are per-file against `tests/generation/generate.test.ts`
+  > at **26** cases, and that file measures **27** today
+  > (`npx vitest run tests/generation/generate.test.ts` → `Tests 27 passed (27)`), with C10X-49
+  > having touched neither it nor any file but `tests/isolation/decks.test.ts`. The missing +1 is
+  > exactly where the commit says it is. Every OTHER figure in this entry stands, and the `+4` and
+  > the `22 → 26` were both true when they were measured.
+
 - **Five breakage runs rather than the planned four, because one came back GREEN** — and this
   ledger's own rule is that a green breakage run is a finding until it is explained. Removing the
   confirmation between the key-clearing update and the fall-through goes **0 of 26 red**: the
@@ -5236,6 +5346,113 @@ generated_count 3 | keyed | 0 cards`. The response is Phase 2's distinct copy ca
   (D-05) — inert until someone replays that key, and disarmed at that moment. `review.astro`'s
   misattribution of a lying session stays a live, separate defect for §6-shaped rows. And
   `customfield_10041` on **C10X-48** is `/jira-finish-work`'s to fill.
+
+  > **Corrected 2026-08-13 (C10X-49), one item of that list — the bullet is not rewritten, because
+  > it is the accurate record of what was open when C10X-48 closed.** "The deck undo after a failed
+  > session insert (**C10X-49**)" is **closed** as of this date: the undo reads `deleteDeck`'s
+  > result on both arms and answers a distinct `500` carrying `retriable: false`. What survives
+  > untouched is everything else in the bullet, including the two halves that matter most here:
+  > **C10X-50 still owns** the two failure-path `createGenerationSession` inserts, and the **island
+  > half** is still untouched by any test — indeed C10X-49 leans on it harder, because with
+  > `retriable: false` the banner carries no button at all, so its copy is the user's only route
+  > out and that route rests entirely on a browser check. And read the closure as narrowly as it is
+  > meant: the swallow is closed, the orphan deck is not. A failed undo still leaves an empty deck
+  > behind, by decision.
+
+- **The deck undo's HELPER contract last proven by execution: 2026-08-13** (C10X-49, change folder
+  `bug-generation-deck-undo-swallowed`). The second entry of the same day and the sibling of the one
+  above: same file, same class, the other call site. Not a §3 rollout phase and **not a coverage
+  widening** — no §2 risk row moves, no §3 phase status changes, §3's table is untouched. Suite
+  **437 passed / 437, 36 files**, exit 0, seed `1786631338612`, re-run at the doc-sync gate rather
+  than carried over from the phase that measured it. `npm run typecheck` exit 0 at
+  `Result (151 files): 0 errors, 0 warnings`; `npm run lint` exit 0 with **3** warnings, all
+  `no-console` in `evals/generation-quality.eval.ts` and unchanged by this change; `npm run build`
+  exit 0; `git diff -- src/` **empty** after the breakage restore, additionally verified by
+  `md5sum`; `git diff -- supabase/` **empty** — **no migration ships**, so the C10X-29 drift gate is
+  not involved and the Phase 3 DCL was uncommittable by construction.
+- **Suite delta 435 → 437, files unchanged at 36, and BOTH halves were measured by running.** The
+  +2 are the two cases added to `tests/isolation/decks.test.ts` (**5 → 7**); no other file gains or
+  loses a case. The baseline was measured by stashing this change's only test edit and running the
+  whole suite (**435 passed / 435**, seed `1786629893093`), with the stash pop verified by `md5sum`
+  against the pre-stash hash. That is what turned up the `434` above being one behind — see the
+  dated correction under C10X-48's entry, which is the **third** time this ledger has caught a
+  pre-impl-review figure and the first time the catch came from a neighbouring change rather than
+  from the entry's own author.
+- **What the suite now owns, and why it had nothing before.** Until this change **`deleteDeck` had
+  no caller anywhere in `tests/`** — `decks.test.ts:86-100` drives the DELETE _endpoint_
+  cross-account and nothing asserted the helper's own return value — so the zero-row-vs-landed
+  distinction the entire fix branches on was asserted nowhere. Two cases now pin it: B's client
+  against A's deck resolves `{data: null, error: null}` **with A's row re-read as A** (row-based,
+  never return-based — a null `data` over a deck that actually vanished would pass on the return
+  and leak in the database), and A's own delete resolves `data` non-null with the row gone. Placed
+  in `decks.test.ts` on §6.2's one-file-per-resource rule, each owning the deck it touches.
+- **The positive control had to become its own `it()`, and that is a correction to the plan's
+  shape rather than a flourish.** Written first as three more lines inside the denial case — the
+  C10X-48 precedent — it was **never observed green under the neuter at all**: Vitest aborts a case
+  at its first failed `expect`, so a control sitting after the denial does not RUN under the very
+  breakage it exists to be attributed against. Measured before the split: `2 failed | 4 passed (6)`,
+  with the helper control among the cases that never executed. It would have been green by silence
+  rather than by observation, which is this project's own definition of an assertion that proves
+  nothing. Generalise it: **a control that shares an `it()` with the assertion it attributes is not
+  a control.**
+- **One breakage run, two reds across two LAYERS on one neuter, both predicted by name before it
+  ran.** Dropping `.maybeSingle()` from `deleteDeck` (so a zero-row DELETE resolves to `[]` instead
+  of `null`) goes **2 of 7 red** in `tests/isolation/decks.test.ts`: the new helper denial on
+  `expected [] to be null`, and the pre-existing **endpoint** denial on
+  `expected 302 to be 404 // Object.is equality`, because `[]` is **truthy** so
+  `decks/[publicId]/delete.ts:37`'s `if (!deleted)` stops firing. **Both positive controls stayed
+  GREEN and that pair is the attribution** — recorded from a `--reporter=verbose` run rather than
+  inferred from a passing count, because the default reporter names only failures. `[{public_id}]`
+  is neither null nor falsy, so this neuter removes the **zero-row signal specifically** rather
+  than breaking deletes; if deletes were simply broken the controls would be red too.
+- **The narrower alternative is recorded as a decision, not an omission.** Dropping
+  `.select("public_id")` instead nulls `data` for both callers, inverting the split (denial green,
+  control red) for a cleaner single-red run — but it tests the `.select()` half of
+  `lessons.md:243-248`, whereas the endpoint's `if (!deleted)` and `generate.ts`'s `deleted !== null`
+  both depend on the `.maybeSingle()` half. The neuter that ran is the one that reaches what the
+  fix actually reads.
+- **The reachability half rests on ONE manual DCL run and nothing re-runs it.** Two revokes
+  (`insert on public.generation_session`, `delete on public.deck` — either alone reproduces
+  nothing, and `deck` deliberately keeps INSERT or `createdDeckPublicId` stays null and the undo
+  never runs), driven through the real app on a throwaway account rather than the e2e harness
+  account, because the run is designed to LEAVE an orphan behind and parking that in someone else's
+  fixture would be litter. On the wire: `500` with
+  `{"error":"Nie udało się zapisać sesji generacji, a pusta talia o tej nazwie mogła zostać utworzona. …","retriable":false}`,
+  and in psql two decks with **zero cards** and **no `generation_session` row at all**. The
+  **control** — `delete on public.deck` re-granted, one variable changed, a fresh deck name because
+  a repeat under the first would be stopped at `generate.ts:362` by the name pre-check and measure
+  nothing — answers the **ordinary** `{"error":"Nie udało się zapisać sesji generacji"}` with **no
+  `retriable` field**, and leaves **no deck** behind. Without that pair, a message that fires on
+  every failure is indistinguishable from one that fires on the right failure: the
+  unfalsifiable-rehearsal class the C10X-29 entry records. **It proves the ERROR arm only** — the
+  zero-row arm is the committed test above, which is the stronger evidence of the two because it
+  runs on every `npm test` where this is a one-off nothing re-checks.
+- **The restore was proved by four oracles, not remembered.** C10X-48's three transfer unchanged
+  and cover **both** tables rather than only the one the last step touched: the
+  `information_schema` projection identical to the BEFORE dump line for line, the raw
+  `pg_class.relacl` byte-identical across `deck`, `generation_session` **and** the untouched
+  sibling `flashcard`, and `has_table_privilege` answering `t`. The fourth is behavioural and is
+  what the catalogue reads cannot give: the full suite green against the restored grants.
+- **The browser check is load-bearing here in a way it usually is not**, because `retriable: false`
+  means the banner carries **no button**, so the copy is the user's only route out. Two
+  observations, both scoped past §6.11's trap that this page carries **two** `[role="alert"]` nodes
+  (the mock-mode banner first in DOM order): the new copy rendered, and "Ponów" asserted absent
+  from the whole document (`document.body.innerHTML.includes('Ponów') → false`) — which is what
+  catches a flag that failed to reach the island, since `GeneratorForm.tsx:192` reads
+  `data.retriable !== false`. Then the recovery route executed **in the copy's own order** — read,
+  reload, open the selector — because reloading first makes the observation vacuous: the deck list
+  is a PROP re-read on every render, so the deck would be there whatever the copy said. Before the
+  reload the selector offers `+ Nowa talia` and nothing else; after it, the orphan, and the selected
+  option's `value` is the same `public_id` psql reported.
+- **Still open after this entry, deliberately**: **the orphan deck survives a failed undo** — this
+  change detects, it does not delete (D-01), and the manual run's two decks are left in the local
+  dev DB as the artifact of record; **the endpoint branch has no automated witness** and cannot
+  have one, so a future edit to it will turn nothing red; **the zero-row arm of this call site is
+  covered only at the HELPER layer**, never at the endpoint; **the island half is untouched**, as
+  always (§7), so the absent button and the reload-then-select route rest entirely on the browser
+  check; **C10X-50 owns the two remaining swallowed `await`s** (the failure-path
+  `createGenerationSession` inserts at `generate.ts:426` and `:477`) — with this change closed,
+  that is the last of them; and `customfield_10041` on **C10X-49** is `/jira-finish-work`'s to fill.
 
 Refresh (`/10x-test-plan --refresh`) when:
 

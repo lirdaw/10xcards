@@ -415,3 +415,87 @@ because with no button on the banner **the copy is the user's only way out**.
   endpoint.
 - **C10X-50 owns the two remaining swallowed `await`s** in `generate.ts` (the failure-path
   `createGenerationSession` inserts at `:426` and `:477`).
+
+## 8. Doc-sync (Phase 4)
+
+### 8.1 Every target classified by its SECTION HEADING, never by its line
+
+`lessons.md:235-241` is the rule and the line number is the trap it was written from: a number
+resolves to a PLACE, and a place carries no evidence of whether the surrounding section is live or
+frozen. Each target below was resolved by walking up to its enclosing heading and entry, with
+`awk`, rather than by reading the line the plan pointed at — and the plan said to expect the
+numbers to have moved, which they had.
+
+| Target                         | Enclosing section → entry                                                                | Kind      | Treatment                                       |
+| ------------------------------ | ---------------------------------------------------------------------------------------- | --------- | ----------------------------------------------- |
+| `test-plan.md:9`               | `# Test Plan` preamble; every sibling below it reads `> Previously:`                     | **live**  | edited in place: C10X-48 demoted, C10X-49 added |
+| `test-plan.md:1778`            | §6.6 → `- **Phase 2, first slice …**` → `> **Extended 2026-08-13 (C10X-48 …)**`          | **dated** | dated correction beneath; sentence untouched    |
+| `test-plan.md:1787`            | §6.6, same entry                                                                         | new dated | its own `Extended … (C10X-49 …)` blockquote     |
+| `test-plan.md:5282`            | §8 → `- **The replay dead-end's CONSEQUENCE half last proven by execution: 2026-08-13**` | **dated** | dated correction; the `434` is not rewritten    |
+| `test-plan.md:5350`            | §8, same entry's `- **Still open after this entry, deliberately**` bullet                | **dated** | dated correction                                |
+| `test-plan.md:5362`            | §8 `## 8. Freshness Ledger`, new top-level bullet                                        | **live**  | new ledger entry                                |
+| `roadmap.md` `### H-17` detail | `Status: in progress`                                                                    | **live**  | **no edit** — already correct from Phase 1      |
+| `roadmap.md:427`               | `### H-16: …`, `Status: done`                                                            | **dated** | untouched                                       |
+
+Two non-edits are recorded as results rather than left as gaps. **`roadmap.md` H-17** already
+carried `Status: in progress` and the reason the row was opened in Phase 1 rather than backfilled,
+because Phase 1 wrote it there — so doc-sync had nothing to do, and a reader working the plan's
+item list would otherwise hunt for an edit that should not exist. **`jira-map.md`** is owned by the
+Jira skills (`jira-map.md:3-4`) and its C10X-49 row is a backlog-ORIGIN record, not a claim about
+the site's state today; C10X-48's row sits in the identical shape, so leaving it is consistency
+rather than omission.
+
+**The §6.6 correction and the §6.6 note were deliberately SPLIT into two blocks** rather than
+merged into one, which is a correction to this phase's first attempt. Written as a single
+`Corrected …` block it did both jobs and neither cleanly: a reader looking for C10X-49's own §6.6
+statement would have found it inside a correction addressed to C10X-48's sentence. They are now a
+short dated correction and a separate `Extended 2026-08-13 (C10X-49 …)` blockquote, matching the
+shape C10X-48 itself used one entry up.
+
+### 8.2 Gates
+
+| Gate                                | Result                                                                                                                                      |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm test`                          | **437 passed / 437, 36 files**, exit 0, seed `1786631338612` — re-run at this gate, not carried over from §2                                |
+| `prettier` idempotency              | copies formatted **twice**, `(unchanged)` on both passes, `md5sum` stable, byte-identical to the live files (`diff` empty)                  |
+| `prettier --check` on the live docs | `All matched files use Prettier code style!` across `test-plan.md`, `change.md`, `roadmap.md`                                               |
+| `context/archive/**`                | `git status --porcelain -- context/archive/` → **0** paths; `.prettierignore` carries `context/archive/**`                                  |
+| C10X-49 ownership claims            | two survive, both inside dated entries and both now carrying a dated correction directly beneath; no live document claims an unchecked site |
+
+**The prettier probe ran on COPIES in a scratchpad, never on the live files**, which is the whole
+point given C10X-43's recorded hazard: a `--write` that damages a blockquote damages it in place,
+and these documents were dirty relative to `HEAD`, so a revert would have taken this phase's edits
+with it. The plugin block that surfaced on the first attempt is worth carrying — prettier resolves
+`plugins` relative to the CONFIG's directory, so a config copied beside the files fails with
+`Cannot find package 'prettier-plugin-astro'`; passing `--config ./.prettierrc.json` from the repo
+root fixes it and is what the runs above used.
+
+**A second, independent check on the same hazard**, because "prettier reported unchanged" and "no
+code span crosses a line inside a blockquote" are two claims: a backtick-parity scan over the whole
+file reports **12** odd-count lines, **all of them pre-existing** (six spans, each split across a
+pair of lines), and **none in any region this phase added**.
+
+### 8.3 The total and its breakdown, measured separately
+
+The ledger's own rule, applied to the ledger entry being written: a total and its breakdown are two
+claims.
+
+| Claim                               | How it was established                                                                                                                  |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| total **437**                       | `npm test`, seed `1786631338612`, exit 0                                                                                                |
+| the `+2` is `decks.test.ts` 5 → 7   | `npx vitest run tests/isolation/decks.test.ts` → `Tests 7 passed (7)`                                                                   |
+| …and it is the ONLY file that moved | `git diff --stat f6e5713^ -- tests/` → **1 file changed**, so the breakdown is exclusive rather than merely additive                    |
+| baseline **435**, not `434`         | corroborated at the FILE: `npx vitest run tests/generation/generate.test.ts` → `Tests 27 passed (27)` against C10X-48's recorded **26** |
+
+That last row is what makes the `434` correction a measurement rather than arithmetic, and it is
+the **third** time this ledger has caught a pre-impl-review figure (C10X-40's entry, C10X-46's
+entry, and now C10X-48's) — the first time, though, that the catch came from a neighbouring change
+rather than from the entry's own author.
+
+### 8.4 One deviation from the plan, taken deliberately
+
+Plan §Phase 4 item 3 asks for `change.md` at `status: planned`. That is a plan slip and was not
+followed: `status` is owned by the implement flow (`implementing` → `implemented` at close), and
+stamping `planned` onto a change whose four phases have all landed would make the file state
+something false about itself. `updated` is stamped as asked. Recorded here rather than silently
+adapted, because the next reader comparing plan to tree will otherwise read it as a missed item.

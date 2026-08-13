@@ -626,26 +626,26 @@ committed and never pushed.
 
 #### Automated
 
-- [x] 3.1 `npm test` green after the restore
+- [x] 3.1 `npm test` green after the restore — e63c340
 
 #### Manual
 
-- [x] 3.2 Provocation run's response body recorded verbatim, carrying the new literal
-- [x] 3.3 Orphan deck X and absent session row read in psql and recorded
-- [x] 3.4 Control run under a fresh name Y recorded: ordinary message, no deck Y
-- [x] 3.5 All three restore oracles recorded as passing, for both tables
-- [x] 3.6 Banner recorded: new message, "Ponów" absent
-- [x] 3.7 Orphan deck visible in the deck selector after the reload the copy instructs
+- [x] 3.2 Provocation run's response body recorded verbatim, carrying the new literal — e63c340
+- [x] 3.3 Orphan deck X and absent session row read in psql and recorded — e63c340
+- [x] 3.4 Control run under a fresh name Y recorded: ordinary message, no deck Y — e63c340
+- [x] 3.5 All three restore oracles recorded as passing, for both tables — e63c340
+- [x] 3.6 Banner recorded: new message, "Ponów" absent — e63c340
+- [x] 3.7 Orphan deck visible in the deck selector after the reload the copy instructs — e63c340
 
 ### Phase 4: Doc-sync
 
 #### Automated
 
-- [ ] 4.1 `npm run format` idempotent on the edited markdown
-- [ ] 4.2 `context/archive/**` untouched
-- [ ] 4.3 No document claims C10X-49 owns an unchecked site except as a dated correction
+- [x] 4.1 `npm run format` idempotent on the edited markdown
+- [x] 4.2 `context/archive/**` untouched
+- [x] 4.3 No document claims C10X-49 owns an unchecked site except as a dated correction
 
 #### Manual
 
-- [ ] 4.4 Every doc-sync target confirmed live-vs-dated by its section heading
-- [ ] 4.5 §8 entry's suite total matches a real run and its breakdown adds up
+- [x] 4.4 Every doc-sync target confirmed live-vs-dated by its section heading
+- [x] 4.5 §8 entry's suite total matches a real run and its breakdown adds up
