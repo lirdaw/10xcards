@@ -6,7 +6,48 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-08-09 (C10X-46 `e2e-harness-journeys` — **§3 Phase 6 is `complete`**, the
+> Last updated: 2026-08-13 (C10X-48 `bug-generation-compensation-swallowed` — **not a §3 rollout
+> phase, and not a coverage widening either: no §2 risk row moves and no phase status changes.**
+> What moves is that the replay path's DEAD END has tests at all. `failGenerationSession` had **no
+> caller anywhere in `tests/`** and the archived mutation register lists the whole function as 5
+> NoCov, so a compensating write that silently did nothing was invisible to every layer this
+> project has.
+>
+> **Read the boundary in the same breath as the coverage, because this entry is half suite and
+> half one manual run.** The suite proves the CONSEQUENCE half — given a `succeeded` session with
+> zero cards behind it, the endpoint disarms the row's `idempotency_key`, confirms the update
+> matched, and generates instead of answering the same 500 forever. That the endpoint can
+> **PRODUCE** that row is proved by ONE recorded manual run (two DCL revokes, one real generation,
+> the row read directly in psql as `succeeded | saved_count 3 | keyed | 0 cards`) and by nothing
+> else, ever — D-04 rules out the two ways to force it here. That run also proves the
+> compensation's **error** arm only; its **zero-row** arm is a committed cross-account test, which
+> is the stronger evidence because it runs on every `npm test`.
+>
+> **Two rows reach the healed branch and they are byte-identical**, which is why the heal clears
+> the key and nothing else: one is poisoned (nothing ever landed), the other is a real generation
+> the user emptied — and there `saved_count` is TRUE. A heal that reused the retirement would
+> destroy a truthful audit row to fix a key, i.e. this ticket's own defect class one path over.
+> One test asserts `status` and `saved_count` UNCHANGED through the heal, and that pair of lines is
+> the whole guard.
+>
+> **Three things this file said about the compensation are edited, and only one of them is a
+> rename.** §6.5's `saved_count`-is-not-an-oracle bullet is a live declaration and is edited in
+> place (`failGenerationSession` → `retireGenerationSession`, plus what the checked write now
+> means). §6.6's impl-review-F3 paragraph is a **dated snapshot** and takes a **dated correction**
+> that keeps its conclusion: the route it described is closed, the index predicate must still not
+> be dropped, and a THIRD row shape now makes the index's _first_ predicate load-bearing too.
+> §6.6's Phase-2 (Risk #2) entry gains the dated coverage note. The applied migration's header
+> carries the same stale claim and is **deliberately not edited** — amending a pushed migration is
+> a drift class the C10X-29 gate is blind to by construction.
+>
+> Suite **430 → 434, 36 files** (+4, all in `tests/generation/generate.test.ts`). Five breakage
+> runs, of which **one came back GREEN** and **one falsified its own prediction** — both recorded
+> as observed rather than rounded, and the second produced a boundary worth carrying: the
+> confirm-before-fall-through step asserts a row was MATCHED, never that the key is GONE. Evidence:
+> `context/changes/bug-generation-compensation-swallowed/verification.md` (after archiving:
+> `context/archive/<date>-bug-generation-compensation-swallowed/verification.md`).
+>
+> Previously: 2026-08-09 (C10X-46 `e2e-harness-journeys` — **§3 Phase 6 is `complete`**, the
 > first rollout phase to close since C10X-30 and the first new test LAYER since C10X-31's eval).
 > **No §2 risk row moves**, and that is the claim to read first: a browser journey introduces no
 > new failure scenario. What it adds is an execution path nothing else in this project can reach —
@@ -1398,8 +1439,15 @@ will cost you a wasted afternoon if you rediscover them the hard way:
   duplicated generation apart from the mock repeating itself. Use
   `generation_id`, which is unique per session.
 - **`saved_count` is not an oracle.** The compensating update zeroes it
-  (`failGenerationSession` in `src/lib/generations.ts`), so a
-  duplicated-then-compensated run reads as `0` while its row still exists.
+  (`retireGenerationSession` in `src/lib/generations.ts` — renamed from
+  `failGenerationSession` by C10X-48, 2026-08-13, because the name described half of what
+  the function does), so a duplicated-then-compensated run reads as `0` while its row still
+  exists. Two things sharpen this rather than changing it. That update now also nulls the
+  row's `idempotency_key`, so a compensated row is invisible to a `saved_count` oracle **and**
+  to an `idempotency_key` one. And it is a **checked** write since the same date: `data == null`
+  with no `error` means the compensation did NOT land, so a row that still reads
+  `succeeded, saved_count > 0` after a failed card insert is the poisoned row C10X-48 is about
+  rather than a successful generation.
 - **The real timeout window cannot be reproduced here.** `testTimeout` is
   30 s (`vitest.config.ts:33`), below `SERVER_TIMEOUT_MS` = 40 s
   (`generate.ts`) and the client's 55 s. Any test that tries to sit out
@@ -1578,6 +1626,29 @@ Neither production edit was ever committed.
   ("still generates when the only prior session for that key is `failed`") seeds the row
   directly, which is why the production route to it was easy to miss.
 
+  > **Corrected 2026-08-13 (C10X-48) — the CONCLUSION stands, the route that justified it is
+  > closed.** "Flips an already-inserted `succeeded` row to `failed` and **leaves its key in
+  > place**" was true of `failGenerationSession` and is not true of what replaced it:
+  > `retireGenerationSession` nulls the key and flips the status in ONE update (D-03), so a
+  > **successful** retirement produces no keyed `failed` row at all. The paragraph is left
+  > standing as the record of why the predicate was added and is not rewritten.
+  >
+  > **Do not read this as licence to drop the predicate**, and note that the reason it earns
+  > its place changed while the instruction did not. It now covers a different row: a
+  > retirement that **FAILS** leaves a keyed `succeeded` row standing, and the index is what
+  > stops a second succeeded row for that key from ever existing. The index's FIRST predicate,
+  > `idempotency_key is not null`, became load-bearing on the same date for a third row shape
+  > the self-heal makes reachable in ordinary operation — a `succeeded` session with a NULL key
+  > (`clearSessionIdempotencyKey` deliberately does not touch `status`, D-07). Both predicates
+  > are load-bearing, each for a different row. The applied migration's own header
+  > (`20260725133600:27-36`) carries the stale claim too and is **deliberately not edited** —
+  > amending a pushed migration is a drift class the C10X-29 gate is blind to by construction;
+  > the live correction lives in `src/lib/generations.ts` and in `generate.ts`'s
+  > `idempotency_key: null` comment.
+  >
+  > The test named above is **unaffected** and stays this claim's guard: it seeds its `failed`
+  > row directly, so no change to how production produces one can reach it.
+
   **The deliberate-breakage check, and it is a sharp one.** Widen the index by
   dropping `and status = 'succeeded'`, then run
   `npx vitest run tests/generation/generate.test.ts`. Exactly **1 of 13** goes
@@ -1617,6 +1688,52 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
 
   Phase 2 stays `implementing`: risks #4 (leakage in the error body) and #6
   (server-side validation parity) are untouched.
+
+  > **Extended 2026-08-13 (C10X-48 `bug-generation-compensation-swallowed`) — and read the
+  > boundary before the coverage, because this entry is half suite and half one manual run.**
+  > **No §2 risk row moves and no phase status changes.** What moves is that the replay path's
+  > DEAD END now has tests, where before it had none of any kind: `failGenerationSession` had no
+  > caller anywhere in `tests/`, and the archived mutation register lists the whole function as
+  > 5 NoCov.
+  >
+  > **The defect, in the terms this entry is written in.** A `succeeded` session can exist with
+  > ZERO cards behind it, and `generate.ts` read that lookup as `if (error || !data)` — one branch
+  > over two facts that mean opposite things — mapping it onto the outage 500. Since the row's
+  > `idempotency_key` stood, every later "Ponów" on that key found the same row, read the same zero
+  > cards and died the same way: a **permanent** 500 per key, which is FR-018 inverted. Two
+  > byte-identical rows reach it (research §6): a POISONED one, where the card insert failed and
+  > its compensating update failed too, and a TRUTHFUL one, where a real generation's cards were
+  > later deleted by the user. Nothing in the row separates them.
+  >
+  > Suite **430 → 434, 36 files** (+4, all in `tests/generation/generate.test.ts`, 22 → 26): the
+  > poisoned row heals and generates; the user-emptied row heals **with its `status` and
+  > `saved_count` asserted UNCHANGED** (the heal clears the key and nothing else, D-07 — a heal
+  > that reused the retirement would destroy a truthful audit row to fix a key, and that pair of
+  > lines is what turns it red); a ZERO-ROW compensating write is told from a landed one on BOTH
+  > helpers, cross-account under RLS with the owner's own call as the positive control; and an
+  > owned EMPTY deck is adopted on the healed `newDeckName` path.
+  >
+  > **What the suite proves is the CONSEQUENCE half only.** Given the row, the endpoint heals.
+  > That the endpoint can PRODUCE the row is **not** covered by any test and will not be: it needs
+  > the card insert and the compensating update to fail on one request, and D-04 rules out both
+  > ways to force that here (test-plan §6.9 confines module doubles to one file;
+  > `tests/setup/retry-transport.ts` fabricates nothing by written decision). It is carried by ONE
+  > recorded manual run — two DCL revokes, one real generation, the row read directly in psql as
+  > `succeeded | saved_count 3 | keyed | 0 cards` — and nothing re-runs it. That run also proves
+  > the compensation's **error** arm only; its **zero-row** arm is the cross-account test above,
+  > which is the stronger evidence of the two because it runs on every `npm test`.
+  >
+  > Two more boundaries rather than a summary. The island half is untouched, as always (§7):
+  > `GeneratorForm` now reads `retriable` with **absent meaning retriable** (D-08 — measured: 2 of
+  > 20 `return json(...)` sites carried the flag, so a strict read would have removed "Ponów" from
+  > every transient 500 including the one this ticket exists for), and that rests on a browser
+  > matrix. And the two remaining swallowed `await`s in `generate.ts` are **exceptions with
+  > owners**, annotated at their sites: the deck undo after a failed session insert (C10X-49) and
+  > the two failure-path `createGenerationSession` inserts (C10X-50). Full record — five breakage
+  > runs with their observed failure strings and denominators, including one that came back GREEN
+  > and one whose prediction was measured FALSE, plus the DCL run's three restore oracles:
+  > `context/changes/bug-generation-compensation-swallowed/verification.md` (after archiving:
+  > `context/archive/<date>-bug-generation-compensation-swallowed/verification.md`).
 
 - **Phase 4 (`srs-study-session`, 2026-07-24; audited 2026-07-26; closed by C10X-27
   the same day)** — Risk #3 is **covered, both halves**. "The schedule writes the wrong
@@ -5056,6 +5173,69 @@ contributors should respect these unless the underlying assumption changes.
   survives; §7's islands exclusion survives per island; the 5459-deck debt is stopped, not repaid;
   and `customfield_10041` on **C10X-46** is `/jira-finish-work`'s to fill —
   `context/foundation/jira-map.md` is owned by the Jira skills and was not hand-edited here.
+
+- **The replay dead-end's CONSEQUENCE half last proven by execution: 2026-08-13** (C10X-48,
+  change folder `bug-generation-compensation-swallowed`). Not a §3 rollout phase and **not a
+  coverage widening**: no §2 risk row moves, no phase status changes, and §3's table is untouched.
+  Suite **434 passed / 434, 36 files**, seed `1786609020668` (430/434 before; the **+4** are all in
+  `tests/generation/generate.test.ts`, 22 → 26, counted by running the file rather than by
+  arithmetic). `npm run typecheck` exit 0 at `Result (151 files): 0 errors, 0 warnings`;
+  `npm run lint` exit 0 with **3** warnings, all `no-console` in `evals/generation-quality.eval.ts`
+  and unchanged by this change; `npm run build` exit 0; `git diff -- src/ supabase/` **empty** after
+  every breakage restore, each additionally verified by per-file `md5sum`. **No migration ships**,
+  so nothing under `supabase/` is touched and the C10X-29 drift gate is not involved.
+- **Five breakage runs rather than the planned four, because one came back GREEN** — and this
+  ledger's own rule is that a green breakage run is a finding until it is explained. Removing the
+  confirmation between the key-clearing update and the fall-through goes **0 of 26 red**: the
+  confirmation guards a state a healthy local stack never produces, so the neuter as worded is
+  observationally a no-op. The fifth run pairs it with a clear that does not clear and reproduces
+  research §7's `23505` loop, with the collision's own response body captured as the evidence
+  (`{"error":"Nie udało się zapisać sesji generacji. Spróbuj ponownie.","retriable":true}` — a copy
+  that exists at exactly one site, reachable only after a collision on
+  `generation_session_idempotency_key_uidx`). The other three: the classifier's empty arm repointed
+  → **3 of 26** plus **1 of 5** in the pure file, with the write-level case staying green, which is
+  what attributes those three to the classification; the heal-gate dropped from the adoption rule →
+  **exactly 1 of 26**, the hand-made-EMPTY-deck 409 control, while its populated twin stays green.
+- **One prediction was measured FALSE, and the correction is a boundary rather than a number.**
+  Neutering `idempotency_key: null` alone was predicted to redden the cleared-key assertion while
+  leaving the generation assertion green; **4 of 26 go red**, the same set as the paired run. The
+  confirm-before-fall-through step asserts a row was **MATCHED**, never that the key is **GONE**, so
+  a clear that finds its row and writes the wrong column sails through it into exactly the collision
+  it exists to prevent. What that step does buy is unchanged and is the case `.select()` was added
+  for: a clear that matched **nothing**. Same discipline as C10X-29's `missingLocal` neuter and
+  C10X-30's case 8 — the conclusion holds, the prediction was rounder than reality.
+- **The reachability half rests on ONE manual run and nothing re-runs it.** Two DCL revokes
+  (`insert on flashcard`, `update on generation_session` — either alone reproduces nothing), one
+  real keyed generation, and the row read directly in psql: `succeeded | saved_count 3 |
+generated_count 3 | keyed | 0 cards`. The response is Phase 2's distinct copy carrying
+  `retriable: true`, which is the first time this failure has been nameable on any channel at all —
+  nothing in `src/` writes a log line and nothing in this project reads a log sink. **Restored and
+  verified by three oracles rather than by memory**: the `information_schema` projection identical
+  to the BEFORE dump, the raw `pg_class.relacl` byte-identical to an untouched sibling table
+  (`deck`, `flashcard` and `generation_session` all `authenticated=arwdDxtm/postgres`), and
+  `has_table_privilege` answering `t`/`t`. **It proves the compensation's ERROR arm only**; the
+  ZERO-ROW arm is the committed cross-account test, which is the stronger evidence because it runs
+  on every `npm test` rather than once.
+- **Doc-sync went beyond the three edits the plan enumerated, deliberately, and the extras are
+  named rather than counted.** Plan §5 §4 enumerated §6.5's `saved_count` bullet (a live
+  declaration — edited in place), §6.6's impl-review-F3 paragraph (a dated snapshot — **dated
+  correction**, conclusion kept) and §6.6's Phase-2 entry (a new dated note). Two more live surfaces
+  would otherwise have been left stating something false about today: **this file's header block**
+  and **this §8 entry**. `roadmap.md` gained a row too — **H-16**, at `Status: in progress`, created
+  during implementation rather than backfilled, because without it `/10x-archive` has nothing to
+  close and the change vanishes from the roadmap; that mechanism has fired **four** times here
+  (H-04, H-07, H-08, H-13) and was pre-empted once (H-15). Recorded as C10X-48's D-09 in its
+  `change.md` so it reads as a decision rather than as drift.
+- **Still open after this entry, deliberately**: the island half, as always (§7) — `GeneratorForm`
+  now reads `retriable` with **absent meaning retriable** (D-08; measured: 2 of 20 `return json(...)`
+  sites carried the flag, so a strict read would have removed "Ponów" from every transient 500,
+  including the one this ticket exists for), and that rests entirely on a browser matrix. The two
+  remaining swallowed `await`s in `generate.ts` are **exceptions with owners**, annotated at their
+  sites: the deck undo after a failed session insert (**C10X-49**) and the two failure-path
+  `createGenerationSession` inserts (**C10X-50**). Already-poisoned CLOUD rows are **not** backfilled
+  (D-05) — inert until someone replays that key, and disarmed at that moment. `review.astro`'s
+  misattribution of a lying session stays a live, separate defect for §6-shaped rows. And
+  `customfield_10041` on **C10X-48** is `/jira-finish-work`'s to fill.
 
 Refresh (`/10x-test-plan --refresh`) when:
 

@@ -193,6 +193,21 @@ export function countFlashcards(supabase: Client, deckId: number) {
     .eq("state_id", STATE_ACCEPTED);
 }
 
+// Every card in a deck, whatever its lifecycle state (head-only — no rows fetched). Its one
+// caller is /api/generate's deck adoption: on a healed retry an owned deck of the requested
+// name is taken over instead of refused, and "has anything ever landed here?" is the question
+// that gate turns on.
+//
+// A SECOND function rather than a parameter on countFlashcards above, deliberately. That one
+// filters `state_id = STATE_ACCEPTED` for a load-bearing reason of its own, so a deck holding
+// nothing but AI candidates reads as 0 through it — and adopting such a deck would hand a
+// fresh generation into a deck the user is still reviewing, silently mixing two sessions'
+// candidates. This is the trap test-plan §6.10 records one endpoint over: the helper the need
+// points at is the wrong one, and it reads green over a real write.
+export function countFlashcardsInAnyState(supabase: Client, deckId: number) {
+  return supabase.from("flashcard").select("*", { count: "exact", head: true }).eq("deck_id", deckId);
+}
+
 export function createFlashcard(supabase: Client, deckId: number, front: string, back: string) {
   return supabase
     .from("flashcard")

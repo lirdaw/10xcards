@@ -3,9 +3,10 @@ import { experimental_AstroContainer as AstroContainer } from "astro/container";
 import * as CreateDeck from "@/pages/api/decks/index";
 import * as Generate from "@/pages/api/generate";
 import { listDecks } from "@/lib/decks";
-import { deckIdByPublicId } from "@/lib/flashcards";
+import { deckIdByPublicId, STATE_GENERATED } from "@/lib/flashcards";
 import { SOURCE_MAX, COUNT_MIN, COUNT_MAX } from "@/lib/generation-limits";
-import { accountA } from "../fixtures/accounts";
+import { clearSessionIdempotencyKey, retireGenerationSession, SOURCE_AI } from "@/lib/generations";
+import { accountA, accountB } from "../fixtures/accounts";
 import { callEndpoint } from "../fixtures/endpoint";
 import { PROMPT_LANGUAGE_NAMES } from "../fixtures/language-names";
 import { createScoping } from "../fixtures/scoping";
@@ -29,6 +30,13 @@ import { clientFor } from "../fixtures/session";
 //   - a key whose only prior session is `failed` still generates (FR-018's "Ponów" must
 //     survive a failure — see the partial index's `status = 'succeeded'` predicate).
 //
+// That third control seeds its `failed` row DIRECTLY, which is why it survives C10X-48
+// unchanged and stays the guard against the index predicate being dropped. Its rationale
+// moved, though, and the note above is the live half: since 2026-08-13 the compensating
+// update nulls the key as it flips the status, so a keyed `failed` row is no longer produced
+// by ordinary operation. The predicate is still load-bearing — a compensation that FAILS
+// leaves a keyed `succeeded` row — so do not remove it.
+//
 // Two traps specific to mock mode (OPENROUTER_API_KEY is unset locally and in CI, so
 // generateCandidates short-circuits to mockCards — src/lib/openrouter.ts:149-158):
 //
@@ -37,8 +45,9 @@ import { clientFor } from "../fixtures/session";
 //    generation apart from the mock simply repeating itself. The oracle is
 //    `generation_id`, which is unique per session.
 // 2. DO NOT assert on `saved_count`. The compensating update zeroes it
-//    (`failGenerationSession`, src/lib/generations.ts:116-121 — the symbol, not the number,
-//    is the anchor: this comment pointed at a stale `:29-34` until C10X-28), so a
+//    (`retireGenerationSession` in src/lib/generations.ts — the symbol, not a line number,
+//    is the anchor: this comment pointed at a stale `:29-34` until C10X-28, and the symbol
+//    itself was renamed from `failGenerationSession` by C10X-48), so a
 //    duplicated-then-compensated run reads as 0 while its row still exists.
 //
 // Every count is scoped twice — by `source_text` and by this run's own deck. Cross-run
@@ -243,6 +252,63 @@ async function cardsOf(deckPublicId: string) {
   const { data, error } = await client.from("flashcard").select("generation_id").eq("deck_id", deck.id);
   expect(error).toBeNull();
   return data ?? [];
+}
+
+/**
+ * One session row read back as its owner — the oracle for every C10X-48 case below.
+ *
+ * `.maybeSingle()` is safe HERE and would not be as a duplicate detector: this reads by
+ * primary key, which cannot match twice, rather than counting what a write produced. The
+ * counting rule (a case-scoped count of exactly one, never `.single()`) lives in
+ * `seedSucceededSession` below, where a write actually happens.
+ */
+async function sessionById(id: number) {
+  const { data, error } = await clientFor(a.cookieHeader)
+    .from("generation_session")
+    .select("id, status, saved_count, error_message, idempotency_key")
+    .eq("id", id)
+    .maybeSingle();
+  expect(error).toBeNull();
+  if (!data) throw new Error(`Setup failed: session ${id} is not readable as its owner.`);
+  return data;
+}
+
+/**
+ * A keyed `succeeded` session with NO cards behind it — the poisoned row C10X-48 is about,
+ * inserted directly with an RLS-scoped client because no endpoint can produce it.
+ *
+ * That is the same shortcut-around-the-UI-never-around-the-lock the `failed`-key case above
+ * takes, and for the same reason: reaching this state through `/api/generate` needs the card
+ * insert AND the compensating update to fail on one request, which the suite deliberately
+ * has no seam to force (D-04). The endpoint-level REACHABILITY of the row is proved once by
+ * hand instead — see this change's `verification.md`; what the suite owns is the CONSEQUENCE.
+ *
+ * `saved_count` is deliberately non-zero: it is what makes the row a lie, and it is also the
+ * column the heal must NOT touch (D-07).
+ */
+async function seedSucceededSession(sourceText: string, key: string): Promise<number> {
+  const { error } = await clientFor(a.cookieHeader).from("generation_session").insert({
+    user_id: a.userId,
+    source_text: sourceText,
+    model: "harness",
+    language: "auto",
+    requested_count: COUNT,
+    generated_count: COUNT,
+    saved_count: COUNT,
+    status: "succeeded",
+    error_message: null,
+    idempotency_key: key,
+  });
+  expect(error).toBeNull();
+
+  // A case-scoped count of exactly one, never `.select().single()` on the insert itself: the
+  // harness replays a dropped local POST and both attempts answer 201 with different ids, so
+  // `.single()` is a false oracle for a duplicated write (C10X-39, lessons.md).
+  const rows = await allSessions(sourceText);
+  expect(rows).toHaveLength(1);
+  const [seeded] = rows;
+  if (!seeded) throw new Error(`Setup failed: the seeded session for "${sourceText.slice(0, 24)}…" was never written.`);
+  return seeded.id;
 }
 
 describe("/api/generate deduplicates a retry by its idempotency key", () => {
@@ -912,5 +978,280 @@ describe("/api/generate persists the success-path audit columns", () => {
     for (const candidate of payload.candidates as { front: string }[]) {
       expect(responsePayload).toContain(candidate.front);
     }
+  });
+});
+
+// --- The self-healing replay (C10X-48) -------------------------------------------------
+//
+// A key can resolve to a SUCCEEDED session with zero cards behind it, and until 2026-08-13
+// that meant a permanent 500 for that key — forever, for as long as the row stood. FR-018
+// inverted about as hard as it can be: "Ponów" replays the payload verbatim, key included,
+// so the one affordance the user has re-enters the same dead end on every click.
+//
+// TWO ROWS REACH THIS BRANCH AND THEY ARE BYTE-IDENTICAL (research §6). One is POISONED — a
+// card insert failed, its compensating update failed too, and nothing ever landed. The other
+// is TRUTHFUL — a real generation whose cards the user has since deleted from the review
+// screen. Nothing in the row separates them, which is why the heal clears the
+// `idempotency_key` and NOTHING else (D-07): retiring the second would overwrite a true audit
+// row with a false failure, i.e. this ticket's own defect class one path over. The second
+// case below is the one that pins it, on `status` and `saved_count`.
+//
+// WHAT THIS BLOCK DOES NOT COVER, stated so a green run is not over-read. It proves the
+// CONSEQUENCE half — given the row, the endpoint heals and generates. It does NOT prove the
+// endpoint can PRODUCE the row: that needs the card insert and the compensating update to
+// fail on one request, and the suite has no seam to force it (D-04 — test-plan §6.9 confines
+// module doubles to one file and `tests/setup/retry-transport.ts` fabricates nothing). That
+// half is one recorded manual run in this change's `verification.md`, and it proves the
+// compensation's ERROR arm only; its ZERO-ROW arm — the case `.select()` was added for — is
+// the third test below, which is the stronger evidence anyway because it is a regression
+// guard rather than a one-off observation.
+
+const POISONED_TEXT = `${mark("poisoned-replay")} Tekst po nieudanej kompensacji`;
+const EMPTIED_TEXT = `${mark("emptied-replay")} Tekst po skasowaniu kart przez użytkownika`;
+const ZERO_ROW_CLEAR_TEXT = `${mark("zero-row-clear")} Tekst do odblokowania klucza spoza konta`;
+const ZERO_ROW_RETIRE_TEXT = `${mark("zero-row-retire")} Tekst do kompensacji spoza konta`;
+const ADOPTION_TEXT = `${mark("adopted-deck")} Tekst dla adoptowanej talii`;
+const OCCUPIED_TEXT = `${mark("occupied-deck")} Tekst dla talii, która ma już karty`;
+
+describe("/api/generate heals a key whose session has no cards behind it", () => {
+  it("clears a POISONED key and generates, instead of 500ing on it forever", async () => {
+    const key = crypto.randomUUID();
+    const ownDeck = await createDeck(`Poisoned replay deck ${suffix}`);
+    const poisonedId = await seedSucceededSession(POISONED_TEXT, key);
+    // The precondition IS the poison: a succeeded session claiming COUNT saved cards with
+    // none behind it. Asserted rather than assumed — a seed that somehow landed cards would
+    // make the whole case a replay test wearing a heal test's name.
+    expect(await cardsOf(ownDeck)).toHaveLength(0);
+
+    const response = await generate({
+      deckPublicId: ownDeck,
+      sourceText: POISONED_TEXT,
+      language: "auto",
+      count: COUNT,
+      idempotencyKey: key,
+    });
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as Success;
+    expect(payload.candidates).toHaveLength(COUNT);
+
+    // The seeded row is DISARMED — and that is the whole safety property, because the
+    // fall-through below inserts a session carrying this same key. Had the clear not landed,
+    // the insert would collide on generation_session_idempotency_key_uidx, reach the 23505
+    // handler, find this same empty row and return the same 500 — now after a paid LLM call.
+    expect((await sessionById(poisonedId)).idempotency_key).toBeNull();
+
+    // Two sessions now, and the key moved to the NEW one: a fresh generation, never a replay.
+    const sessions = await allSessions(POISONED_TEXT);
+    expect(sessions).toHaveLength(2);
+    const fresh = sessions.find((session) => session.id !== poisonedId);
+    if (!fresh) throw new Error("Setup failed: the healed request wrote no session of its own.");
+    expect((await sessionById(fresh.id)).idempotency_key).toBe(key);
+
+    // Cards by `generation_id`, never by `front`: mock output repeats its fronts, so a
+    // front-keyed oracle cannot tell one generation from two (test-plan §6.5).
+    const cards = await cardsOf(ownDeck);
+    expect(cards).toHaveLength(COUNT);
+    expect(new Set(cards.map((card) => card.generation_id)).size).toBe(1);
+  });
+
+  it("heals a session the USER emptied without rewriting its truthful audit row", async () => {
+    // The §6 row, built the only honest way — through the real endpoint, then emptied through
+    // the real client. No seeding shortcut: the point of the case is that this row is
+    // indistinguishable from the poisoned one above, so manufacturing it would beg the
+    // question.
+    const key = crypto.randomUUID();
+    const ownDeck = await createDeck(`Emptied replay deck ${suffix}`);
+    const body = {
+      deckPublicId: ownDeck,
+      sourceText: EMPTIED_TEXT,
+      language: "auto",
+      count: COUNT,
+      idempotencyKey: key,
+    };
+
+    expect((await generate(body)).status).toBe(200);
+    const written = await allSessions(EMPTIED_TEXT);
+    expect(written).toHaveLength(1);
+    const [original] = written;
+    if (!original) throw new Error("Setup failed: the first generation wrote no session.");
+
+    const before = await sessionById(original.id);
+    expect(before.status).toBe("succeeded");
+    expect(before.saved_count).toBe(COUNT);
+
+    const { error: deleteError } = await clientFor(a.cookieHeader)
+      .from("flashcard")
+      .delete()
+      .eq("generation_id", original.id);
+    expect(deleteError).toBeNull();
+    expect(await cardsOf(ownDeck)).toHaveLength(0);
+
+    // Same key, same payload — exactly what "Ponów" sends.
+    expect((await generate(body)).status).toBe(200);
+
+    const after = await sessionById(original.id);
+    expect(after.idempotency_key).toBeNull();
+    // THE PAIR THAT MAKES THIS CASE WORTH ITS RUNTIME (plan-review F2). `saved_count` here is
+    // TRUE — those cards really did land, and the user deleted them. A heal that reused the
+    // retirement would zero it and flip the status, destroying a truthful audit row to fix a
+    // key. These two lines are what turn that mistake red.
+    expect(after.status).toBe("succeeded");
+    expect(after.saved_count).toBe(COUNT);
+    expect(after.error_message).toBeNull();
+
+    expect(await cardsOf(ownDeck)).toHaveLength(COUNT);
+    // By `generation_id`, per Phase 5 §1's oracle constraint: a length alone would also be
+    // satisfied by the ORIGINAL cards having survived the delete. One session id proves these
+    // are the healed run's cards and nothing else's.
+    expect(new Set((await cardsOf(ownDeck)).map((card) => card.generation_id)).size).toBe(1);
+    expect(await allSessions(EMPTIED_TEXT)).toHaveLength(2);
+  });
+
+  it("makes a ZERO-ROW compensating write visible to its caller, on both helpers", async () => {
+    // The arm `.select("id").maybeSingle()` exists for, and the reason `if (error)` alone was
+    // never the fix: under RLS an UPDATE that matches nothing resolves `{ data: null, error:
+    // null }` — byte-identical to a landed write under PostgREST's default
+    // `Prefer: return=minimal`. Account B's client against account A's session is a zero-row
+    // update that needs no transport seam, no DDL and no fabrication to produce (D-04).
+    //
+    // One seeded row per helper, each owned by the call that mutates it (§6.2): sharing one
+    // would make the second helper's outcome depend on what the first did to it.
+    const b = accountB();
+    const intruder = clientFor(b.cookieHeader);
+    const owner = clientFor(a.cookieHeader);
+    const clearKey = crypto.randomUUID();
+    const retireKey = crypto.randomUUID();
+    const clearId = await seedSucceededSession(ZERO_ROW_CLEAR_TEXT, clearKey);
+    const retireId = await seedSucceededSession(ZERO_ROW_RETIRE_TEXT, retireKey);
+
+    const deniedClear = await clearSessionIdempotencyKey(intruder, clearId);
+    expect(deniedClear.error).toBeNull();
+    expect(deniedClear.data).toBeNull();
+    // Row-based, never status-based (§6.2): a null `data` with A's row rewritten would be a
+    // pass on the return value and a leak in the database.
+    expect((await sessionById(clearId)).idempotency_key).toBe(clearKey);
+
+    // The positive control, and it is load-bearing: without it a helper that returned `null`
+    // for EVERY caller would satisfy the denial above and read as perfect reporting.
+    const landedClear = await clearSessionIdempotencyKey(owner, clearId);
+    expect(landedClear.error).toBeNull();
+    expect(landedClear.data).not.toBeNull();
+    expect((await sessionById(clearId)).idempotency_key).toBeNull();
+
+    const deniedRetire = await retireGenerationSession(intruder, retireId, "Wymuszona kompensacja w teście");
+    expect(deniedRetire.error).toBeNull();
+    expect(deniedRetire.data).toBeNull();
+    const untouched = await sessionById(retireId);
+    expect(untouched.status).toBe("succeeded");
+    expect(untouched.saved_count).toBe(COUNT);
+    expect(untouched.idempotency_key).toBe(retireKey);
+
+    const landedRetire = await retireGenerationSession(owner, retireId, "Zapis kart nie powiódł się");
+    expect(landedRetire.error).toBeNull();
+    expect(landedRetire.data).not.toBeNull();
+    const retired = await sessionById(retireId);
+    // All four columns, because the retirement is the write that must leave NO replayable
+    // trace: the status flip and the nulled key take the row out of the partial index for two
+    // independent reasons (D-03).
+    expect(retired.status).toBe("failed");
+    expect(retired.saved_count).toBe(0);
+    expect(retired.error_message).toBe("Zapis kart nie powiódł się");
+    expect(retired.idempotency_key).toBeNull();
+  });
+
+  it("adopts an owned EMPTY deck on the healed newDeckName path", async () => {
+    // Clearing the key is not enough on this path. The attempt that poisoned the session
+    // usually left its deck behind too — the same failed round-trip swallowed both undos — and
+    // that orphan makes `deckNameExists` answer a permanent 409, trading a permanent 500 for a
+    // permanent 409 and fixing nothing the ticket was reported for (plan-review F1). The
+    // orphan cannot simply be deleted: `generation_session` carries no deck FK and its deck is
+    // read back THROUGH its cards, of which there are none.
+    //
+    // The deck here is created through /api/decks and never generated into — deliberately the
+    // SAME shape as the ordinary 409 control in "409s a newDeckName that is already taken"
+    // above. That is the pair: identical deck, opposite outcome, and the only difference is
+    // that this request carries a key it just healed. Gate the adoption on emptiness instead
+    // and that control goes red — which is the split recorded in verification.md.
+    const key = crypto.randomUUID();
+    const deckName = `Adoptowana talia ${suffix}`;
+    const orphanPublicId = await createDeck(deckName);
+    const poisonedId = await seedSucceededSession(ADOPTION_TEXT, key);
+
+    const response = await generate({
+      newDeckName: deckName,
+      sourceText: ADOPTION_TEXT,
+      language: "auto",
+      count: COUNT,
+      idempotencyKey: key,
+    });
+    expect(response.status).toBe(200);
+
+    // The PRE-EXISTING deck, not a new one — the assertion the whole rule exists for. A
+    // second deck under this name is impossible anyway (`deck_user_name_unique`), so without
+    // adoption the only reachable outcomes were 409 and 500.
+    const payload = (await response.json()) as Success;
+    expect(payload.deckPublicId).toBe(orphanPublicId);
+    expect(await decksNamed(deckName)).toHaveLength(1);
+
+    expect(await cardsOf(orphanPublicId)).toHaveLength(COUNT);
+    expect(new Set((await cardsOf(orphanPublicId)).map((card) => card.generation_id)).size).toBe(1);
+    expect((await sessionById(poisonedId)).idempotency_key).toBeNull();
+  });
+
+  it("refuses to adopt a deck that HOLDS cards, even on the healed path", async () => {
+    // The adoption rule has TWO boundaries and the case above pins only one. That one proves
+    // the gate is the healed path rather than emptiness; this one proves emptiness is still
+    // required once you are on it. Without it `if (count !== 0)` is unfalsifiable — measured
+    // by impl-review, which neutered it to `if (false)` and got 0 of 434 red.
+    //
+    // The card is seeded `generated`, NOT `accepted`, and that is the whole point of the
+    // case. `countFlashcards` filters `state_id = STATE_ACCEPTED`, so a deck holding nothing
+    // but un-reviewed AI candidates reads as 0 through it — the trap
+    // `countFlashcardsInAnyState` was written for (src/lib/flashcards.ts). An `accepted` card
+    // would leave BOTH helpers answering 1 and the case would pass over the wrong one; a
+    // `generated` card turns the helper swap red as well as the missing guard.
+    //
+    // What is being protected is the user's data: adopting here would drop a fresh candidate
+    // set into a deck they are still reviewing, silently mixing two sessions.
+    // NOT "Zajęta talia …" — that exact name is the ordinary-409 control above, and
+    // `deck_user_name_unique` would make this setup fail rather than this case.
+    const key = crypto.randomUUID();
+    const deckName = `Talia z kartami ${suffix}`;
+    const occupiedPublicId = await createDeck(deckName);
+    const poisonedId = await seedSucceededSession(OCCUPIED_TEXT, key);
+
+    const client = clientFor(a.cookieHeader);
+    const { data: deck, error: deckError } = await deckIdByPublicId(client, occupiedPublicId);
+    expect(deckError).toBeNull();
+    if (!deck) throw new Error(`Setup failed: deck ${occupiedPublicId} is not readable as its owner.`);
+    const { error: seedCardError } = await client.from("flashcard").insert({
+      deck_id: deck.id,
+      front: `Kandydat w zajętej talii ${suffix}`,
+      back: "Tył kandydata",
+      state_id: STATE_GENERATED,
+      source_id: SOURCE_AI,
+    });
+    expect(seedCardError).toBeNull();
+    expect(await cardsOf(occupiedPublicId)).toHaveLength(1);
+
+    const response = await generate({
+      newDeckName: deckName,
+      sourceText: OCCUPIED_TEXT,
+      language: "auto",
+      count: COUNT,
+      idempotencyKey: key,
+    });
+    // Status is a real discriminator here — this is a JSON endpoint, so a refusal and a
+    // success do not share it (§6.10's equality rule is for the redirect-style targets).
+    expect(response.status).toBe(409);
+    await expectErrorBody(response);
+
+    // Row-based, never status-based (§6.2): the refusal must also have written nothing.
+    expect(await cardsOf(occupiedPublicId)).toHaveLength(1);
+    expect(await allSessions(OCCUPIED_TEXT)).toHaveLength(1);
+    // The key IS already cleared by the time this 409 returns — the heal runs above deck
+    // resolution — so a repeat arrives as an ordinary request and meets the same 409. That
+    // is the intended terminal state here: the name really is taken.
+    expect((await sessionById(poisonedId)).idempotency_key).toBeNull();
   });
 });

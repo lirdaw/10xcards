@@ -3,7 +3,8 @@ import { z } from "zod";
 import type { Json } from "@/db/database.types";
 import { createClient } from "@/lib/supabase";
 import { createDeck, deckNameExists, deleteDeck } from "@/lib/decks";
-import { deckIdByPublicId } from "@/lib/flashcards";
+import { countFlashcardsInAnyState, deckIdByPublicId } from "@/lib/flashcards";
+import { classifyReplay } from "@/lib/generation-replay";
 import { generateCandidates, resolveModel, OpenRouterError } from "@/lib/openrouter";
 import { getActiveLanguage } from "@/lib/languages";
 import { SOURCE_MAX, COUNT_MIN, COUNT_MAX } from "@/lib/generation-limits";
@@ -17,11 +18,12 @@ import {
   SUPABASE_UNCONFIGURED_MESSAGE,
 } from "@/lib/redirect-errors";
 import {
+  clearSessionIdempotencyKey,
   createGenerationSession,
-  failGenerationSession,
   findSucceededSessionByIdempotencyKey,
   generationResultByGenerationId,
   insertCandidates,
+  retireGenerationSession,
 } from "@/lib/generations";
 
 // FIRST JSON endpoint in the project — a deliberate departure from the native
@@ -93,6 +95,22 @@ const bodySchema = z
     message: "Podaj dokładnie jedną z: istniejąca talia albo nowa talia",
   });
 
+/**
+ * THE `retriable` CONVENTION, and it is fail-safe by decision (D-08, C10X-48).
+ *
+ * An error body carries `retriable: false` only where a repeat of the SAME request provably
+ * cannot succeed — the validation 400s, the 401, the 404, the name-taken 409s, the
+ * unconfigured-Supabase 500. Everything else is left unflagged and is therefore retriable:
+ * `GeneratorForm` reads an ABSENT flag as `true`, so a return that forgets to declare itself
+ * keeps offering "Ponów" rather than silently removing it.
+ *
+ * Do not invert this into a strict read. Most of this handler's failures are transient DB
+ * round-trips, and one of them is the card-insert failure this ticket exists for — whose retry
+ * works by construction once the compensation lands, so hiding its button would be an FR-018
+ * regression shipped by the change that protects FR-018. `retriable: true` stays spelled out
+ * where it was already explicit (the 502/422 paths, the heal refusals): redundant against the
+ * default, and worth keeping, because those are the branches where the claim is a decision.
+ */
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
     status,
@@ -101,6 +119,18 @@ function json(status: number, body: unknown) {
 }
 
 type Client = NonNullable<ReturnType<typeof createClient>>;
+
+/**
+ * What a replay attempt leaves the caller holding.
+ *
+ * `answered` carries a finished Response — either the replay itself or the query-failure
+ * 500 — and both call sites just return it. `empty` carries nothing on purpose: the
+ * session exists and has no cards behind it, and what to DO about that is the one thing
+ * the two call sites disagree on, so this helper must not decide it (C10X-48). The top
+ * lookup heals the row and falls through into an ordinary generation; the 23505 branch,
+ * which has already paid for a generation, heals and refuses.
+ */
+type ReplayOutcome = { kind: "answered"; response: Response } | { kind: "empty" };
 
 /**
  * Answers with an already-persisted generation instead of running a new one.
@@ -112,53 +142,70 @@ type Client = NonNullable<ReturnType<typeof createClient>>;
  * `counts` come from the session's own counters, not from the cards read back, so a
  * replay reports what the MODEL and Zod did — identical to the original answer — even if
  * some of those cards have since been rejected or deleted on the review screen.
+ *
+ * The three-way split is `classifyReplay` (@/lib/generation-replay), not an `if` here:
+ * this function used to read `if (error || !data)` — one branch over two facts that mean
+ * opposite things — and mapping "the session is empty" onto the outage copy is what made
+ * a poisoned row a PERMANENT 500 for its key. That module's header carries the reasoning
+ * and its own tests; this one keeps only the I/O and the two response bodies, both
+ * unchanged from before the split.
  */
 async function replaySession(
   supabase: Client,
   session: { id: number; public_id: string; generated_count: number; saved_count: number },
-) {
-  const { data, error } = await generationResultByGenerationId(supabase, session.id);
-  if (error || !data) {
-    return json(500, { error: "Nie udało się odtworzyć wyników generacji" });
+): Promise<ReplayOutcome> {
+  const classified = classifyReplay(await generationResultByGenerationId(supabase, session.id));
+  if (classified.kind === "query-failed") {
+    // Unchanged copy, and deliberately so: we know nothing about the user's cards here, so
+    // the message must not claim anything about them.
+    return { kind: "answered", response: json(500, { error: "Nie udało się odtworzyć wyników generacji" }) };
   }
-  return json(200, {
-    candidates: data.candidates,
-    counts: {
-      generated: session.generated_count,
-      saved: session.saved_count,
-      skipped: session.generated_count - session.saved_count,
-    },
-    deckPublicId: data.deckPublicId,
-    sessionPublicId: session.public_id,
-  });
+  if (classified.kind === "empty") {
+    return { kind: "empty" };
+  }
+  return {
+    kind: "answered",
+    response: json(200, {
+      candidates: classified.result.candidates,
+      counts: {
+        generated: session.generated_count,
+        saved: session.saved_count,
+        skipped: session.generated_count - session.saved_count,
+      },
+      deckPublicId: classified.result.deckPublicId,
+      sessionPublicId: session.public_id,
+    }),
+  };
 }
 
 export const POST: APIRoute = async (context) => {
   const supabase = createClient(context.request.headers, context.cookies);
   if (!supabase) {
-    return json(500, { error: SUPABASE_UNCONFIGURED_MESSAGE });
+    // Not retriable: the secret is absent from the deployment, so the next click meets the
+    // same wall. Clicking "Ponów" against a misconfigured server is pure noise.
+    return json(500, { error: SUPABASE_UNCONFIGURED_MESSAGE, retriable: false });
   }
 
   const user = context.locals.user;
   if (!user) {
-    return json(401, { error: "Nie jesteś zalogowany" });
+    return json(401, { error: "Nie jesteś zalogowany", retriable: false });
   }
 
   let rawBody: unknown;
   try {
     rawBody = await context.request.json();
   } catch {
-    return json(400, { error: "Nieprawidłowe dane wejściowe" });
+    return json(400, { error: "Nieprawidłowe dane wejściowe", retriable: false });
   }
 
   const parsed = bodySchema.safeParse(rawBody);
   if (!parsed.success) {
-    return json(400, { error: "Nieprawidłowe dane wejściowe" });
+    return json(400, { error: "Nieprawidłowe dane wejściowe", retriable: false });
   }
   const { deckPublicId, newDeckName, language, count, idempotencyKey } = parsed.data;
   const sourceText = parsed.data.sourceText.trim();
   if (sourceText.length < 1) {
-    return json(400, { error: "Tekst źródłowy jest pusty" });
+    return json(400, { error: "Tekst źródłowy jest pusty", retriable: false });
   }
 
   // --- Idempotency (test-plan §2 Risk #2, impl-review F5). "Ponów" replays the payload
@@ -175,6 +222,13 @@ export const POST: APIRoute = async (context) => {
   // yet. That is the pre-existing behaviour pinned by the newDeckName case in
   // tests/generation/generate.test.ts — sequential retry, the flow a human actually
   // performs, is fully covered. ---
+  //
+  // Since 2026-08-13 (C10X-48) this branch also HEALS. A key can resolve to a succeeded
+  // session with zero cards behind it — a compensation that failed leaves exactly that row,
+  // and so does a user deleting every card of a real generation — and until now both meant a
+  // permanent 500 for that key, forever, which is FR-018 inverted about as hard as it can be.
+  // `healedKey` records that this request disarmed such a row; the deck branch below reads it.
+  let healedKey = false;
   if (idempotencyKey) {
     // Branch on the query error first: mistaking a transient failure for "never seen this
     // key" is how a dedup layer silently starts duplicating again (lessons: error-vs-empty).
@@ -183,7 +237,33 @@ export const POST: APIRoute = async (context) => {
       return json(500, { error: "Nie udało się odczytać sesji generacji" });
     }
     if (replayed) {
-      return replaySession(supabase, replayed);
+      const outcome = await replaySession(supabase, replayed);
+      if (outcome.kind === "answered") {
+        return outcome.response;
+      }
+
+      // ORDERING IS THE SAFETY PROPERTY, not defensive nicety: clear the key, CONFIRM a row
+      // was matched, and only then fall through. Inverted, the fall-through inserts a session
+      // carrying this same key with `status='succeeded'`, collides with the still-poisoned row
+      // on generation_session_idempotency_key_uidx, lands in the 23505 handler below, finds
+      // the same empty row and returns the same 500 — now AFTER a paid LLM call. The
+      // confirmation is what bounds the cost of the failure.
+      //
+      // `clearSessionIdempotencyKey`, never the retirement (D-07). This code cannot tell a
+      // poisoned row from one the user emptied deliberately, and in the second case
+      // `saved_count` is TRUTHFUL — retiring it would overwrite a true audit row with a false
+      // failure, which is this ticket's own defect class one path over. See the helper's
+      // header, which is also where the `.select()` on that write is justified: under RLS a
+      // zero-row UPDATE resolves `{ data: null, error: null }`, so `!cleared` is the arm that
+      // matters here and `clearError` alone would not see it.
+      const { data: cleared, error: clearError } = await clearSessionIdempotencyKey(supabase, replayed.id);
+      if (clearError || !cleared) {
+        return json(500, {
+          error: "Nie udało się odblokować ponowienia generacji. Spróbuj ponownie.",
+          retriable: true,
+        });
+      }
+      healedKey = true;
     }
   }
 
@@ -214,8 +294,9 @@ export const POST: APIRoute = async (context) => {
     if (!row) {
       // Absence covers BOTH an unknown code and a deactivated one, and the two are
       // deliberately indistinguishable from outside — the same refusal the Zod enum used to
-      // give, with the same copy.
-      return json(400, { error: "Nieprawidłowe dane wejściowe" });
+      // give, with the same copy. Not retriable: the same body carries the same code, and a
+      // deactivated language is not coming back within a click.
+      return json(400, { error: "Nieprawidłowe dane wejściowe", retriable: false });
     }
     targetLanguage = row.prompt_name;
   }
@@ -239,7 +320,7 @@ export const POST: APIRoute = async (context) => {
       return json(500, { error: "Nie udało się odczytać talii" });
     }
     if (!deck) {
-      return json(404, { error: "Talia nie istnieje" });
+      return json(404, { error: "Talia nie istnieje", retriable: false });
     }
     deckId = deck.id;
     deckPublicIdOut = deckPublicId;
@@ -250,12 +331,76 @@ export const POST: APIRoute = async (context) => {
     if (error) {
       return json(500, { error: "Nie udało się odczytać talii" });
     }
+    // ADOPTION, and read the gate before the emptiness test — the order of these two
+    // conditions is the decision (D-06, plan-review F1). Clearing the key above is not enough
+    // on this path: the attempt that poisoned the session usually left its deck behind too
+    // (the same failed round-trip swallowed both undos), and that orphan makes this very
+    // lookup answer a permanent 409 — trading a permanent 500 for a permanent 409 and fixing
+    // nothing the ticket was reported for. The orphan cannot simply be deleted instead:
+    // generation_session carries no deck FK and its deck is read back THROUGH its cards, of
+    // which there are none, so from the poisoned session the deck is unreachable by
+    // construction.
+    //
+    // WHAT THIS BUYS IS THE HEALED ATTEMPT, NOT THE CLASS (impl-review F2, 2026-08-13). The
+    // heal is single-use by construction: `healedKey` is request-local and the key is cleared
+    // ABOVE, before the LLM call. So any failure between the heal and a committed session —
+    // the 502/422, either read 500 here, the deck-create 500, the session-insert 500 — forfeits
+    // the heal permanently while the orphan deck survives, and the NEXT retry arrives with no
+    // key, `healedKey` false, and meets the 409 below. Strictly better than the permanent 500
+    // it replaces, and recoverable (the orphan is a real owned deck: pick it from the deck
+    // selector, or rename), but do not read the paragraph above as closing the class.
+    // Deferring the clear to just before `createGenerationSession` would close it, at the cost
+    // of discovering a failed clear only AFTER a paid generation — the cost bound this file
+    // calls the safety property. That trade was weighed and declined; see the change's
+    // `verification.md` § "What is NOT proved here".
+    //
+    // GATED ON THE HEAL, NEVER ON EMPTINESS ALONE. An empty deck the user made by hand is not
+    // an orphan, and adopting it would silently generate into somebody's deliberately-empty
+    // deck; tests/generation/generate.test.ts pins that ordinary 409 with a deck created
+    // through /api/decks and never generated into. Both duplicate-name cases there are
+    // deliberately key-LESS, so `healedKey` is exactly what keeps them green.
+    if (existing && !healedKey) {
+      return json(409, { error: DECK_NAME_TAKEN_MESSAGE, retriable: false });
+    }
     if (existing) {
-      return json(409, { error: DECK_NAME_TAKEN_MESSAGE });
+      // Two more round-trips, on the healed path only. `deckNameExists` projects public_id
+      // alone, and the emptiness question is about cards rather than about the deck row.
+      const { data: adopted, error: adoptError } = await deckIdByPublicId(supabase, existing.public_id);
+      if (adoptError) {
+        return json(500, { error: "Nie udało się odczytać talii" });
+      }
+      if (!adopted) {
+        // Vanished between the two reads. Refuse in the ordinary way rather than inventing a
+        // branch: the name is, as far as this request can tell, still someone's.
+        //
+        // The ONE 409 in this handler left unflagged, and the omission is the decision: if the
+        // deck really did vanish, the next attempt finds the name free and generates. Its two
+        // siblings above and below are `retriable: false` because a taken name stays taken.
+        // Note the key is already cleared by the time we get here, so the repeat arrives as an
+        // ordinary request rather than a healed one — which is the path that now succeeds.
+        return json(409, { error: DECK_NAME_TAKEN_MESSAGE });
+      }
+      // State-AGNOSTIC on purpose: countFlashcards filters `state_id = STATE_ACCEPTED`, so a
+      // deck full of candidates would read as 0 through it (see countFlashcardsInAnyState's
+      // header). A null count is not proof of emptiness either, so it refuses too.
+      const { count, error: countError } = await countFlashcardsInAnyState(supabase, adopted.id);
+      if (countError) {
+        return json(500, { error: "Nie udało się odczytać talii" });
+      }
+      if (count !== 0) {
+        return json(409, { error: DECK_NAME_TAKEN_MESSAGE, retriable: false });
+      }
+      deckId = adopted.id;
+      deckPublicIdOut = existing.public_id;
+      // `createdDeckPublicId` stays NULL, and that is load-bearing: this request did not
+      // create this deck, so the failure branches below must never delete it. They would
+      // otherwise destroy a deck that predates them.
     }
   } else {
-    // Unreachable: the schema's refine guarantees exactly one of the two.
-    return json(400, { error: "Nieprawidłowe dane wejściowe" });
+    // Unreachable: the schema's refine guarantees exactly one of the two. Flagged anyway —
+    // it is a validation refusal by class, so if it ever does become reachable it should
+    // behave like its siblings rather than like a transient failure.
+    return json(400, { error: "Nieprawidłowe dane wejściowe", retriable: false });
   }
 
   // --- Call OpenRouter with a server-side timeout (setTimeout + AbortController;
@@ -274,6 +419,10 @@ export const POST: APIRoute = async (context) => {
     const rawRequest = err instanceof OpenRouterError ? err.rawRequest : null;
     const rawResponse = err instanceof OpenRouterError ? err.rawResponse : null;
     const message = err instanceof Error ? err.message : "Nieznany błąd generacji";
+    // Result deliberately unchecked — one of the two exceptions this file still carries, and
+    // it is owned by C10X-50. Annotated HERE rather than only at the deck undo below, because
+    // an unannotated bare `await` on a write now reads as an instance of the very rule this
+    // change wrote into lessons.md (impl-review F5).
     await createGenerationSession(supabase, {
       user_id: user.id,
       source_text: sourceText,
@@ -290,13 +439,25 @@ export const POST: APIRoute = async (context) => {
       // and is not (plan-review F1). "Ponów" replays the same key, so a failed audit row
       // carrying it would be the row the retry collides with.
       //
-      // But these two inserts are NOT the only way to reach a `failed` row, and the guards are
-      // NOT independent (impl-review F3). failGenerationSession — the compensating update below
-      // — flips an already-inserted `succeeded` row to `failed` and leaves its key in place, so
-      // a keyed `failed` row IS reachable in production. The partial unique index's
-      // `status = 'succeeded'` predicate is what covers that path, and nothing else does:
-      // without it, "Ponów" after a card-insert failure collides on its own insert and dies at
-      // the 500 below. Do not "simplify" the predicate away on the strength of this NULL.
+      // But these two inserts are NOT the only way to reach a `failed` row, so do not
+      // "simplify" the partial unique index's `status = 'succeeded'` predicate away on the
+      // strength of this NULL. The reason changed on 2026-08-13 (C10X-48) and the conclusion
+      // did not — read both halves before touching the index.
+      //
+      // Until C10X-48 this comment said the two guards were NOT independent (impl-review F3):
+      // `failGenerationSession` — the compensating update below — flipped an already-inserted
+      // `succeeded` row to `failed` and LEFT ITS KEY IN PLACE, so a keyed `failed` row was
+      // reachable in ordinary operation and the `status` predicate was the only thing covering
+      // it. That route is now closed: `retireGenerationSession` nulls the key and flips the
+      // status in one statement (D-03), so a SUCCESSFUL retirement produces no keyed `failed`
+      // row at all.
+      //
+      // The predicate still earns its place, for a different row: a retirement that FAILS
+      // leaves a keyed `succeeded` row standing, and the index is what stops a second
+      // succeeded row for that key from ever existing. And the index's FIRST predicate,
+      // `idempotency_key is not null`, is load-bearing too once the self-heal C10X-48 adds
+      // below lands: it clears a key without touching `status`, so a `succeeded` row with a
+      // NULL key becomes a shape production reaches. Both predicates, each for a different row.
       idempotency_key: null,
     });
     return json(502, { error: "Nie udało się wygenerować fiszek. Spróbuj ponownie.", retriable: true });
@@ -311,6 +472,8 @@ export const POST: APIRoute = async (context) => {
   // --- 0-saved boundary: OpenRouter answered but nothing passed Zod. Treat as a
   // failure (session failed + audit), no cards inserted, retriable error (FR-018).
   if (saved === 0) {
+    // Result deliberately unchecked — the second of this file's two exceptions, owned by
+    // C10X-50, same reasoning as the twin in the catch block above (impl-review F5).
     await createGenerationSession(supabase, {
       user_id: user.id,
       source_text: sourceText,
@@ -332,13 +495,23 @@ export const POST: APIRoute = async (context) => {
   // --- Success. Create the NEW deck now (deferred from pre-LLM so a failed generation
   // doesn't orphan an empty deck or block retry with a 23505 — F1). The upfront
   // name-availability check makes a real 23505 here a rare TOCTOU; still mapped. ---
-  if (newDeckName) {
+  //
+  // `deckId === null` is the second half of the condition, and it is the ADOPTION check: the
+  // healed path above may already have resolved this name to an owned empty deck, and creating
+  // a second one under it is impossible (deck_user_name_unique) — it would answer 409 for a
+  // deck this request was told to use. One fact rather than two that have to agree: every
+  // branch that resolves a deck sets deckId, and the defensive guard directly below already
+  // depends on exactly that invariant.
+  if (newDeckName && deckId === null) {
     const { data: deck, error } = await createDeck(supabase, user.id, newDeckName);
     if (error) {
-      const taken = error.code === "23505";
-      return json(taken ? 409 : 500, {
-        error: taken ? DECK_NAME_TAKEN_MESSAGE : DECK_CREATE_FAILED_MESSAGE,
-      });
+      // Split into two returns rather than one with three ternaries, because the two arms now
+      // differ on a THIRD axis: a name taken by a real deck stays taken, so a repeat cannot
+      // help, while a failed insert is an ordinary transient write and its retry may well
+      // land — and it is the branch that has already paid for a generation.
+      return error.code === "23505"
+        ? json(409, { error: DECK_NAME_TAKEN_MESSAGE, retriable: false })
+        : json(500, { error: DECK_CREATE_FAILED_MESSAGE });
     }
     deckId = deck.id;
     deckPublicIdOut = deck.public_id;
@@ -347,6 +520,10 @@ export const POST: APIRoute = async (context) => {
   if (deckId === null) {
     // Defensive: every branch above sets deckId on the success path. Narrows the type
     // for insertCandidates and guards against a future branch forgetting to resolve it.
+    //
+    // Deliberately left unflagged rather than marked either way: it is unreachable by
+    // construction, so any `retriable` here would be a claim about a state nobody has
+    // observed. The default (retriable) is the fail-safe half of that non-decision.
     return json(500, { error: "Nie udało się ustalić talii docelowej" });
   }
 
@@ -371,10 +548,34 @@ export const POST: APIRoute = async (context) => {
     // request 2 finds nothing, generates, and only collides HERE. A 23505 therefore means
     // request 1 committed — its cards DID land — so this is a replay, not a failure.
     // Without this branch the user sees an error while holding a full set of candidates.
+    //
+    // What this branch answers when it does NOT return a replay. Built up rather than
+    // returned early, so the deck undo below still runs on every one of these paths.
+    let sessionFailure: { error: string; retriable?: boolean } = { error: "Nie udało się zapisać sesji generacji" };
     if (idempotencyKey && sessionError.code === "23505") {
-      const { data: won, error } = await findSucceededSessionByIdempotencyKey(supabase, idempotencyKey);
-      if (!error && won) {
-        return replaySession(supabase, won);
+      const { data: won, error: wonError } = await findSucceededSessionByIdempotencyKey(supabase, idempotencyKey);
+      if (wonError) {
+        // Used to be folded into the generic 500 by `if (!error && won)` — a swallow, and the
+        // sibling of the one C10X-48 exists for. The two states are not the same thing: the
+        // winner's session may well hold the user's cards and we simply could not read it, so
+        // say so and let them try again rather than reporting the write we failed at.
+        sessionFailure = { error: "Nie udało się odczytać sesji generacji", retriable: true };
+      } else if (won) {
+        const outcome = await replaySession(supabase, won);
+        if (outcome.kind === "answered") {
+          return outcome.response;
+        }
+
+        // THE ASYMMETRY WITH THE TOP LOOKUP IS DELIBERATE — heal, then REFUSE, where that one
+        // heals and falls through. This code has already paid for a generation, so falling
+        // through here would buy a SECOND one on a single click. Clearing the winner's key
+        // costs one round-trip and is what makes the user's next attempt generate cleanly:
+        // it finds no key at all, so nothing to collide with and nothing to replay.
+        const { data: cleared, error: clearError } = await clearSessionIdempotencyKey(supabase, won.id);
+        sessionFailure =
+          clearError || !cleared
+            ? { error: "Nie udało się odblokować ponowienia generacji. Spróbuj ponownie.", retriable: true }
+            : { error: "Nie udało się zapisać sesji generacji. Spróbuj ponownie.", retriable: true };
       }
     }
     // Undo a deck THIS request created (impl-review F4). Without it the deck survives while
@@ -382,24 +583,73 @@ export const POST: APIRoute = async (context) => {
     // deckNameExists with a permanent 409: retry impossible, empty orphan deck left behind.
     // That is the exact failure deferring createDeck past the LLM call was meant to prevent,
     // one step further down. Safe and provably empty here: no cards were inserted on this
-    // path and generation_session carries no deck FK. Best-effort, like failGenerationSession.
+    // path and generation_session carries no deck FK.
+    //
+    // Still best-effort — and as of 2026-08-13 (C10X-48) that is an EXCEPTION rather than
+    // house style. This line used to justify itself "Best-effort, like failGenerationSession",
+    // an analogy that has since inverted: the compensation is now a checked write
+    // (`retireGenerationSession`), so the symbol this deferred to no longer defers to
+    // anything. Do not read the inversion backwards and re-swallow the compensation to
+    // restore the symmetry — the fix is to check THIS await too, and it belongs to C10X-49,
+    // which owns this branch and its tests. The other exceptions left in the file are the two
+    // failure-path `createGenerationSession` inserts, owned by C10X-50.
     if (createdDeckPublicId) {
       await deleteDeck(supabase, createdDeckPublicId);
     }
-    return json(500, { error: "Nie udało się zapisać sesji generacji" });
+    return json(500, sessionFailure);
   }
 
   const { error: cardsError } = await insertCandidates(supabase, deckId, session.id, result.cards);
   if (cardsError) {
-    // The session was already saved as `succeeded`, but no cards landed. Compensate so
-    // the audit doesn't over-report saved cards (impl-review F2); best-effort.
-    await failGenerationSession(supabase, session.id, "Zapis kart nie powiódł się");
+    // The session was already saved as `succeeded`, but no cards landed. Compensate so the
+    // audit doesn't over-report saved cards (impl-review F2) — and, since 2026-08-13
+    // (C10X-48), READ the result of that compensation instead of discarding it.
+    //
+    // "Best-effort" is gone from this branch, and it was never a decision: it entered the
+    // file as a comment, and the comment is what let the one caller drop the result. On the
+    // likeliest road to `cardsError` the compensation is EXPECTED to fail too — the card
+    // insert and this update share one connection, one token and one proxy — so the swallow
+    // was silent exactly when it mattered.
+    //
+    // Both writes are checked on `data`, not on `error` alone. Under RLS a zero-row
+    // UPDATE/DELETE resolves `{ data: null, error: null }`, so `if (error)` would still have
+    // swallowed the case that matters; the explicit `.select(...).maybeSingle()` on both
+    // helpers is what makes a zero-row write visible at all (see their headers, and
+    // src/lib/decks.ts:37-42 for the precedent).
+    const { data: retired, error: retireError } = await retireGenerationSession(
+      supabase,
+      session.id,
+      "Zapis kart nie powiódł się",
+    );
     // Same undo as the session-insert branch above (impl-review F4): no cards landed, so a
     // deck this request created is empty and would otherwise 409 every future "Ponów".
+    // `createdDeckPublicId` is null on the existing-deck path, where the undo is correctly
+    // not attempted at all — an undo that never ran has not failed, hence the `true` default.
+    let deckUndone = true;
     if (createdDeckPublicId) {
-      await deleteDeck(supabase, createdDeckPublicId);
+      const { data: deleted, error: deleteError } = await deleteDeck(supabase, createdDeckPublicId);
+      deckUndone = !deleteError && deleted !== null;
     }
-    return json(500, { error: "Nie udało się zapisać wygenerowanych fiszek" });
+
+    // WHAT THIS BRANCH GUARANTEES, and — read this second half before concluding the bug is
+    // fixed here — what it still does not. It makes a failed compensation NAMEABLE, and the
+    // response is the ONLY witness there is: nothing in `src/` writes a log line and nothing
+    // in this project reads a log sink (test-plan §7). It REPAIRS NOTHING. On a failed
+    // retirement the row stands as `succeeded, saved_count > 0`, keyed, with zero cards
+    // behind it — poisoned; on a failed deck undo the orphan deck survives. What clears the
+    // poisoned row is the self-heal on the NEXT attempt's replay lookup, which is why this
+    // answers `retriable: true` instead of presenting the state as terminal.
+    if (!retireError && retired && deckUndone) {
+      return json(500, { error: "Nie udało się zapisać wygenerowanych fiszek" });
+    }
+    // Inline literal, alongside its siblings in this handler — deliberately NOT a member of
+    // REDIRECT_MESSAGES, whose members are values the deck pages render out of a URL and
+    // whose size is pinned.
+    return json(500, {
+      error:
+        "Nie udało się zapisać wygenerowanych fiszek, a wycofanie nieudanego zapisu nie powiodło się. Spróbuj ponownie.",
+      retriable: true,
+    });
   }
 
   return json(200, {

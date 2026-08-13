@@ -93,7 +93,7 @@ export async function generationResultByGenerationId(supabase: Client, generatio
 // the grouping happens here rather than in SQL.
 //
 // TWO STORED COUNTERS LOOK RIGHT FOR THE DENOMINATOR AND BOTH ARE WRONG (plan-review F6):
-//   - `saved_count` is zeroed by failGenerationSession's compensating update above, so a
+//   - `saved_count` is zeroed by retireGenerationSession's compensating update below, so a
 //     duplicated-then-compensated run reads as 0 while its rows still exist.
 //   - `generated_count` counts what the MODEL returned, before Zod dropped invalid cards
 //     (api/generate.ts reports the difference as `skipped`), so "k z generated_count"
@@ -112,15 +112,65 @@ export async function generationStateCounts(supabase: Client, generationId: numb
   return { data: counts, error: null };
 }
 
-// Compensating update: flips an already-persisted `succeeded` session to `failed`
-// when the follow-up card insert fails, so `saved_count` never over-reports cards
-// that didn't land (impl-review F2). The writes aren't a single transaction (the card
-// insert needs the session's FK id first), so this closes the audit gap best-effort.
-export function failGenerationSession(supabase: Client, id: number, message: string) {
+// RETIREMENT — the compensating update after a failed card insert. Flips an
+// already-persisted `succeeded` session to `failed` so `saved_count` never over-reports
+// cards that didn't land (impl-review F2), AND clears its `idempotency_key`, so the row
+// leaves `generation_session_idempotency_key_uidx` for two independent reasons instead of
+// one. The writes aren't a single transaction (the card insert needs the session's FK id
+// first), so this is the only thing standing between a failed insert and a row that claims
+// cards nobody has.
+//
+// It was called `failGenerationSession` and was documented as "best-effort" until C10X-48.
+// Both were wrong in the same direction. The name described half of what it does; and
+// "best-effort" entered this file as a comment rather than as a decision, which is what let
+// its ONE caller discard the result — so when the compensation failed (research §2 measures
+// that as the EXPECTED outcome on the likeliest road here: the card insert and this update
+// share one connection, one token and one proxy) the session survived as
+// `status='succeeded', saved_count>0`, keyed, with zero cards behind it. Every later "Ponów"
+// on that key then replayed into a permanent 500.
+//
+// `.select("id").maybeSingle()` IS the contract, not decoration — same rule and same reason
+// as `deleteDeck` (src/lib/decks.ts:37-42). Without an explicit `.select()` PostgREST
+// answers an UPDATE under `Prefer: return=minimal`, so a ZERO-ROW update resolves
+// `{ data: null, error: null }` — indistinguishable from success. Under RLS that is exactly
+// what a vanished row or an unreadable `auth.uid()` produces, so `if (error)` alone would
+// still have swallowed it. Callers must treat `data == null` with no error as a FAILED
+// compensation, never as a landed one.
+export function retireGenerationSession(supabase: Client, id: number, message: string) {
   return supabase
     .from("generation_session")
-    .update({ status: "failed", saved_count: 0, error_message: message })
-    .eq("id", id);
+    .update({ status: "failed", saved_count: 0, error_message: message, idempotency_key: null })
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
+}
+
+// THE HEAL — deliberately NARROWER than the retirement above, and the difference is a
+// decision rather than an economy (C10X-48 D-07). Used by /api/generate when a replay lookup
+// resolves a succeeded session with zero cards behind it: it disarms that row's key so the
+// request can fall through into an ordinary generation instead of dying at the same 500
+// forever.
+//
+// It clears the key and NOTHING else — never `status`, never `saved_count`, never
+// `error_message`. The reason is that this caller cannot tell the two rows apart that reach
+// it. One is poisoned (a failed compensation; nothing ever landed). The other is a session
+// that generated perfectly and whose cards the user has since deleted — and there
+// `saved_count` is TRUTHFUL about what once landed. The row shapes are identical, so
+// separating them needs a column that does not exist. Retiring both would overwrite a true
+// audit row with a false failure: this ticket's own defect class, one path over.
+//
+// Removing the key is necessary and sufficient here anyway — it is what
+// `findSucceededSessionByIdempotencyKey` matches on and what the partial unique index's
+// first predicate excludes. Note the row shape this makes reachable in normal operation: a
+// `succeeded` session with a NULL key, which is precisely why BOTH predicates of that index
+// are load-bearing (see the migration note in the change folder).
+//
+// `.select("id").maybeSingle()` for the same reason as the retirement, and here it is
+// load-bearing for SAFETY rather than for reporting: the caller must confirm a row was
+// matched BEFORE falling through to a paid generation. A fall-through over an unhealed row
+// re-collides on the same key and buys the same 500 after paying for it.
+export function clearSessionIdempotencyKey(supabase: Client, id: number) {
+  return supabase.from("generation_session").update({ idempotency_key: null }).eq("id", id).select("id").maybeSingle();
 }
 
 // Bulk-inserts validated candidates into a deck, stamping state/source/generation link.
@@ -129,7 +179,7 @@ export function failGenerationSession(supabase: Client, id: number, message: str
 // "Validated" is load-bearing and no longer only about shape. Since
 // 20260728104500_flashcard_content_bounds.sql the database enforces
 // `char_length(front|back) between 1 and 200|1000`, and this is ONE multi-row insert — so a
-// single over-length card would fail the WHOLE batch (23514 -> failGenerationSession -> the
+// single over-length card would fail the WHOLE batch (23514 -> retireGenerationSession -> the
 // user loses every candidate), not just itself. Nothing re-validates content here.
 //
 // What keeps that unreachable is `validate()` in src/lib/openrouter.ts, which drops
