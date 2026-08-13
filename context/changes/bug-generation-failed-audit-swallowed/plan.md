@@ -854,15 +854,15 @@ not involved.
 
 #### Automated
 
-- [ ] 1.1 New test file passes: `npx vitest run tests/lib/audit-failure-report.test.ts`
-- [ ] 1.2 `@sentry/cloudflare` resolves under this project's Vitest/Vite config (throwaway spec, run once and deleted)
-- [ ] 1.3 Type gate passes: `npm run typecheck`
-- [ ] 1.4 Lint passes: `npm run lint`
-- [ ] 1.5 Full suite green: `npm test`
+- [x] 1.1 New test file passes: `npx vitest run tests/lib/audit-failure-report.test.ts`
+- [x] 1.2 `@sentry/cloudflare` resolves under this project's Vitest/Vite config (throwaway spec, run once and deleted)
+- [x] 1.3 Type gate passes: `npm run typecheck`
+- [x] 1.4 Lint passes: `npm run lint`
+- [x] 1.5 Full suite green: `npm test`
 
 #### Manual
 
-- [ ] 1.6 The builder's header states why the module exists separately and names `error_message` as the deliberate free-form exception
+- [x] 1.6 The builder's header states why the module exists separately and names `error_message` as the deliberate free-form exception
 
 ### Phase 2: Wire both call sites
 
