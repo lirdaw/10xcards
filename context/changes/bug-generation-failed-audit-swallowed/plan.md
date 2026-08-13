@@ -854,32 +854,32 @@ not involved.
 
 #### Automated
 
-- [x] 1.1 New test file passes: `npx vitest run tests/lib/audit-failure-report.test.ts`
-- [x] 1.2 `@sentry/cloudflare` resolves under this project's Vitest/Vite config (throwaway spec, run once and deleted)
-- [x] 1.3 Type gate passes: `npm run typecheck`
-- [x] 1.4 Lint passes: `npm run lint`
-- [x] 1.5 Full suite green: `npm test`
+- [x] 1.1 New test file passes: `npx vitest run tests/lib/audit-failure-report.test.ts` — f42aa65
+- [x] 1.2 `@sentry/cloudflare` resolves under this project's Vitest/Vite config (throwaway spec, run once and deleted) — f42aa65
+- [x] 1.3 Type gate passes: `npm run typecheck` — f42aa65
+- [x] 1.4 Lint passes: `npm run lint` — f42aa65
+- [x] 1.5 Full suite green: `npm test` — f42aa65
 
 #### Manual
 
-- [x] 1.6 The builder's header states why the module exists separately and names `error_message` as the deliberate free-form exception
+- [x] 1.6 The builder's header states why the module exists separately and names `error_message` as the deliberate free-form exception — f42aa65
 
 ### Phase 2: Wire both call sites
 
 #### Automated
 
-- [ ] 2.1 The four existing branch cases still pass: `npx vitest run tests/generation/failure-path.test.ts`
-- [ ] 2.2 Full suite green: `npm test`
-- [ ] 2.3 Type gate passes: `npm run typecheck`
-- [ ] 2.4 Lint passes: `npm run lint`
-- [ ] 2.5 Build passes: `npm run build`
-- [ ] 2.6 No first-party log line introduced: `npx vitest run tests/lib/no-logging.test.ts`
-- [ ] 2.7 No forbidden env accessor introduced: `npx vitest run tests/lib/no-env-access.test.ts`
+- [x] 2.1 The four existing branch cases still pass: `npx vitest run tests/generation/failure-path.test.ts`
+- [x] 2.2 Full suite green: `npm test`
+- [x] 2.3 Type gate passes: `npm run typecheck`
+- [x] 2.4 Lint passes: `npm run lint`
+- [x] 2.5 Build passes: `npm run build`
+- [x] 2.6 No first-party log line introduced: `npx vitest run tests/lib/no-logging.test.ts`
+- [x] 2.7 No forbidden env accessor introduced: `npx vitest run tests/lib/no-env-access.test.ts`
 
 #### Manual
 
-- [ ] 2.8 Both new literals lead with the primary failure and "Ponów"; the audit clause is informational and does not read as a second problem to solve
-- [ ] 2.9 `git diff` shows the `idempotency_key` comment block moved verbatim
+- [x] 2.8 Both new literals lead with the primary failure and "Ponów"; the audit clause is informational and does not read as a second problem to solve
+- [x] 2.9 `git diff` shows the `idempotency_key` comment block moved verbatim
 
 ### Phase 3: Committed tests, guards, and the breakage runs that prove them
 

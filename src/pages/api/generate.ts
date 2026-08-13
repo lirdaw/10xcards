@@ -1,7 +1,14 @@
 import type { APIRoute } from "astro";
+import * as Sentry from "@sentry/cloudflare";
 import { z } from "zod";
-import type { Json } from "@/db/database.types";
+import type { Json, TablesInsert } from "@/db/database.types";
 import { createClient } from "@/lib/supabase";
+// The ONLY module in `src/` that imports the Sentry SDK besides `src/worker.ts`, and the
+// import is safe rather than merely convenient: `@sentry/cloudflare` carries no `cloudflare:`
+// runtime import outside its `./vite` export, and with no client configured
+// `captureException` returns an event id and does nothing else — which is exactly what it does
+// under the test runner and under `npm run dev` without a DSN.
+import { AUDIT_CAPTURE_MESSAGE, buildAuditFailureReport } from "@/lib/audit-failure-report";
 import { createDeck, deckNameExists, deleteDeck } from "@/lib/decks";
 import { countFlashcardsInAnyState, deckIdByPublicId } from "@/lib/flashcards";
 import { classifyReplay } from "@/lib/generation-replay";
@@ -419,11 +426,7 @@ export const POST: APIRoute = async (context) => {
     const rawRequest = err instanceof OpenRouterError ? err.rawRequest : null;
     const rawResponse = err instanceof OpenRouterError ? err.rawResponse : null;
     const message = err instanceof Error ? err.message : "Nieznany błąd generacji";
-    // Result deliberately unchecked — one of the two exceptions this file still carries, and
-    // it is owned by C10X-50. Annotated HERE rather than only at the deck undo below, because
-    // an unannotated bare `await` on a write now reads as an instance of the very rule this
-    // change wrote into lessons.md (impl-review F5).
-    await createGenerationSession(supabase, {
+    const auditRow: TablesInsert<"generation_session"> = {
       user_id: user.id,
       source_text: sourceText,
       model: resolveModel(),
@@ -459,7 +462,60 @@ export const POST: APIRoute = async (context) => {
       // below lands: it clears a key without touching `status`, so a `succeeded` row with a
       // NULL key becomes a shape production reaches. Both predicates, each for a different row.
       idempotency_key: null,
-    });
+    };
+    // CHECKED as of 2026-08-13 (C10X-50), the last of this file's three swallowed writes.
+    //
+    // `if (error)` ALONE is the whole check here, which is NOT what the two compensating
+    // branches further down do — they read `data` as well, and the difference is the helper's
+    // terminator rather than a lapse. `createGenerationSession` ends
+    // `.insert(...).select(...).single()`, and postgrest-js only synthesises `data: null` on the
+    // `maybeSingle` path (`dist/index.mjs:357-371`, gated on `isMaybeSingle`); `.single()` sets an
+    // `Accept` header that makes the SERVER answer a zero-row result as `406 / PGRST116`, i.e. as
+    // an error. There is no silent zero-row arm to swallow, so a `!data` arm here would be a
+    // branch no breakage run could ever redden (D-03).
+    //
+    // TWO CHANNELS, and the response is deliberately no longer the only witness — which is the
+    // one thing this site does differently from its two siblings. A lost `failed` row costs the
+    // USER nothing: nothing in `src/` reads `status`, `error_message` or either payload, the
+    // replay lookup excludes `failed` rows by predicate, and the key is NULL so there is no row
+    // to collide with. The row is a pure write-only forensic artifact, so a message to the person
+    // who cannot act on it is not a signal — the capture below is the half that reaches an owner.
+    //
+    // WHAT THE CAPTURE PROVES AND WHAT IT DOES NOT. `tests/lib/audit-failure-wiring.test.ts`
+    // holds that the call is present and composed, and `tests/lib/audit-failure-report.test.ts`
+    // holds what it may carry. NEITHER asserts that an event ARRIVES, and no layer in this
+    // project does: `/api/shipprobe` — the one instrument that ever showed a first-party error
+    // reaching the Sentry UI — was deleted by C10X-54. See follow-ups/sentry-delivery.md.
+    //
+    // The exception is SYNTHETIC and carries a fixed literal, never `auditError` itself: the
+    // first argument is serialised onto the event where the builder cannot reach it, and a
+    // Postgres CHECK violation puts `Failing row contains (…)` — the pasted source text included
+    // — into a PostgREST error's DETAIL. The cause travels as the builder's third argument
+    // instead, where `code` passes verbatim and every free-form string leaves as a length plus a
+    // digest prefix. `@/lib/audit-failure-report` is where that rule lives and is truth-tabled.
+    const { error: auditError } = await createGenerationSession(supabase, auditRow);
+    if (auditError) {
+      Sentry.captureException(
+        new Error(AUDIT_CAPTURE_MESSAGE),
+        await buildAuditFailureReport(auditRow, "transport-failure", auditError),
+      );
+      // Inline literal, alongside its siblings in this handler — deliberately NOT a member of
+      // REDIRECT_MESSAGES, whose members are values the deck pages render out of a URL and whose
+      // size is pinned. Fixed string with NO interpolation of `auditError`: a PostgREST
+      // `message`/`details` can echo submitted values, and three of the four cases in
+      // failure-path.test.ts assert the RAW response body carries no sentinel (Risk #4).
+      //
+      // The audit clause is INFORMATIONAL and must stay that way. Status and `retriable` are
+      // identical on both arms, and so is the user's next move — unlike C10X-49's literal, which
+      // named an orphan deck the user would collide with, this one describes a record they
+      // cannot see. It says so ("nie wpływa to na Twoje fiszki") precisely so it does not read as
+      // a second problem to solve; the retry instruction stays last, where it is on every arm.
+      return json(502, {
+        error:
+          "Nie udało się wygenerować fiszek, a szczegóły tego błędu nie zostały zapisane — nie wpływa to na Twoje fiszki. Spróbuj ponownie.",
+        retriable: true,
+      });
+    }
     return json(502, { error: "Nie udało się wygenerować fiszek. Spróbuj ponownie.", retriable: true });
   } finally {
     clearTimeout(timeout);
@@ -472,9 +528,7 @@ export const POST: APIRoute = async (context) => {
   // --- 0-saved boundary: OpenRouter answered but nothing passed Zod. Treat as a
   // failure (session failed + audit), no cards inserted, retriable error (FR-018).
   if (saved === 0) {
-    // Result deliberately unchecked — the second of this file's two exceptions, owned by
-    // C10X-50, same reasoning as the twin in the catch block above (impl-review F5).
-    await createGenerationSession(supabase, {
+    const auditRow: TablesInsert<"generation_session"> = {
       user_id: user.id,
       source_text: sourceText,
       model: result.model,
@@ -488,7 +542,30 @@ export const POST: APIRoute = async (context) => {
       response_payload: result.rawResponse as Json,
       // NULL for the same reason as the transport-failure path above — see that comment.
       idempotency_key: null,
-    });
+    };
+    // CHECKED as of 2026-08-13 (C10X-50), the twin of the transport-failure site above — read
+    // that comment for why `if (error)` is the whole check, why the response is no longer the
+    // only witness, and what the capture does and does not prove.
+    //
+    // The two are NOT interchangeable, which is why the site is a parameter rather than a
+    // constant: the rows differ in five fields, and this one is the stronger of the pair. Here
+    // `model`, `generated_count` and both payloads come from a real answered call, where the
+    // transport site hard-codes `generated_count: 0` and can legitimately carry `null` in both
+    // payload columns. A reader of the Sentry event needs to know which shape went missing.
+    const { error: auditError } = await createGenerationSession(supabase, auditRow);
+    if (auditError) {
+      Sentry.captureException(
+        new Error(AUDIT_CAPTURE_MESSAGE),
+        await buildAuditFailureReport(auditRow, "zero-saved", auditError),
+      );
+      // Inline literal, not a REDIRECT_MESSAGES member, no interpolation — same three reasons as
+      // its twin above, and the same informational reading of the audit clause.
+      return json(422, {
+        error:
+          "Model nie zwrócił poprawnych fiszek, a szczegóły tego błędu nie zostały zapisane — nie wpływa to na Twoje fiszki. Spróbuj ponownie.",
+        retriable: true,
+      });
+    }
     return json(422, { error: "Model nie zwrócił poprawnych fiszek. Spróbuj ponownie.", retriable: true });
   }
 
@@ -606,9 +683,13 @@ export const POST: APIRoute = async (context) => {
     // failGenerationSession", an analogy that inverted when C10X-48 made the compensation a
     // checked write (`retireGenerationSession`) and the symbol it deferred to stopped deferring
     // to anything. Do not read that inversion backwards and re-swallow the compensation to
-    // restore the symmetry — the fix was to check THIS await too, and it is checked below. The
-    // exceptions left in this file are the two failure-path `createGenerationSession` inserts,
-    // owned by C10X-50.
+    // restore the symmetry — the fix was to check THIS await too, and it is checked below.
+    //
+    // As of 2026-08-13 (C10X-50) the class is CLOSED IN THIS FILE: the two failure-path
+    // `createGenerationSession` inserts this sentence used to name as exceptions are checked as
+    // well, so `generate.ts` discards no write result anywhere. Read the scope literally — it is
+    // a claim about this file, not about `src/`. `src/pages/api/auth/signout.ts:7` still awaits
+    // `supabase.auth.signOut()` and drops the result, and it is C10X-51's, not this ticket's.
     //
     // Both arms are read, per lessons.md: under RLS a zero-row DELETE resolves
     // `{ data: null, error: null }`, so `if (error)` alone would still swallow one of them.
