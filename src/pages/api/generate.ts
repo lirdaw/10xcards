@@ -95,6 +95,22 @@ const bodySchema = z
     message: "Podaj dokładnie jedną z: istniejąca talia albo nowa talia",
   });
 
+/**
+ * THE `retriable` CONVENTION, and it is fail-safe by decision (D-08, C10X-48).
+ *
+ * An error body carries `retriable: false` only where a repeat of the SAME request provably
+ * cannot succeed — the validation 400s, the 401, the 404, the name-taken 409s, the
+ * unconfigured-Supabase 500. Everything else is left unflagged and is therefore retriable:
+ * `GeneratorForm` reads an ABSENT flag as `true`, so a return that forgets to declare itself
+ * keeps offering "Ponów" rather than silently removing it.
+ *
+ * Do not invert this into a strict read. Most of this handler's failures are transient DB
+ * round-trips, and one of them is the card-insert failure this ticket exists for — whose retry
+ * works by construction once the compensation lands, so hiding its button would be an FR-018
+ * regression shipped by the change that protects FR-018. `retriable: true` stays spelled out
+ * where it was already explicit (the 502/422 paths, the heal refusals): redundant against the
+ * default, and worth keeping, because those are the branches where the claim is a decision.
+ */
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
     status,
@@ -165,29 +181,31 @@ async function replaySession(
 export const POST: APIRoute = async (context) => {
   const supabase = createClient(context.request.headers, context.cookies);
   if (!supabase) {
-    return json(500, { error: SUPABASE_UNCONFIGURED_MESSAGE });
+    // Not retriable: the secret is absent from the deployment, so the next click meets the
+    // same wall. Clicking "Ponów" against a misconfigured server is pure noise.
+    return json(500, { error: SUPABASE_UNCONFIGURED_MESSAGE, retriable: false });
   }
 
   const user = context.locals.user;
   if (!user) {
-    return json(401, { error: "Nie jesteś zalogowany" });
+    return json(401, { error: "Nie jesteś zalogowany", retriable: false });
   }
 
   let rawBody: unknown;
   try {
     rawBody = await context.request.json();
   } catch {
-    return json(400, { error: "Nieprawidłowe dane wejściowe" });
+    return json(400, { error: "Nieprawidłowe dane wejściowe", retriable: false });
   }
 
   const parsed = bodySchema.safeParse(rawBody);
   if (!parsed.success) {
-    return json(400, { error: "Nieprawidłowe dane wejściowe" });
+    return json(400, { error: "Nieprawidłowe dane wejściowe", retriable: false });
   }
   const { deckPublicId, newDeckName, language, count, idempotencyKey } = parsed.data;
   const sourceText = parsed.data.sourceText.trim();
   if (sourceText.length < 1) {
-    return json(400, { error: "Tekst źródłowy jest pusty" });
+    return json(400, { error: "Tekst źródłowy jest pusty", retriable: false });
   }
 
   // --- Idempotency (test-plan §2 Risk #2, impl-review F5). "Ponów" replays the payload
@@ -276,8 +294,9 @@ export const POST: APIRoute = async (context) => {
     if (!row) {
       // Absence covers BOTH an unknown code and a deactivated one, and the two are
       // deliberately indistinguishable from outside — the same refusal the Zod enum used to
-      // give, with the same copy.
-      return json(400, { error: "Nieprawidłowe dane wejściowe" });
+      // give, with the same copy. Not retriable: the same body carries the same code, and a
+      // deactivated language is not coming back within a click.
+      return json(400, { error: "Nieprawidłowe dane wejściowe", retriable: false });
     }
     targetLanguage = row.prompt_name;
   }
@@ -301,7 +320,7 @@ export const POST: APIRoute = async (context) => {
       return json(500, { error: "Nie udało się odczytać talii" });
     }
     if (!deck) {
-      return json(404, { error: "Talia nie istnieje" });
+      return json(404, { error: "Talia nie istnieje", retriable: false });
     }
     deckId = deck.id;
     deckPublicIdOut = deckPublicId;
@@ -328,7 +347,7 @@ export const POST: APIRoute = async (context) => {
     // through /api/decks and never generated into. Both duplicate-name cases there are
     // deliberately key-LESS, so `healedKey` is exactly what keeps them green.
     if (existing && !healedKey) {
-      return json(409, { error: DECK_NAME_TAKEN_MESSAGE });
+      return json(409, { error: DECK_NAME_TAKEN_MESSAGE, retriable: false });
     }
     if (existing) {
       // Two more round-trips, on the healed path only. `deckNameExists` projects public_id
@@ -340,6 +359,12 @@ export const POST: APIRoute = async (context) => {
       if (!adopted) {
         // Vanished between the two reads. Refuse in the ordinary way rather than inventing a
         // branch: the name is, as far as this request can tell, still someone's.
+        //
+        // The ONE 409 in this handler left unflagged, and the omission is the decision: if the
+        // deck really did vanish, the next attempt finds the name free and generates. Its two
+        // siblings above and below are `retriable: false` because a taken name stays taken.
+        // Note the key is already cleared by the time we get here, so the repeat arrives as an
+        // ordinary request rather than a healed one — which is the path that now succeeds.
         return json(409, { error: DECK_NAME_TAKEN_MESSAGE });
       }
       // State-AGNOSTIC on purpose: countFlashcards filters `state_id = STATE_ACCEPTED`, so a
@@ -350,7 +375,7 @@ export const POST: APIRoute = async (context) => {
         return json(500, { error: "Nie udało się odczytać talii" });
       }
       if (count !== 0) {
-        return json(409, { error: DECK_NAME_TAKEN_MESSAGE });
+        return json(409, { error: DECK_NAME_TAKEN_MESSAGE, retriable: false });
       }
       deckId = adopted.id;
       deckPublicIdOut = existing.public_id;
@@ -359,8 +384,10 @@ export const POST: APIRoute = async (context) => {
       // otherwise destroy a deck that predates them.
     }
   } else {
-    // Unreachable: the schema's refine guarantees exactly one of the two.
-    return json(400, { error: "Nieprawidłowe dane wejściowe" });
+    // Unreachable: the schema's refine guarantees exactly one of the two. Flagged anyway —
+    // it is a validation refusal by class, so if it ever does become reachable it should
+    // behave like its siblings rather than like a transient failure.
+    return json(400, { error: "Nieprawidłowe dane wejściowe", retriable: false });
   }
 
   // --- Call OpenRouter with a server-side timeout (setTimeout + AbortController;
@@ -459,10 +486,13 @@ export const POST: APIRoute = async (context) => {
   if (newDeckName && deckId === null) {
     const { data: deck, error } = await createDeck(supabase, user.id, newDeckName);
     if (error) {
-      const taken = error.code === "23505";
-      return json(taken ? 409 : 500, {
-        error: taken ? DECK_NAME_TAKEN_MESSAGE : DECK_CREATE_FAILED_MESSAGE,
-      });
+      // Split into two returns rather than one with three ternaries, because the two arms now
+      // differ on a THIRD axis: a name taken by a real deck stays taken, so a repeat cannot
+      // help, while a failed insert is an ordinary transient write and its retry may well
+      // land — and it is the branch that has already paid for a generation.
+      return error.code === "23505"
+        ? json(409, { error: DECK_NAME_TAKEN_MESSAGE, retriable: false })
+        : json(500, { error: DECK_CREATE_FAILED_MESSAGE });
     }
     deckId = deck.id;
     deckPublicIdOut = deck.public_id;
@@ -471,6 +501,10 @@ export const POST: APIRoute = async (context) => {
   if (deckId === null) {
     // Defensive: every branch above sets deckId on the success path. Narrows the type
     // for insertCandidates and guards against a future branch forgetting to resolve it.
+    //
+    // Deliberately left unflagged rather than marked either way: it is unreachable by
+    // construction, so any `retriable` here would be a claim about a state nobody has
+    // observed. The default (retriable) is the fail-safe half of that non-decision.
     return json(500, { error: "Nie udało się ustalić talii docelowej" });
   }
 

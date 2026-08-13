@@ -123,9 +123,15 @@ export function GeneratorForm({ decks, languages }: Props) {
   const [status, setStatus] = React.useState<Status>("idle");
   const [error, setError] = React.useState<string | null>(null);
   const [result, setResult] = React.useState<SuccessResponse | null>(null);
-  // True once a real generation was attempted, so "Ponów" shows only for generation
-  // failures — never for a pure client-side validation error (a ref, read below,
-  // must not be accessed during render, hence a separate flag).
+  // Whether "Ponów" is offered — true once a real generation failed in a way a repeat
+  // could fix, never for a pure client-side validation error (a ref, read below, must not
+  // be accessed during render, hence a separate flag).
+  //
+  // Set from the ANSWER since 2026-08-13 (C10X-48). It used to be flipped true at the top
+  // of runGeneration, i.e. before the fetch — an assertion about a response nobody had read
+  // yet, which is why the endpoint's `retriable` flag existed for a year and was read
+  // nowhere. Every terminal error branch below now sets it; the success path leaves it
+  // alone, because the gate that reads it is `status === "error"`.
   const [canRetry, setCanRetry] = React.useState(false);
   // The last payload actually sent — "Ponów" re-issues it VERBATIM (FR-018), which is
   // load-bearing twice over: it is what makes the retry a retry for the user, and what
@@ -157,7 +163,6 @@ export function GeneratorForm({ decks, languages }: Props) {
 
   async function runGeneration(payload: GeneratePayload) {
     lastPayload.current = payload;
-    setCanRetry(true);
     setStatus("pending");
     setError(null);
     setResult(null);
@@ -176,6 +181,15 @@ export function GeneratorForm({ decks, languages }: Props) {
       });
       const data = (await res.json()) as SuccessResponse | ErrorResponse;
       if (!res.ok) {
+        // ABSENT MEANS RETRIABLE, and the asymmetry is deliberate (D-08). Only a minority of
+        // this endpoint's error returns carry the flag: it marks the ones a repeat provably
+        // cannot fix (the validation 400s, the 401, the 404, the name-taken 409s), and leaves
+        // every transient failure unflagged. Reading it strictly would therefore take "Ponów"
+        // away from every DB blip — including the card-insert failure whose retry now works by
+        // construction, i.e. an FR-018 regression shipped by the change that exists to protect
+        // FR-018. Same fail-safe rule lessons.md applies to gates: a forgotten flag must not
+        // silently disarm the affordance.
+        setCanRetry("retriable" in data ? data.retriable !== false : true);
         setError("error" in data ? data.error : "Nie udało się wygenerować fiszek. Spróbuj ponownie.");
         setStatus("error");
         return;
@@ -183,7 +197,10 @@ export function GeneratorForm({ decks, languages }: Props) {
       setResult(data as SuccessResponse);
       setStatus("done");
     } catch {
-      // AbortError (client timeout) or a network failure — both retriable.
+      // AbortError (client timeout) or a network failure. Retriable BY NATURE rather than by
+      // the flag — there is no body here to read one from, and the class is exactly the one
+      // the idempotency key exists for: the server may well have committed while we gave up.
+      setCanRetry(true);
       setError("Przekroczono czas oczekiwania lub błąd sieci. Spróbuj ponownie.");
       setStatus("error");
     } finally {
@@ -207,6 +224,24 @@ export function GeneratorForm({ decks, languages }: Props) {
     if (lastPayload.current) void runGeneration(lastPayload.current);
   }
 
+  /**
+   * Editing the form dismisses the failure — the BANNER and the retry gate together.
+   *
+   * The three inputs used to clear `error` alone (C10X-48). `status` stayed `"error"`, so the
+   * banner vanished while "Ponów" kept rendering, and clicking it re-sent `lastPayload`
+   * VERBATIM — silently discarding whatever the user had just typed, which is the one thing
+   * replaying the payload verbatim must never do.
+   *
+   * Guarded on `status === "error"` rather than clearing unconditionally: `"done"` renders the
+   * saved-candidate list below and typing must not wipe it. `"pending"` is unreachable from
+   * here — every input is `disabled` while a request is in flight.
+   */
+  function dismissError() {
+    if (!error) return;
+    setError(null);
+    if (status === "error") setStatus("idle");
+  }
+
   return (
     <div className="space-y-6">
       <form onSubmit={handleSubmit} className="space-y-5" noValidate>
@@ -219,7 +254,7 @@ export function GeneratorForm({ decks, languages }: Props) {
               value={deckChoice}
               onChange={(e) => {
                 setDeckChoice(e.target.value);
-                if (error) setError(null);
+                dismissError();
               }}
               disabled={pending}
               className={cn("h-9 w-full rounded-md border px-3 text-sm", fieldClass)}
@@ -282,7 +317,7 @@ export function GeneratorForm({ decks, languages }: Props) {
               value={newDeckName}
               onChange={(e) => {
                 setNewDeckName(e.target.value);
-                if (error) setError(null);
+                dismissError();
               }}
               placeholder="np. Biologia — fotosynteza"
               autoComplete="off"
@@ -301,7 +336,7 @@ export function GeneratorForm({ decks, languages }: Props) {
             value={sourceText}
             onChange={(e) => {
               setSourceText(e.target.value);
-              if (error) setError(null);
+              dismissError();
             }}
             placeholder="Wklej notatki, fragment podręcznika lub artykułu…"
             // Two different mechanisms on two different strings, deliberately (impl-review

@@ -751,35 +751,35 @@ Three things follow, and all three belong in the code rather than in memory:
 
 #### Automated
 
-- [x] 3.1 Type checking passes: `npm run typecheck`
-- [x] 3.2 Linting passes: `npm run lint`
-- [x] 3.3 Full suite still green, including the three existing idempotency controls: `npm test`
-- [x] 3.4 The existing replay-after-language-deactivation case still passes
-- [x] 3.5 Both existing duplicate-name cases still 409: `generate.test.ts:441` (populated) and `:805` (hand-made empty)
+- [x] 3.1 Type checking passes: `npm run typecheck` — 0f2aa17
+- [x] 3.2 Linting passes: `npm run lint` — 0f2aa17
+- [x] 3.3 Full suite still green, including the three existing idempotency controls: `npm test` — 0f2aa17
+- [x] 3.4 The existing replay-after-language-deactivation case still passes — 0f2aa17
+- [x] 3.5 Both existing duplicate-name cases still 409: `generate.test.ts:441` (populated) and `:805` (hand-made empty) — 0f2aa17
 
 #### Manual
 
-- [x] 3.6 Traced by hand: the row whose key was cleared is provably out of the partial index before the fall-through inserts its session
-- [x] 3.7 Traced by hand: an adopted deck leaves `createdDeckPublicId` null, so no failure branch below deletes a deck this request did not create
+- [x] 3.6 Traced by hand: the row whose key was cleared is provably out of the partial index before the fall-through inserts its session — 0f2aa17
+- [x] 3.7 Traced by hand: an adopted deck leaves `createdDeckPublicId` null, so no failure branch below deletes a deck this request did not create — 0f2aa17
 
 ### Phase 4: The island reads `retriable`
 
 #### Automated
 
-- [ ] 4.1 Type checking passes: `npm run typecheck`
-- [ ] 4.2 Linting passes: `npm run lint`
-- [ ] 4.3 Full suite still green: `npm test`
-- [ ] 4.4 Build passes: `npm run build`
+- [x] 4.1 Type checking passes: `npm run typecheck`
+- [x] 4.2 Linting passes: `npm run lint`
+- [x] 4.3 Full suite still green: `npm test`
+- [x] 4.4 Build passes: `npm run build`
 
 #### Manual
 
-- [ ] 4.5 A 502/422 still shows "Ponów"
-- [ ] 4.6 A transient 500 (unflagged — e.g. the card-insert failure) still shows "Ponów"
-- [ ] 4.7 A 400/401/404/409 (now `retriable: false`) hides "Ponów"
-- [ ] 4.8 A client-side validation error still hides "Ponów"
-- [ ] 4.9 A client timeout / offline still shows "Ponów"
-- [ ] 4.10 Typing after an error hides the banner and "Ponów" together
-- [ ] 4.11 A successful generation still renders its candidate list, and typing does not clear it
+- [x] 4.5 A 502/422 still shows "Ponów"
+- [x] 4.6 A transient 500 (unflagged — e.g. the card-insert failure) still shows "Ponów"
+- [x] 4.7 A 400/401/404/409 (now `retriable: false`) hides "Ponów"
+- [x] 4.8 A client-side validation error still hides "Ponów"
+- [x] 4.9 A client timeout / offline still shows "Ponów"
+- [x] 4.10 Typing after an error hides the banner and "Ponów" together
+- [x] 4.11 A successful generation still renders its candidate list, and typing does not clear it
 
 ### Phase 5: Proof, the breakage run, and the docs
 
