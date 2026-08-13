@@ -919,15 +919,15 @@ not involved.
 
 #### Automated
 
-- [x] 5.1 Every gate green: `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`
-- [x] 5.2 Markdown prettier-clean and idempotent (probe on scratchpad copies, `--config ./.prettierrc.json`)
-- [x] 5.3 No stale `owned by C10X-50` claim survives outside dated historical entries
+- [x] 5.1 Every gate green: `npm test`, `npm run typecheck`, `npm run lint`, `npm run build` — 5284b49
+- [x] 5.2 Markdown prettier-clean and idempotent (probe on scratchpad copies, `--config ./.prettierrc.json`) — 5284b49
+- [x] 5.3 No stale `owned by C10X-50` claim survives outside dated historical entries — 5284b49
 
 #### Manual
 
-- [x] 5.4 Six ownership targets resolved by heading and treated by kind; the correction-to-a-correction called out as unprecedented
-- [x] 5.5 Every "last of them" sentence carves out `signout.ts` / C10X-51
-- [x] 5.6 The three non-edits (§6.5, §2/§3, roadmap H-17) recorded rather than left as absences
-- [x] 5.7 `roadmap.md` H-18 row and detail block opened at `in progress`
-- [x] 5.8 `change.md` stamped and its "no test can reach these branches" claim corrected
-- [x] 5.9 `follow-ups/sentry-delivery.md` written — the unproven delivery half, its reason, and the two routes that would close it
+- [x] 5.4 Six ownership targets resolved by heading and treated by kind; the correction-to-a-correction called out as unprecedented — 5284b49
+- [x] 5.5 Every "last of them" sentence carves out `signout.ts` / C10X-51 — 5284b49
+- [x] 5.6 The three non-edits (§6.5, §2/§3, roadmap H-17) recorded rather than left as absences — 5284b49
+- [x] 5.7 `roadmap.md` H-18 row and detail block opened at `in progress` — 5284b49
+- [x] 5.8 `change.md` stamped and its "no test can reach these branches" claim corrected — 5284b49
+- [x] 5.9 `follow-ups/sentry-delivery.md` written — the unproven delivery half, its reason, and the two routes that would close it — 5284b49
