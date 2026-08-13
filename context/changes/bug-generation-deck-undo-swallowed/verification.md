@@ -164,3 +164,254 @@ on three fresh seeds (§2).
   `GeneratorForm` and removes the "Ponów" button rests on Phase 3's browser check.
 - **C10X-50 owns the two remaining swallowed `await`s** in `generate.ts` (the failure-path
   `createGenerationSession` inserts at `:426` and `:477`).
+
+## 6. The reachability run (manual, uncommitted, DCL) — Phase 3
+
+The half no committed test covers, and the half no committed test **can** cover (§1): that
+`/api/generate` reaches this branch at all and answers with the new body. Driven by hand on
+2026-08-13 against the local stack, with the suite **not** running, through the app in a real
+browser — never through a temporary spec, because Phase 3 also has to observe what the ISLAND does
+with the response and that observation only exists in a browser.
+
+The account is a throwaway created for this run through the real sign-up form,
+`c10x49-phase3@example.com`, holding **zero decks** at the start. Fresh rather than the e2e
+harness account deliberately: this run is designed to LEAVE an orphan deck behind (D-01 —
+detection, not deletion), and parking that artifact on an account the e2e layer signs into every
+run would be leaving litter in someone else's fixture. Same reasoning as C10X-48's throwaway
+accounts, one surface over.
+
+**Environment, checked before a single privilege was touched** — because the next command was a
+`revoke` and this project's own rule is that every non-local seam must be closed before, not
+after: `SUPABASE_URL=http://127.0.0.1:54321`, the cloud credentials parked under the `PROD_`
+prefix, **no `.dev.vars`** (which would otherwise outrank `.env`), and `OPENROUTER_API_KEY` unset —
+confirmed independently in the browser by the mock-mode banner on every page.
+
+### 6.1 Grants BEFORE
+
+`information_schema.role_table_grants`, `grantee='authenticated'`:
+
+```
+deck|DELETE INSERT REFERENCES SELECT TRIGGER TRUNCATE UPDATE
+flashcard|DELETE INSERT REFERENCES SELECT TRIGGER TRUNCATE UPDATE
+generation_session|DELETE INSERT REFERENCES SELECT TRIGGER TRUNCATE UPDATE
+```
+
+`flashcard` is dumped alongside the two tables this run touches and is never touched by it — it is
+the untouched sibling the `relacl` oracle in §6.5 compares against.
+
+### 6.2 Two revokes, not one
+
+```sql
+revoke insert on public.generation_session from authenticated;
+revoke delete on public.deck from authenticated;
+```
+
+Either alone reproduces nothing. The first is what makes the `generation_session` insert at
+`:531` fail — without it the handler never enters the `if (sessionError)` block at all. The second
+is what makes the compensating `deleteDeck` fail **on top of it** — without it the undo succeeds,
+`deckUndone` stays `true`, and the handler returns the ordinary `sessionFailure`, which is
+precisely the control in §6.4.
+
+Dump taken **while revoked**, confirming the two removals and nothing else:
+
+```
+deck|INSERT REFERENCES SELECT TRIGGER TRUNCATE UPDATE
+flashcard|DELETE INSERT REFERENCES SELECT TRIGGER TRUNCATE UPDATE
+generation_session|DELETE REFERENCES SELECT TRIGGER TRUNCATE UPDATE
+```
+
+`deck` keeps **INSERT**, which is load-bearing rather than incidental: `createDeck` must still
+succeed or `createdDeckPublicId` stays null and the undo never runs. `has_table_privilege` while
+revoked: `generation_session.INSERT` **f**, `deck.DELETE` **f**, `deck.INSERT` **t**.
+
+### 6.3 The provocation, and why it is recorded as two runs rather than one
+
+| Run    | Deck name           | Driven by                       | What it records                            |
+| ------ | ------------------- | ------------------------------- | ------------------------------------------ |
+| **X**  | `C10X-49 orphan X`  | the real form, clicking Generuj | the ISLAND half — banner, button, selector |
+| **X2** | `C10X-49 orphan X2` | `fetch` from the page context   | the WIRE half — status and raw body        |
+
+**Both ran on the identical revoked state, through the same handler, and produced the same
+branch.** The split is recorded honestly rather than glossed: network capture was not armed when
+run X's button was clicked, so **run X's raw body was never captured on the wire** and this
+document does not claim it was. What X gives is the rendered banner (§6.6); what X2 gives is the
+byte-level body. A repeat under X could not have supplied it — `generate.ts:362` stops a second
+request under an existing name with `409 "Talia o tej nazwie już istnieje"` before `createDeck`,
+before `:531` and before the undo, i.e. it would have measured the name pre-check rather than this
+branch. That is the same constraint plan-review F3 identified for the control run, met the same
+way: a fresh name.
+
+The cost, stated rather than left to be noticed: this run leaves **two** orphan decks, not one.
+Both are the artifact of record and both are deliberately left in place.
+
+**Run X2, verbatim on the wire:**
+
+```
+status       = 500
+content-type = application/json
+body         = {"error":"Nie udało się zapisać sesji generacji, a pusta talia o tej nazwie mogła zostać utworzona. Jeśli tak, odśwież stronę i wybierz ją z listy talii albo zmień nazwę i spróbuj ponownie.","retriable":false}
+```
+
+That is Phase 1's literal, carrying **`retriable: false`** — so the failure this ticket was
+reported for is now nameable in the response, which before this change it was not, on any channel
+at all (nothing in `src/` writes a log line and nothing in this project reads a log sink).
+
+**The rows, read directly in psql** rather than summarised:
+
+```
+name              |public_id                            |cards
+C10X-49 orphan X  |90f08eac-9757-4778-8d21-a6ee0886ffbb |0
+C10X-49 orphan X2 |4ecb548f-a92c-4c8f-91ae-303ee5dd106b |0
+
+generation_session rows for this account: 0
+```
+
+Both decks exist with **zero cards** and there is **no session row at all** — the session insert
+failed, and the deck undo failed on top of it. That is the orphan this ticket is about, produced
+by the shipped endpoint.
+
+### 6.4 The control run — one variable, and a different answer
+
+`grant delete on public.deck to authenticated;` and **nothing else**, leaving
+`revoke insert on public.generation_session` in place:
+
+```
+deck|DELETE INSERT REFERENCES SELECT TRIGGER TRUNCATE UPDATE
+generation_session|DELETE REFERENCES SELECT TRIGGER TRUNCATE UPDATE
+```
+
+Same shape of request, fresh idempotency key, fresh name **Y** (`C10X-49 control Y`):
+
+```
+status = 500
+body   = {"error":"Nie udało się zapisać sesji generacji"}
+```
+
+The **ordinary** `sessionFailure` — the `:554` default — with **no `retriable` field at all**,
+which under D-08's absent-means-retriable rule is exactly right for a failure a repeat can fix.
+And in the database:
+
+```
+select count(*) from deck where name = 'C10X-49 control Y';  →  0
+```
+
+**No deck Y anywhere in the database**, so the undo ran and landed. This is the half a single run
+cannot give: without it, a message that fires on every failure is indistinguishable from one that
+fires on the right failure — the unfalsifiable-rehearsal class the C10X-29 entry records. The
+runs differ in exactly one privilege and answer with two different bodies and two different
+database outcomes.
+
+### 6.5 Restore, verified by three oracles rather than by memory
+
+`grant insert on public.generation_session to authenticated;` (`delete on public.deck` was already
+re-granted by §6.4, so all three oracles cover **both** tables rather than only the one this step
+touches):
+
+1. **`information_schema` projection — identical to the §6.1 BEFORE dump, line for line**, all
+   three tables back to `DELETE INSERT REFERENCES SELECT TRIGGER TRUNCATE UPDATE`.
+2. **Raw ACL from `pg_class.relacl`, carrying its own control** — a different catalogue and a
+   different projection, compared against the sibling table the run never touched:
+
+   ```
+   deck               |{postgres=arwdDxtm/postgres,authenticated=arwdDxtm/postgres,service_role=arwdDxtm/postgres}
+   flashcard          |{postgres=arwdDxtm/postgres,authenticated=arwdDxtm/postgres,service_role=arwdDxtm/postgres}
+   generation_session |{postgres=arwdDxtm/postgres,authenticated=arwdDxtm/postgres,service_role=arwdDxtm/postgres}
+   ```
+
+   Byte for byte identical across all three.
+
+3. **Behaviourally** — `has_table_privilege('authenticated','public.generation_session','INSERT')`
+   and `…('public.deck','DELETE')` both **t**.
+
+Then the fourth, behavioural check the three catalogue reads cannot give: the full suite, which
+exercises both grants on every generation case — **437 passed / 437, 36 files**, seed
+`1786630893316`, exit 0. `git diff -- src/` and `git diff -- supabase/` both **empty**: the whole
+provocation was DCL against a running container, so it is uncommitted and unpushable by
+construction.
+
+### 6.6 The browser observations
+
+Run on step X's state, **before either re-grant** (plan-review F3): once `delete on public.deck`
+comes back the state these observations need no longer exists.
+
+**The banner.** Transcribed from the DOM rather than screenshotted alone, because the transcription
+is the stronger record and because §6.11's trap applies here — this page carries **two**
+`[role="alert"]` nodes, the OpenRouter mock-mode banner first in DOM order, so an unscoped
+`querySelector('[role="alert"]')` reads the wrong one. Both were enumerated:
+
+```
+[role=alert] #1: "Uwaga: OpenRouter nie jest skonfigurowany — generacja fiszek działa w trybie mock…"
+[role=alert] #2: "Nie udało się zapisać sesji generacji, a pusta talia o tej nazwie mogła zostać
+                  utworzona. Jeśli tak, odśwież stronę i wybierz ją z listy talii albo zmień nazwę
+                  i spróbuj ponownie."
+```
+
+**"Ponów" is ABSENT**, and asserted as absence from the whole document rather than from a
+screenshot's viewport:
+
+```
+buttons in document: ["Wyloguj", "", "Generuj"]     ("" is the sidebar collapse toggle)
+document.body.innerHTML.includes('Ponów')  →  false
+```
+
+So `retriable: false` reached the island and removed the affordance. This is the observation the
+plan calls load-bearing: `GeneratorForm.tsx:192` reads `data.retriable !== false`, so a flag that
+failed to arrive would leave the button rendering, and nothing else in this change would have
+caught that.
+
+**How the long literal wraps** (recorded because `ServerError` renders `items-center` with no
+`break-words`, so it was worth checking rather than assuming): at 1440px it wraps at word
+boundaries onto **two lines** inside the banner box, left-aligned beside the alert icon, with no
+overflow and no mid-word break.
+
+**The recovery route the copy promises, executed in the copy's own order** — read the banner,
+_then_ reload, _then_ open the selector. Doing it in that order is what makes the observation
+mean anything (plan-review F4): reloading first is the reflex, and it would make the result
+vacuous, because the deck list is a PROP re-read on every render and the deck would be there
+whatever the copy said.
+
+| Moment                           | `Talia docelowa` options                                |
+| -------------------------------- | ------------------------------------------------------- |
+| **Before** the reload, banner up | `+ Nowa talia` — and nothing else                       |
+| **After** the reload             | `C10X-49 orphan X2`, `C10X-49 orphan X`, `+ Nowa talia` |
+
+The pre-reload absence is the mechanism the word `odśwież` exists for, observed rather than
+argued: `generate.astro` reads `listDecks` in the frontmatter and hands `decks` to the island as a
+prop, the orphan is created DURING the failing request, i.e. after that render, so it is genuinely
+not in the selector the user is looking at.
+
+**And it is the orphan row itself, not a label that happens to match**: the selected option's
+`value` is `90f08eac-9757-4778-8d21-a6ee0886ffbb`, the same `public_id` psql reported in §6.3.
+Selecting it switches the form to the existing-deck path and the "Nazwa nowej talii" field yields
+to it — so the route the copy promises is real end to end, which matters more than usual here
+because with no button on the banner **the copy is the user's only way out**.
+
+### 6.7 What this run proves, and what it does not
+
+- **It proves the ERROR arm only.** With `delete on public.deck` revoked the compensating DELETE
+  returns an **error**, so `deckUndone` goes false down the `deleteError` branch. The **zero-row**
+  arm — `{ data: null, error: null }`, the case `.maybeSingle()` exists for and the one `if
+(error)` alone would still swallow — is proved instead by the committed cross-account test in
+  §3, which is the stronger evidence of the two because it runs on every `npm test` where this is
+  a one-off observation nothing re-checks. This is the same boundary C10X-48 drew, and here it is
+  the expected one: the plan predicted (research §6) that the realistic failing arm at this call
+  site is `error`, the inverse of the sibling branch.
+- **It proves the endpoint reaches the branch and answers with the new body. It proves nothing
+  about the orphan going away**, because it does not: deck X is still there afterwards and is
+  meant to be (D-01).
+- **Nothing bridges §3 and §6.** The suite owns the helper's contract; this run owns the
+  endpoint's use of it; no test in this project can join them, for the structural reason §1 gives.
+- **It is one observation, not a regression guard.** Nothing re-runs it, and a future edit to this
+  branch will not turn anything red.
+
+## 7. Still open after Phase 3
+
+- **The orphan decks survive**, by decision (D-01): `C10X-49 orphan X` and `C10X-49 orphan X2` are
+  left in the local dev DB on the throwaway account `c10x49-phase3@example.com`. They are the
+  artifact of record, not litter, and nothing else can reach that account.
+- **The endpoint branch still has no automated witness** — §1 and §6.7. Phase 3 is evidence, not
+  coverage.
+- **The zero-row arm of this call site is covered only at the HELPER layer** (§3), never at the
+  endpoint.
+- **C10X-50 owns the two remaining swallowed `await`s** in `generate.ts` (the failure-path
+  `createGenerationSession` inserts at `:426` and `:477`).

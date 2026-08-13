@@ -613,29 +613,29 @@ committed and never pushed.
 
 #### Automated
 
-- [x] 2.1 New case passes; suite green on a fresh un-pinned seed
-- [x] 2.2 Suite total re-measured by running the file, not by arithmetic
-- [x] 2.3 Breakage run recorded with observed string, split and denominator; two predicted reds, both positive controls green
-- [x] 2.4 Restore verified by `md5sum`; `git diff -- src/` empty
+- [x] 2.1 New case passes; suite green on a fresh un-pinned seed — f9052a8
+- [x] 2.2 Suite total re-measured by running the file, not by arithmetic — f9052a8
+- [x] 2.3 Breakage run recorded with observed string, split and denominator; two predicted reds, both positive controls green — f9052a8
+- [x] 2.4 Restore verified by `md5sum`; `git diff -- src/` empty — f9052a8
 
 #### Manual
 
-- [x] 2.5 Phase records that the endpoint fix has no automated witness
+- [x] 2.5 Phase records that the endpoint fix has no automated witness — f9052a8
 
 ### Phase 3: Reachability — one recorded DCL run, and the promise the copy makes
 
 #### Automated
 
-- [ ] 3.1 `npm test` green after the restore
+- [x] 3.1 `npm test` green after the restore
 
 #### Manual
 
-- [ ] 3.2 Provocation run's response body recorded verbatim, carrying the new literal
-- [ ] 3.3 Orphan deck X and absent session row read in psql and recorded
-- [ ] 3.4 Control run under a fresh name Y recorded: ordinary message, no deck Y
-- [ ] 3.5 All three restore oracles recorded as passing, for both tables
-- [ ] 3.6 Banner recorded: new message, "Ponów" absent
-- [ ] 3.7 Orphan deck visible in the deck selector after the reload the copy instructs
+- [x] 3.2 Provocation run's response body recorded verbatim, carrying the new literal
+- [x] 3.3 Orphan deck X and absent session row read in psql and recorded
+- [x] 3.4 Control run under a fresh name Y recorded: ordinary message, no deck Y
+- [x] 3.5 All three restore oracles recorded as passing, for both tables
+- [x] 3.6 Banner recorded: new message, "Ponów" absent
+- [x] 3.7 Orphan deck visible in the deck selector after the reload the copy instructs
 
 ### Phase 4: Doc-sync
 
