@@ -903,31 +903,31 @@ not involved.
 
 #### Automated
 
-- [x] 4.1 Full suite green after every restore: `npm test`
-- [x] 4.2 No committed residue from the temporary spec (`git status --porcelain -uall`, marker grep)
-- [x] 4.3 Grants restored: `information_schema` projection matches line for line; `has_table_privilege` is `t`
+- [x] 4.1 Full suite green after every restore: `npm test` — a607096
+- [x] 4.2 No committed residue from the temporary spec (`git status --porcelain -uall`, marker grep) — a607096
+- [x] 4.3 Grants restored: `information_schema` projection matches line for line; `has_table_privilege` is `t` — a607096
 
 #### Manual
 
-- [x] 4.4 Site A: failed-audit 502 on the wire, no row in `psql`, plus the one-privilege-apart control
-- [x] 4.5 Site B: the same pair at 422, via the temporary spec, then deleted
-- [x] 4.6 Sentry confirmed a local no-op that does not disturb the response path — recorded as incidental, not as delivery
-- [x] 4.7 Throwaway account and artifacts named in `verification.md`
-- [x] 4.8 The §6.9 second-double deviation recorded on its own terms in `verification.md`, and explicitly not as precedent
+- [x] 4.4 Site A: failed-audit 502 on the wire, no row in `psql`, plus the one-privilege-apart control — a607096
+- [x] 4.5 Site B: the same pair at 422, via the temporary spec, then deleted — a607096
+- [x] 4.6 Sentry confirmed a local no-op that does not disturb the response path — recorded as incidental, not as delivery — a607096
+- [x] 4.7 Throwaway account and artifacts named in `verification.md` — a607096
+- [x] 4.8 The §6.9 second-double deviation recorded on its own terms in `verification.md`, and explicitly not as precedent — a607096
 
 ### Phase 5: Doc-sync and bookkeeping
 
 #### Automated
 
-- [ ] 5.1 Every gate green: `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`
-- [ ] 5.2 Markdown prettier-clean and idempotent (probe on scratchpad copies, `--config ./.prettierrc.json`)
-- [ ] 5.3 No stale `owned by C10X-50` claim survives outside dated historical entries
+- [x] 5.1 Every gate green: `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`
+- [x] 5.2 Markdown prettier-clean and idempotent (probe on scratchpad copies, `--config ./.prettierrc.json`)
+- [x] 5.3 No stale `owned by C10X-50` claim survives outside dated historical entries
 
 #### Manual
 
-- [ ] 5.4 Six ownership targets resolved by heading and treated by kind; the correction-to-a-correction called out as unprecedented
-- [ ] 5.5 Every "last of them" sentence carves out `signout.ts` / C10X-51
-- [ ] 5.6 The three non-edits (§6.5, §2/§3, roadmap H-17) recorded rather than left as absences
-- [ ] 5.7 `roadmap.md` H-18 row and detail block opened at `in progress`
-- [ ] 5.8 `change.md` stamped and its "no test can reach these branches" claim corrected
-- [ ] 5.9 `follow-ups/sentry-delivery.md` written — the unproven delivery half, its reason, and the two routes that would close it
+- [x] 5.4 Six ownership targets resolved by heading and treated by kind; the correction-to-a-correction called out as unprecedented
+- [x] 5.5 Every "last of them" sentence carves out `signout.ts` / C10X-51
+- [x] 5.6 The three non-edits (§6.5, §2/§3, roadmap H-17) recorded rather than left as absences
+- [x] 5.7 `roadmap.md` H-18 row and detail block opened at `in progress`
+- [x] 5.8 `change.md` stamped and its "no test can reach these branches" claim corrected
+- [x] 5.9 `follow-ups/sentry-delivery.md` written — the unproven delivery half, its reason, and the two routes that would close it
