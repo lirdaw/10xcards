@@ -1,7 +1,7 @@
 ---
 change_id: bug-generation-deck-undo-swallowed
 title: Check the deleteDeck undo after a failed generation-session insert
-status: plan_reviewed
+status: implementing
 created: 2026-08-13
 updated: 2026-08-13
 archived_at: null

@@ -549,8 +549,15 @@ export const POST: APIRoute = async (context) => {
     // request 1 committed — its cards DID land — so this is a replay, not a failure.
     // Without this branch the user sees an error while holding a full set of candidates.
     //
-    // What this branch answers when it does NOT return a replay. Built up rather than
-    // returned early, so the deck undo below still runs on every one of these paths.
+    // What this branch answers when it does NOT return a replay. Built up rather than returned
+    // early, so the deck undo below runs on every one of these paths — with ONE exception,
+    // found by C10X-49's research and recorded in no prior document: `return outcome.response`
+    // in the replay arm below DOES return early, so both of `replaySession`'s answered outcomes
+    // (the 200 replay and its own 500) bypass the undo. Left as CODE deliberately and fixed
+    // only as this sentence: on the 200 arm the deck that would be deleted is the deck the
+    // response is handing back, and the combination is ~unreachable anyway — a 23505 here needs
+    // an earlier request with the same key, hence the same `newDeckName`, to have committed,
+    // and `deck_user_name_unique` stops any such request before it can create a deck of its own.
     let sessionFailure: { error: string; retriable?: boolean } = { error: "Nie udało się zapisać sesji generacji" };
     if (idempotencyKey && sessionError.code === "23505") {
       const { data: won, error: wonError } = await findSucceededSessionByIdempotencyKey(supabase, idempotencyKey);
@@ -585,18 +592,59 @@ export const POST: APIRoute = async (context) => {
     // one step further down. Safe and provably empty here: no cards were inserted on this
     // path and generation_session carries no deck FK.
     //
-    // Still best-effort — and as of 2026-08-13 (C10X-48) that is an EXCEPTION rather than
-    // house style. This line used to justify itself "Best-effort, like failGenerationSession",
-    // an analogy that has since inverted: the compensation is now a checked write
-    // (`retireGenerationSession`), so the symbol this deferred to no longer defers to
-    // anything. Do not read the inversion backwards and re-swallow the compensation to
-    // restore the symmetry — the fix is to check THIS await too, and it belongs to C10X-49,
-    // which owns this branch and its tests. The other exceptions left in the file are the two
-    // failure-path `createGenerationSession` inserts, owned by C10X-50.
+    // CHECKED as of 2026-08-13 (C10X-49). This line used to justify itself "Best-effort, like
+    // failGenerationSession", an analogy that inverted when C10X-48 made the compensation a
+    // checked write (`retireGenerationSession`) and the symbol it deferred to stopped deferring
+    // to anything. Do not read that inversion backwards and re-swallow the compensation to
+    // restore the symmetry — the fix was to check THIS await too, and it is checked below. The
+    // exceptions left in this file are the two failure-path `createGenerationSession` inserts,
+    // owned by C10X-50.
+    //
+    // Both arms are read, per lessons.md: under RLS a zero-row DELETE resolves
+    // `{ data: null, error: null }`, so `if (error)` alone would still swallow one of them.
+    // Here the realistic arm is `error` — the INVERSE of the sibling branch below, because the
+    // deck was created by this same client one round-trip earlier, so a zero-row DELETE needs
+    // the row to have vanished in between (research §6). `true` is the default because an undo
+    // that never ran has not failed: `createdDeckPublicId` is null on the existing-deck and
+    // adopted paths.
+    let deckUndone = true;
     if (createdDeckPublicId) {
-      await deleteDeck(supabase, createdDeckPublicId);
+      const { data: deleted, error: deleteError } = await deleteDeck(supabase, createdDeckPublicId);
+      deckUndone = !deleteError && deleted !== null;
     }
-    return json(500, sessionFailure);
+    if (deckUndone) {
+      return json(500, sessionFailure);
+    }
+    // Inline literal, alongside its siblings in this handler — deliberately NOT a member of
+    // REDIRECT_MESSAGES, whose members are values the deck pages render out of a URL and whose
+    // size is pinned. It REPAIRS NOTHING: the orphan deck survives a failed undo however loudly
+    // it is reported, and the response is the ONLY witness there is (nothing in `src/` writes a
+    // log line and nothing here reads a log sink — test-plan §7).
+    //
+    // `retriable: false` is deliberate — and NOT this handler's first on a 500, a claim the
+    // plan made and the manual read caught: the unconfigured-Supabase 500 above already carries
+    // it, and the convention docblock names it. What is new here is the KIND of 500 — that one
+    // refuses before any work, where this one has paid for a generation and written nothing —
+    // so the flag has to be argued rather than inherited. "Ponów"
+    // replays `lastPayload` VERBATIM (GeneratorForm.tsx:224) — same key, same `newDeckName` —
+    // and on this arm the orphan deck now exists, so the replay finds no keyed session, leaves
+    // `healedKey` false, meets the orphan at `deckNameExists` and returns a 409 `retriable:
+    // false` deterministically. The flag marks the ones a repeat provably cannot fix. So the
+    // banner carries no button and this sentence is the user's ONLY route out — `odśwież
+    // stronę` included, because the deck list is a PROP read in generate.astro's frontmatter
+    // and the orphan was created after that render, i.e. it is not in the selector on screen. A
+    // future edit that shortens this copy must move the flag back in the same commit.
+    //
+    // The hedge (`mogła` / `Jeśli tak`) is load-bearing rather than soft: `deckUndone` is false
+    // on two arms that contradict each other in the database — on the `error` arm the deck is
+    // there, on the zero-row arm the DELETE matched nothing, i.e. it is already gone. One
+    // literal covers both, so tightening the wording means splitting the arms, which means
+    // splitting `retriable` too.
+    return json(500, {
+      error:
+        "Nie udało się zapisać sesji generacji, a pusta talia o tej nazwie mogła zostać utworzona. Jeśli tak, odśwież stronę i wybierz ją z listy talii albo zmień nazwę i spróbuj ponownie.",
+      retriable: false,
+    });
   }
 
   const { error: cardsError } = await insertCandidates(supabase, deckId, session.id, result.cards);
