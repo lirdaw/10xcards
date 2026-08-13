@@ -341,6 +341,19 @@ export const POST: APIRoute = async (context) => {
     // which there are none, so from the poisoned session the deck is unreachable by
     // construction.
     //
+    // WHAT THIS BUYS IS THE HEALED ATTEMPT, NOT THE CLASS (impl-review F2, 2026-08-13). The
+    // heal is single-use by construction: `healedKey` is request-local and the key is cleared
+    // ABOVE, before the LLM call. So any failure between the heal and a committed session —
+    // the 502/422, either read 500 here, the deck-create 500, the session-insert 500 — forfeits
+    // the heal permanently while the orphan deck survives, and the NEXT retry arrives with no
+    // key, `healedKey` false, and meets the 409 below. Strictly better than the permanent 500
+    // it replaces, and recoverable (the orphan is a real owned deck: pick it from the deck
+    // selector, or rename), but do not read the paragraph above as closing the class.
+    // Deferring the clear to just before `createGenerationSession` would close it, at the cost
+    // of discovering a failed clear only AFTER a paid generation — the cost bound this file
+    // calls the safety property. That trade was weighed and declined; see the change's
+    // `verification.md` § "What is NOT proved here".
+    //
     // GATED ON THE HEAL, NEVER ON EMPTINESS ALONE. An empty deck the user made by hand is not
     // an orphan, and adopting it would silently generate into somebody's deliberately-empty
     // deck; tests/generation/generate.test.ts pins that ordinary 409 with a deck created
@@ -406,6 +419,10 @@ export const POST: APIRoute = async (context) => {
     const rawRequest = err instanceof OpenRouterError ? err.rawRequest : null;
     const rawResponse = err instanceof OpenRouterError ? err.rawResponse : null;
     const message = err instanceof Error ? err.message : "Nieznany błąd generacji";
+    // Result deliberately unchecked — one of the two exceptions this file still carries, and
+    // it is owned by C10X-50. Annotated HERE rather than only at the deck undo below, because
+    // an unannotated bare `await` on a write now reads as an instance of the very rule this
+    // change wrote into lessons.md (impl-review F5).
     await createGenerationSession(supabase, {
       user_id: user.id,
       source_text: sourceText,
@@ -455,6 +472,8 @@ export const POST: APIRoute = async (context) => {
   // --- 0-saved boundary: OpenRouter answered but nothing passed Zod. Treat as a
   // failure (session failed + audit), no cards inserted, retriable error (FR-018).
   if (saved === 0) {
+    // Result deliberately unchecked — the second of this file's two exceptions, owned by
+    // C10X-50, same reasoning as the twin in the catch block above (impl-review F5).
     await createGenerationSession(supabase, {
       user_id: user.id,
       source_text: sourceText,

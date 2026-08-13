@@ -3,9 +3,9 @@ import { experimental_AstroContainer as AstroContainer } from "astro/container";
 import * as CreateDeck from "@/pages/api/decks/index";
 import * as Generate from "@/pages/api/generate";
 import { listDecks } from "@/lib/decks";
-import { deckIdByPublicId } from "@/lib/flashcards";
+import { deckIdByPublicId, STATE_GENERATED } from "@/lib/flashcards";
 import { SOURCE_MAX, COUNT_MIN, COUNT_MAX } from "@/lib/generation-limits";
-import { clearSessionIdempotencyKey, retireGenerationSession } from "@/lib/generations";
+import { clearSessionIdempotencyKey, retireGenerationSession, SOURCE_AI } from "@/lib/generations";
 import { accountA, accountB } from "../fixtures/accounts";
 import { callEndpoint } from "../fixtures/endpoint";
 import { PROMPT_LANGUAGE_NAMES } from "../fixtures/language-names";
@@ -1011,6 +1011,7 @@ const EMPTIED_TEXT = `${mark("emptied-replay")} Tekst po skasowaniu kart przez u
 const ZERO_ROW_CLEAR_TEXT = `${mark("zero-row-clear")} Tekst do odblokowania klucza spoza konta`;
 const ZERO_ROW_RETIRE_TEXT = `${mark("zero-row-retire")} Tekst do kompensacji spoza konta`;
 const ADOPTION_TEXT = `${mark("adopted-deck")} Tekst dla adoptowanej talii`;
+const OCCUPIED_TEXT = `${mark("occupied-deck")} Tekst dla talii, która ma już karty`;
 
 describe("/api/generate heals a key whose session has no cards behind it", () => {
   it("clears a POISONED key and generates, instead of 500ing on it forever", async () => {
@@ -1099,6 +1100,10 @@ describe("/api/generate heals a key whose session has no cards behind it", () =>
     expect(after.error_message).toBeNull();
 
     expect(await cardsOf(ownDeck)).toHaveLength(COUNT);
+    // By `generation_id`, per Phase 5 §1's oracle constraint: a length alone would also be
+    // satisfied by the ORIGINAL cards having survived the delete. One session id proves these
+    // are the healed run's cards and nothing else's.
+    expect(new Set((await cardsOf(ownDeck)).map((card) => card.generation_id)).size).toBe(1);
     expect(await allSessions(EMPTIED_TEXT)).toHaveLength(2);
   });
 
@@ -1189,6 +1194,64 @@ describe("/api/generate heals a key whose session has no cards behind it", () =>
     expect(await decksNamed(deckName)).toHaveLength(1);
 
     expect(await cardsOf(orphanPublicId)).toHaveLength(COUNT);
+    expect(new Set((await cardsOf(orphanPublicId)).map((card) => card.generation_id)).size).toBe(1);
+    expect((await sessionById(poisonedId)).idempotency_key).toBeNull();
+  });
+
+  it("refuses to adopt a deck that HOLDS cards, even on the healed path", async () => {
+    // The adoption rule has TWO boundaries and the case above pins only one. That one proves
+    // the gate is the healed path rather than emptiness; this one proves emptiness is still
+    // required once you are on it. Without it `if (count !== 0)` is unfalsifiable — measured
+    // by impl-review, which neutered it to `if (false)` and got 0 of 434 red.
+    //
+    // The card is seeded `generated`, NOT `accepted`, and that is the whole point of the
+    // case. `countFlashcards` filters `state_id = STATE_ACCEPTED`, so a deck holding nothing
+    // but un-reviewed AI candidates reads as 0 through it — the trap
+    // `countFlashcardsInAnyState` was written for (src/lib/flashcards.ts). An `accepted` card
+    // would leave BOTH helpers answering 1 and the case would pass over the wrong one; a
+    // `generated` card turns the helper swap red as well as the missing guard.
+    //
+    // What is being protected is the user's data: adopting here would drop a fresh candidate
+    // set into a deck they are still reviewing, silently mixing two sessions.
+    // NOT "Zajęta talia …" — that exact name is the ordinary-409 control above, and
+    // `deck_user_name_unique` would make this setup fail rather than this case.
+    const key = crypto.randomUUID();
+    const deckName = `Talia z kartami ${suffix}`;
+    const occupiedPublicId = await createDeck(deckName);
+    const poisonedId = await seedSucceededSession(OCCUPIED_TEXT, key);
+
+    const client = clientFor(a.cookieHeader);
+    const { data: deck, error: deckError } = await deckIdByPublicId(client, occupiedPublicId);
+    expect(deckError).toBeNull();
+    if (!deck) throw new Error(`Setup failed: deck ${occupiedPublicId} is not readable as its owner.`);
+    const { error: seedCardError } = await client.from("flashcard").insert({
+      deck_id: deck.id,
+      front: `Kandydat w zajętej talii ${suffix}`,
+      back: "Tył kandydata",
+      state_id: STATE_GENERATED,
+      source_id: SOURCE_AI,
+    });
+    expect(seedCardError).toBeNull();
+    expect(await cardsOf(occupiedPublicId)).toHaveLength(1);
+
+    const response = await generate({
+      newDeckName: deckName,
+      sourceText: OCCUPIED_TEXT,
+      language: "auto",
+      count: COUNT,
+      idempotencyKey: key,
+    });
+    // Status is a real discriminator here — this is a JSON endpoint, so a refusal and a
+    // success do not share it (§6.10's equality rule is for the redirect-style targets).
+    expect(response.status).toBe(409);
+    await expectErrorBody(response);
+
+    // Row-based, never status-based (§6.2): the refusal must also have written nothing.
+    expect(await cardsOf(occupiedPublicId)).toHaveLength(1);
+    expect(await allSessions(OCCUPIED_TEXT)).toHaveLength(1);
+    // The key IS already cleared by the time this 409 returns — the heal runs above deck
+    // resolution — so a repeat arrives as an ordinary request and meets the same 409. That
+    // is the intended terminal state here: the name really is taken.
     expect((await sessionById(poisonedId)).idempotency_key).toBeNull();
   });
 });

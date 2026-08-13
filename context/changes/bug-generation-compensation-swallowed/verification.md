@@ -205,16 +205,79 @@ both helpers"), which drives account B's client at account A's session under RLS
 stronger evidence of the two: it is a regression guard that runs on every `npm test`, where this is
 a one-off observation nothing re-checks.
 
+## 3b. Manual browser matrix (Phase 4)
+
+> **Added 2026-08-13 by impl-review F3, and it is UNFILLED until someone re-runs it.** Criteria
+> 4.5–4.11 were checked off against commit `dd7439f`, but the observations were recorded nowhere:
+> §4 below pointed at "the browser matrix recorded against Phase 4's Progress rows", and those
+> rows carry a checkbox and a sha while `dd7439f` has no commit body. That pointer was circular,
+> which is the pointer-rot class `test-plan.md` §8 keeps recording in other people's documents.
+> The house standard is one change over —
+> `context/archive/2026-07-31-deck-form-hardening/verification.md:21` carries a real per-row
+> browser section. **Nothing here claims the checks were not performed; the claim is only that
+> nothing on disk evidenced them.**
+>
+> Driven against `npm run dev` (localhost:4321), signed in, local stack up, `OPENROUTER_API_KEY`
+> unset (so generation is mock). The island half is unreachable from every automated layer this
+> project has (test-plan §7), so this table is the only evidence these seven criteria can ever
+> have.
+
+| #    | Criterion                                                                                                              | Observed  | ✓/✗ |
+| ---- | ---------------------------------------------------------------------------------------------------------------------- | --------- | --- |
+| 4.5  | A 502/422 still shows "Ponów"                                                                                          | _to fill_ |     |
+| 4.6  | A transient 500 (unflagged — e.g. the card-insert failure) still shows "Ponów" — the case plan-review F3 was raised on | _to fill_ |     |
+| 4.7  | A 400/401/404/409 (now `retriable: false`) hides "Ponów"                                                               | _to fill_ |     |
+| 4.8  | A client-side validation error still hides "Ponów"                                                                     | _to fill_ |     |
+| 4.9  | A client timeout / offline still shows "Ponów"                                                                         | _to fill_ |     |
+| 4.10 | Typing after an error hides the banner **and** "Ponów" together                                                        | _to fill_ |     |
+| 4.11 | A successful generation still renders its candidate list, and typing does not clear it                                 | _to fill_ |     |
+
+Note for whoever runs 4.7: the handler now has **four** 409s and the fourth (`:368`, the deck
+vanished between the two adoption reads) is deliberately left unflagged, so it is the one 409 that
+still offers "Ponów". It is not reachable by hand without racing a delete; 4.7 should be driven
+against a name-taken 409 rather than that one.
+
 ## 4. What is NOT proved here
 
 - **No test in this suite can produce the poisoned row.** D-04 stands: no fabricating transport
   seam, no DDL/DCL inside the suite. The consequence half is committed; the reachability half is
   the one run above and nothing re-runs it.
 - **The island half**, as always (test-plan §7). Phase 4's `retriable` read and the stale-gate fix
-  rest on the browser matrix recorded against Phase 4's Progress rows; no layer in this project
-  reaches an island's JSX.
+  rest on the browser matrix in **§3b above**, which as of 2026-08-13 is a table with its
+  observations **unfilled** — so until someone re-runs it, criteria 4.5–4.11 are checked off
+  against no evidence on disk. No layer in this project reaches an island's JSX, so §3b is the
+  only evidence they can ever have.
 - **Nothing about the cloud.** Every assertion above ran against the local stack, and D-05 leaves
   already-poisoned production rows alone — they are inert until someone replays that key, and the
   heal clears it at that moment.
 - **The `:387` twin and the two failure-path inserts.** Still best-effort, owned by C10X-49 and
   C10X-50 respectively, and annotated as exceptions at their sites.
+
+- **THE HEAL IS SINGLE-USE, so the `newDeckName` dead end is narrowed rather than closed**
+  (added 2026-08-13 by impl-review F2, decided as "record the residual" rather than re-ordered).
+  `healedKey` is request-local and the key is cleared **before** the LLM call, so any failure
+  between the heal and a committed session forfeits the heal permanently while the orphan deck
+  survives. Trace, every step on a path the code already handles:
+  1. Poisoned state — session S keyed + `succeeded` + 0 cards, orphan deck "X" (§3's run
+     produces exactly this, with `deckUndone === false` leaving the deck).
+  2. Retry with key K — heals S, adopts "X", then `generateCandidates` 502s → `502
+retriable: true`. K is now gone.
+  3. Retry again with K — the lookup matches nothing, `healedKey` is false, and the request
+     meets `409 DECK_NAME_TAKEN_MESSAGE, retriable: false`. Phase 4's gate hides "Ponów".
+
+  Two bounds belong in the same breath, because without them this reads worse than it is. It is
+  **not a regression** — on `main` that user was on a permanent 500 whatever they did — and it is
+  **recoverable**: the orphan is a real owned deck, visible in the deck selector, so the user
+  picks it as an existing deck or chooses another name. What is genuinely lost is the
+  one-click property on that path, and the failure surface after the heal is wide: the language
+  400, both adoption read 500s, the LLM 502/422, the deck-create 409/500 and the session-insert 500.
+
+  **The alternative was weighed and declined.** Deferring the clear-and-confirm to immediately
+  before `createGenerationSession` — gating adoption on a pending session id rather than on a
+  boolean — makes the heal survive a transient failure and keeps the `23505` loop impossible,
+  because the clear would still precede the keyed insert. It was rejected here because it moves
+  the discovery of a failed clear to **after** a paid generation, which inverts the cost bound
+  `plan.md` § Critical Implementation Details calls "the whole safety property", and because it
+  would invalidate all five breakage runs above. Recorded rather than re-architected at review
+  time; the residual is annotated at `src/pages/api/generate.ts`'s adoption block so a reader
+  meets it where it bites.

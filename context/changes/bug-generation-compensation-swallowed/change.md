@@ -1,7 +1,7 @@
 ---
 change_id: bug-generation-compensation-swallowed
 title: Swallowed compensation error leaves a lying succeeded session and a dead retry
-status: implemented
+status: impl_reviewed
 created: 2026-08-12
 updated: 2026-08-13
 archived_at: null
@@ -108,6 +108,34 @@ foreign key produces (C10X-37/C10X-40).
     is **gone**. It protects against a clear that matched nothing (the RLS case `.select()`
     exists for); it cannot protect against a clear that matched the right row and wrote the
     wrong column.
+
+## Impl-review notes (2026-08-13)
+
+- **D-10 — the heal is SINGLE-USE, and that residual is recorded rather than designed away**
+  (impl-review F2). `healedKey` is request-local and the key is cleared above the LLM call, so a
+  failure between the heal and a committed session forfeits the heal while the orphan deck
+  survives — and the next retry meets the `newDeckName` 409 that D-06 exists to prevent. It is
+  **not a regression** (a permanent 500 before) and is recoverable, because the orphan is a real
+  owned deck the user can select or rename. The alternative — deferring the clear to just before
+  `createGenerationSession` — closes it, but moves the discovery of a failed clear to **after** a
+  paid generation, inverting the cost bound `plan.md` calls the whole safety property. Declined
+  on those grounds; the residual is annotated at the adoption block and written up in
+  `verification.md` § "What is NOT proved here".
+
+- **D-11 — Phase 3 added public surface the plan's contracts do not name, and it is named here
+  instead** (impl-review F4). `countFlashcardsInAnyState` (`src/lib/flashcards.ts`) is a **new
+  exported helper**: a second function rather than a parameter on `countFlashcards`, because that
+  one filters `state_id = STATE_ACCEPTED` and a deck holding nothing but un-reviewed AI
+  candidates would read as 0 through it — the test-plan §6.10 trap where the helper the need
+  points at is the wrong one. The adoption path also added a **fourth** 409 (`deckIdByPublicId`
+  came back empty between the two reads), which is the only 409 in the handler left unflagged;
+  that omission is a decision stated at its own site, so Phase 4 §2's enumeration of "the 409s"
+  under-counts by one and this bullet is the correction.
+
+- **Suite 434 → 435** (impl-review F1): the adoption rule's **emptiness** half had no test and was
+  measured unfalsifiable — neutering `if (count !== 0)` left 0 of 434 red. The new case seeds a
+  `generated` card so it pins the state-agnostic helper as well as the guard, and goes red under
+  both neuters. Full record in `reviews/impl-review.md`.
 
 - **Evidence pointer**: `context/changes/bug-generation-compensation-swallowed/verification.md`
   (after archiving: `context/archive/<date>-bug-generation-compensation-swallowed/verification.md`)
