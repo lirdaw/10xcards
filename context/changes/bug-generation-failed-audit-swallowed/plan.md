@@ -868,36 +868,36 @@ not involved.
 
 #### Automated
 
-- [x] 2.1 The four existing branch cases still pass: `npx vitest run tests/generation/failure-path.test.ts`
-- [x] 2.2 Full suite green: `npm test`
-- [x] 2.3 Type gate passes: `npm run typecheck`
-- [x] 2.4 Lint passes: `npm run lint`
-- [x] 2.5 Build passes: `npm run build`
-- [x] 2.6 No first-party log line introduced: `npx vitest run tests/lib/no-logging.test.ts`
-- [x] 2.7 No forbidden env accessor introduced: `npx vitest run tests/lib/no-env-access.test.ts`
+- [x] 2.1 The four existing branch cases still pass: `npx vitest run tests/generation/failure-path.test.ts` — 8b3b141
+- [x] 2.2 Full suite green: `npm test` — 8b3b141
+- [x] 2.3 Type gate passes: `npm run typecheck` — 8b3b141
+- [x] 2.4 Lint passes: `npm run lint` — 8b3b141
+- [x] 2.5 Build passes: `npm run build` — 8b3b141
+- [x] 2.6 No first-party log line introduced: `npx vitest run tests/lib/no-logging.test.ts` — 8b3b141
+- [x] 2.7 No forbidden env accessor introduced: `npx vitest run tests/lib/no-env-access.test.ts` — 8b3b141
 
 #### Manual
 
-- [x] 2.8 Both new literals lead with the primary failure and "Ponów"; the audit clause is informational and does not read as a second problem to solve
-- [x] 2.9 `git diff` shows the `idempotency_key` comment block moved verbatim
+- [x] 2.8 Both new literals lead with the primary failure and "Ponów"; the audit clause is informational and does not read as a second problem to solve — 8b3b141
+- [x] 2.9 `git diff` shows the `idempotency_key` comment block moved verbatim — 8b3b141
 
 ### Phase 3: Committed tests, guards, and the breakage runs that prove them
 
 #### Automated
 
-- [ ] 3.1 New and existing cases pass: `npx vitest run tests/generation/generate.test.ts tests/lib/audit-failure-wiring.test.ts`
-- [ ] 3.2 Full suite green, count measured by running with its per-file breakdown: `npm test`
-- [ ] 3.3 Breakage B1 — `WITH CHECK` neutered: denial red, positive control green; policy restored and `diff`ed
-- [ ] 3.4 Breakage B2 (pair) — (a) `source_text` verbatim → row privacy case red; (b) cause `details` verbatim → cause privacy case red, (a)'s green; retention/`code`/fingerprint green in both
-- [ ] 3.5 Breakage B3 — Site A capture line deleted: wiring guard red, truth table fully green
-- [ ] 3.6 Breakage B4 (pair) — (a) inline object instead of the builder → guard red on delegation, import green; (b) `auditError` back as the first argument → guard red on the first-argument rule, delegation/privacy green
-- [ ] 3.7 Breakage B5 — Site A's failed-audit arm returns the ordinary literal (both arms identical; the capture stays, so the wiring guard is untouched): **predicted GREEN**, recorded as the coverage boundary
-- [ ] 3.8 Every restore verified: `git diff -- src/` empty plus per-file `md5sum`
+- [x] 3.1 New and existing cases pass: `npx vitest run tests/generation/generate.test.ts tests/lib/audit-failure-wiring.test.ts`
+- [x] 3.2 Full suite green, count measured by running with its per-file breakdown: `npm test`
+- [x] 3.3 Breakage B1 — `WITH CHECK` neutered: denial red, positive control green; policy restored and `diff`ed
+- [x] 3.4 Breakage B2 (pair) — (a) `source_text` verbatim → row privacy case red; (b) cause `details` verbatim → cause privacy case red, (a)'s green; retention/`code`/fingerprint green in both
+- [x] 3.5 Breakage B3 — Site A capture line deleted: wiring guard red, truth table fully green
+- [x] 3.6 Breakage B4 (pair) — (a) inline object instead of the builder → guard red on delegation, import green; (b) `auditError` back as the first argument → guard red on the first-argument rule, delegation/privacy green
+- [x] 3.7 Breakage B5 — Site A's failed-audit arm returns the ordinary literal (both arms identical; the capture stays, so the wiring guard is untouched): **predicted GREEN**, recorded as the coverage boundary
+- [x] 3.8 Every restore verified: `git diff -- src/` empty plus per-file `md5sum`
 
 #### Manual
 
-- [ ] 3.9 Each run's observed failure string and split recorded from a `--reporter=verbose` run
-- [ ] 3.10 B5's green written up as a finding, not as a pass
+- [x] 3.9 Each run's observed failure string and split recorded from a `--reporter=verbose` run
+- [x] 3.10 B5's green written up as a finding, not as a pass
 
 ### Phase 4: Manual reachability runs — both sites
 

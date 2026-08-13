@@ -2,10 +2,16 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { experimental_AstroContainer as AstroContainer } from "astro/container";
 import * as CreateDeck from "@/pages/api/decks/index";
 import * as Generate from "@/pages/api/generate";
+import type { TablesInsert } from "@/db/database.types";
 import { listDecks } from "@/lib/decks";
 import { deckIdByPublicId, STATE_GENERATED } from "@/lib/flashcards";
 import { SOURCE_MAX, COUNT_MIN, COUNT_MAX } from "@/lib/generation-limits";
-import { clearSessionIdempotencyKey, retireGenerationSession, SOURCE_AI } from "@/lib/generations";
+import {
+  clearSessionIdempotencyKey,
+  createGenerationSession,
+  retireGenerationSession,
+  SOURCE_AI,
+} from "@/lib/generations";
 import { accountA, accountB } from "../fixtures/accounts";
 import { callEndpoint } from "../fixtures/endpoint";
 import { PROMPT_LANGUAGE_NAMES } from "../fixtures/language-names";
@@ -1253,5 +1259,111 @@ describe("/api/generate heals a key whose session has no cards behind it", () =>
     // resolution — so a repeat arrives as an ordinary request and meets the same 409. That
     // is the intended terminal state here: the name really is taken.
     expect((await sessionById(poisonedId)).idempotency_key).toBeNull();
+  });
+});
+
+// --- createGenerationSession's ERROR arm (C10X-50) -------------------------------------
+//
+// Both of `/api/generate`'s failure paths write a `status: "failed"` audit row and, until
+// 2026-08-13, DISCARDED the insert's result. A failed audit write was therefore completely
+// silent: no row, no log (`src/` forbids `console.*`), and the same retriable error as if the
+// failure had been recorded. This block closes the helper's half of that fix, and
+// `createGenerationSession` had **no caller anywhere in `tests/`** before it — so the arm the
+// endpoint now branches on was asserted nowhere.
+//
+// IT IS THE `error` ARM, NOT A ZERO-ROW ARM, and the difference from both siblings is the
+// helper's terminator rather than a lapse. C10X-48 and C10X-49 each closed a ZERO-ROW arm,
+// because `retireGenerationSession` / `clearSessionIdempotencyKey` / `deleteDeck` all end
+// `.maybeSingle()`, where PostgREST's `Prefer: return=minimal` makes a write that matched
+// nothing resolve `{ data: null, error: null }`. `createGenerationSession` ends `.single()`,
+// which sets an `Accept` header that makes the SERVER answer a zero-row result as
+// `406 / PGRST116` — i.e. as an error. There is no silent zero-row arm here to close, which is
+// also why the endpoint's check is `if (error)` alone and why a `!data` arm there would be a
+// branch no breakage run could redden (D-03).
+//
+// WHAT THIS BLOCK DOES NOT COVER, stated so a green run is not over-read. It proves the
+// HELPER's contract — a refused insert is reported, a landed one is reported as a row. It does
+// NOT prove the ENDPOINT's use of it: nothing in this suite can make `/api/generate`'s audit
+// insert fail (the branch runs only after a real transport failure or a real 0-saved answer,
+// and the insert itself fails only under a privilege or constraint state no test may create).
+// That half is two recorded manual DCL runs in this change's `verification.md`, one per site.
+// Nothing bridges the two, and no test in this project can.
+
+const AUDIT_DENIED_TEXT = `${mark("audit-denied")} Tekst sesji audytowej spoza konta`;
+const AUDIT_LANDED_TEXT = `${mark("audit-landed")} Tekst sesji audytowej właściciela`;
+
+/**
+ * The `failed` audit row both failure paths in `/api/generate` try to insert.
+ *
+ * `status: "failed"` and `idempotency_key: null` are what those two sites actually write, and
+ * neither is decoration here. The null key is why `succeededSessions` is blind to this row —
+ * the oracle trap §6.5 records — so every assertion below reads through `allSessions`.
+ */
+function failedAuditRow(sourceText: string, userId: string): TablesInsert<"generation_session"> {
+  return {
+    user_id: userId,
+    source_text: sourceText,
+    model: "harness",
+    language: "auto",
+    requested_count: COUNT,
+    generated_count: 0,
+    saved_count: 0,
+    status: "failed",
+    error_message: "Wymuszona awaria audytu w teście",
+    request_payload: null,
+    response_payload: null,
+    idempotency_key: null,
+  };
+}
+
+describe("createGenerationSession reports a refused audit insert to its caller", () => {
+  it("resolves a REFUSED insert as an error with no data, and writes nothing", async () => {
+    // Account B's client inserting a row that claims A's `user_id` is a deterministic `42501`:
+    // `generation_session_insert`'s WITH CHECK is `user_id = (select auth.uid())`. No module
+    // double, no DDL, no fabricated response — the same shape as C10X-49's zero-row denial one
+    // helper over, and the one arm `/api/generate` now branches on.
+    const b = accountB();
+
+    const denied = await createGenerationSession(
+      clientFor(b.cookieHeader),
+      failedAuditRow(AUDIT_DENIED_TEXT, a.userId),
+    );
+    expect(denied.error).not.toBeNull();
+    expect(denied.data).toBeNull();
+
+    // Row-based, never return-based (§6.2): an error on the return with the row actually
+    // landing would be a pass here and a lie in the database — and the endpoint would then be
+    // reporting a lost audit row that is sitting there. Read as A, because A is who could see
+    // it, and through `allSessions` rather than `succeededSessions`, which filters
+    // `status = 'succeeded'` and could never see a `failed` row at all.
+    expect(await allSessions(AUDIT_DENIED_TEXT)).toHaveLength(0);
+  });
+
+  it("resolves a LANDED insert as a row carrying id and public_id", async () => {
+    // The positive control for the case above, and it is load-bearing: without it a helper
+    // that errored for EVERY caller would satisfy that denial and read as perfect reporting.
+    //
+    // A separate `it()` rather than four more lines inside that one, because Vitest aborts a
+    // case at its first failed `expect` — a control sitting after the denial never RUNS under
+    // the very neuter it exists to be attributed against, so it would be green by silence
+    // rather than by observation. C10X-49 measured exactly that (`2 failed | 4 passed (6)`).
+    const landed = await createGenerationSession(
+      clientFor(a.cookieHeader),
+      failedAuditRow(AUDIT_LANDED_TEXT, a.userId),
+    );
+    expect(landed.error).toBeNull();
+    // Both projected columns, because both are what the success path downstream consumes:
+    // `id` is the FK the cards hang off, `public_id` is what the island is handed back.
+    expect(typeof landed.data?.id).toBe("number");
+    expect(typeof landed.data?.public_id).toBe("string");
+
+    // A case-scoped count of exactly one, never `.single()` on the insert as the oracle: the
+    // harness replays a dropped local POST and both attempts answer 201 with different ids, so
+    // `.single()` is a false oracle for a duplicated write (C10X-39, lessons.md). This is the
+    // seam's own counter as well as the read-back.
+    const rows = await allSessions(AUDIT_LANDED_TEXT);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.id).toBe(landed.data?.id);
+    expect(rows[0]?.status).toBe("failed");
   });
 });
