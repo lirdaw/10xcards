@@ -65,9 +65,11 @@ pointer C10X-49's impl-review left.
 Split the decision from the wiring — this project's own proven shape for exactly this problem
 (`src/lib/sentry-sampling.ts` + `tests/lib/sentry-wiring.test.ts`). A pure builder module takes the
 row that failed to land and returns a Sentry capture context, importing no Sentry runtime, so every
-privacy claim is testable with fabricated rows and no network. The endpoint owns one line per site
-that calls `captureException` **and** the builder in the same expression, which is precisely the
-shape the existing per-line guard already knows how to police.
+privacy claim is testable with fabricated rows and no network. The endpoint owns one **statement**
+per site that calls `captureException` **and** the builder in the same expression — the shape the
+existing guard already knows how to police, with one measured difference: that statement is 136
+characters against `printWidth: 120`, so Prettier wraps it and the guard here matches per statement
+rather than per line.
 
 ## Phases at a Glance
 

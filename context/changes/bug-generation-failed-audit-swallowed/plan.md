@@ -75,7 +75,7 @@ A failed `failed`-audit insert is:
      `src/worker.ts`) is that only an event in the Sentry UI proves monitoring; that proof is
      **deferred with an owner**, as a `follow-ups/` item, rather than claimed here.
 4. **Guarded** — the privacy property is a truth table over fabricated rows; the wiring is a
-   per-line textual guard modelled on `tests/lib/sentry-wiring.test.ts`; the helper's error contract
+   per-statement textual guard modelled on `tests/lib/sentry-wiring.test.ts`; the helper's error contract
    is a committed cross-account case with its positive control in its own `it()`.
 
 Verify by: `npm test` green with the new cases; the five breakage runs in Phase 3 producing their
@@ -88,8 +88,11 @@ one privilege.
 - **The precedent's headline rule does not transfer, and inheriting it would be a defect.**
   `createGenerationSession` is an INSERT ending `.select("id, public_id").single()`
   (`src/lib/generations.ts:24`). `.single()` sets an `Accept` header
-  (`postgrest-js/dist/index.mjs:1041-1043`); the `data = null` coercion is gated on `isMaybeSingle`
-  (`:358-371`) and is **unreachable through `.single()`** — verified in the installed source. A
+  (`postgrest-js/dist/index.mjs:1041-1044`); the `data = null` coercion is gated on `isMaybeSingle`
+  (`:357-371`) and is **unreachable through `.single()`** — verified in the installed source at
+  version 2.105.3, and note the boundary: postgrest-js proves only that the CLIENT never synthesizes
+  `data: null`, while "a zero row comes back as 406 / PGRST116" is a claim about the PostgREST
+  server, driven by the `Accept` header `.single()` sets. A
   zero-row result comes back as `406 / PGRST116`. **`if (error)` is complete here.**
 - **There is no deck to undo, provably.** `createdDeckPublicId` is declared at `:313`, assigned at
   exactly one site (`:518`, inside the `if (newDeckName && deckId === null)` opened at `:505`), and
@@ -171,9 +174,11 @@ here that split is what turns the privacy property from an argument into an asse
   It imports **no** Sentry runtime, takes the row as a parameter, and returns a plain object. Every
   privacy claim about it is therefore testable with fabricated rows and no network, no database and
   no Worker.
-- **`src/pages/api/generate.ts`** owns the randomness-free wiring: one line per site that calls
-  `Sentry.captureException` **and** the builder, in the same expression — the same shape
-  `sentry-wiring.test.ts` already knows how to guard.
+- **`src/pages/api/generate.ts`** owns the randomness-free wiring: one **statement** per site that
+  calls `Sentry.captureException` **and** the builder, in the same expression — the same shape
+  `sentry-wiring.test.ts` guards, with one measured difference: that statement is 136 characters and
+  Prettier wraps it, so the guard here joins continuation lines before matching (Phase 2 §1,
+  Phase 3 §2).
 
 The response half is a two-arm return at each site: the existing literal when the audit row landed,
 a distinct one when it did not. Both arms keep the status and `retriable: true`.
@@ -358,7 +363,7 @@ messages.
 - At each site, lift the row literal to a named `const auditRow` (the `idempotency_key` comment block
   moves with it, unchanged), then
   `const { error: auditError } = await createGenerationSession(supabase, auditRow);`
-- `if (auditError)` → one line calling both, so the wiring guard can assert it per line:
+- `if (auditError)` → one **statement** calling both, so the wiring guard can assert it per statement:
   `Sentry.captureException(new Error(AUDIT_CAPTURE_MESSAGE), await buildAuditFailureReport(auditRow, "transport-failure", auditError));`
   — and then return the failed-audit literal. Otherwise return the existing literal, unchanged.
   - **The captured exception is a SYNTHETIC error carrying a fixed module-local literal, never
