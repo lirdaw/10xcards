@@ -1,7 +1,7 @@
 ---
 change_id: bug-generation-deck-undo-swallowed
 title: Check the deleteDeck undo after a failed generation-session insert
-status: implemented
+status: impl_reviewed
 created: 2026-08-13
 updated: 2026-08-13
 archived_at: null
@@ -26,8 +26,12 @@ archived_at: null
   covers **two** arms that contradict each other in the database, and on the zero-row arm the deck
   is already gone. Tightening it means splitting the arms, which means splitting `retriable` too.
   `newDeckName` is deliberately **not** interpolated — the user still has it in the form field.
-- **D-03 — Explicit `retriable: false`, against the naive reading of C10X-48's D-08.** This
-  handler's first `false` on a 500. D-08 forbids a FORGOTTEN flag silently disarming an
+- **D-03 — Explicit `retriable: false`, against the naive reading of C10X-48's D-08.** Not this
+  handler's first `false` on a 500 — the plan said it was, and the Phase-1 manual read caught it:
+  the unconfigured-Supabase refusal at `generate.ts:186` already carries one and the convention
+  docblock names it. What is new is the KIND of 500: that one refuses before any work, this one
+  has paid for a generation and written nothing, so the flag is argued rather than inherited.
+  D-08 forbids a FORGOTTEN flag silently disarming an
   affordance; it does not argue for `true` where `false` is the measured truth. "Ponów" replays
   `lastPayload` VERBATIM (`GeneratorForm.tsx:224`), and on the arm that actually fires the orphan
   deck now exists — so the replay finds no keyed session, leaves `healedKey` false, meets the

@@ -556,8 +556,18 @@ export const POST: APIRoute = async (context) => {
     // (the 200 replay and its own 500) bypass the undo. Left as CODE deliberately and fixed
     // only as this sentence: on the 200 arm the deck that would be deleted is the deck the
     // response is handing back, and the combination is ~unreachable anyway — a 23505 here needs
-    // an earlier request with the same key, hence the same `newDeckName`, to have committed,
-    // and `deck_user_name_unique` stops any such request before it can create a deck of its own.
+    // an earlier request with the same key to have committed, which FOR A CLIENT THAT MINTS ONE
+    // KEY PER SUBMIT means the same `newDeckName`, and `deck_user_name_unique` stops any such
+    // request before it can create a deck of its own. That qualification is load-bearing and the
+    // tilde on "~unreachable" is where it lives (C10X-49 impl-review F2): a client reusing ONE
+    // key across two DIFFERENTLY SHAPED payloads escapes the implication — request A carrying
+    // `deckPublicId` has no name to collide on, so a concurrent request B carrying
+    // `newDeckName` can miss A's uncommitted row at the top lookup, create its deck, and only
+    // then collide here. `GeneratorForm` cannot produce it (one key per submit, `lastPayload`
+    // replayed verbatim), and the blast radius is one empty deck owned by the caller — but on
+    // that path the orphan is SILENT again, i.e. this ticket's own defect on the one exit its
+    // fix does not cover. Hoisting the undo above this block would close it and would change
+    // the 200 replay's behaviour, so it belongs to its own ticket, not to a drive-by.
     let sessionFailure: { error: string; retriable?: boolean } = { error: "Nie udało się zapisać sesji generacji" };
     if (idempotencyKey && sessionError.code === "23505") {
       const { data: won, error: wonError } = await findSucceededSessionByIdempotencyKey(supabase, idempotencyKey);

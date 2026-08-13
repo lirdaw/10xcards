@@ -26,7 +26,10 @@
 > **What the fix is, in one sentence, and why its flag is the surprising part.** The undo's
 > `{data, error}` is read on both arms into a `deckUndone` boolean, and a failed undo replaces
 > `sessionFailure` with a distinct `500` that names the leftover deck and carries
-> **`retriable: false`** — this handler's first `false` on a 500. That is not a softening of
+> **`retriable: false`** — not this handler's first `false` on a 500 (the unconfigured-Supabase
+> refusal at `generate.ts:186` already carries one, and the convention docblock names it), but the
+> first on a 500 that has already PAID for a generation, where that one refuses before any work.
+> So the flag is argued here rather than inherited. That is not a softening of
 > C10X-48's absent-means-retriable rule but its own test applied honestly: "Ponów" replays
 > `lastPayload` VERBATIM, the orphan deck now exists, so the repeat is a deterministic `409` at
 > `deckNameExists` — i.e. offering the button would reproduce this ticket's own defect one click
