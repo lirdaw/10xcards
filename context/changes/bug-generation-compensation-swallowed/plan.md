@@ -785,16 +785,16 @@ Three things follow, and all three belong in the code rather than in memory:
 
 #### Automated
 
-- [x] 5.1 Full suite green: `npm test`
-- [x] 5.2 Type checking passes: `npm run typecheck`
-- [x] 5.3 Linting passes: `npm run lint`
-- [x] 5.4 Build passes: `npm run build`
-- [x] 5.5 `git diff -- src/ supabase/` is empty after every breakage restore
+- [x] 5.1 Full suite green: `npm test` — e06d94b
+- [x] 5.2 Type checking passes: `npm run typecheck` — e06d94b
+- [x] 5.3 Linting passes: `npm run lint` — e06d94b
+- [x] 5.4 Build passes: `npm run build` — e06d94b
+- [x] 5.5 `git diff -- src/ supabase/` is empty after every breakage restore — e06d94b
 
 #### Manual
 
-- [x] 5.6 Each of the five breakage runs recorded with its observed failure string and denominator
-- [x] 5.7 Both DCL grants (`flashcard` INSERT, `generation_session` UPDATE) restored and verified by an independent dump, not by memory
-- [x] 5.8 The reachability run's write-up states it proves the error arm only, and points at the committed cross-account test for the zero-row arm
-- [x] 5.9 `lessons.md` entry present and scoped to writes
-- [x] 5.10 `test-plan.md` note states the reachability boundary explicitly
+- [x] 5.6 Each of the five breakage runs recorded with its observed failure string and denominator — e06d94b
+- [x] 5.7 Both DCL grants (`flashcard` INSERT, `generation_session` UPDATE) restored and verified by an independent dump, not by memory — e06d94b
+- [x] 5.8 The reachability run's write-up states it proves the error arm only, and points at the committed cross-account test for the zero-row arm — e06d94b
+- [x] 5.9 `lessons.md` entry present and scoped to writes — e06d94b
+- [x] 5.10 `test-plan.md` note states the reachability boundary explicitly — e06d94b
