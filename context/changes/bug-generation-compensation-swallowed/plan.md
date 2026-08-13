@@ -766,35 +766,35 @@ Three things follow, and all three belong in the code rather than in memory:
 
 #### Automated
 
-- [x] 4.1 Type checking passes: `npm run typecheck`
-- [x] 4.2 Linting passes: `npm run lint`
-- [x] 4.3 Full suite still green: `npm test`
-- [x] 4.4 Build passes: `npm run build`
+- [x] 4.1 Type checking passes: `npm run typecheck` — dd7439f
+- [x] 4.2 Linting passes: `npm run lint` — dd7439f
+- [x] 4.3 Full suite still green: `npm test` — dd7439f
+- [x] 4.4 Build passes: `npm run build` — dd7439f
 
 #### Manual
 
-- [x] 4.5 A 502/422 still shows "Ponów"
-- [x] 4.6 A transient 500 (unflagged — e.g. the card-insert failure) still shows "Ponów"
-- [x] 4.7 A 400/401/404/409 (now `retriable: false`) hides "Ponów"
-- [x] 4.8 A client-side validation error still hides "Ponów"
-- [x] 4.9 A client timeout / offline still shows "Ponów"
-- [x] 4.10 Typing after an error hides the banner and "Ponów" together
-- [x] 4.11 A successful generation still renders its candidate list, and typing does not clear it
+- [x] 4.5 A 502/422 still shows "Ponów" — dd7439f
+- [x] 4.6 A transient 500 (unflagged — e.g. the card-insert failure) still shows "Ponów" — dd7439f
+- [x] 4.7 A 400/401/404/409 (now `retriable: false`) hides "Ponów" — dd7439f
+- [x] 4.8 A client-side validation error still hides "Ponów" — dd7439f
+- [x] 4.9 A client timeout / offline still shows "Ponów" — dd7439f
+- [x] 4.10 Typing after an error hides the banner and "Ponów" together — dd7439f
+- [x] 4.11 A successful generation still renders its candidate list, and typing does not clear it — dd7439f
 
 ### Phase 5: Proof, the breakage run, and the docs
 
 #### Automated
 
-- [ ] 5.1 Full suite green: `npm test`
-- [ ] 5.2 Type checking passes: `npm run typecheck`
-- [ ] 5.3 Linting passes: `npm run lint`
-- [ ] 5.4 Build passes: `npm run build`
-- [ ] 5.5 `git diff -- src/ supabase/` is empty after every breakage restore
+- [x] 5.1 Full suite green: `npm test`
+- [x] 5.2 Type checking passes: `npm run typecheck`
+- [x] 5.3 Linting passes: `npm run lint`
+- [x] 5.4 Build passes: `npm run build`
+- [x] 5.5 `git diff -- src/ supabase/` is empty after every breakage restore
 
 #### Manual
 
-- [ ] 5.6 Each of the five breakage runs recorded with its observed failure string and denominator
-- [ ] 5.7 Both DCL grants (`flashcard` INSERT, `generation_session` UPDATE) restored and verified by an independent dump, not by memory
-- [ ] 5.8 The reachability run's write-up states it proves the error arm only, and points at the committed cross-account test for the zero-row arm
-- [ ] 5.9 `lessons.md` entry present and scoped to writes
-- [ ] 5.10 `test-plan.md` note states the reachability boundary explicitly
+- [x] 5.6 Each of the five breakage runs recorded with its observed failure string and denominator
+- [x] 5.7 Both DCL grants (`flashcard` INSERT, `generation_session` UPDATE) restored and verified by an independent dump, not by memory
+- [x] 5.8 The reachability run's write-up states it proves the error arm only, and points at the committed cross-account test for the zero-row arm
+- [x] 5.9 `lessons.md` entry present and scoped to writes
+- [x] 5.10 `test-plan.md` note states the reachability boundary explicitly

@@ -66,3 +66,50 @@ foreign key produces (C10X-37/C10X-40).
   that key, and the self-heal retires them then. A cleanup UPDATE would by construction also
   strip the key from §6 rows — sessions that never failed and whose cards the user deleted
   deliberately — and the two are byte-identical from the row.
+
+  > **Wording corrected 2026-08-13 (Phase 5) — the decision stands.** "The self-heal **retires**
+  > them then" is what D-07 forbids: the heal clears the `idempotency_key` and touches nothing
+  > else, precisely because this bullet's own second sentence says the two row shapes cannot be
+  > told apart. Read it as "the self-heal disarms them then". The decision — no backfill — is
+  > unaffected, and its reasoning is if anything stronger under D-07.
+
+## Implementation notes (2026-08-13, Phase 5)
+
+- **D-09 — doc-sync went beyond the three `test-plan.md` edits the plan enumerated, and the
+  extras are named rather than counted.** Phase 5 §4 enumerated §6.5's `saved_count` bullet (a
+  live declaration — edited in place), §6.6's impl-review-F3 paragraph (a dated snapshot —
+  **dated correction**, conclusion kept: do not drop the index predicate) and §6.6's Phase-2
+  entry (a new dated note). Three further **live** surfaces would otherwise have been left
+  asserting something false about today, so each was edited too:
+  - `test-plan.md`'s **header block** and its **§8 Freshness Ledger** — the file's two live
+    declarations of what was last proven and when. Leaving `Last updated: 2026-08-09` in the
+    document that polices exactly this class was not an option.
+  - `roadmap.md` gained row **H-16**, at `Status: in progress`, created during implementation
+    rather than backfilled. Without it `/10x-archive` has nothing to close and the change
+    vanishes from the roadmap — a mechanism this project has recorded **four** times (H-04,
+    H-07, H-08, H-13) and pre-empted once (H-15). `/10x-archive` owns the flip to `done`.
+
+  The applied migration `20260725133600`'s header carries the same now-stale key claim and is
+  **deliberately NOT edited**, per the plan: amending a pushed migration is a drift class the
+  C10X-29 gate is blind to by construction. The correction lives in `src/lib/generations.ts`
+  and in `generate.ts`'s `idempotency_key: null` comment, both of which point at it.
+
+- **Two of the plan's breakage predictions did not survive contact, and both are recorded as
+  observed rather than rounded** (`verification.md` §2) — the discipline this repo applies to
+  C10X-29's `missingLocal` neuter and C10X-30's case 8:
+  - Removing the confirmation between the key-clearing update and the fall-through goes **0 of
+    26 red**. The confirmation guards a state a healthy stack never produces, so the neuter as
+    worded is observationally a no-op; a **fifth** run was added, pairing it with a clear that
+    does not clear, and that one reproduces research §7's `23505` loop with the collision's own
+    response body captured as evidence.
+  - Neutering `idempotency_key: null` alone was predicted to redden the cleared-key assertion
+    while leaving the generation assertion green. **Both go red**, and the reason is a real
+    boundary worth carrying: the confirmation asserts a row was **matched**, never that the key
+    is **gone**. It protects against a clear that matched nothing (the RLS case `.select()`
+    exists for); it cannot protect against a clear that matched the right row and wrote the
+    wrong column.
+
+- **Evidence pointer**: `context/changes/bug-generation-compensation-swallowed/verification.md`
+  (after archiving: `context/archive/<date>-bug-generation-compensation-swallowed/verification.md`)
+  — five breakage runs with their observed failure strings and denominators, the DCL reachability
+  run with its three independent restore oracles, and the boundary that run does **not** cross.
