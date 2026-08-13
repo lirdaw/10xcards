@@ -641,11 +641,11 @@ committed and never pushed.
 
 #### Automated
 
-- [x] 4.1 `npm run format` idempotent on the edited markdown
-- [x] 4.2 `context/archive/**` untouched
-- [x] 4.3 No document claims C10X-49 owns an unchecked site except as a dated correction
+- [x] 4.1 `npm run format` idempotent on the edited markdown — 051f350
+- [x] 4.2 `context/archive/**` untouched — 051f350
+- [x] 4.3 No document claims C10X-49 owns an unchecked site except as a dated correction — 051f350
 
 #### Manual
 
-- [x] 4.4 Every doc-sync target confirmed live-vs-dated by its section heading
-- [x] 4.5 §8 entry's suite total matches a real run and its breakdown adds up
+- [x] 4.4 Every doc-sync target confirmed live-vs-dated by its section heading — 051f350
+- [x] 4.5 §8 entry's suite total matches a real run and its breakdown adds up — 051f350
