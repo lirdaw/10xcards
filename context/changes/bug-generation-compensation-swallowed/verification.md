@@ -207,7 +207,7 @@ a one-off observation nothing re-checks.
 
 ## 3b. Manual browser matrix (Phase 4)
 
-> **Added 2026-08-13 by impl-review F3, and it is UNFILLED until someone re-runs it.** Criteria
+> **Added 2026-08-13 by impl-review F3, and FILLED the same day by the run recorded below.** Criteria
 > 4.5–4.11 were checked off against commit `dd7439f`, but the observations were recorded nowhere:
 > §4 below pointed at "the browser matrix recorded against Phase 4's Progress rows", and those
 > rows carry a checkbox and a sha while `dd7439f` has no commit body. That pointer was circular,
@@ -222,20 +222,60 @@ a one-off observation nothing re-checks.
 > project has (test-plan §7), so this table is the only evidence these seven criteria can ever
 > have.
 
-| #    | Criterion                                                                                                              | Observed  | ✓/✗ |
-| ---- | ---------------------------------------------------------------------------------------------------------------------- | --------- | --- |
-| 4.5  | A 502/422 still shows "Ponów"                                                                                          | _to fill_ |     |
-| 4.6  | A transient 500 (unflagged — e.g. the card-insert failure) still shows "Ponów" — the case plan-review F3 was raised on | _to fill_ |     |
-| 4.7  | A 400/401/404/409 (now `retriable: false`) hides "Ponów"                                                               | _to fill_ |     |
-| 4.8  | A client-side validation error still hides "Ponów"                                                                     | _to fill_ |     |
-| 4.9  | A client timeout / offline still shows "Ponów"                                                                         | _to fill_ |     |
-| 4.10 | Typing after an error hides the banner **and** "Ponów" together                                                        | _to fill_ |     |
-| 4.11 | A successful generation still renders its candidate list, and typing does not clear it                                 | _to fill_ |     |
+**RUN 2026-08-13.** Chromium, `npm run dev` on localhost:4321, signed in as the dedicated local
+account `e2e-harness@example.com`, local Supabase stack up. Every row's oracle is the pair
+`(banner text, is a "Ponów" button present)` read from the live DOM, plus — where the branch writes
+one — the audit row read directly in psql, so no row rests on copy alone.
 
-Note for whoever runs 4.7: the handler now has **four** 409s and the fourth (`:368`, the deck
-vanished between the two adoption reads) is deliberately left unflagged, so it is the one 409 that
-still offers "Ponów". It is not reachable by hand without racing a delete; 4.7 should be driven
-against a name-taken 409 rather than that one.
+| #    | Criterion                                                                               | Observed                                                                                                                                                                                    | ✓/✗ |
+| ---- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- |
+| 4.5  | A 502/422 still shows "Ponów"                                                           | Banner `Nie udało się wygenerować fiszek. Spróbuj ponownie.` (the `:446` copy, explicitly `retriable: true`), **"Ponów" PRESENT**. Audit row `106098 status=failed err=OpenRouter HTTP 401` | ✓   |
+| 4.6  | A transient 500 (unflagged) still shows "Ponów" — the case plan-review F3 was raised on | Banner `Nie udało się zapisać wygenerowanych fiszek` (the `:624` arm, carrying **no** `retriable` field), **"Ponów" PRESENT**. Audit row `106097 status=failed saved=0 key=NULL cards=0`    | ✓   |
+| 4.7  | A 400/401/404/409 (now `retriable: false`) hides "Ponów"                                | Banner `Talia o tej nazwie już istnieje` (409, `retriable: false`), **"Ponów" ABSENT**; the candidate list from the preceding success was cleared with it                                   | ✓   |
+| 4.8  | A client-side validation error still hides "Ponów"                                      | Banner `Wklej tekst źródłowy do wygenerowania fiszek.`, **"Ponów" ABSENT**. No request issued, no session row written                                                                       | ✓   |
+| 4.9  | A client timeout / offline still shows "Ponów"                                          | Dev server stopped, then submit → banner `Przekroczono czas oczekiwania lub błąd sieci. Spróbuj ponownie.`, **"Ponów" PRESENT** (the `catch` arm, retriable by nature)                      | ✓   |
+| 4.10 | Typing after an error hides the banner **and** "Ponów" together                         | BEFORE/AFTER pair on ONE state: `{banner: "Nie udało się zapisać wygenerowanych fiszek", ponów: true}` → one keystroke → `{banner: null, ponów: false}`                                     | ✓   |
+| 4.11 | A successful generation still renders its candidate list, and typing does not clear it  | `Zapisano 5 — kandydaci trafili do talii jako karty do przeglądu.` + 5 candidate cards; after typing into the textarea **both still present and unchanged**                                 | ✓   |
+
+**Three rows needed provocation, because mock mode cannot fail.** How each was reached, and what
+was restored:
+
+- **4.6** — `revoke insert on public.flashcard from authenticated`, generating into an **existing**
+  deck so no deck undo is involved. `update on generation_session` was deliberately left granted,
+  which is what makes the compensation SUCCEED and yields the **unflagged** 500 rather than Phase
+  2's distinct copy. The audit row is the proof it took that arm: `status=failed`, `saved_count=0`,
+  `idempotency_key=NULL`, `error_message='Zapis kart nie powiódł się'` — i.e.
+  `retireGenerationSession` in full (D-03). **Restored and verified by the same three oracles §3
+  uses**: the `information_schema` projection identical to the BEFORE dump line for line; the raw
+  `pg_class.relacl` byte-identical to the untouched siblings (`deck`, `flashcard` and
+  `generation_session` all `authenticated=arwdDxtm/postgres`); and `has_table_privilege` `true` for
+  both.
+- **4.5** — a **bogus** `OPENROUTER_API_KEY` added to `.env` for the duration, so the handler makes
+  a real request that OpenRouter rejects at auth. `err=OpenRouter HTTP 401` plus a `model` WITHOUT
+  the `(mock)` suffix are what prove a real call was attempted rather than the mock clamp firing.
+  The line was removed afterwards and `.env` verified back to
+  `md5 d56648ca7e65776ccf80bdd31f4dbc32` with zero occurrences of `openrouter`. The developer's
+  real key never entered this: it lives in the SHELL environment as `OPENROUTER_EVAL_KEY` and was
+  not read, copied or modified.
+- **4.9** — the dev server was stopped and the already-loaded page submitted, so the failure is a
+  genuine transport error. No `fetch` was stubbed.
+
+**4.6 is the row that earns this table.** Its 500 carries no `retriable` field at all, so under a
+strict read of the flag "Ponów" would have vanished from the one failure this ticket exists for —
+the FR-018 regression D-08 was written to prevent. Observed PRESENT.
+
+**What this run does NOT cover.** The **422** half of 4.5 (the model answers but nothing passes
+Zod) was not provoked: forcing it needs a seam D-04 deliberately withholds, and the 502 half
+exercises the same `retriable: true` return. The fourth 409 (`:368`, the deck vanished between the
+two adoption reads) was **not** driven either — it needs a delete raced against a request, and it
+is the one 409 deliberately left unflagged, so 4.7 was driven against a name-taken 409 instead.
+
+**Rows left behind, deliberately, on the same principle as §3.** The account keeps 3
+`generation_session` rows (`106096` succeeded, `106097` the retirement, `106098` the 502) and one
+deck `Matryca 4.11` with 5 cards. Two of those sessions ARE the evidence for 4.5 and 4.6, and
+deleting evidence straight after recording it buys nothing. Nothing downstream breaks: C10X-46's
+D-01 already states the e2e account carries state between runs and that no spec may assume an
+empty starting deck list.
 
 ## 4. What is NOT proved here
 
@@ -243,10 +283,12 @@ against a name-taken 409 rather than that one.
   seam, no DDL/DCL inside the suite. The consequence half is committed; the reachability half is
   the one run above and nothing re-runs it.
 - **The island half**, as always (test-plan §7). Phase 4's `retriable` read and the stale-gate fix
-  rest on the browser matrix in **§3b above**, which as of 2026-08-13 is a table with its
-  observations **unfilled** — so until someone re-runs it, criteria 4.5–4.11 are checked off
-  against no evidence on disk. No layer in this project reaches an island's JSX, so §3b is the
-  only evidence they can ever have.
+  rest on the browser matrix in **§3b above**, which was run and filled on 2026-08-13 — **7 of 7
+  green**, three of them reached by provocation (a DCL revoke, a bogus API key, a stopped server),
+  each restored and verified. No layer in this project reaches an island's JSX, so §3b is the only
+  evidence those criteria can ever have, and it is a one-off observation that nothing re-runs.
+  Two branches inside it were NOT driven and say so at the site: 4.5's **422** half and the fourth
+  409 at `:368`.
 - **Nothing about the cloud.** Every assertion above ran against the local stack, and D-05 leaves
   already-poisoned production rows alone — they are inert until someone replays that key, and the
   heal clears it at that moment.
