@@ -36,6 +36,13 @@ import type { TablesInsert } from "@/db/database.types";
 // keeping, and naming it here is what stops "fingerprint everything free-form" being read as
 // total when it is not.
 //
+// This exception's safety is BORROWED, not enforced here: `OpenRouterError.message` in
+// `@/lib/openrouter` is currently always one of three bounded shapes (a fetch-failure reason, an
+// HTTP status, or a fixed non-JSON-body literal), none of which can carry `sourceText`. Nothing
+// in THIS module checks that. If `openrouter.ts` ever starts building that message by echoing raw
+// upstream response text, this field starts leaking it here silently — re-verify the invariant
+// there before trusting this exception again.
+//
 // `user_id` is deliberately ABSENT: it identifies a person and buys nothing the tags do not.
 
 /**

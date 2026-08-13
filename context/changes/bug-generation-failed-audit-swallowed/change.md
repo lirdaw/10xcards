@@ -1,7 +1,7 @@
 ---
 change_id: bug-generation-failed-audit-swallowed
 title: Unchecked "failed" audit-row insert on both generation failure paths
-status: implemented
+status: impl_reviewed
 created: 2026-08-13
 updated: 2026-08-13
 archived_at: null
@@ -21,3 +21,8 @@ builder + privacy truth table (p1), both call sites wired on two channels — a 
 literal and a fingerprinted `Sentry.captureException` (p2), the committed error-arm test plus the
 wiring guard and five breakage criteria (p3), two manual reachability runs (p4), and this doc-sync
 (p5). Suite 437 → 467, 38 files. Full record: `verification.md`.
+
+**Impl-reviewed 2026-08-13.** APPROVED, 0 critical/warning findings; one OBSERVATION (F1 —
+`error_message`'s verbatim-to-Sentry exception rests on an unenforced invariant in
+`openrouter.ts`) was fixed in place with a cross-reference comment. Full record:
+`reviews/impl-review.md`.
