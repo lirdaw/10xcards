@@ -6,7 +6,68 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-08-13 (C10X-49 `bug-generation-deck-undo-swallowed` — **not a §3 rollout phase
+> Last updated: 2026-08-13 (C10X-50 `bug-generation-failed-audit-swallowed` — **not a §3 rollout
+> phase and not a coverage widening: no §2 risk row moves, no §3 phase status changes, and §3's
+> table is untouched.** The third entry of the day and the last of the class: C10X-48 fixed the
+> swallowed compensation, C10X-49 fixed the swallowed deck undo, and this one closes the two
+> remaining swallowed writes in `generate.ts` — the `failed`-audit-row inserts at the
+> transport-failure `catch` and the 0-saved boundary. **The class is now closed in this file**;
+> the one remaining discarded-result Supabase mutation anywhere in `src/` is
+> `src/pages/api/auth/signout.ts:7`, carved out explicitly as C10X-51's rather than folded in.
+>
+> **Two channels, and that is the one thing this site does differently from both siblings.** A
+> lost `failed` row costs the user nothing — nothing in `src/` reads `status`, `error_message` or
+> either payload, the replay lookup excludes `failed` rows by predicate, and the key is `null` at
+> both sites — so the response alone is not a signal to anyone who could act on it. Each site now
+> reads `{ error }` off `createGenerationSession` and, on failure, answers a distinct per-site
+> literal (the primary failure stays the leading half; the audit clause reads as informational,
+> never as a second problem to solve) **and** fires one `Sentry.captureException`, tagged with
+> the site and the PostgREST `code`, carrying every non-private column and the cause's own
+> free-form strings as a length + SHA-256 prefix rather than as content. The captured exception
+> is a **synthetic** `Error`, never `auditError` itself — the first argument lands on the event
+> where no builder can reach it, so passing the real `PostgrestError` would ship
+> `message`/`details`/`hint` (a Postgres CHECK violation's DETAIL literally contains
+> `Failing row contains (…)`, source text included) past every guard this change builds.
+>
+> **The `.single()` boundary closes a branch both siblings had to reason their way past.**
+> `createGenerationSession` ends `.select("id, public_id").single()`, and postgrest-js only ever
+> synthesises `data: null` on the `maybeSingle` path — `.single()`'s `Accept` header makes a
+> zero-row result answer `406 / PGRST116` at the SERVER, so `if (error)` alone is the whole
+> check. A `!data` arm here would be a branch no breakage run could ever redden.
+>
+> **B5, predicted GREEN, is this ticket's own coverage boundary measured rather than asserted.**
+> Making Site A's failed-audit arm return the ordinary literal — both arms byte-identical, the
+> user-visible half of the original bug restored — left the **whole suite green**: the wiring
+> guard is untouched by construction (it asserts the capture is present and composed, never what
+> the response says), the truth table never sees the endpoint, and `failure-path.test.ts`'s four
+> existing cases all land on the audit-insert-SUCCEEDS arm. Nothing committed can make either
+> insert fail, which is exactly why Phase 4 exists.
+>
+> **The evidence splits the same way C10X-49's did, on the same structural reason, doubled.**
+> `createGenerationSession` had **no caller anywhere in `tests/`** — the state C10X-49 found
+> `deleteDeck` in — so the suite now owns its error arm via a cross-account `42501` denial with
+> its positive control in its **own** `it()` (the C10X-49 lesson: a shared control never runs
+> under the neuter it is meant to attribute). Two recorded manual DCL runs, one per site, own
+> the endpoint's use of it — Site B provoked for the first time by either sibling, through a
+> **second** module double admitted on test-plan §6.9's own terms (unreachable otherwise,
+> temporary, run alone, deleted, deletion proved, explicitly not precedent). **Nothing bridges
+> the two, and no test in this project can** — the same sentence C10X-49's header used, true
+> here for the same reason, twice over.
+>
+> Suite **437 → 467, 38 files** (+30: +21 in the new `tests/lib/audit-failure-report.test.ts`,
+> +7 in the new `tests/lib/audit-failure-wiring.test.ts`, +2 in
+> `tests/generation/generate.test.ts`), every figure measured by RUNNING rather than by
+> arithmetic. Five breakage criteria (B1–B5), three run as **pairs** to separate two mechanisms
+> apiece: B1's first half came back **green** as planned — Postgres applies the SELECT policy to
+> `.single()`'s `RETURNING`, so the write policy alone proves nothing, the same trap this file
+> already records for an `UPDATE`'s `WHERE` — and only its second half, with SELECT neutered too,
+> reddened correctly; B2's two predictions were each rounder than the runs it produced, because
+> the fixture's `details` legitimately embeds the row's own `source_text`, so the two cases split
+> by ROUTE rather than by field; B4 split the delegation rule from the first-argument rule the
+> same way. Evidence:
+> `context/changes/bug-generation-failed-audit-swallowed/verification.md`.
+>
+> Previously: 2026-08-13 (C10X-49 `bug-generation-deck-undo-swallowed` — **not a §3 rollout phase
 > and not a coverage widening: no §2 risk row moves, no §3 phase status changes, and §3's table is
 > untouched.** The second entry of the same day, and the sibling of the one below it: C10X-48 fixed
 > one swallowed compensating write in `generate.ts`, this one fixes the other, and **the remaining
@@ -1786,6 +1847,17 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   > (the two failure-path `createGenerationSession` inserts, `generate.ts:426` and `:477`). What
   > does NOT change is the sentence's other half — the island is still untouched by any test — and
   > C10X-49 leans on it harder rather than less. The note directly below is that change's own.
+  >
+  > **Corrected 2026-08-13 (C10X-50 `bug-generation-failed-audit-swallowed`) — a THIRD dated line
+  > on the same original sentence, and this file has no precedent for a correction to a
+  > correction, so say so here rather than inventing a silent convention.** The clause the
+  > correction above deliberately left standing — "the remaining exception is **C10X-50's
+  > alone**" (the two failure-path `createGenerationSession` inserts, `generate.ts:426` and
+  > `:477`) — is now closed too: both sites read `{ error }` off the insert and answer distinctly
+  > on a failed audit write, on two channels rather than one (a per-site response literal plus a
+  > fingerprinted `Sentry.captureException`). C10X-48's original sentence is therefore accurate on
+  > neither of its two named owners any more; both are read as historical. The class is closed **in
+  > this file**, with `src/pages/api/auth/signout.ts:7` carved out explicitly as C10X-51's.
 
   > **Extended 2026-08-13 (C10X-49 `bug-generation-deck-undo-swallowed`) — the sibling of the entry
   > above: same file, same class, the other call site, the same day.** **No §2 risk row moves and
@@ -1831,6 +1903,85 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   > control and four restore oracles, and the browser observations:
   > `context/changes/bug-generation-deck-undo-swallowed/verification.md` (after archiving:
   > `context/archive/<date>-bug-generation-deck-undo-swallowed/verification.md`).
+  >
+  > **Corrected 2026-08-13 (C10X-50 `bug-generation-failed-audit-swallowed`).** "What is left over
+  > is C10X-50's two audit-row inserts" is closed: both failure-path `createGenerationSession`
+  > inserts now read `{ error }` and answer on both channels. Nothing else in this note moves —
+  > the orphan deck it describes still survives a failed undo, and C10X-50's own two sites sit
+  > strictly before any deck exists (§4.1 of its `verification.md`), so they leave no analogous
+  > orphan behind.
+
+  > **Extended 2026-08-13 (C10X-50 `bug-generation-failed-audit-swallowed`) — the third sibling of
+  > the same day, and the last IN THIS FILE: `generate.ts` now discards no write result anywhere**
+  > (the class is not closed project-wide — `src/pages/api/auth/signout.ts:7` still discards one,
+  > carved out explicitly as C10X-51's). **No §2 risk row moves and no §3 phase status changes.**
+  > C10X-48 fixed the swallowed compensation, C10X-49 fixed the swallowed deck undo, and this closes
+  > the two `failed`-audit-row inserts — the transport-failure `catch` (answers 502) and the
+  > 0-saved boundary (answers 422) — that both left it. `createGenerationSession` had **no caller
+  > anywhere in `tests/`**, exactly the state C10X-49 found `deleteDeck` in.
+  >
+  > **Read the boundary before the coverage, because this entry is committed tests plus TWO manual
+  > runs, not one.** Both siblings needed a single manual DCL run because each fixed one call site;
+  > this ticket fixes two, and the rows differ in five fields (`model`, `generated_count`,
+  > `error_message`, and whether either payload column can legitimately be `null`), so Site A's run
+  > cannot stand in for Site B's. Site B had never been provoked by either sibling and is not
+  > steerable from `.env` at all — `mockCards` always returns cards that pass Zod — so provoking it
+  > needed a **second** module double, admitted on test-plan §6.9's own exception clause rather than
+  > as a precedent: unreachable otherwise, temporary, run alone, deleted, the deletion proved.
+  > **Nothing bridges the suite and the manual runs, and no test in this project can** — the same
+  > structural reason C10X-49's `research.md` gives for its own branch, here for two branches at
+  > once.
+  >
+  > **The claim this ticket adds that neither sibling needed: TWO channels, not one.** A lost
+  > `failed` row costs the user nothing — nothing in `src/` reads `status`, `error_message` or
+  > either payload, the replay lookup excludes `failed` rows by predicate, and the key is `null` at
+  > both sites — so a message to the person who cannot act on it is not a signal by itself. Each
+  > site now answers a distinct per-site literal (informational, never a second problem to solve;
+  > status and `retriable: true` unchanged on every arm) **and** fires one
+  > `Sentry.captureException` per site, carrying every non-private column and the cause's own
+  > free-form strings as a length + SHA-256 prefix rather than as content, with the captured
+  > exception itself a **synthetic** `Error` — never `auditError` — because the first argument
+  > lands on the event where the builder cannot reach it, and a Postgres CHECK violation's DETAIL
+  > literally contains `Failing row contains (…)`, source text included.
+  >
+  > | Claim                                                             | What proves it                                                                                                                                                                                                                                                                                                                            |
+  > | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  > | A failed insert is detected, on both sites                        | `if (error)` alone — `.single()`'s `Accept` header answers a zero-row result as `406 / PGRST116` at the server, so postgrest-js never synthesises `data: null` on this path; a `!data` arm would be a branch no breakage run could ever redden                                                                                            |
+  > | The caller is told, on a distinct literal, still retriable        | two new fixed module-local strings, no interpolation of `auditError` — three of `failure-path.test.ts`'s four cases already assert the raw response body carries none of their sentinels                                                                                                                                                  |
+  > | An owner is told, without user content                            | `src/lib/audit-failure-report.ts` — `tests/lib/audit-failure-report.test.ts` (21 cases): a positive control (a fabricated leaky report IS caught), retention of every non-private field, fingerprint stability/discrimination/null-handling, and privacy of the CAUSE's own `message`/`details`/`hint`, not only the row                  |
+  > | The wiring cannot regress to leaking the exception itself         | `tests/lib/audit-failure-wiring.test.ts` (7 cases, per-**statement** not per-line — the capture statement is 136 characters against `printWidth: 120`, so Prettier wraps it): exactly two capture lines, both delegating to the builder, none mentioning a content field, and every first argument a `new Error(...)`, never `auditError` |
+  > | `createGenerationSession`'s error arm has a caller, at last       | a cross-account `42501` denial (`generation_session_insert`'s `WITH CHECK`) with its positive control in its **own** `it()` — the C10X-49 lesson, applied here on the first attempt rather than rediscovered                                                                                                                              |
+  > | Both branches are reachable in production and answer the new body | two manual DCL runs (§Phase 4 below), each against a control differing in exactly one privilege — no committed test can reach either                                                                                                                                                                                                      |
+  >
+  > Suite **437 → 467, 38 files** (+30: +21 in the new `tests/lib/audit-failure-report.test.ts`,
+  > +7 in the new `tests/lib/audit-failure-wiring.test.ts`, +2 in
+  > `tests/generation/generate.test.ts`), every figure measured by RUNNING with its own per-file
+  > breakdown. Five breakage criteria, and **B1 is the finding of this entry**: the plan's one
+  > neuter (the insert policy alone) came back **green**, because `.single()`'s `RETURNING` is
+  > scoped by the **SELECT** policy rather than the write policy — the same trap this file already
+  > records for an `UPDATE`'s `WHERE`, one operation over — and only neutering both reddened the
+  > denial while the positive control stayed green. B2's pair reddened on different LINES than
+  > either prediction named, because the fixture's `details` legitimately embeds the row's own
+  > `source_text`, so the two privacy cases split by ROUTE rather than by field. B5, predicted
+  > green, stayed green — the whole suite, with the user-visible half of the original defect
+  > restored and nothing noticing, which is this ticket's own coverage boundary measured rather
+  > than asserted.
+  >
+  > **What the suite proves and what the two manual runs add.** The suite proves the helper's
+  > error arm writes nothing and tells no one else's account; it cannot make the insert FAIL. Two
+  > DCL runs — one revoke each, because unlike C10X-49 neither branch sits after a deck exists —
+  > prove both branches are reached in production: Site A via a bogus OpenRouter key forcing a real
+  > transport failure, Site B via the second module double forcing `saved === 0` for its real
+  > reason. Each paired with a one-privilege-apart control landing the ordinary literal and a row.
+  >
+  > **What NEITHER proves, stated as sharply as the claims above.** Delivery. `Sentry.captureException`
+  > ran with no client configured on every run in this project — the test runner and `npm run dev`
+  > are both in that state — so an event landing in the Sentry UI is provable only on a deployed
+  > Worker, and C10X-54 removed the one instrument (`/api/shipprobe`) that ever showed a first-party
+  > error doing that. That boundary is deferred **with an owner**: `follow-ups/sentry-delivery.md`.
+  > Full record — every breakage run's observed failure string and split, both manual DCL runs with
+  > their four restore oracles, and the §6.9 second-double deviation stated on its own terms:
+  > `context/changes/bug-generation-failed-audit-swallowed/verification.md`.
 
 - **Phase 4 (`srs-study-session`, 2026-07-24; audited 2026-07-26; closed by C10X-27
   the same day)** — Risk #3 is **covered, both halves**. "The schedule writes the wrong
@@ -4077,6 +4228,17 @@ contributors should respect these unless the underlying assumption changes.
   > deleted it from production. The truth table proves the decision is right; the guard proves that
   > file still makes it; neither proves the SDK calls it. (Source: C10X-54 /
   > `context/changes/remove-sentry-probe/`.)
+  > **Dated note, 2026-08-13 (C10X-50), and it is new information for this bullet rather than a
+  > correction of it.** "No layer asserts that Sentry invokes `beforeSend` at all" stays true and
+  > is unaffected by what follows. `generate.ts` now emits a **first-party, route-level**
+  > `Sentry.captureException` on a failed `failed`-audit-row insert — the first capture in this
+  > project that does not arrive through `captureConsoleIntegration`, so it never carries the
+  > `logger === "console"` stamp `sampleSentryEvent` keys on and reaches `beforeSend`'s **fail-open**
+  > branch, unsampled, by the same decision this bullet already names. `tests/lib/audit-failure-wiring.test.ts`
+  > proves the two capture statements are present and composed and leak no content field; nothing
+  > proves an event arrives, for the identical reason this bullet already gives — no DSN is ever
+  > pointed at a real sink from any layer here, and `/api/shipprobe` is gone. See
+  > `context/changes/bug-generation-failed-audit-swallowed/follow-ups/sentry-delivery.md`.
 - **Rate limiting on generation** — no rate limit exists, so a test would
   require adding the safeguard first. Re-evaluate if a limit is
   implemented; the cost exposure is partially covered by Risk #6
@@ -5361,6 +5523,14 @@ generated_count 3 | keyed | 0 cards`. The response is Phase 2's distinct copy ca
   > out and that route rests entirely on a browser check. And read the closure as narrowly as it is
   > meant: the swallow is closed, the orphan deck is not. A failed undo still leaves an empty deck
   > behind, by decision.
+  >
+  > **Corrected 2026-08-13 (C10X-50 `bug-generation-failed-audit-swallowed`), the last item this
+  > bullet and its own correction leave open.** "The two failure-path `createGenerationSession`
+  > inserts (**C10X-50**)" and "**C10X-50 still owns** the two failure-path
+  > `createGenerationSession` inserts" are both closed as of this date: both sites now read
+  > `{ error }` off the insert and answer on two channels, a per-site response literal and a
+  > fingerprinted `Sentry.captureException`. Neither bullet is rewritten — read together they are
+  > the accurate record of what stood open between 2026-08-13's first two entries and its third.
 
 - **The deck undo's HELPER contract last proven by execution: 2026-08-13** (C10X-49, change folder
   `bug-generation-deck-undo-swallowed`). The second entry of the same day and the sibling of the one
@@ -5456,6 +5626,116 @@ generated_count 3 | keyed | 0 cards`. The response is Phase 2's distinct copy ca
   check; **C10X-50 owns the two remaining swallowed `await`s** (the failure-path
   `createGenerationSession` inserts at `generate.ts:426` and `:477`) — with this change closed,
   that is the last of them; and `customfield_10041` on **C10X-49** is `/jira-finish-work`'s to fill.
+
+  > **Corrected 2026-08-13 (C10X-50 `bug-generation-failed-audit-swallowed`).** "**C10X-50 owns
+  > the two remaining swallowed `await`s** … at `generate.ts:426` and `:477`" is closed: both are
+  > now checked, on two channels each. The pinned line numbers were already stale by the time this
+  > fix landed — the comments this fix itself adds move the two call sites to `generate.ts:496`
+  > and `:555` — which is exactly why this phase's own research says to resolve every target by
+  > walking up to its enclosing HEADING with `awk` rather than trusting a line number.
+
+- **The audit-row insert's two failure sites last proven by execution: 2026-08-13** (C10X-50,
+  change folder `bug-generation-failed-audit-swallowed`). The third entry of the day and the last
+  of the class: same file, same shape, the two remaining call sites — the transport-failure
+  `catch` (answers 502) and the 0-saved boundary (answers 422). Not a §3 rollout phase and **not a
+  coverage widening** — no §2 risk row moves, no §3 phase status changes, §3's table is untouched.
+  Suite **467 passed / 467, 38 files**, `npm run typecheck` exit 0 at
+  `Result (154 files): 0 errors, 0 warnings`, `npm run lint` exit 0 with **3** warnings, all
+  `no-console` in `evals/generation-quality.eval.ts` and unchanged by this change, `npm run build`
+  exit 0, `git diff -- src/` **empty** after every breakage restore (per-file `md5sum` against a
+  pristine copy taken before the first edit), `git diff -- supabase/` **empty** — **no migration
+  ships**, so the C10X-29 drift gate is not involved.
+- **Suite delta 437 → 467, files 36 → 38, every figure measured by RUNNING with its own per-file
+  breakdown rather than by arithmetic** — the total-vs-breakdown slip this ledger records against
+  C10X-39, C10X-40 and C10X-48, checked here rather than repeated: `tests/generation/generate.test.ts`
+  **27 → 29** (+2, each figure from a run of that file alone), the new
+  `tests/lib/audit-failure-wiring.test.ts` **7** and the new `tests/lib/audit-failure-report.test.ts`
+  **21**, both from a run of that file alone; `27 + 2 = 29` and `458 + 2 + 7 = 467` close as a check
+  on the two measurements, not as the source of either.
+- **What the suite gains, and why it had nothing before.** `createGenerationSession` had **no
+  caller anywhere in `tests/`** — the state C10X-49 found `deleteDeck` in. Its error arm is now a
+  cross-account `42501` denial (`generation_session_insert`'s `WITH CHECK` is
+  `user_id = (select auth.uid())`, deterministic, no double, no DDL), row-based and marker-scoped
+  through `allSessions` rather than `succeededSessions` (which filters `status = 'succeeded'` and
+  is blind to exactly these rows), with its positive control in its **own** `it()` — the C10X-49
+  lesson that a shared control never runs under the very neuter it is meant to attribute.
+- **Five breakage criteria (B1–B5), and B1 came back green as planned — a finding, not a pass.**
+  The plan's one-neuter B1 (`generation_session_insert`'s `WITH CHECK` to `true`) left the denial
+  case **green**: `.single()`'s `RETURNING` is scoped by the **SELECT** policy, not the write
+  policy — the same trap this ledger already records for an `UPDATE`'s `WHERE`, one operation
+  over, proved directly at the SQL layer — insert-only raises a row-level-security violation,
+  insert+select succeeds (`INSERT 0 1`). Only with SELECT neutered too did the denial redden
+  (**1 of 2**, `expected null not to be null`) while the positive control stayed green — the
+  attribution — and the restore had to delete one row the neutered run genuinely landed,
+  corroborating the row-based oracle independently of the assertion.
+- **B2, the builder's privacy pair, reddened on different lines than either prediction named.**
+  Passing `source_text` through verbatim turned **3 of 21** red, one more than predicted, because
+  the same fingerprint field is asserted from two directions (the row's own sentinel and the same
+  sentinel reached through the cause's fabricated `details`). Passing the cause's `details`
+  through verbatim was predicted to leave the row-privacy case green; it does not — the fixture's
+  `details` legitimately embeds the row's `source_text` (`Failing row contains (…)`, the real
+  CHECK-violation shape), so the two cases split by ROUTE rather than by field, and the two lines
+  that flip are the attribution. Retention, `code`-substitution and fingerprint-stability cases
+  stayed green in both runs.
+- **B3 and B4 each isolated one rule from its neighbour.** Deleting Site A's capture statement
+  reddened the wiring guard alone, naming file and line, while `tests/lib/audit-failure-report.test.ts`
+  stayed **fully green (21/21)** — the whole reason the truth table is a second file. B4's pair
+  split the delegation rule from the F1 first-argument rule: an inline object literal reddened
+  delegation while the import and first-argument assertions stayed green; swapping the synthetic
+  error back for `auditError` reddened only the first-argument assertion while delegation and
+  content assertions stayed green — proving the first-argument rule is not carried incidentally
+  by the delegation rule.
+- **B5, predicted GREEN, is this ticket's own coverage boundary, measured rather than asserted.**
+  Making Site A's failed-audit arm return the ordinary literal — both arms byte-identical, the
+  user-visible half of the original defect restored — left the **whole suite green (467/467)**.
+  The wiring guard asserts the capture is present and composed, never what the response says; the
+  truth table never sees the endpoint; and `failure-path.test.ts`'s four existing cases all land
+  on the audit-insert-SUCCEEDS arm. Had it gone red, something would have reached a branch this
+  plan says cannot be reached from the suite, and Phase 4's scope would have changed. It did not.
+- **The manual reachability runs cover BOTH sites, unlike either sibling's single-site run, because
+  Site B has never been provoked by any change in this class.** Two DCL revokes
+  (`revoke insert on public.generation_session from authenticated` — one revoke is sufficient at
+  both sites, because unlike C10X-49 neither branch sits after a deck exists), each paired with a
+  control differing in exactly one privilege. Site A: a bogus `OPENROUTER_API_KEY` forced a real
+  transport failure (`OpenRouter HTTP 401`, no `(mock)`-suffixed `model`); the failed-audit 502
+  landed on the wire with **no row** in `psql`, and the re-granted control produced the ordinary
+  502 with a landed `failed` row. Site B: unreachable from `.env` — `mockCards` always passes Zod
+  — so a **second** module double was admitted on test-plan §6.9's own exception clause
+  (unreachable otherwise, temporary, run alone under `--disable-console-intercept`, deleted, the
+  deletion proved by a clean `git status --porcelain -uall` and a tree-wide marker grep, explicitly
+  not precedent): the failed-audit 422 landed with no row, the control landed the fixed Site-B
+  literal in `error_message` with `generated_count > 0` and `saved_count = 0`. Grants restored and
+  verified by **four** oracles — the `information_schema` projection line for line, raw
+  `pg_class.relacl` byte-identical against two untouched sibling tables, `has_table_privilege`
+  answering `t`, and the full suite green (467/467) — the same figure Phase 3 recorded, unmoved by
+  anything in Phase 4.
+- **What this phase proves, and — read this before citing the Sentry half as delivered — what it
+  does not.** It proves both branches are reachable in production and answer with the new body:
+  the half no committed test can reach (B5's own finding). It says nothing about DELIVERY.
+  `npm run dev`'s `astro dev` process never loads `src/worker.ts`, so `Sentry.captureException` ran
+  with no client configured on every manual run — the same no-op state the test runner is in. That
+  every provoked request answered 502/422 rather than an uncaught framework 500 is the incidental
+  evidence the plan calls for (a throw inside the capture statement would have replaced the
+  intended status with a 500, and none did); it is **not** proof an event arrived anywhere. That
+  boundary is D-05, unchanged by this phase, and it now has an owner rather than only a paragraph:
+  `follow-ups/sentry-delivery.md` names what is unproven, why it is not provable here (no
+  production DCL access, and C10X-54 removed `/api/shipprobe`, the one instrument that ever showed
+  a first-party error reaching the Sentry UI), and the two routes that would close it.
+- **Three non-edits recorded rather than left as absences, so nobody hunts for a change that was
+  never made.** §6.5's `saved_count`-is-not-an-oracle bullet was checked and left alone — every
+  clause in it is about `retireGenerationSession`, the compensation C10X-48 owns, and this ticket
+  touches neither that helper nor a `succeeded` row. §2's Risk #4 row and §3's table were checked
+  and not moved — a failed audit write is not a new leak scenario, and the fingerprinting rule
+  (D-04) keeps user content out of the new Sentry channel, matching both siblings' "no risk row
+  moves". And `roadmap.md`'s H-17 block (`Status: done`, dated) was checked and left untouched,
+  exactly as H-17 itself did with H-16 — only the new H-18 row is added.
+- **Still open after this entry, deliberately**: `src/pages/api/auth/signout.ts:7` — the last
+  remaining discarded-result Supabase mutation anywhere in `src/` — is **C10X-51's**, explicitly
+  carved out rather than folded in; the `:568-570` hoist-the-undo pointer C10X-49's impl-review
+  left is a **different** defect on a **different** branch and stays with its own future ticket;
+  already-lost audit rows from before this change are **not** backfilled, because there is nothing
+  to reconstruct them from; and no Sentry DSN was ever pointed at a real sink — the Sentry half's
+  evidence is the truth table plus the wiring guard, by decision (D-05), not an oversight.
 
 Refresh (`/10x-test-plan --refresh`) when:
 

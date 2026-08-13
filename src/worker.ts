@@ -33,6 +33,17 @@ export default Sentry.withSentry(
     // all and is guarded to keep it that way (`tests/lib/no-logging.test.ts`), so this captures
     // NONE of the swallowed-error audit findings (C10X-48…52) — those are dropped results, and
     // each ticket owns checking its own error.
+    //
+    // Dated note, 2026-08-13 (C10X-50): the sentence above stays true and precise, and it now
+    // sits next to a ticket that stopped relying on it. `generate.ts` emits a first-party,
+    // ROUTE-LEVEL `Sentry.captureException` on a failed `failed`-audit-row insert — the first
+    // capture in this project that arrives some way other than through this console integration.
+    // It carries no `logger === "console"` stamp, so `sampleSentryEvent` (below) takes its
+    // fail-open branch for `logger !== "console"` and passes it UNSAMPLED, which is intended.
+    // `tests/lib/audit-failure-wiring.test.ts` proves the two capture statements are present,
+    // composed and leak no content field; nothing proves an event ARRIVES — the same boundary
+    // C10X-54's note below already draws for `beforeSend` itself. See
+    // `context/changes/bug-generation-failed-audit-swallowed/follow-ups/sentry-delivery.md`.
     integrations: [
       Sentry.captureConsoleIntegration({ levels: ["warn", "error"] }),
       // Naming this one is NOT redundant — it is the trap this line exists to close.
