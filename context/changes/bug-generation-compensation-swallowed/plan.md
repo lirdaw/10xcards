@@ -722,17 +722,17 @@ Three things follow, and all three belong in the code rather than in memory:
 
 #### Automated
 
-- [ ] 1.1 Type checking passes: `npm run typecheck`
-- [ ] 1.2 Linting passes: `npm run lint`
-- [ ] 1.3 New classifier unit tests pass: `npx vitest run tests/lib/generation-replay.test.ts`
-- [ ] 1.4 Full suite still green: `npm test`
-- [ ] 1.5 Grep confirms no remaining import or call of `failGenerationSession` (`generate.ts:21`, `:396`)
+- [x] 1.1 Type checking passes: `npm run typecheck`
+- [x] 1.2 Linting passes: `npm run lint`
+- [x] 1.3 New classifier unit tests pass: `npx vitest run tests/lib/generation-replay.test.ts`
+- [x] 1.4 Full suite still green: `npm test`
+- [x] 1.5 Grep confirms no remaining import or call of `failGenerationSession` (`generate.ts:21`, `:396`)
 
 #### Manual
 
-- [ ] 1.6 Both new docblocks state their contract: the zero-row rule (citing `decks.ts:40-41`) and why the heal must not touch `status` / `saved_count`
-- [ ] 1.7 All eight sites in §3's table are handled, each as the job that table assigns it
-- [ ] 1.8 The three corrections (`generate.ts:294`, `:385`, `generate.test.ts:40`) are dated, and the two key-claim ones keep their conclusion
+- [x] 1.6 Both new docblocks state their contract: the zero-row rule (citing `decks.ts:40-41`) and why the heal must not touch `status` / `saved_count`
+- [x] 1.7 All eight sites in §3's table are handled, each as the job that table assigns it
+- [x] 1.8 The three corrections (`generate.ts:294`, `:385`, `generate.test.ts:40`) are dated, and the two key-claim ones keep their conclusion
 
 ### Phase 2: The compensation path stops swallowing
 

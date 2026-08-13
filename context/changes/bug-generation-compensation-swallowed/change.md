@@ -1,7 +1,7 @@
 ---
 change_id: bug-generation-compensation-swallowed
 title: Swallowed compensation error leaves a lying succeeded session and a dead retry
-status: plan_reviewed
+status: implementing
 created: 2026-08-12
 updated: 2026-08-13
 archived_at: null

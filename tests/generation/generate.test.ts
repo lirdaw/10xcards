@@ -29,6 +29,13 @@ import { clientFor } from "../fixtures/session";
 //   - a key whose only prior session is `failed` still generates (FR-018's "Ponów" must
 //     survive a failure — see the partial index's `status = 'succeeded'` predicate).
 //
+// That third control seeds its `failed` row DIRECTLY, which is why it survives C10X-48
+// unchanged and stays the guard against the index predicate being dropped. Its rationale
+// moved, though, and the note above is the live half: since 2026-08-13 the compensating
+// update nulls the key as it flips the status, so a keyed `failed` row is no longer produced
+// by ordinary operation. The predicate is still load-bearing — a compensation that FAILS
+// leaves a keyed `succeeded` row — so do not remove it.
+//
 // Two traps specific to mock mode (OPENROUTER_API_KEY is unset locally and in CI, so
 // generateCandidates short-circuits to mockCards — src/lib/openrouter.ts:149-158):
 //
@@ -37,8 +44,9 @@ import { clientFor } from "../fixtures/session";
 //    generation apart from the mock simply repeating itself. The oracle is
 //    `generation_id`, which is unique per session.
 // 2. DO NOT assert on `saved_count`. The compensating update zeroes it
-//    (`failGenerationSession`, src/lib/generations.ts:116-121 — the symbol, not the number,
-//    is the anchor: this comment pointed at a stale `:29-34` until C10X-28), so a
+//    (`retireGenerationSession` in src/lib/generations.ts — the symbol, not a line number,
+//    is the anchor: this comment pointed at a stale `:29-34` until C10X-28, and the symbol
+//    itself was renamed from `failGenerationSession` by C10X-48), so a
 //    duplicated-then-compensated run reads as 0 while its row still exists.
 //
 // Every count is scoped twice — by `source_text` and by this run's own deck. Cross-run

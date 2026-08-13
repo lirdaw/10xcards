@@ -18,10 +18,10 @@ import {
 } from "@/lib/redirect-errors";
 import {
   createGenerationSession,
-  failGenerationSession,
   findSucceededSessionByIdempotencyKey,
   generationResultByGenerationId,
   insertCandidates,
+  retireGenerationSession,
 } from "@/lib/generations";
 
 // FIRST JSON endpoint in the project — a deliberate departure from the native
@@ -290,13 +290,25 @@ export const POST: APIRoute = async (context) => {
       // and is not (plan-review F1). "Ponów" replays the same key, so a failed audit row
       // carrying it would be the row the retry collides with.
       //
-      // But these two inserts are NOT the only way to reach a `failed` row, and the guards are
-      // NOT independent (impl-review F3). failGenerationSession — the compensating update below
-      // — flips an already-inserted `succeeded` row to `failed` and leaves its key in place, so
-      // a keyed `failed` row IS reachable in production. The partial unique index's
-      // `status = 'succeeded'` predicate is what covers that path, and nothing else does:
-      // without it, "Ponów" after a card-insert failure collides on its own insert and dies at
-      // the 500 below. Do not "simplify" the predicate away on the strength of this NULL.
+      // But these two inserts are NOT the only way to reach a `failed` row, so do not
+      // "simplify" the partial unique index's `status = 'succeeded'` predicate away on the
+      // strength of this NULL. The reason changed on 2026-08-13 (C10X-48) and the conclusion
+      // did not — read both halves before touching the index.
+      //
+      // Until C10X-48 this comment said the two guards were NOT independent (impl-review F3):
+      // `failGenerationSession` — the compensating update below — flipped an already-inserted
+      // `succeeded` row to `failed` and LEFT ITS KEY IN PLACE, so a keyed `failed` row was
+      // reachable in ordinary operation and the `status` predicate was the only thing covering
+      // it. That route is now closed: `retireGenerationSession` nulls the key and flips the
+      // status in one statement (D-03), so a SUCCESSFUL retirement produces no keyed `failed`
+      // row at all.
+      //
+      // The predicate still earns its place, for a different row: a retirement that FAILS
+      // leaves a keyed `succeeded` row standing, and the index is what stops a second
+      // succeeded row for that key from ever existing. And the index's FIRST predicate,
+      // `idempotency_key is not null`, is load-bearing too once the self-heal C10X-48 adds
+      // below lands: it clears a key without touching `status`, so a `succeeded` row with a
+      // NULL key becomes a shape production reaches. Both predicates, each for a different row.
       idempotency_key: null,
     });
     return json(502, { error: "Nie udało się wygenerować fiszek. Spróbuj ponownie.", retriable: true });
@@ -382,7 +394,16 @@ export const POST: APIRoute = async (context) => {
     // deckNameExists with a permanent 409: retry impossible, empty orphan deck left behind.
     // That is the exact failure deferring createDeck past the LLM call was meant to prevent,
     // one step further down. Safe and provably empty here: no cards were inserted on this
-    // path and generation_session carries no deck FK. Best-effort, like failGenerationSession.
+    // path and generation_session carries no deck FK.
+    //
+    // Still best-effort — and as of 2026-08-13 (C10X-48) that is an EXCEPTION rather than
+    // house style. This line used to justify itself "Best-effort, like failGenerationSession",
+    // an analogy that has since inverted: the compensation is now a checked write
+    // (`retireGenerationSession`), so the symbol this deferred to no longer defers to
+    // anything. Do not read the inversion backwards and re-swallow the compensation to
+    // restore the symmetry — the fix is to check THIS await too, and it belongs to C10X-49,
+    // which owns this branch and its tests. The other exceptions left in the file are the two
+    // failure-path `createGenerationSession` inserts, owned by C10X-50.
     if (createdDeckPublicId) {
       await deleteDeck(supabase, createdDeckPublicId);
     }
@@ -393,7 +414,7 @@ export const POST: APIRoute = async (context) => {
   if (cardsError) {
     // The session was already saved as `succeeded`, but no cards landed. Compensate so
     // the audit doesn't over-report saved cards (impl-review F2); best-effort.
-    await failGenerationSession(supabase, session.id, "Zapis kart nie powiódł się");
+    await retireGenerationSession(supabase, session.id, "Zapis kart nie powiódł się");
     // Same undo as the session-insert branch above (impl-review F4): no cards landed, so a
     // deck this request created is empty and would otherwise 409 every future "Ponów".
     if (createdDeckPublicId) {
