@@ -750,12 +750,12 @@ Postgres solely through `docker exec` on a container name derived from this chec
 
 #### Automated
 
-- [x] 5.1 Markdown prettier-clean and a fixed point, checked on an in-repo copy
-- [x] 5.2 Full suite still green: `npm test`
-- [x] 5.3 Type gate passes: `npm run typecheck`
+- [x] 5.1 Markdown prettier-clean and a fixed point, checked on an in-repo copy — 9b75321
+- [x] 5.2 Full suite still green: `npm test` — 9b75321
+- [x] 5.3 Type gate passes: `npm run typecheck` — 9b75321
 
 #### Manual
 
-- [x] 5.4 The archive edit is an append, verified by diff
-- [x] 5.5 Every corrected claim left standing with a dated correction beneath it
-- [x] 5.6 The Defect B follow-up is self-contained
+- [x] 5.4 The archive edit is an append, verified by diff — 9b75321
+- [x] 5.5 Every corrected claim left standing with a dated correction beneath it — 9b75321
+- [x] 5.6 The Defect B follow-up is self-contained — 9b75321
