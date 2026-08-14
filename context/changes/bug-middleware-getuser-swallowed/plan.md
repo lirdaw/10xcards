@@ -792,11 +792,11 @@ None. No schema change, no migration file, nothing pushed to the cloud.
 
 #### Automated
 
-- [x] 6.1 `npm run typecheck`, `npm run lint`, `npm run build` all exit 0
-- [x] 6.2 `npm test` green, total with per-file breakdown from the run
-- [x] 6.3 `prettier --check` clean on every edited markdown file
+- [x] 6.1 `npm run typecheck`, `npm run lint`, `npm run build` all exit 0 — f53ca5c
+- [x] 6.2 `npm test` green, total with per-file breakdown from the run — f53ca5c
+- [x] 6.3 `prettier --check` clean on every edited markdown file — f53ca5c
 
 #### Manual
 
-- [x] 6.4 §6.6 does-NOT-prove list as long as the claims table
-- [x] 6.5 No roadmap Status flipped to `done`
+- [x] 6.4 §6.6 does-NOT-prove list as long as the claims table — f53ca5c
+- [x] 6.5 No roadmap Status flipped to `done` — f53ca5c
