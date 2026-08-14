@@ -779,6 +779,14 @@ Probe removed and the tree restored: `md5sum -c` **OK** on both files against th
 (`23b0962b… study.test.ts`, `f541bb87… candidates.test.ts`), and `git diff` over the two files
 empty.
 
+> **Both line numbers in that table are one HIGHER than the restored tree, and this is flagged
+> rather than silently re-based** — §3.6 wrote down this exact hazard one phase ago and it fired
+> again immediately. The probe replaced one assertion line with two (a marker comment plus the
+> commented-out assertion), so the file grew by one while it ran: the runs honestly reported
+> `study.test.ts:460` and `candidates.test.ts:661`, and in the committed tree the same assertions
+> sit at **`:459`** and **`:660`**. `:432` and `:638` in §7.1 are unaffected — those reds came from
+> the pre-probe run. Resolve all four by the assertion, never by the number.
+
 #### 7.4 One divergence, and it reproduces Phase 2's exactly
 
 `returns 404 when B rates a card in A's deck` failed **`expected 500 to be 404`**
@@ -880,3 +888,197 @@ read-only dictionary tables, all three are `using (true)` in committed migration
 (`20260705180246`, `20260710195327`, `20260731120000`), and all three are inside the byte-identical
 dumps, so they predate the window. Recorded because a bare "3 policies are `true`" in a restore
 check is exactly the kind of number that reads as an alarm to the next person who runs it.
+
+---
+
+## Phase 5 — Documentation sync
+
+### 0. What this phase changed
+
+No source file, no test file, no migration. Nine documentation targets, **enumerated rather than
+counted** — the total-versus-breakdown discipline this project has caught itself on five times.
+Six are the plan's; three are widenings named below rather than folded into a number.
+
+| #   | Target                                               | Plan item | What                                                                                                                            |
+| --- | ---------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `test-plan.md` §6.6 Phase 4                          | §1 + §2   | dated correction + enumeration of the truncation class, under the existing generalisation paragraph                             |
+| 2   | `test-plan.md` §6.7                                  | —         | **widening**: a dated operational note on the neuter recipe itself                                                              |
+| 3   | `test-plan.md` §6.6                                  | §2 + §4   | this change's own entry, with its claims table and does-NOT-prove list                                                          |
+| 4   | `test-plan.md` §8                                    | §4        | this change's ledger entry                                                                                                      |
+| 5   | `test-plan.md` header block                          | —         | **widening**: `Last updated` for C10X-47; C10X-52 demoted to `Previously`                                                       |
+| 6   | `2026-08-01-local-stack-transport-flake/research.md` | §3        | appended dated correction to the CI-immunity claim                                                                              |
+| 7   | `follow-ups/deck-create-transient.md`                | §5        | new — the Defect B follow-up                                                                                                    |
+| 8   | `change.md`                                          | §6        | `updated` already stamped `2026-08-15`; `status` → `implemented` at the epilogue; `archived_at` stays `null` — `/10x-archive`'s |
+| 9   | this file                                            | —         | **widening**: this section                                                                                                      |
+
+Targets 5 and 9 are the C10X-48 precedent: two live surfaces that would otherwise have been left
+stating something false about today. Target 2 is argued in §2 below.
+
+### 1. Criterion 5.1 — prettier, and the hazard fired TWICE in this phase's own new text
+
+Checked the way the plan requires — `prettier --write` on an **in-repo copy** first, then a
+`diff` — because a `/tmp` copy escapes config resolution (the C10X-51 finding). That procedure
+earned its keep immediately: prettier's output on the copy carried **two destructive edits**, both
+the class C10X-43 recorded, and a `--check`-and-accept pass would have shipped them.
+
+| Site                                           | What prettier did                                                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------ |
+| §6.7's new note (`expected 2 to be undefined`) | stripped the line's `> ` continuation marker entirely — the line left the blockquote |
+| §8's new entry (`expected 200 to be 404`)      | stripped the line's 2-space indent — the line left the list item                     |
+
+Both are the same mechanism and it is worth stating as one sentence: **a code span split across a
+line break loses its continuation marker.** C10X-43 met it inside a blockquote; this phase met it
+inside a blockquote **and** inside a list item, so the rule generalises past the form it was first
+written in. Fixed the documented way — join the span onto one line — after which the copy's diff
+carried only table-cell padding and `*emphasis*` → `_emphasis_`, both cosmetic, both accepted.
+
+Then applied to the real files and proved a **fixed point**: a second `prettier --check` over
+`test-plan.md`, the follow-up, this file and `plan.md` reports
+`All matched files use Prettier code style!`.
+
+**The archive was verified untouched by that write**, not assumed: `.prettierignore` carries
+`context/archive/**`, `npx prettier --list-different "context/archive/**/*.md"` returns nothing,
+and `git diff --stat -- context/archive/` after the write shows the append and nothing else. Note
+the vacuity trap this project already records — prettier prints the same success line when **zero**
+files match — which is why the `--list-different` reading is paired with the `git diff`.
+
+### 2. Criterion 5.5 — one divergence from the plan's premise, recorded rather than smoothed over
+
+Plan Phase 5 §1 says "**§2 and §6.6** imply `study_due_cards` belongs to the truncation-vulnerable
+class". Checked before writing, by grep over the whole file for `study_due_cards`,
+`study_due_counts`, `max_rows` and `unbounded`:
+
+- **§2 mentions neither RPC, anywhere.** No edit was made there, and the non-edit is recorded in
+  the correction itself and in §8 — the C10X-42 precedent, so nobody works the doc-sync list
+  hunting for a correction that should not exist.
+- **§6.6 and §6.7 name the right RPC every time.** `study_due_counts` carries the truncation
+  finding at both sites (§6.6 Phase 4's "The cause was traced, not guessed" paragraph and §6.7's
+  cross-account bullet); `study_due_cards` appears only as the subject of two _different_ neuters
+  (the accepted-only gate; `limit p_limit` dropped). **No sentence in `test-plan.md` was false
+  about `study_due_cards`.** Cited by paragraph rather than by line, because this phase's own edits
+  move every number in that file — the hazard §3.6 and §7.3 of this document both flag.
+
+So the correction is written as a **disambiguation, not a retraction**, and it says so at the site.
+What is real is the hazard the plan was pointing at from one step away: the two names differ by one
+letter, and `study_due_cards` appears **twice inside §6.6 Phase 4's own breakage tables** — the
+same entry a contributor reads before running the neuter. That is a live way to leave with the
+wrong RPC in mind, and it is what the block now closes.
+
+**And it is why target 2 exists.** The plan named §6.6 and §2; the place a contributor actually
+reads immediately before typing a neuter is **§6.7**, whose two bullets put
+`create or replace study_due_cards` and the truncation correction adjacent to each other. Leaving
+§6.7 alone would have corrected the archive of the finding and not the instruction.
+
+### 3. Criterion 5.4 — the archive edit is an append, measured
+
+```
+git diff --numstat -- context/archive/   →  46  0  …/local-stack-transport-flake/research.md
+git diff -U0        -- context/archive/   →  @@ -417,0 +418,46 @@
+wc -l                                     →  417 → 463
+```
+
+**One hunk, at line 418, zero deletions.** Nothing above the appended block is altered, and the
+diff _shape_ is the oracle rather than a reading of the text — which is precisely the property
+`.prettierignore`'s own header says the archive entry exists to preserve.
+
+The correction's scope is deliberately narrow and states its own boundaries: it falsifies the
+`attempt > 1` count and the empirical immunity inference drawn from it, and explicitly **not** the
+mechanistic argument (which that section itself calls the stronger of the two), **not** the
+attribution of run #66 to the keep-alive flake (argued against on three grounds), and **not** the
+"nothing should be added to `ci.yml`" conclusion.
+
+### 4. Criterion 5.6 — the follow-up, and the pins it carries were re-read rather than copied
+
+Every `file:line` in `follow-ups/deck-create-transient.md` was resolved against the tree at
+doc-sync time rather than carried over from research:
+
+| Pin                                       | Verified                                                                                                                                 |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/pages/api/decks/index.ts:47,63,74`   | three `DECK_CREATE_FAILED_MESSAGE` redirects; `:66`/`:73` are the taken-name pair                                                        |
+| `tests/setup/retry-transport.ts:160`      | `let response = await passthrough(input, init);` — the function has **no** `try` at all, so a rejected `fetch` is uncovered              |
+| `tests/setup/retry-policy.ts:19,28,36,53` | the four conjunction clauses, read off the source                                                                                        |
+| `src/pages/decks/index.astro:18`          | `countCandidatesByDeck` — and a tree-wide grep confirms it and `src/pages/study/index.astro:15` are the **only two** consumers in `src/` |
+
+The self-containment claim is structural rather than asserted: the document carries the verbatim
+attempt-1 log, the five facts, the three-ground argument, the retry-asymmetry table, the three
+indistinguishable sites, and the full marker-experiment design **with its expected outcome stated
+as a non-reproduction before the run**, so a reader who has never opened this change's research can
+execute it from that file alone.
+
+### 5. Gates
+
+| Gate                | Result                                                                                       |
+| ------------------- | -------------------------------------------------------------------------------------------- |
+| `npm test`          | **563 passed (563), 43 files**, seed `1786746492708`, 10.96 s                                |
+| `npm run typecheck` | **OK — 163 files checked**, 0 errors, 0 warnings                                             |
+| `npm run lint`      | **0 errors**, 3 warnings — all `no-console` in `evals/generation-quality.eval.ts`, unchanged |
+| `prettier --check`  | **fixed point** across `test-plan.md`, the follow-up, `plan.md` and this file                |
+
+All four are unchanged from Phase 4's figures, and that is the correct result: this phase changes
+no file the suite or the type gate reads. `tests/lib/deck-name-stems.test.ts` was re-measured at
+**4** by running it alone (seed `1786746249241`) for the §6.6 entry's suite arithmetic, rather than
+carried over from Phase 1.
+
+### 6. What this phase does NOT prove
+
+- **Nothing here is enforced.** Every claim this phase writes is prose in documents no test reads.
+  The two guards that _are_ enforced (`deck-name-stems`, `db-cleanup`) landed in Phases 1 and 3;
+  the corrections, the class enumeration and the does-NOT-prove lists are carried by the next
+  reader's attention alone.
+- **The archive append is outside every formatting and review gate.** `.prettierignore` covers
+  `context/archive/**` by design, so a malformed table or a broken code span in that block would
+  not be caught by anything — it was proof-read, not checked.
+- **The follow-up is unticketed.** It is a file in a change folder until `/jira-backlog-sync` runs,
+  and its own experiment has not been executed — its expected outcome is a **non-reproduction**,
+  which is stated so a future quiet loop is not read as a fix.
+- **The §6.6 disambiguation cannot stop the next mis-read.** `study_due_cards` and
+  `study_due_counts` still differ by one letter, and nothing mechanical distinguishes them.
+- **No claim here was re-derived from the database.** Every figure in the new §6.6 and §8 entries
+  is taken from Phases 1-4 of this file, which measured them; this phase measured only its own
+  gates, the archive diff shape and the four pins in §4.
+
+### 7. Criteria 5.4-5.6 executed at the phase gate, with oracles stronger than a reading
+
+Each of the three manual criteria was **run as a check** rather than confirmed by proof-reading,
+and in two of the three the oracle is stronger than the one the plan asked for.
+
+**5.4 — the archive edit is an append.** The plan asks for a diff. A diff shape can be read
+wrongly, so the preserved region was hashed instead:
+
+```
+git show HEAD:…/local-stack-transport-flake/research.md | md5sum  →  c667f828395d56448089dd2d3694a91a
+head -417 …/local-stack-transport-flake/research.md     | md5sum  →  c667f828395d56448089dd2d3694a91a
+git diff -U0  →  @@ -417,0 +418,46 @@        git diff --numstat  →  46  0
+```
+
+**Everything above the append is byte-identical to `HEAD`**, one hunk, zero deletions, 417 → 463
+lines. That is an identity rather than an inspection, and it is what "nothing above the appended
+block is altered" should mean.
+
+**5.5 — every corrected claim left standing.** Rather than re-reading the three correction sites,
+**every deleted line in `test-plan.md`'s whole diff was extracted and tested for survival** in the
+new file (`grep -Fxq`, exact-line match). The diff carries **exactly one** deletion:
+
+```
+> Last updated: 2026-08-14 (C10X-52 `bug-middleware-getuser-swallowed` — **not a §3 rollout phase
+```
+
+— which reappears at `:66` verbatim under `> Previously:`. So it is a **label change, not a claim
+removal**, and it is this file's own header convention. **No claim text was removed anywhere in
+`test-plan.md`.** Ordering checked too: the generalisation paragraph sits at `:2575` with its
+correction at `:2579`, and §6.7's block ends at `:4381` with its note at `:4384` — each correction
+strictly **beneath** the claim it corrects, never replacing it.
+
+**5.6 — the follow-up is self-contained.** Two checks. Every pin was **resolved against the live
+tree**, including the negative one: an `awk` scan over `retryingFetch`'s body confirms there is
+**no `try`** in it, which is the document's load-bearing claim about what the wrapper does not
+cover. And every repo path the document cites was tested for existence — all resolve. The six
+required elements (the verbatim log, the five facts, the three-ground argument, the retry-asymmetry
+table, the three generic sites, the marker experiment with its non-reproduction stated up front)
+are each present by literal match.
+
+> **One near-miss worth recording rather than hiding.** The path check reported `ci.yml` as
+> MISSING. It is not a defect: that string is a **workflow name** in prose ("run #66, workflow
+> `ci.yml`"), and the document also cites `.github/workflows/ci.yml`, which resolves. Recorded
+> because a checker that reports a false positive and is then waved past by hand is one edit away
+> from being waved past on a true one.

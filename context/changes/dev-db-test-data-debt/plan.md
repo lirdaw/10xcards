@@ -734,28 +734,28 @@ Postgres solely through `docker exec` on a container name derived from this chec
 
 #### Automated
 
-- [x] 4.1 Full suite green after the repayment: `npm test`
-- [x] 4.2 `npm run e2e` green
+- [x] 4.1 Full suite green after the repayment: `npm test` — e93c69c
+- [x] 4.2 `npm run e2e` green — e93c69c
 
 #### Manual
 
-- [x] 4.3 Pre-delete snapshot taken: `pg_dump` of `auth.users` + the five public tables to a gitignored path, size recorded
-- [x] 4.4 Harness rows zero; all six table counts recorded before and after
-- [x] 4.5 The seven artifact decks read back individually by `public_id`, all present
-- [x] 4.6 The orphan `3b720154-…` confirmed gone
-- [x] 4.7 Bare `npm run db:clean` re-run reports a near-empty census
-- [x] 4.8 Four-policy neuter re-run on the repaid database: the hardened assertion goes red, policies restored and verified by `pg_policies` diff
+- [x] 4.3 Pre-delete snapshot taken: `pg_dump` of `auth.users` + the five public tables to a gitignored path, size recorded — e93c69c
+- [x] 4.4 Harness rows zero; all six table counts recorded before and after — e93c69c
+- [x] 4.5 The seven artifact decks read back individually by `public_id`, all present — e93c69c
+- [x] 4.6 The orphan `3b720154-…` confirmed gone — e93c69c
+- [x] 4.7 Bare `npm run db:clean` re-run reports a near-empty census — e93c69c
+- [x] 4.8 Four-policy neuter re-run on the repaid database: the hardened assertion goes red, policies restored and verified by `pg_policies` diff — e93c69c
 
 ### Phase 5: Documentation sync
 
 #### Automated
 
-- [ ] 5.1 Markdown prettier-clean and a fixed point, checked on an in-repo copy
-- [ ] 5.2 Full suite still green: `npm test`
-- [ ] 5.3 Type gate passes: `npm run typecheck`
+- [x] 5.1 Markdown prettier-clean and a fixed point, checked on an in-repo copy
+- [x] 5.2 Full suite still green: `npm test`
+- [x] 5.3 Type gate passes: `npm run typecheck`
 
 #### Manual
 
-- [ ] 5.4 The archive edit is an append, verified by diff
-- [ ] 5.5 Every corrected claim left standing with a dated correction beneath it
-- [ ] 5.6 The Defect B follow-up is self-contained
+- [x] 5.4 The archive edit is an append, verified by diff
+- [x] 5.5 Every corrected claim left standing with a dated correction beneath it
+- [x] 5.6 The Defect B follow-up is self-contained

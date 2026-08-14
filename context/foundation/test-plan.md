@@ -6,7 +6,64 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-08-14 (C10X-52 `bug-middleware-getuser-swallowed` — **not a §3 rollout phase
+> Last updated: 2026-08-15 (C10X-47 `dev-db-test-data-debt` — **not a §3 rollout phase and not a
+> coverage widening: no §2 risk row moves, no §3 phase status changes, §3's table is untouched, no
+> migration ships, and no file under `src/` changed.** Its subject is the instrument every §6.6
+> coverage claim is verified with, which makes it the **sixth** entry here about whether this
+> project's own tooling can be trusted — after C10X-32, C10X-39, C10X-40, C10X-42 and C10X-43.
+>
+> **The question, and the answer nobody wanted.** §6.6 Phase 4 has recorded since 2026-07-26 that
+> the four-policy neuter **passes while the guard is fully disabled** — a denial satisfied by
+> PostgREST truncating a database-wide result set at `max_rows = 1000` rather than by isolation.
+> Every artifact since has carried that as an **inference**; this change's own research states the
+> neuter "was **not** executed". It was executed, on **2026-08-14 at 21,345 decks**, deliberately
+> BEFORE the cleanup that makes it unobtainable: the denial at `study.test.ts:407` executed and
+> **passed**, proved by the case failing one line later on its own positive control, with the SQL
+> layer showing `study_due_counts` handing account B **21,378** rows and A's deck outside the
+> surviving 1,000. **It cannot be reproduced on this machine again.**
+>
+> **The headline result is stronger than the plan asked for and deflating for its own fix.** On the
+> repaid database (**75 decks**) the same recipe reddens **both** vulnerable sites on their
+> **original** single-deck assertions — the exact two lines measured green at 21,345 — so **the
+> repayment alone repairs the procedure**, and the hardened assertions this change wrote are not
+> what a developer would meet first. Both halves are recorded rather than the convenient one. The
+> hardening's own red had to be obtained by probe, because the original denial one line above
+> aborts the case first — **§3.2's masking shape reproduced one layer up**, now recorded twice in
+> this project and fixed neither time.
+>
+> **The repayment: `DELETE 1559` on `auth.users`, 78,795 rows by cascade, `deck` 22,026 → 8** —
+> then read back. The seven artifact decks archived documents cite were verified **individually by
+> `public_id`** (7/7, owners and original `created_at` intact), and the tool's non-harness
+> invariant held at 14 / 7 / 41 / 3 / 11 across the delete and an hour of ordinary use. It is
+> local-only **by construction**: `npm run db:clean` reaches Postgres solely through `docker exec`
+> on a container name derived from this checkout's `config.toml`, so it cannot address a cloud
+> project — a stronger property than a runtime host assertion.
+>
+> **Two corrections to the received account, one in each direction.** A **second** vulnerable
+> assertion exists that no artifact had ever named (`candidate_counts_by_deck`, at
+> `tests/review/candidates.test.ts`) — and **`study_due_cards` is NOT in the class**, being bounded
+> by both `where f.deck_id = p_deck_id` and `limit p_limit`. It is one letter from
+> `study_due_counts` and appears twice in §6.6 Phase 4's own breakage tables, which is where the
+> disambiguation now sits; **§2 was checked and carries no such claim**, and that non-edit is
+> recorded so nobody hunts for it.
+>
+> **And the flake C10X-51 saw twice and could not attribute is attributed** — 92 runs, 3 red
+> (≈3.3 %), **zero** Kong drops, `deck_delta` 67 against 68 — to one deck-name stem shared by two
+> files. Fixed by a rename, made deterministic by a forced-collision pair rather than a
+> probabilistic matrix, and **enforced** by `tests/lib/deck-name-stems.test.ts`. The more valuable
+> half is that the mechanism was already named verbatim in an archived review's
+> "Deliberately not raised as findings" section **16 days earlier**: that entry takes no correction
+> — it was accurate and its scope call was right — but §6.5 now carries the rule it implies, that
+> **a deliberately-deferred finding needs a ticket or an entry in a live document**.
+>
+> Suite **527 → 563, 41 → 43 files**, each delta measured by running the file alone (**4** and
+> **32**); the two hardened assertions create no `it()`, also measured. Read §6.6's C10X-47 entry
+> before citing any of this — its does-NOT-prove list is longer than its claims table, and its
+> first item is that `db:clean` is developer-invoked and nothing watches a counter: 7 → 172 decks
+> inside one hour of this change's own verification. Evidence:
+> `context/changes/dev-db-test-data-debt/verification.md`.
+>
+> Previously: 2026-08-14 (C10X-52 `bug-middleware-getuser-swallowed` — **not a §3 rollout phase
 > and not a coverage widening: no §2 risk row moves, no §3 phase status changes, and §3's table is
 > untouched.** The **fifth and genuinely last** entry of the swallowed-errors audit (2026-08-11).
 > The four before it closed the WRITE side; this closes the **read** side, and it is the entry the
@@ -2519,6 +2576,50 @@ account's deck` asserts `foreign.data?.[deckPublicId]` is `undefined`, and it
   any denial asserted as "absent from an unbounded, unordered result set" is vulnerable
   to the same row cap as the dev database grows.
 
+  > **Dated correction and enumeration, 2026-08-15 (C10X-47 `dev-db-test-data-debt`). The
+  > paragraph above stands in full — its generalisation was right, and it is now MEASURED,
+  > ENUMERATED, and repaired. Two things in it have changed underneath: the remedy sentence, and
+  > the fact that "it generalises" never said to WHAT.**
+  >
+  > **The remedy is no longer `db:reset`, and following that instruction would now destroy
+  > evidence.** A reset drops the eight non-harness decks that are artifacts of recorded manual
+  > runs — including the two this file itself calls "left in the local dev DB **as the artifact of
+  > record**" (§6.6's C10X-49 entry). The tool is **`npm run db:clean -- --yes`** (the `--` is
+  > load-bearing; npm eats a bare `--yes`), which deletes `harness-%` accounts and cascades, and
+  > leaves every non-harness row standing as a checked invariant. Raising `max_rows` still works
+  > and is still a local config edit nobody should leave behind.
+  >
+  > **The class has exactly two members, and the second had never been named anywhere.** Measured
+  > by extracting every absence-assertion in the suite and checking what bounds each one's query:
+  > `study_due_counts` (this incident) and **`candidate_counts_by_deck`**, asserted at
+  > `tests/review/candidates.test.ts`'s cross-account denial. Both are `group by` with **no
+  > `ORDER BY`**, so under a neuter PostgREST's window is hash-aggregate order. Every other
+  > absence-assertion in the suite is scoped by `deck_id`, by a `.like()` marker, or by
+  > `.eq("public_id", …)` — safe by construction — and `tests/isolation/decks.test.ts`'s
+  > widest-blast-radius denial survives a neuter purely because `listDecks` orders
+  > `created_at desc` (measured: the 10 newest decks land inside the first 1,000 rows **10/10**
+  > for `listDecks`, **4/10** for `candidate_counts_by_deck`, **2/10** for `study_due_counts`).
+  >
+  > **`study_due_cards` is NOT in the class, and this disambiguation is the reason this block
+  > exists at all.** It is one letter from `study_due_counts` and it appears **twice** in this
+  > entry's own breakage tables (the accepted-only gate; `limit p_limit` dropped), so a
+  > contributor reading this entry before writing a neuter can leave with the wrong RPC in mind.
+  > It carries **both** `where f.deck_id = p_deck_id` **and** `limit p_limit`
+  > (`20260724220524_srs_study_schedule_review_fixes.sql:46-68`) — bounded on both axes, so no
+  > window can truncate it. **Nothing above ever claimed otherwise**, and **§2 carries no such
+  > claim either** — checked, and the non-edit is recorded here so nobody works the doc-sync list
+  > hunting for a correction that should not exist. This is a disambiguation, not a retraction.
+  >
+  > **And the false pass itself is now an observation rather than an inference.** It was measured
+  > on 2026-08-14 at **21,345 decks**: under this exact four-policy recipe the denial at
+  > `study.test.ts:407` executed and PASSED, proved by the case failing one line later on its
+  > positive control, with the SQL layer showing `study_due_counts` returning **21,378** rows to
+  > account B and A's deck outside the surviving 1,000. On the **repaid** database (2026-08-15,
+  > 75 decks) the same recipe reddens **both** sites on their original single-deck assertions.
+  > **So the procedure this entry warns is disarmed is repaired** — by the row count, not by any
+  > code change, which is the honest form of the result. Read §6.6's C10X-47 entry before citing
+  > either half.
+
   Restore by `alter policy` and then **verify it**, do not assume it: dump
   `qual`/`with_check` from `pg_policies` before the neuter, dump again after
   the restore, and `diff` the two. Done on both runs; identical both times, full suite
@@ -4049,6 +4150,104 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
   `context/changes/e2e-harness-journeys/verification.md` (after archiving:
   `context/archive/<date>-e2e-harness-journeys/verification.md`).
 
+- **Roadmap H-21 (`dev-db-test-data-debt`, C10X-47, 2026-08-15)** — not a §3 rollout phase and
+  **not a coverage widening**: no §2 risk row moves, no §3 phase status changes, §3's table is
+  untouched, and no migration ships. It is the **sixth** entry in this file whose subject is
+  whether this project's own instruments can be trusted — after C10X-32's order-independence,
+  C10X-39's silent-write census, C10X-40's guard falsifiability, C10X-42's who-can-exercise-it and
+  C10X-43's compilability. Enumerated rather than counted, because this file has caught itself on
+  a total-versus-breakdown slip five times.
+
+  **Its question is the narrowest of the six and the most uncomfortable: does the
+  deliberate-breakage procedure still produce a red?** That procedure is the instrument every
+  coverage claim in this section rests on. The answer measured on 2026-08-14 was **no** — and this
+  entry's own §6.6 Phase 4 block had said so, in a sentence that had been carried as an inference
+  since 2026-07-26 and never executed.
+
+  | Claim                                                                      | What proves it                                                                                                                                                                                                                                                                                                                                                               |
+  | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | The 2026-07-26 false pass is an **observation**, not an inference          | one neuter window, 2026-08-14, at **21,345 decks**: the denial at `study.test.ts:407` **executed and passed** with all four policies `using (true)`, proved by the case failing one line later at `:411` — its positive control — since Vitest aborts a case at its first failed `expect`                                                                                    |
+  | …and the number behind the pass is on record rather than reasoned about    | measured at the SQL layer as `authenticated` with B's real `sub`, in a rolled-back transaction: `study_due_counts` returns **21,378** rows (the whole database — the guard is gone, not partially disabled) and A's deck is **not** among the 1,000 PostgREST keeps                                                                                                          |
+  | The class has a **second member**, and no artifact had ever named it       | `candidate_counts_by_deck`, asserted at `tests/review/candidates.test.ts`'s cross-account denial — same `group by`, same absent `ORDER BY`, **7,420 → 1,000** with the deck absent. Its own migration header documents the `max_rows` truncation class as the reason the RPC exists, while reproducing the shape one layer down                                              |
+  | …and `study_due_cards` is **not** in it                                    | both `where f.deck_id = p_deck_id` and `limit p_limit` (`20260724220524:46-68`) — bounded on both axes. One letter from `study_due_counts` and named twice in Phase 4's own breakage tables, which is why it now carries a disambiguation there rather than being left to the reader                                                                                         |
+  | **The procedure is repaired — and the REPAYMENT alone repairs it**         | on the repaid database (**75 decks**) the same four-policy recipe reddens **both** sites on their **original** single-deck assertions: `expected 1 to be undefined` at `study.test.ts:432` and `expected 2 to be undefined` at `candidates.test.ts:638` — the exact two lines measured green at 21,345 decks                                                                 |
+  | The hardened assertions can go red, on a **genuine** cross-account key     | they are masked in situ by the original denial one line above (Vitest aborts first), so each was made observable by commenting that line out and run alone in the same window: **RED at both sites**, and both leaked `public_id`s read back in psql as account **A's** decks — the candidates one carrying `generated = 2`, so genuinely eligible for that RPC's INNER JOIN |
+  | The cleanup preserves what archived documents cite                         | the seven artifact decks read back **individually by `public_id`** through a `values`-list LEFT JOIN (a missing row surfaces as `<<MISSING>>`, not as a short result): **7/7**, owners intact, original `created_at`. The runner's `nonHarnessDrift` invariant held at **14 / 7 / 41 / 3 / 11** across the delete and an hour of ordinary use afterwards                     |
+  | The flake C10X-51 recorded twice and could not attribute is **attributed** | a 92-run matrix: **3 red (≈3.3 %)**, **zero** Kong keep-alive drops in all 92, `deck_delta` **67** on every red against **68** on every green. One deck-name stem, `Gate deck <S>`, shared by two files each computing its own millisecond `Date.now()` suffix                                                                                                               |
+  | …and fixed, deterministically rather than probabilistically                | a **forced-collision pair** — the suffix pinned to a literal in both files — red before the rename, green after, both suffix lines restored and hash-verified. Two runs instead of a 92-run matrix, and it adds no decks to the database this change exists to empty                                                                                                         |
+  | …and the class is **enforced**, not conventional                           | `tests/lib/deck-name-stems.test.ts` (**4** cases) in the idiom of this project's four other textual guards, with both controls: the walker reaches the two named files and a floor on the file count, and a fabricated duplicate turns it red naming both files                                                                                                              |
+  | `db:clean` deletes only what it says, and says so before it deletes        | `tests/lib/db-cleanup.test.ts` (**32** cases), whose load-bearing one is a whole-set positive control over **all fourteen** non-harness accounts (not the seven that own decks — the delete's blast radius is accounts). The runner's two read-back oracles fired green on a real before/after pair for the first time in Phase 4                                            |
+
+  **Suite 527 → 563, 41 → 43 files**, each delta measured by RUNNING the file alone rather than by
+  arithmetic: `tests/lib/deck-name-stems.test.ts` **4** and `tests/lib/db-cleanup.test.ts` **32**.
+  The two hardened assertions create **no** `it()` — measured, not assumed: the two files report
+  **44** both before and after the edit. `npm run typecheck` **160 → 163 files**, the three new
+  `.ts` files entering the gate silently through `tsconfig.json`'s `include: ["**/*"]`.
+
+  **The repayment, in one line.** `delete from auth.users where email like 'harness-%'` —
+  `DELETE 1559`, **78,795 rows** removed by the cascade, `deck` 22,026 → **8**. Local-only by
+  construction: the script reaches Postgres solely through `docker exec` on a container name
+  derived from this checkout's `config.toml`, so it **cannot** address a cloud project — a
+  stronger property than a runtime host assertion, and the `disable-kong-keepalive.ts` pattern.
+
+  **Three findings that were on nobody's list.** A `pg_dump` snapshot was taken **before** the
+  delete and verified to contain the rows that matter rather than merely to exist (all five `COPY`
+  blocks, all seven artifact ids present) — a schema-only dump would have passed a size check.
+  `UNION ALL` returned the census branches **in a different order than they were written**, so a
+  positional parser would have reported one table's counts under another's label with nothing
+  looking wrong; `parseCensus` keys by label and requires all five exactly once. And a
+  `git checkout --` used to revert a breakage edit **silently did nothing**, because the file was
+  still untracked — caught by `md5sum -c`, and a new instance of the class §6.6 already records
+  for a heredoc piped without `-i`: the operation reports success and changes nothing.
+
+  **What this does NOT prove — read this before citing the breakage procedure as sound.**
+  - **`db:clean` is developer-invoked and nothing watches a counter.** The database went from 7
+    decks to **172** inside one hour of this change's own verification, with nothing detecting the
+    decay. The next person to meet an unfalsifiable absence-assertion meets it exactly the way
+    C10X-51 did. That is a decision (no hook, no `db:start` chaining, no CI step — CI's stack is
+    ephemeral so it accumulates nothing, ever), not an oversight.
+  - **Two assertions are hardened; the CLASS is not closed.** A future assertion written against an
+    unordered, unbounded RPC inherits the trap, and **nothing detects that automatically** — there
+    is no guard over "every absence-assertion is bounded" the way `deck-name-stems` guards stems.
+  - **Neither RPC gained an `ORDER BY`**, deliberately (no migration, so the C10X-29 drift gate
+    stays uninvolved) — and both have **live production consumers**: `countCandidatesByDeck` at
+    `src/pages/decks/index.astro:18` and `listDueCounts` at `src/pages/study/index.astro:15`, the
+    only two in `src/`. They are safe today for a reason worth writing down rather than leaving
+    implicit: under intact RLS a real user owns far fewer than 1,000 decks, so their safety is a
+    **data-volume property of production** — the same kind of property that decayed locally and
+    produced this ticket.
+  - **The perishable measurement cannot be reproduced.** Phase 4 deleted the rows it depended on.
+    Two windows, one machine, one day; the hardened line was red once and green twice across them,
+    which is why "probabilistic" is the recorded conclusion and why the deterministic red belongs
+    to the repaid database.
+  - **The masking shape is recorded twice and fixed neither time.** An assertion that an earlier
+    `expect` in the same `it()` prevents from ever executing is a _second_ way for a guard to be
+    unfalsifiable — met at `candidates.test.ts` under Phase 2's window and again at both sites
+    under Phase 4's. This ticket was chartered to fix neither.
+  - **The neuter recipe itself has an open question**, now reproduced in two independent windows:
+    `returns 404 when B rates a card in A's deck` fails **`expected 500 to be 404`**, not §6.6's
+    recorded `expected 200 to be 404`. The inference (a `using`-only neuter lets B's UPDATE match
+    and the intact `with_check` then refuses it) is **not verified** and is left as a note rather
+    than as a correction to §6.6.
+  - **Defect B is unattributed and open.** CI run #66's transient `createDeck` failure is a
+    _second_, separate defect — not accumulation (the stack was two minutes old with zero decks)
+    and argued against being the keep-alive flake on three independent grounds. Its mechanism
+    cannot be narrowed from outside, because three sites in `src/pages/api/decks/index.ts`
+    (`:47`, `:63`, `:74`) emit the identical string and `src/` writes no console output. It has a
+    designed marker experiment whose **expected outcome is a non-reproduction**, and an owner:
+    `context/changes/dev-db-test-data-debt/follow-ups/deck-create-transient.md`. To be ticketed via
+    `/jira-backlog-sync`.
+  - **The snapshot proves insurance existed, never that a restore works.** It was never replayed.
+  - **Nothing here touches the product.** The subject is the harness and the data beneath it; no
+    `src/` file changed, and the two hardened cases are existing integration cases whose shape
+    changed.
+
+  Full evidence — both neuter windows with their policy dumps, observed failure strings, splits and
+  `pg_policies` diffs; the forced-collision pair; the four `db:clean` breakage runs; the repayment's
+  before/after on all six measures; and every hash-verified restore:
+  `context/changes/dev-db-test-data-debt/verification.md` (after archiving:
+  `context/archive/<date>-dev-db-test-data-debt/verification.md`).
+
 ### 6.7 Adding a test for the SRS / study path
 
 (Added by §3 Phase 4. It sits after §6.6 so the existing §6.6 references in
@@ -4181,6 +4380,33 @@ checking:
   > the full trace. The general form is worth remembering: **a denial asserted as
   > "absent from an unbounded result set" decays into a false pass as the dataset
   > grows.**
+
+  > **This variant WORKS again, 2026-08-15 (C10X-47) — and the instruction directly above is the
+  > one thing not to follow.** The block above stands as the record of 2026-07-26 → 2026-08-15,
+  > and its general form is unchanged and still the reason to read it. Two operational
+  > corrections. **Do not `db:reset`**: it destroys the eight non-harness decks that are artifacts
+  > of recorded manual runs, two of which §6.6's C10X-49 entry calls "the artifact of record".
+  > Run **`npm run db:clean -- --yes`** instead — `harness-%` accounts and their cascade, with
+  > every non-harness row left standing as a checked invariant. And the repaid database was
+  > **measured** to restore falsifiability: at 75 decks this recipe reddens the `listDueCounts`
+  > denial (`expected 1 to be undefined`) **and** its never-before-named sibling,
+  > `candidate_counts_by_deck` at `tests/review/candidates.test.ts`
+  > (`expected 2 to be undefined`), where at 21,345 decks both passed.
+  >
+  > **One name to get right before you type the neuter**, because the two differ by one letter and
+  > the bullet directly above this block names the other one: the truncation class contains
+  > **`study_due_counts`**, never **`study_due_cards`**. The latter carries both
+  > `where f.deck_id = p_deck_id` and `limit p_limit` and cannot be truncated by a window — it is
+  > the subject of the _first_ bullet's function neuter, which is a different check entirely.
+  >
+  > **Two boundaries this variant still has**, both measured twice in C10X-47 and neither fixed by
+  > the repayment. It neuters `using` only, per this block's own wording, and in that state
+  > `returns 404 when B rates a card in A's deck` fails **`expected 500 to be 404`** rather than
+  > §6.6's recorded `expected 200 to be 404` — reproduced in two independent windows, cause
+  > inferred (`with_check` still intact refuses the now-matching UPDATE) and **not verified**. And
+  > `sequence.shuffle` decides how much a run's reference sets hold, so a case's colour under a
+  > neuter can flip between runs; attribute a neuter's result from the **failing line**, never
+  > from the count.
 
 Whichever you run, **verify the restore rather than trusting it**: dump
 `qual`/`with_check` (or `\sf` for a function) before and after, and `diff`.
@@ -6410,6 +6636,94 @@ generated_count 3 | keyed | 0 cards`. The response is Phase 2's distinct copy ca
   > **anonymous** visitor: the "byte-identical to today" claim rests on a short-circuit that exists
   > for a dead backend and not for a `null` client. Intended (D-02), unmeasured, and now said
   > wherever the claim is made.
+
+- **The deliberate-breakage procedure itself last proven to produce a red: 2026-08-15** (C10X-47,
+  change folder `dev-db-test-data-debt`, roadmap H-21). A sixth axis, after C10X-32's
+  order-independence, C10X-39's silent-write census, C10X-40's guard falsifiability, C10X-42's
+  who-can-exercise-it and C10X-43's compilability — and the one that sits underneath all of them,
+  because the procedure it repairs is the instrument every §6.6 coverage claim is verified with.
+  **No §2 risk row moves, no §3 phase status changes, §3's table is untouched, and no migration
+  ships**, so the C10X-29 drift gate is uninvolved and `/ship` has no database step. Suite
+  **563 passed / 563, 43 files**; `npm run typecheck` **OK — 163 files**; `npm run lint`
+  **0 errors, 3 warnings**, all `no-console` in `evals/generation-quality.eval.ts` and unchanged;
+  `npm run e2e` **12 passed**. No file under `src/` changed.
+- **Suite delta 527 → 563, 41 → 43 files, and both halves were measured by RUNNING.**
+  `tests/lib/deck-name-stems.test.ts` **4** (Phase 1) and `tests/lib/db-cleanup.test.ts` **32**
+  (Phase 3), each from a run of that file alone. The two hardened assertions add **no** `it()` —
+  also measured rather than assumed: `study.test.ts` + `candidates.test.ts` report **44** both
+  before the edit and after it. `527 + 4 + 32 = 563` closes as a check on the measurements, never
+  as their source.
+- **The perishable half was taken first, deliberately, and it is the entry's centre.** §6.6 had
+  recorded since 2026-07-26 that the four-policy neuter passes while the guard is disabled, and
+  every artifact since carried that as an **inference** — this change's own research states the
+  neuter "was **not** executed". It was executed on **2026-08-14 at 21,345 decks**, before the
+  repayment made it unobtainable: the denial at `study.test.ts:407` executed and **passed**, proved
+  by the case failing one line later on its positive control, with the SQL layer showing 21,378
+  rows returned to account B and A's deck outside the 1,000 PostgREST keeps. **It cannot be
+  reproduced on this machine again** without deliberately re-inflating the database.
+- **The headline result is stronger than the plan asked for and deflating for the fix.** On the
+  repaid database the same recipe reddens **both** sites on their **original** single-deck
+  assertions — the exact two lines measured green at 21,345 decks — so **the repayment alone
+  repairs the procedure**, and the hardened assertions are not what a developer would see redden
+  first. Both halves are recorded rather than the convenient one; the hardening's value is
+  insurance against the volume returning, and §7.3 of the change's `verification.md` is the
+  measurement that it works.
+- **A prediction did not survive contact, and its failure is a shape this project now has twice.**
+  Criterion 4.8 said "confirm the hardened assertion goes red". It never executed: the original
+  denial one line above fails first and Vitest aborts the case there. So the hardened line was made
+  observable by a probe (the preceding assertion commented out, each case run alone in the same
+  window) and is **deterministically red at both sites**, on leaked `public_id`s read back in psql
+  as account A's decks. Recorded as observed, the discipline this ledger applies to C10X-29's
+  `missingLocal` neuter and C10X-30's case 8.
+- **A second vulnerable assertion was found that no artifact in this project had ever named** —
+  `candidate_counts_by_deck` at `tests/review/candidates.test.ts` — and a received premise was
+  corrected in the reassuring direction: **`study_due_cards` is NOT in the truncation class**
+  (bounded by both `where f.deck_id = p_deck_id` and `limit p_limit`). It is one letter from
+  `study_due_counts` and appears twice in §6.6 Phase 4's own breakage tables, which is where the
+  disambiguation now sits. **§2 was checked and carries no such claim**, so no edit was made there
+  and the non-edit is recorded — the C10X-42 precedent, so nobody works the list hunting for a
+  correction that should not exist.
+- **The flake C10X-51 recorded twice and could not attribute is attributed, fixed and enforced.**
+  A 92-run matrix: **3 red (≈3.3 %)**, **zero** Kong keep-alive drops across all 92, `deck_delta`
+  **67** on every red against **68** on every green. The cause is one deck-name stem shared by two
+  files, each computing its own millisecond `Date.now()` suffix. **And the more valuable half is
+  the second-order rule**: the mechanism was already named verbatim on
+  `context/archive/2026-07-29-flashcards-test-order/reviews/impl-review.md:303`, under
+  "Deliberately not raised as findings" — correctly out of scope by that plan — **16 days** before
+  it cost C10X-51 two unattributable reds and this change a reproduction matrix. That archive entry
+  takes **no** dated correction: it was accurate and its scope decision was right. What failed is
+  that nothing carried it forward, so §6.5 now carries the rule that **a deliberately-deferred
+  finding needs a ticket or an entry in a live document**.
+- **One archived document took an appended dated correction** —
+  `context/archive/2026-08-01-local-stack-transport-flake/research.md`, whose CI-immunity section
+  records "Runs with `attempt > 1`: **0**". CI run #66 is the counterexample: it reports `success`
+  because it is `run_attempt: 2`, and a re-run overwrites the visible conclusion, which is why the
+  original sweep saw a clean history. **Appended, never rewritten** (`.prettierignore` carries
+  `context/archive/**`, so the append is not reformatted), and the correction is deliberately
+  narrow: what is falsified is the count and the empirical inference drawn from it, **not** the
+  mechanistic argument — which that section itself calls the stronger of the two — and **not** the
+  attribution: run #66's failure is a separate, unattributed defect that C10X-47's research argues
+  against pinning on the keep-alive flake, on three independent grounds.
+- **Doc-sync went beyond the six edits the plan enumerated, and the extras are named rather than
+  counted** — the C10X-48 precedent. Two live surfaces would otherwise have been left stating
+  something false about today: **this file's header block** and **this §8 entry**. §6.7's
+  neuter-recipe block also took its own dated note, because that — not §6.6 — is what a contributor
+  reads immediately before typing a neuter, and the plan's §1 named §6.6 and §2 as the misdirecting
+  sites.
+- **Still open after this entry, deliberately**: **Defect B** — CI run #66's transient `createDeck`
+  failure — is unattributed, not reproduced, and owned by
+  `context/changes/dev-db-test-data-debt/follow-ups/deck-create-transient.md`, **to be ticketed via
+  `/jira-backlog-sync`**; its designed marker experiment has a **non-reproduction** as its expected
+  outcome, stated up front so a quiet loop is not read as a fix. `db:clean` is **developer-invoked
+  and nothing watches a counter** — 7 → 172 decks inside one hour of this change's own
+  verification. Neither RPC gained an `ORDER BY`, so both **live production consumers**
+  (`src/pages/decks/index.astro:18`, `src/pages/study/index.astro:15`) still rest on a
+  data-volume property of production. The **masking** shape — an assertion an earlier `expect` in
+  the same `it()` prevents from executing — is now recorded twice and fixed neither time. §6.6's
+  own neuter recipe still produces `expected 500 to be 404` where it records
+  `expected 200 to be 404`, reproduced in two windows and **not verified**. The `pg_dump` snapshot
+  was never replayed.
+  And `customfield_10041` on **C10X-47** is `/jira-finish-work`'s to fill.
 
 Refresh (`/10x-test-plan --refresh`) when:
 

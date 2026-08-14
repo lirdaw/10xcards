@@ -415,3 +415,49 @@ tests) are.
 **Inference**: that `supabase gen types --local` does not traverse Kong — taken from the command's
 nature and its 2 s runtime, not confirmed by a packet-level check; it does not affect the
 conclusion, since even a warm socket at that point would be ~5 s old, not 60 s.
+
+---
+
+## Dated correction, 2026-08-15 (C10X-47 `dev-db-test-data-debt`) — appended, nothing above rewritten
+
+**One measured figure in the Empirical table is false, and the inference this section draws from
+it does not survive: `Runs with attempt > 1` is not 0.**
+
+CI run **#66** (`ci.yml`, head `5f3c87e`, 2026-08-05) is `run_attempt: 2`. `gh run list` reports it
+as **`success`**, because a re-run overwrites the visible conclusion — which is exactly why the
+2026-08-01 sweep, reading the run list, saw a clean history. Attempt 1 (run id `31030491078`)
+failed on `tests/validation/decks.test.ts`, in a `beforeAll`, on
+`createDeck` answering the generic `Nie udało się utworzyć talii`.
+
+**What that falsifies is narrower than it looks, and the boundary is the point of this
+correction:**
+
+- **Falsified**: the `attempt > 1` count, and with it the sentence "nobody has ever re-run a failed
+  job, which is the reflex after a flaky red". Somebody has, once, and the re-run is what hid it.
+  Any future sweep of this kind must read `run_attempt` per run rather than the run list's
+  conclusion — a re-run makes a red run indistinguishable from a green one at that level.
+- **Falsified**: the empirical half's completeness, and therefore the "zero unexplained red"
+  premise that fed the `0.85²⁵ ≈ 1.7 %` calculation. There was an unexplained red; it was simply
+  not visible to the query used.
+- **NOT falsified**: this flake's **mechanism**, and this section's **mechanistic** argument —
+  which was called "the stronger of the two" on 2026-08-01 and still is. Every figure in the first
+  table stands.
+- **NOT falsified, and stated so nobody over-reads the correction**: run #66's failure is **not
+  attributed to the keep-alive flake**. C10X-47's research argues against that attribution on three
+  independent grounds — the Kong container was six seconds old with `pool_size = 0`, so no socket
+  could have aged; the endpoint's calls do traverse the wrapped `fetch`, so a genuine keep-alive
+  `502` would have been replayed; and a replay landing on an already-committed insert would have
+  produced `DECK_NAME_TAKEN_MESSAGE`, not the generic one that was observed. It is treated as a
+  **separate, unattributed defect**.
+- **Consequently NOT falsified**: "Nothing should be added to `.github/workflows/ci.yml` for this
+  flake." That conclusion is carried by the mechanism, and no CI step is proposed by the
+  correction either.
+
+So what this section over-claimed is **CI immunity as an empirical fact**. What it got right is
+that CI's pool never gets old enough for *this* flake. A CI run can still go red on a transport
+shape this flake's mechanism does not cover, and one did.
+
+Full analysis, the verbatim attempt-1 log, and the marker experiment that would attribute it:
+`context/changes/dev-db-test-data-debt/follow-ups/deck-create-transient.md` (after archiving:
+`context/archive/<date>-dev-db-test-data-debt/follow-ups/deck-create-transient.md`), and
+C10X-47's `research.md` §4 Defect B.
