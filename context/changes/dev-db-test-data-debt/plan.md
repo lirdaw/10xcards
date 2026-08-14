@@ -720,31 +720,31 @@ Postgres solely through `docker exec` on a container name derived from this chec
 
 #### Automated
 
-- [x] 3.1 New tests pass and the suite is green: `npm test`
-- [x] 3.2 Type gate passes: `npm run typecheck`
-- [x] 3.3 Lint passes: `npm run lint`
+- [x] 3.1 New tests pass and the suite is green: `npm test` — 8441374
+- [x] 3.2 Type gate passes: `npm run typecheck` — 8441374
+- [x] 3.3 Lint passes: `npm run lint` — 8441374
 
 #### Manual
 
-- [x] 3.4 A bare `npm run db:clean` prints the census and deletes nothing, verified independently
-- [x] 3.5 Fail-closed census parsing proved falsifiable: malformed input refuses rather than reporting zero
-- [x] 3.6 `--yes` deliberately not run in this phase
+- [x] 3.4 A bare `npm run db:clean` prints the census and deletes nothing, verified independently — 8441374
+- [x] 3.5 Fail-closed census parsing proved falsifiable: malformed input refuses rather than reporting zero — 8441374
+- [x] 3.6 `--yes` deliberately not run in this phase — 8441374
 
 ### Phase 4: Repay the backlog
 
 #### Automated
 
-- [ ] 4.1 Full suite green after the repayment: `npm test`
-- [ ] 4.2 `npm run e2e` green
+- [x] 4.1 Full suite green after the repayment: `npm test`
+- [x] 4.2 `npm run e2e` green
 
 #### Manual
 
-- [ ] 4.3 Pre-delete snapshot taken: `pg_dump` of `auth.users` + the five public tables to a gitignored path, size recorded
-- [ ] 4.4 Harness rows zero; all six table counts recorded before and after
-- [ ] 4.5 The seven artifact decks read back individually by `public_id`, all present
-- [ ] 4.6 The orphan `3b720154-…` confirmed gone
-- [ ] 4.7 Bare `npm run db:clean` re-run reports a near-empty census
-- [ ] 4.8 Four-policy neuter re-run on the repaid database: the hardened assertion goes red, policies restored and verified by `pg_policies` diff
+- [x] 4.3 Pre-delete snapshot taken: `pg_dump` of `auth.users` + the five public tables to a gitignored path, size recorded
+- [x] 4.4 Harness rows zero; all six table counts recorded before and after
+- [x] 4.5 The seven artifact decks read back individually by `public_id`, all present
+- [x] 4.6 The orphan `3b720154-…` confirmed gone
+- [x] 4.7 Bare `npm run db:clean` re-run reports a near-empty census
+- [x] 4.8 Four-policy neuter re-run on the repaid database: the hardened assertion goes red, policies restored and verified by `pg_policies` diff
 
 ### Phase 5: Documentation sync
 
