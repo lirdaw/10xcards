@@ -65,6 +65,28 @@ export const AUTH_EMAIL_PROVIDER_DISABLED_MESSAGE = "Logowanie i rejestracja e-m
 export const AUTH_CAPTCHA_FAILED_MESSAGE =
   "Weryfikacja bezpieczeństwa nie powiodła się. Odśwież stronę i spróbuj ponownie.";
 export const AUTH_CONFLICT_MESSAGE = "Trwa inna operacja na tym koncie. Spróbuj ponownie za chwilę.";
+// C10X-51. What `/api/auth/signout` puts in `?error=` when `signOut()` comes back with an error
+// or throws. It is the ENTIRE observability surface of that failure for the person affected —
+// the three sign-out triggers are native form POSTs, so there is no island and no "Ponów"
+// button to carry anything else (C10X-49 D-02, one route over).
+//
+// DELIBERATELY LONGER THAN EVERY OTHER MEMBER, and the length is the content. The user has just
+// been told, by every other signal on screen, that they are signed out; the only sentence that
+// matters is the one saying they are not. So it names three things and a tidier must not
+// shorten it back to "Nie udało się wylogować": (a) the sign-out did not go through and the
+// session is STILL ACTIVE, (b) the immediate physical exit on a shared computer — close the
+// browser — and (c) the way to actually clear it, sign in again and retry. It must NOT say
+// "use the Wyloguj button on this page": the landing page is `/auth/signin`, which has none.
+//
+// THE ADJACENCY HAZARD, and it is the sharpest thing about this constant.
+// `AUTH_SESSION_MISSING_MESSAGE` above says the OPPOSITE ("Twoja sesja wygasła"), joins the SAME
+// closed set, and renders in the SAME banner on the SAME page. Two members of one set that
+// contradict each other is a copy hazard rather than a bug, and the mitigation is wording: this
+// message has to be unmistakable on its own, never a variation on its neighbour. A case in
+// tests/auth/errors.test.ts pins the two as distinct, because the hand-built distinctness Set in
+// that file covers the code-keyed classes only and would not see it.
+export const SIGNOUT_FAILED_MESSAGE =
+  "Wylogowanie nie powiodło się — Twoja sesja nadal jest aktywna. Jeśli korzystasz ze wspólnego komputera, zamknij okno przeglądarki. Aby ją zakończyć, zaloguj się ponownie i wyloguj jeszcze raz.";
 
 /**
  * Every value this module can ever return, including the unconfigured-Supabase constant the
@@ -92,6 +114,7 @@ export const AUTH_MESSAGES: readonly string[] = [
   AUTH_EMAIL_PROVIDER_DISABLED_MESSAGE,
   AUTH_CAPTCHA_FAILED_MESSAGE,
   AUTH_CONFLICT_MESSAGE,
+  SIGNOUT_FAILED_MESSAGE,
 ];
 
 /**

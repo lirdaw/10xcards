@@ -23,6 +23,7 @@ import {
   AUTH_VALIDATION_MESSAGE,
   AUTH_WEAK_PASSWORD_MESSAGE,
   ownedAuthMessage,
+  SIGNOUT_FAILED_MESSAGE,
 } from "@/lib/auth-errors";
 import { accountA } from "../fixtures/accounts";
 import { callEndpoint } from "../fixtures/endpoint";
@@ -236,6 +237,28 @@ describe("authErrorMessage — the invariant", () => {
     for (const message of AUTH_MESSAGES) {
       expect(message.length).toBeGreaterThan(0);
     }
+  });
+
+  // C10X-51. `SIGNOUT_FAILED_MESSAGE` is the second member of this set that the mapper never
+  // returns — `AUTH_UNAVAILABLE_MESSAGE` was the first (see the NAMED NEGATIVE SPACE block
+  // above). `/api/auth/signout` emits it directly, and `signin.astro` renders it only if
+  // `ownedAuthMessage` finds it HERE, by equality. So membership is not bookkeeping: a constant
+  // that never joined the set redirects to a sign-in page showing nothing at all, i.e. back to
+  // the swallow this ticket exists to remove. `accepts every constant in the closed set` below
+  // is the read-side half and picks this up for free.
+  it("carries the failed-sign-out message in the closed set", () => {
+    expect(AUTH_MESSAGES).toContain(SIGNOUT_FAILED_MESSAGE);
+  });
+
+  // THE ADJACENCY HAZARD, pinned because nothing else in this file can see it. The distinctness
+  // Set in `authErrorMessage — the code table` is hand-built from the CODE-keyed constants and
+  // contains neither of these two, so it would stay green through a merge. And these are the one
+  // pair in the set that says OPPOSITE things — "your session expired" versus "your session is
+  // still active" — while rendering in the same banner, on the same page, from the same
+  // parameter. A future tidier unifying them would leave a user on a shared computer reading
+  // that they are signed out when they are not.
+  it("does not let the failed-sign-out copy collapse into the expired-session copy", () => {
+    expect(SIGNOUT_FAILED_MESSAGE).not.toBe(AUTH_SESSION_MISSING_MESSAGE);
   });
 
   // The whole point of the module. Every branch of the chain is exercised with a sentinel in

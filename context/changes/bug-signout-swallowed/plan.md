@@ -801,16 +801,16 @@ No migration, no schema change, nothing pushed to the cloud. The C10X-29 drift g
 
 #### Automated
 
-- [ ] 1.1 Type gate passes: `npm run typecheck`
-- [ ] 1.2 Lint passes: `npm run lint`
-- [ ] 1.3 Full suite green: `npm test`
-- [ ] 1.4 The truth table's control fails when the decision is collapsed to a single location
+- [x] 1.1 Type gate passes: `npm run typecheck`
+- [x] 1.2 Lint passes: `npm run lint`
+- [x] 1.3 Full suite green: `npm test`
+- [x] 1.4 The truth table's control fails when the decision is collapsed to a single location
 
 #### Manual
 
-- [ ] 1.5 The new copy names the live session and a way out, and cannot be confused with
+- [x] 1.5 The new copy names the live session and a way out, and cannot be confused with
       `AUTH_SESSION_MISSING_MESSAGE` beside it in the same set
-- [ ] 1.6 H-19's three roadmap edits match H-18's field order and formatting
+- [x] 1.6 H-19's three roadmap edits match H-18's field order and formatting
 
 ### Phase 2: The route and the banner
 

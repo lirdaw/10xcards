@@ -1,7 +1,7 @@
 ---
 change_id: bug-signout-swallowed
 title: Signout stops presenting a failed signOut as success
-status: plan_reviewed
+status: implementing
 created: 2026-08-13
 updated: 2026-08-14
 archived_at: null
