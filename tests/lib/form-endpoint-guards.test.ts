@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -22,8 +22,17 @@ import { describe, expect, it } from "vitest";
 // the value, so the banner does not appear. Fail-safe, and completely silent — a refusal the user
 // never sees a reason for.
 //
-// SCOPE — `src/pages/api/`. That is where both sweeps were defined and it is the whole population:
-// six `formData()` readers, three JSON endpoints, three body-less routes.
+// SCOPE, and it is NOT uniform across the three describes below. The sentence that used to sit
+// here said `src/pages/api/` is "the whole population" — true of the `formData()` sweep, and
+// false of the other two, which were rooted at the deck subtree the whole time (C10X-51,
+// 2026-08-14):
+//
+//   - the `formData()` sweep covers `src/pages/api/` entire: six readers, three JSON endpoints,
+//     three body-less routes;
+//   - the two `?error=` sweeps cover the REGISTERED SURFACES in `ERROR_PARAM_SURFACES` below —
+//     the deck route tree, and `auth/signout.ts`. `auth/signin.ts` and `auth/signup.ts` are a
+//     deliberate, MEASURED exclusion, with the verdicts and the exemptions a full widening
+//     would need written out beside that table.
 //
 // Textual, like every other first-party guard here (`no-logging.test.ts`,
 // `no-env-access.test.ts`, `error-param-guard.test.ts`, `no-client-redirect-errors.test.ts`), and
@@ -32,6 +41,91 @@ import { describe, expect, it } from "vitest";
 
 const API_DIR = fileURLToPath(new URL("../../src/pages/api", import.meta.url));
 const DECKS_API_DIR = join(API_DIR, "decks");
+const SIGNOUT_ROUTE = join(API_DIR, "auth", "signout.ts");
+
+/**
+ * One `?error=` surface: the paths it covers, and the module its vocabulary arrives through.
+ *
+ * WHY A TABLE AND NOT A WIDER ROOT (C10X-51, 2026-08-14). The obvious move was to re-root the
+ * two `?error=` sweeps from `src/pages/api/decks` to `src/pages/api`. Running `rejection()`
+ * verbatim against the two files that would newly sweep in shows why it is a ticket rather than
+ * a one-line change — FOUR of the six existing auth emissions are refused:
+ *
+ *   signin.ts:29, signup.ts:20   encodeURIComponent(message) over a
+ *                                `isFormContentType(...) ? A : B` local
+ *                                -> local `message` mixes the closed set with a computed value
+ *   signin.ts:43, signup.ts:33   encodeURIComponent(authErrorMessage(error))
+ *                                -> not an identifier: authErrorMessage(error)
+ *   signin.ts:36, signup.ts:27   encodeURIComponent(AUTH_UNAVAILABLE_MESSAGE)   -> accepted
+ *
+ * Greening those needs two further exemptions — accept a call to a mapper that is total into the
+ * vouching set, and accept a ternary whose non-member residue is a predicate call. This is the
+ * one guard in this repo where EVERY previous exemption turned out to be a defect
+ * (`computedResidue` exists because "mentions an owned name" waved through `err.message` in
+ * three shapes; `localDeclarations` scans every declaration because first-match-wins hid a
+ * shadowed leak — both C10X-40 impl-review), so each needs its own falsification run and its own
+ * defence. Carried, with the measurement, in
+ * `context/changes/bug-signout-swallowed/follow-ups/error-param-guard-auth-routes.md`.
+ *
+ * A surface names its own vouching module because the two do NOT share a vocabulary: the deck
+ * pages vouch against `REDIRECT_MESSAGES`, `/auth/signin` vouches against `AUTH_MESSAGES` via
+ * `ownedAuthMessage`. Keyed per surface, a deck constant emitted from `signout.ts` is refused —
+ * which a union of both sets would wave through.
+ */
+interface ErrorParamSurface {
+  /** Used in failure labels and in the SCOPE note above. */
+  readonly name: string;
+  /** Absolute paths; a directory is walked, a file is taken as-is. */
+  readonly paths: readonly string[];
+  /** The closed set this surface's landing page vouches against. */
+  readonly vouchingModule: string;
+  /**
+   * The module a surface's message arrives through when it is not imported directly, and the
+   * ONE exemption `rejection()` grants below — see `decisionBoundNames`. Absent for the deck
+   * surface, whose verdicts are therefore byte-identical to before this table existed.
+   */
+  readonly decisionModule?: string;
+}
+
+const ERROR_PARAM_SURFACES: readonly ErrorParamSurface[] = [
+  { name: "deck routes", paths: [DECKS_API_DIR], vouchingModule: "@/lib/redirect-errors" },
+  {
+    name: "sign-out",
+    paths: [SIGNOUT_ROUTE],
+    vouchingModule: "@/lib/auth-errors",
+    decisionModule: "@/lib/signout-outcome",
+  },
+];
+
+interface ScannedFile {
+  readonly file: string;
+  readonly surface: ErrorParamSurface;
+}
+
+/**
+ * Every file the table covers, each carrying the surface that owns it.
+ *
+ * The pairing is structural rather than a lookup, so "this file was scanned but no surface
+ * claims it" cannot happen — which is the direction that must never SKIP. The other direction,
+ * a registered path that no longer exists, is what `unresolvedSurfacePaths` catches: a renamed
+ * route would otherwise empty a sweep silently, and an empty sweep is green.
+ */
+function scannedErrorParamFiles(): ScannedFile[] {
+  return ERROR_PARAM_SURFACES.flatMap((surface) =>
+    surface.paths.flatMap((path) => {
+      if (!existsSync(path)) return [];
+      const files = statSync(path).isDirectory() ? sourceFiles(path) : [path];
+      return files.map((file) => ({ file, surface }));
+    }),
+  );
+}
+
+/** Registered paths that are not on disk. Fail closed: a rename must redden, never quietly skip. */
+function unresolvedSurfacePaths(): string[] {
+  return ERROR_PARAM_SURFACES.flatMap((surface) =>
+    surface.paths.filter((path) => !existsSync(path)).map((path) => `${surface.name}: ${relative(API_DIR, path)}`),
+  );
+}
 
 /** The body read itself. Matched on the assignment, not on the bare call, so prose about it is ignored. */
 const FORM_DATA_READ = /=\s*await\s+[\w.]*\.formData\s*\(\s*\)/;
@@ -217,13 +311,24 @@ describe("every form endpoint guards its body read", () => {
   });
 });
 
-describe("no deck route puts an inline literal into ?error=", () => {
-  const files = sourceFiles(DECKS_API_DIR);
+describe("no registered surface puts an inline literal into ?error=", () => {
+  const scanned = scannedErrorParamFiles();
 
-  // Positive control, in both directions: the walk reaches the producers, and the detector fires on
-  // the regression while staying silent on the shipped shape.
-  it("scans the deck route tree and detects an inline literal", () => {
-    expect(files.length).toBeGreaterThanOrEqual(6);
+  // Positive control, in three directions now. The walk reaches the producers; EVERY registered
+  // path resolves (a renamed route must redden rather than empty a sweep, and an empty sweep is
+  // green); and the detector fires on the regression while staying silent on the shipped shape.
+  //
+  // The named files pin that BOTH surfaces are actually reached — a table whose second row
+  // silently contributed nothing would leave this ticket's own producer unguarded while reading
+  // exactly like coverage.
+  it("resolves every registered surface and detects an inline literal", () => {
+    expect(unresolvedSurfacePaths()).toEqual([]);
+    expect(scanned.length).toBeGreaterThanOrEqual(8);
+    for (const surface of ERROR_PARAM_SURFACES) {
+      expect(scanned.filter(({ surface: owner }) => owner === surface).length).toBeGreaterThanOrEqual(1);
+    }
+    expect(scanned.map(({ file }) => file)).toContain(SIGNOUT_ROUTE);
+
     expect(INLINE_ERROR_LITERAL.test('`/decks?error=${encodeURIComponent("Nie udało się")}&open=create`')).toBe(true);
     expect(INLINE_ERROR_LITERAL.test("`/decks?error='oops'`")).toBe(true);
     expect(
@@ -239,24 +344,35 @@ describe("no deck route puts an inline literal into ?error=", () => {
   // it does prove is that no NEW string enters the channel inline — which is the drift that
   // actually happens, and whose failure mode is a banner that silently stops appearing.
   it("interpolates only identifiers, never a quoted string", () => {
-    const inline = files.flatMap((file) =>
+    const inline = scanned.flatMap(({ file }) =>
       codeLines(file)
         .filter(({ text }) => INLINE_ERROR_LITERAL.test(text))
-        .map(({ text, index }) => label(file, DECKS_API_DIR, index, text)),
+        .map(({ text, index }) => label(file, API_DIR, index, text)),
     );
 
     expect(inline).toEqual([]);
   });
 
   // The companion claim, which is cheap and closes the other direction: a file that produces an
-  // `?error=` URL must take its vocabulary from the closed set rather than declaring its own.
-  it("takes its vocabulary from the closed set in every producer", () => {
-    const producers = files.filter((file) => /[?&]error=/.test(readFileSync(file, "utf8")));
-    expect(producers.length).toBeGreaterThanOrEqual(6);
+  // `?error=` URL must take its vocabulary from somewhere this project owns rather than declaring
+  // its own.
+  //
+  // The module it must import is the one the vocabulary ARRIVES through, which is not always the
+  // vouching set: `signout.ts` never names a message at all — it destructures one from
+  // `signOutLanding`, so `@/lib/signout-outcome` is the honest link and deleting that import
+  // reddens this. Same weakness as always, stated rather than implied: it asserts the file
+  // imports the module SOMEWHERE, so it stays green while a file emits a brand-new local literal.
+  // That direction is the sweep below.
+  it("takes its vocabulary from an owned module in every producer", () => {
+    const producers = scanned.filter(({ file }) => /[?&]error=/.test(readFileSync(file, "utf8")));
+    expect(producers.length).toBeGreaterThanOrEqual(7);
 
     const withoutTheSet = producers
-      .filter((file) => !/from\s*["']@\/lib\/redirect-errors["']/.test(readFileSync(file, "utf8")))
-      .map((file) => relative(DECKS_API_DIR, file).split(sep).join("/"));
+      .filter(({ file, surface }) => {
+        const module = (surface.decisionModule ?? surface.vouchingModule).replace(/[\\^$*+?.()|[\]{}]/g, "\\$&");
+        return !new RegExp(String.raw`from\s*["']${module}["']`).test(readFileSync(file, "utf8"));
+      })
+      .map(({ file }) => relative(API_DIR, file).split(sep).join("/"));
 
     expect(withoutTheSet).toEqual([]);
   });
@@ -299,13 +415,21 @@ describe("no deck route puts an inline literal into ?error=", () => {
 // exactly would spend a red run on something that needs no thought. The vocabulary is pinned; its
 // number of call sites deliberately is not.
 describe("every ?error= value is a member of the closed set", () => {
-  const files = sourceFiles(DECKS_API_DIR);
+  const scanned = scannedErrorParamFiles();
 
-  /** The names this file imported from the closed set — the only ones it may emit. */
-  function ownedNames(source: string): Set<string> {
+  /**
+   * The names this file imported from `module` — for the vouching module, the only ones it may
+   * emit.
+   *
+   * Parameterised by C10X-51; it hardcoded `@/lib/redirect-errors` while the sweep was rooted at
+   * the deck subtree. The two surfaces do not share a vocabulary, so this is what makes the
+   * table key per surface instead of vouching for the union of both sets.
+   */
+  function ownedNames(source: string, module: string): Set<string> {
+    const escaped = module.replace(/[\\^$*+?.()|[\]{}]/g, "\\$&");
     // `[^}]*` cannot cross a brace, so a multi-line import list is captured and a NEIGHBOURING
     // import's names cannot be swept in by a lazy match that ran too far.
-    const imported = /import\s*\{([^}]*)\}\s*from\s*["']@\/lib\/redirect-errors["']/.exec(source)?.[1];
+    const imported = new RegExp(String.raw`import\s*\{([^}]*)\}\s*from\s*["']${escaped}["']`).exec(source)?.[1];
     if (imported === undefined) return new Set();
     // The empty name is filtered rather than defaulted in, and that is not cosmetic: `owned` is
     // fed to `new RegExp(`\\b${name}\\b`)` below, and `\b\b` matches almost any declaration — so
@@ -335,14 +459,61 @@ describe("every ?error= value is a member of the closed set", () => {
     return captures(code, new RegExp(`const\\s+${name}\\s*=\\s*([^;]*);`, "g"));
   }
 
+  /**
+   * Names bound by DESTRUCTURING a call to a function this file imported from `module` — the one
+   * exemption `rejection` grants, and the only reason `signout.ts` can be registered at all.
+   *
+   * Why it is needed. `signout.ts` never names a message: it does
+   * `const { path, message } = signOutLanding(outcome);` and interpolates `message`. That is
+   * neither an import nor a `const <name> = …;`, so the unchanged rules refuse it — measured
+   * 2026-08-14, "`message` is neither imported from the closed set nor declared here", i.e. the
+   * guard would have gone red on correct code.
+   *
+   * WHAT MAKES IT SAFE, and it is a BORROWED claim rather than one this file establishes.
+   * `signOutLanding` is total into `AUTH_MESSAGES`: `tests/lib/signout-outcome.test.ts`'s "emits
+   * only messages the sign-in page will vouch for" asserts membership by equality over every
+   * outcome, and the module's own switch is exhaustive on the union, so a fourth outcome is a
+   * compile error rather than a fall-through. If that case is ever deleted, this exemption stops
+   * being backed by anything — which is why it names the file rather than merely asserting
+   * "trust the decision module".
+   *
+   * WHY IT IS DECLARED PER SURFACE rather than granted globally. The deck surface sets no
+   * `decisionModule`, so this returns an empty set there and every deck verdict is byte-identical
+   * to before the table existed. An exemption nobody opted into cannot widen anything.
+   */
+  function decisionBoundNames(source: string, module: string | undefined): Set<string> {
+    if (module === undefined) return new Set();
+    const bound = new Set<string>();
+    for (const fn of ownedNames(source, module)) {
+      // `\{([^}]*)\}` again cannot cross a brace, so a nested destructure is not swept in.
+      const pattern = new RegExp(String.raw`const\s*\{([^}]*)\}\s*=\s*(?:await\s+)?${fn}\s*\(`, "g");
+      for (const list of captures(source, pattern)) {
+        for (const entry of list.split(",")) {
+          // `{ message: msg }` binds `msg`, not `message` — take what the local is called.
+          const name = entry.split(":").pop()?.trim();
+          if (name !== undefined && BARE_IDENTIFIER.test(name)) bound.add(name);
+        }
+      }
+    }
+    return bound;
+  }
+
   /** Why this expression may not reach `?error=`, or null when it may. */
-  function rejection(expression: string, owned: Set<string>, source: string): string | null {
+  function rejection(
+    expression: string,
+    owned: Set<string>,
+    source: string,
+    decisionBound: ReadonlySet<string> = new Set(),
+  ): string | null {
     const value = (ENCODE_WRAPPER.exec(expression.trim())?.[1] ?? expression).trim();
 
     // A literal, `err.message`, `String(err)`, a template — none of them is a bare identifier, so
     // the whole leak class is refused here without the guard having to enumerate it.
     if (!BARE_IDENTIFIER.test(value)) return `not an identifier: ${value}`;
     if (owned.has(value)) return null;
+    // The declared exemption — see `decisionBoundNames`. Deliberately AFTER the identifier test,
+    // so it can only ever vouch for a bare name, never for a member access off the same binding.
+    if (decisionBound.has(value)) return null;
 
     const declarations = localDeclarations(source, value);
     if (declarations.length === 0) return `\`${value}\` is neither imported from the closed set nor declared here`;
@@ -364,9 +535,10 @@ describe("every ?error= value is a member of the closed set", () => {
   }
 
   /** Every place a value enters the `?error=` channel in one file, with the reason it may not. */
-  function rejectionsIn(file: string): string[] {
+  function rejectionsIn({ file, surface }: ScannedFile): string[] {
     const source = readFileSync(file, "utf8");
-    const owned = ownedNames(source);
+    const owned = ownedNames(source, surface.vouchingModule);
+    const decisionBound = decisionBoundNames(source, surface.decisionModule);
     const lines = codeLines(file);
 
     const helpers = new Map<number, { name: string; param: string }>();
@@ -385,20 +557,20 @@ describe("every ?error= value is a member of the closed set", () => {
         // parameter and nothing else, or a helper could smuggle a literal past every call site.
         for (const expression of captures(text, ERROR_INTERPOLATION)) {
           const value = (ENCODE_WRAPPER.exec(expression.trim())?.[1] ?? expression).trim();
-          if (value !== declared.param) found.push(label(file, DECKS_API_DIR, index, `helper body: ${value}`));
+          if (value !== declared.param) found.push(label(file, API_DIR, index, `helper body: ${value}`));
         }
       } else {
         for (const expression of captures(text, ERROR_INTERPOLATION)) {
-          const reason = rejection(expression, owned, source);
-          if (reason) found.push(label(file, DECKS_API_DIR, index, reason));
+          const reason = rejection(expression, owned, source, decisionBound);
+          if (reason) found.push(label(file, API_DIR, index, reason));
         }
       }
 
       for (const name of helperNames) {
         if (index === [...helpers.entries()].find(([, h]) => h.name === name)?.[0]) continue;
         for (const argument of captures(text, new RegExp(`\\b${name}\\s*\\(([^)]*)\\)`, "g"))) {
-          const reason = rejection(argument, owned, source);
-          if (reason) found.push(label(file, DECKS_API_DIR, index, reason));
+          const reason = rejection(argument, owned, source, decisionBound);
+          if (reason) found.push(label(file, API_DIR, index, reason));
         }
       }
       return found;
@@ -426,7 +598,9 @@ describe("every ?error= value is a member of the closed set", () => {
   // Positive control, in both halves. Without the floor, a walker that found nothing would make
   // the claim below pass while inspecting zero emissions — the shape this whole file exists to
   // stop. The named files pin that BOTH idioms are reached: `decks/index.ts` interpolates inline,
-  // `[publicId]/cards/index.ts` goes through the helper.
+  // `[publicId]/cards/index.ts` goes through the helper — and, since C10X-51, that the second
+  // SURFACE is reached at all: `auth/signout.ts` contributes the one emission this ticket added,
+  // and a table row that quietly matched nothing would otherwise read exactly like coverage.
   //
   // THE FLOOR IS THE MEASURED VALUE, not a round number below it (C10X-40 impl-review F3). It sat
   // at 25 against a measured 29, so up to four emissions could drop out of the walker's reach —
@@ -435,20 +609,24 @@ describe("every ?error= value is a member of the closed set", () => {
   // right for GROWTH (a new emission of already-vouched copy needs no thought); slack below the
   // measured value gives away the shrink direction too, and shrink is the silent one.
   //
+  // Both floors were RE-MEASURED for the widened scan rather than scaled by arithmetic (C10X-51,
+  // 2026-08-14): 30 emissions across 7 producing files.
+  //
   // KNOWN LIMITATION, deliberately not closed here: the call-site regex runs per LINE, so a call
   // Prettier has broken across lines (printWidth 120) matches nothing and is never inspected —
   // not rejected, unexamined. Every other bypass in this file fails loud; this one does not. No
   // call site is wrapped today, and this floor is what would notice if one became so.
-  it("reaches every emission site, through both idioms", () => {
-    const perFile = files
-      .map((file) => [relative(DECKS_API_DIR, file).split(sep).join("/"), emissionCount(file)] as const)
+  it("reaches every emission site, through both idioms and on both surfaces", () => {
+    const perFile = scanned
+      .map(({ file }) => [relative(API_DIR, file).split(sep).join("/"), emissionCount(file)] as const)
       .filter(([, count]) => count > 0);
-    const total = files.reduce((sum, file) => sum + emissionCount(file), 0);
+    const total = scanned.reduce((sum, { file }) => sum + emissionCount(file), 0);
 
-    expect(total).toBeGreaterThanOrEqual(29);
-    expect(perFile.length).toBeGreaterThanOrEqual(6);
+    expect(total).toBeGreaterThanOrEqual(30);
+    expect(perFile.length).toBeGreaterThanOrEqual(7);
     expect(emissionCount(join(DECKS_API_DIR, "index.ts"))).toBeGreaterThan(0);
     expect(emissionCount(join(DECKS_API_DIR, "[publicId]", "cards", "index.ts"))).toBeGreaterThan(0);
+    expect(emissionCount(SIGNOUT_ROUTE)).toBeGreaterThan(0);
   });
 
   // The other half: the detector fires on each regression it claims to detect, and stays silent on
@@ -495,9 +673,36 @@ describe("every ?error= value is a member of the closed set", () => {
     expect(rejection("shadowed", owned, source)).toContain("not built from the closed set");
   });
 
-  // THE CLAIM. Every value that can reach `?error=` on a deck route is a member of the closed set
-  // the three deck pages vouch against — by import, or by a local built from one.
-  it("emits only values the deck pages can vouch for", () => {
-    expect(files.flatMap(rejectionsIn)).toEqual([]);
+  // THE EXEMPTION'S OWN CONTROL, and it is the half that matters — an exemption nobody can turn
+  // red is a hole with a docblock. Three claims: the binding is accepted only when the call is to
+  // a function imported from the surface's DECLARED decision module; the same name bound from any
+  // other call is refused exactly as before; and a surface that declares no decision module gets
+  // an empty set, which is what makes the deck verdicts byte-identical to before this existed.
+  it("vouches for a destructured binding only when the surface declared its decision module", () => {
+    const source = [
+      'import { signOutLanding, type SignOutOutcome } from "@/lib/signout-outcome";',
+      "const { path, message } = signOutLanding(outcome);",
+      "const { message: relabelled } = signOutLanding(outcome);",
+      "const { message: fromElsewhere } = somebodyElse(outcome);",
+    ].join("\n");
+    const bound = decisionBoundNames(source, "@/lib/signout-outcome");
+
+    expect([...bound].sort()).toEqual(["message", "path", "relabelled"]);
+    expect(rejection("encodeURIComponent(message)", new Set(), source, bound)).toBeNull();
+    // Bound from a call this file did not import from the decision module: unchanged verdict.
+    expect(rejection("fromElsewhere", new Set(), source, bound)).toContain("neither imported");
+    // …and a member access off the same binding stays refused, because the exemption sits after
+    // the identifier test rather than before it.
+    expect(rejection("message.raw", new Set(), source, bound)).toContain("not an identifier");
+    // A surface with no decision module opts into nothing.
+    expect(decisionBoundNames(source, undefined).size).toBe(0);
+    expect(rejection("encodeURIComponent(message)", new Set(), source)).toContain("neither imported");
+  });
+
+  // THE CLAIM. Every value that can reach `?error=` on a registered surface is one the landing
+  // page for that surface can vouch for — by import, by a local built from one, or (sign-out only,
+  // and only because the surface declares it) by a binding destructured from its decision module.
+  it("emits only values the landing page for that surface can vouch for", () => {
+    expect(scanned.flatMap(rejectionsIn)).toEqual([]);
   });
 });

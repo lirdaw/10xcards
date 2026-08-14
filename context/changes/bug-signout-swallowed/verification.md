@@ -195,3 +195,136 @@ the cookie count is the third leg rather than the only one.
 `failed` cannot be provoked by clicking — they need the env or GoTrue broken — and reaching them in
 a running app is Phase 5's recorded manual run, with its one-variable control. Everything above is
 the SUCCESS path plus the landing page's rendering contract.
+
+---
+
+## Phase 3 — the `?error=` guard blind spot, as run
+
+**Date**: 2026-08-14. All figures below were obtained by RUNNING, never by arithmetic; where a
+floor is quoted, the measurement that produced it is quoted with it.
+
+### The plan's Phase 3 could not be implemented as written, and the mismatch was measured first
+
+The plan required the surface table with "`ownedNames` takes the module specifier as a parameter;
+**nothing else in `rejection()` changes**". Running the guard's own `rejection()` logic verbatim
+against `src/pages/api/auth/signout.ts`, keyed on `@/lib/auth-errors`, BEFORE any edit:
+
+```
+owned names: []
+77: encodeURIComponent(message)
+    -> `message` is neither imported from the closed set nor declared here
+```
+
+i.e. registering the file under the untouched rules turns the guard **red on correct code**. The
+cause is Phase 2's shape: `const { path, message } = signOutLanding(outcome);` is neither an import
+nor a `const <name> = …;`, and `localDeclarations` matches only the latter.
+
+The same probe reproduced the plan's own rejection table for `signin.ts`/`signup.ts` exactly — four
+refused, two accepted — so the table was right; it simply did not anticipate that this ticket's own
+producer needs a third exemption of its own. Resolution chosen (user decision, 2026-08-14): a
+**declared per-surface** exemption, `decisionBoundNames`. Its narrowness, its controls and the
+claim it borrows are documented at the site and in
+`follow-ups/error-param-guard-auth-routes.md`.
+
+> Note on the probe itself: its first two runs reported `owned names: []` for `signin.ts` too,
+> which would have made the plan's table look wrong. That was the harness, not the guard — Git Bash
+> MSYS path conversion rewrote the argv `@/lib/auth-errors` into
+> `@C:/Program Files/Git/lib/auth-errors`. Re-run under `MSYS_NO_PATHCONV=1` it agrees with the
+> plan. Recorded because a measurement that contradicts a written claim is worth doubting twice.
+
+### Floors, re-measured rather than scaled
+
+Each measured by temporarily asserting `toBe(-1)` and reading the reported actual, then restoring:
+
+| floor                            | before (deck subtree) | measured now | composition                |
+| -------------------------------- | --------------------- | ------------ | -------------------------- |
+| scanned files                    | ≥ 6                   | **8**        | 7 deck + 1 sign-out        |
+| total emissions                  | ≥ 29                  | **30**       | 29 deck + 1 sign-out       |
+| producing files                  | ≥ 6                   | **7**        | 6 deck + 1 sign-out        |
+| `emissionCount(auth/signout.ts)` | —                     | **1**        | the line this ticket added |
+
+That last row is what evidences criterion **3.5 numerically instead of by assertion**: sign-out
+contributes exactly one emission, so the deck subtree's own figures are 30 − 1 = 29 and 7 − 1 = 6 —
+both unchanged. The deck surface declares no `decisionModule`, so `decisionBoundNames` returns an
+empty set there and its verdicts are byte-identical by construction as well.
+
+### Breakage runs
+
+`src/pages/api/auth/signout.ts` hashed before the first edit: `5f6b0700e9053335a3b22c4a9f84e05c`.
+
+| #   | neuter                                                 | observed                                                                                                                                                                                                                    |
+| --- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3.2 | the emitted value replaced by an inline literal        | **2 of 11 red** — `interpolates only identifiers` on `auth/signout.ts:77: … encodeURIComponent("Nie udało się wylogować")`, and `emits only values …` on `auth/signout.ts:77: not an identifier: "Nie udało się wylogować"` |
+| 3.3 | a `REDIRECT_MESSAGES` member emitted from `signout.ts` | **1 of 11 red** — `emits only values …` on ``auth/signout.ts:78: `DECK_CREATE_FAILED_MESSAGE` is neither imported from the closed set nor declared here``                                                                   |
+
+**3.2 came back redder than predicted and it is recorded as observed**: the plan said "turns this
+guard red", singular; both `?error=` sweeps catch it, on different assertions, because an inline
+literal is simultaneously an inline literal and a non-identifier.
+
+**3.3's failure STRING is the evidence, not its colour.** `DECK_CREATE_FAILED_MESSAGE` _is_
+imported by the file under that neuter — just from `@/lib/redirect-errors`, which is not the
+sign-out surface's vouching module. A table that vouched for the union of both closed sets would
+have accepted it silently. Note also which sweep stayed **green**: the inline-literal sweep (it is
+not a literal) and the vocabulary check (the owned imports are still there) — so the reds are
+attributable to per-surface keying and to nothing else.
+
+Restore after each: `git checkout -- src/pages/api/auth/signout.ts`, hash re-read as
+`5f6b0700e9053335a3b22c4a9f84e05c` (identical), `git diff --stat -- src/` empty.
+
+### The exemption's own falsifiability
+
+`decisionBoundNames` gets a control of its own rather than being trusted, because an exemption
+nobody can turn red is a hole with a docblock. It asserts, over a fabricated source: the binding is
+vouched for only when the call is to a function imported from the surface's **declared** decision
+module; the same name bound from any other call keeps its old verdict (`neither imported`); a
+member access off the binding is still refused (the exemption sits after the identifier test); and
+a surface declaring no decision module opts into nothing.
+
+### Suite
+
+| criterion                                           | result                                                                                                                                                          |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3.1 `npm test`                                      | **478/478, 40 files** green (Phase 2 closed at 477/40; +1 is this phase's exemption control, measured in-file at 11 cases, up from 10)                          |
+| 3.4 the detector's four existing rejection controls | untouched and green — the `it()` was not edited, and `rejection()` gained a defaulted fourth parameter precisely so its existing call sites stay byte-identical |
+| type gate                                           | `npm run typecheck` OK, **157 files**, 0 errors 0 warnings                                                                                                      |
+| lint                                                | `npm run lint` 0 errors, the same **3** pre-existing `no-console` warnings in `evals/generation-quality.eval.ts`                                                |
+
+### What Phase 3 does NOT prove
+
+`signin.ts` and `signup.ts` remain outside the membership sweep — a written gap with its evidence
+attached (`follow-ups/error-param-guard-auth-routes.md`), not an unstated one. And the sweeps stay
+TEXTUAL: the known per-line limitation this guard's own comment records (a call Prettier has broken
+across lines is unexamined rather than rejected) is unchanged by this phase.
+
+### Phase 3 manual criteria — 2026-08-14
+
+**3.6 — the floors were obtained by running, and they sit AT the measured value.** Two probes,
+because "measured" and "not slack below the measurement" are different claims and only the second
+is what C10X-40 F3 asks for. Guard file hashed `9313a0d0a464c2c4a807d33d61e13d7a` before and after
+every probe; the file was restored from a copy each time, not edited back by hand.
+
+Each floor raised by exactly one:
+
+| floor           | at measured + 1                             |
+| --------------- | ------------------------------------------- |
+| scanned files   | **1 of 11 red** — `expected 8 to be >= 9`   |
+| total emissions | **1 of 11 red** — `expected 30 to be >= 31` |
+| producing files | **1 of 11 red** — `expected 7 to be >= 8`   |
+
+…and the shrink direction, which is the silent one: **deleting the `sign-out` row from
+`ERROR_PARAM_SURFACES`** goes **2 of 11 red**, `expected 7 to be >= 8` and
+`expected 29 to be >= 30`.
+
+That second probe is worth more than the floors it was run for. Without the row the walker reports
+exactly **7 files / 29 emissions** — the deck-only figures as they stood before this phase. So
+criterion **3.5 is measured in both directions** rather than obtained by subtracting: the deck
+subtree's numbers are what they always were, and the one emission the table's second row adds is
+this ticket's own.
+
+**3.7 — the SCOPE comment and the follow-up.** The comment now states the split per describe (the
+`formData()` sweep covers `src/pages/api/` entire; the two `?error=` sweeps cover the registered
+surfaces) and names `signin.ts`/`signup.ts` as a deliberate, MEASURED exclusion rather than an
+omission. `context/changes/bug-signout-swallowed/follow-ups/error-param-guard-auth-routes.md`
+exists, carries the four rejection verdicts, the two exemptions a widening would need, and the
+third exemption this phase did take — and the guard file points at it by path from the surface
+table's docblock, so a reader who meets the table finds the gap without knowing to look for it.

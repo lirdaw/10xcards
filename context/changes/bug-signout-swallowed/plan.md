@@ -816,33 +816,33 @@ No migration, no schema change, nothing pushed to the cloud. The C10X-29 drift g
 
 #### Automated
 
-- [x] 2.1 Type gate passes: `npm run typecheck`
-- [x] 2.2 Lint passes: `npm run lint`
-- [x] 2.3 Full suite green on three fresh shuffle seeds: `npm test`
-- [x] 2.4 `npm run e2e` still green
+- [x] 2.1 Type gate passes: `npm run typecheck` — 39e2b6c
+- [x] 2.2 Lint passes: `npm run lint` — 39e2b6c
+- [x] 2.3 Full suite green on three fresh shuffle seeds: `npm test` — 39e2b6c
+- [x] 2.4 `npm run e2e` still green — 39e2b6c
 
 #### Manual
 
 - [x] 2.0 The global-sign-out access-token question measured and recorded **before** the test is
-      written; the design branch it selects is stated in `verification.md`
-- [x] 2.5 Normal sign-out still lands on the guest landing with no `sb-` cookie
-- [x] 2.6 The banner renders on `/auth/signin` with `role="alert"`, and is absent on an ordinary load
-- [x] 2.7 A crafted `/auth/signin?error=` value renders no banner
+      written; the design branch it selects is stated in `verification.md` — 39e2b6c
+- [x] 2.5 Normal sign-out still lands on the guest landing with no `sb-` cookie — 39e2b6c
+- [x] 2.6 The banner renders on `/auth/signin` with `role="alert"`, and is absent on an ordinary load — 39e2b6c
+- [x] 2.7 A crafted `/auth/signin?error=` value renders no banner — 39e2b6c
 
 ### Phase 3: Close the `?error=` guard blind spot
 
 #### Automated
 
-- [ ] 3.1 Full suite green: `npm test`
-- [ ] 3.2 Breakage: an inline literal in `signout.ts` turns the guard red, naming file and line
-- [ ] 3.3 Breakage: a `REDIRECT_MESSAGES` member emitted from `signout.ts` is rejected
-- [ ] 3.4 The detector's four existing rejection controls still pass
-- [ ] 3.5 The deck surface's claims are unchanged — same emissions inspected, same verdicts
+- [x] 3.1 Full suite green: `npm test`
+- [x] 3.2 Breakage: an inline literal in `signout.ts` turns the guard red, naming file and line
+- [x] 3.3 Breakage: a `REDIRECT_MESSAGES` member emitted from `signout.ts` is rejected
+- [x] 3.4 The detector's four existing rejection controls still pass
+- [x] 3.5 The deck surface's claims are unchanged — same emissions inspected, same verdicts
 
 #### Manual
 
-- [ ] 3.6 The re-measured floors were obtained by running, not derived
-- [ ] 3.7 The SCOPE comment states what is scanned and what is deliberately not, and the follow-up exists
+- [x] 3.6 The re-measured floors were obtained by running, not derived
+- [x] 3.7 The SCOPE comment states what is scanned and what is deliberately not, and the follow-up exists
 
 ### Phase 4: The Sentry channel, and the guard that holds it
 
