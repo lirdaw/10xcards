@@ -1,5 +1,15 @@
 # Verification — C10X-50 `bug-generation-failed-audit-swallowed`
 
+> **Dated correction, 2026-08-14 (C10X-51) — a POINTER only; nothing measured below moved, and
+> nothing here is rewritten.** Every mention of `tests/lib/audit-failure-wiring.test.ts` in this
+> file means the file now called **`tests/lib/sentry-capture-wiring.test.ts`**: C10X-51 renamed it
+> and generalised it from this one hardcoded handler into a registered-targets table plus a
+> catch-all over all of `src/`, so a capture landing anywhere else is red rather than unlooked-at.
+> The **7** cases this file records were correct under the old name; the same file runs **17**
+> today, of which this change's six claims about `generate.ts` are all preserved and green.
+> C10X-51's own record is `context/changes/bug-signout-swallowed/verification.md` (after archiving,
+> `context/archive/<date>-bug-signout-swallowed/`).
+
 > Evidence for the plan's Success Criteria, recorded per run rather than per claim. Every split
 > below carries its denominator and its observed failure string, read from a
 > `--reporter=verbose` run — the default reporter names only failures, so a "control stayed

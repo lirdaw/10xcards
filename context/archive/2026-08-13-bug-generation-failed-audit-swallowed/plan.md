@@ -1,5 +1,16 @@
 # Unchecked `failed` audit-row insert on both generation failure paths — Implementation Plan
 
+> **Dated correction, 2026-08-14 (C10X-51) — POINTERS only; no decision or measurement in this
+> plan moved, and nothing here is rewritten.** Two paths this document names have changed since it
+> was archived. The wiring guard it creates, `tests/lib/audit-failure-wiring.test.ts`, is now
+> **`tests/lib/sentry-capture-wiring.test.ts`** — same file, renamed and generalised from this one
+> hardcoded handler into a registered-targets table plus a catch-all over all of `src/`, because
+> C10X-51 added the project's second first-party capture site
+> (`src/pages/api/auth/signout.ts`) and this guard would not have inspected it. And the swallowed-
+> write class this plan calls "closed in `generate.ts`" is now closed **project-wide**: sign-out
+> was the carve-out it names, and it has been fixed. This plan's own claims about `generate.ts` are
+> unaffected and still asserted.
+
 ## Overview
 
 `src/pages/api/generate.ts` discards the result of both `status: "failed"` audit-row inserts — the

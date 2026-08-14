@@ -40,10 +40,17 @@ export default Sentry.withSentry(
     // capture in this project that arrives some way other than through this console integration.
     // It carries no `logger === "console"` stamp, so `sampleSentryEvent` (below) takes its
     // fail-open branch for `logger !== "console"` and passes it UNSAMPLED, which is intended.
-    // `tests/lib/audit-failure-wiring.test.ts` proves the two capture statements are present,
+    // `tests/lib/sentry-capture-wiring.test.ts` proves the two capture statements are present,
     // composed and leak no content field; nothing proves an event ARRIVES — the same boundary
     // C10X-54's note below already draws for `beforeSend` itself. See
-    // `context/changes/bug-generation-failed-audit-swallowed/follow-ups/sentry-delivery.md`.
+    // `context/archive/2026-08-13-bug-generation-failed-audit-swallowed/follow-ups/sentry-delivery.md`.
+    //
+    // Two POINTERS in the sentence above moved on 2026-08-14 (C10X-51) and neither claim did. The
+    // guard was `tests/lib/audit-failure-wiring.test.ts` until that date, when it became a
+    // registered-targets table plus a catch-all over all of `src/`; and the follow-up's
+    // `context/changes/…` path stopped resolving when C10X-50 was archived. There are now TWO
+    // first-party capture sites, `generate.ts` and `src/pages/api/auth/signout.ts`, and the
+    // sentence's substance is unchanged for both: present and composed, arrival unproven.
     integrations: [
       Sentry.captureConsoleIntegration({ levels: ["warn", "error"] }),
       // Naming this one is NOT redundant — it is the trap this line exists to close.
