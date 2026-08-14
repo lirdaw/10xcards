@@ -206,8 +206,17 @@ export async function buildSignOutFailureReport(cause: SignOutFailureCause): Pro
   return {
     // Low-cardinality and indexed by Sentry — grouping and filtering, never content. These are
     // the same three fields `authErrorMessage` keys its closed-set lookup on, and for the same
-    // reason: they are assigned by the SDK's own classes and by GoTrue's response envelope, not
-    // by anything the user typed.
+    // reason: on the RETURNED-`AuthError` path they are assigned by the SDK's own classes and by
+    // GoTrue's response envelope, not by anything the user typed.
+    //
+    // SCOPED to that path on purpose (C10X-51 impl-review F5), because the sentence above is not
+    // established for the other one. `signout.ts`'s `thrownAsCause` accepts ANY thrown object and
+    // copies whatever strings sit on its `.code` and `.name` into these tags, with no bound on
+    // origin. What actually bounds it there is WHO can throw — Astro's `cookies.set` and auth-js
+    // subscriber callbacks, neither of which puts a submitted value in those two fields — which is
+    // a narrower guarantee than "a closed upstream vocabulary", and is written as such rather than
+    // left to read like the stronger one. `message` needs no caveat on either path: it is
+    // fingerprinted above and never travels verbatim.
     tags: {
       name: cause.name === undefined || cause.name === "" ? NONE : cause.name,
       code: cause.code === undefined || cause.code === "" ? NONE : cause.code,

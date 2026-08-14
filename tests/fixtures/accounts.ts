@@ -10,8 +10,12 @@ import { isAlreadyRegistered } from "../setup/env-assertions";
 // file through Vitest's provide/inject. Vitest isolates the module registry per test
 // file, so a module-level memo here would re-sign-in for each file — and the local auth
 // rate limit is 30 sign-up+sign-in requests per 5 minutes per IP (supabase/config.toml).
-// Provisioning once per run keeps the whole suite at 4 auth requests per run — roughly 7 runs
-// per 5 minutes before the limit bites. Ample for CI and normal work; if you are iterating hard
+// Provisioning once per run keeps A and B at 4 auth requests per run. Since C10X-51 the suite's
+// figure is 6, not 4: `tests/auth/signout.test.ts` mints a THIRD account through the exported
+// `provision` below, because a successful sign-out is `scope: "global"` and would invalidate a
+// shared session mid-run (see that docblock). That third pair is paid only on runs that execute
+// that file — a filtered run without it is back to 4. So roughly 5 whole-suite runs per 5
+// minutes before the limit bites, not 7. Ample for CI and normal work; if you are iterating hard
 // and globalSetup starts failing to sign in, suspect the rate limit before the harness.
 //
 // Only the anon key is used. No service_role key enters this repo: it is BYPASSRLS, and

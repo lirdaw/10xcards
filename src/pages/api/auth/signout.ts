@@ -1,6 +1,5 @@
 import type { APIRoute } from "astro";
 import * as Sentry from "@sentry/cloudflare";
-import type { AuthErrorLike } from "@/lib/auth-errors";
 import { createClient } from "@/lib/supabase";
 // The THIRD module in `src/` to import the Sentry SDK, after `src/worker.ts` and
 // `src/pages/api/generate.ts`. The reasons `generate.ts` gives for the import being safe are
@@ -10,7 +9,7 @@ import { createClient } from "@/lib/supabase";
 // nothing else — which is exactly its state under the test runner and under `npm run dev`
 // without a DSN.
 import { buildSignOutFailureReport, signOutLanding, SIGNOUT_CAPTURE_MESSAGE } from "@/lib/signout-outcome";
-import type { SignOutOutcome } from "@/lib/signout-outcome";
+import type { SignOutFailureCause, SignOutOutcome } from "@/lib/signout-outcome";
 
 // C10X-51. This route used to be ten lines with two swallow points, and both presented a
 // failure as SUCCESS:
@@ -44,18 +43,28 @@ import type { SignOutOutcome } from "@/lib/signout-outcome";
  * `catch`, so a throw from this project's own `cookies.set` propagates out of the `await`. The
  * user's state is identical either way, so both map onto the one `failed` outcome.
  *
- * Read structurally and never as `message`: a thrown value is `unknown`, and `message` is the
- * field `@/lib/auth-errors` exists to keep out of a URL (GoTrue interpolates the submitted
- * address into its own copy). Anything unrecognisable degrades to `{}`, which the mapper answers
- * with a project constant rather than by failing.
+ * Read structurally, field by field, never by spreading: a thrown value is `unknown`, so anything
+ * unrecognisable degrades to `{}` rather than smuggling whatever else sat on the object into the
+ * report. `signOutLanding` answers every `failed` cause with the same project constant, so nothing
+ * here can reach the URL whatever it holds — the only consumer of these fields is the Sentry
+ * report builder.
+ *
+ * `message` IS carried through when it is a string, and that is a correction rather than a
+ * loosening (C10X-51 impl-review F4). Stripping it made a thrown failure produce
+ * `{name:"none", code:"none", status:"none"}` with a null fingerprint — an event with nothing to
+ * discriminate on, on a path this file's own comment names as reachable. It is safe because it
+ * leaves as a length plus a digest prefix, never verbatim: that is exactly the promise
+ * `SignOutFailureCause` widens the type to be able to make, and stripping the field here was what
+ * denied the throw path the chance to make it.
  */
-function thrownAsCause(thrown: unknown): AuthErrorLike {
+function thrownAsCause(thrown: unknown): SignOutFailureCause {
   if (typeof thrown !== "object" || thrown === null) return {};
-  const { code, name, status } = thrown as Record<string, unknown>;
+  const { code, name, status, message } = thrown as Record<string, unknown>;
   return {
     code: typeof code === "string" ? code : undefined,
     name: typeof name === "string" ? name : undefined,
     status: typeof status === "number" ? status : undefined,
+    message: typeof message === "string" ? message : undefined,
   };
 }
 
@@ -103,8 +112,26 @@ export const POST: APIRoute = async (context) => {
   // that an event ARRIVES, and no layer in this project does — `/api/shipprobe`, the one
   // instrument that ever showed a first-party error reaching the Sentry UI, was deleted by
   // C10X-54.
+  //
+  // WRAPPED, and this is a DELIBERATE divergence from the two sibling call sites in
+  // `generate.ts` rather than an oversight (C10X-51 impl-review F3). `buildSignOutFailureReport`
+  // carries a no-throw contract and honours it — `fingerprint` wraps both the serialisation and
+  // the digest, and everything else is a property read — but the SDK call itself sits outside
+  // that contract. If it ever threw, the rejection would escape this async `APIRoute` and Astro
+  // would answer an uncaught 500, replacing the 302 that carries the banner: the exact regression
+  // class this ticket exists to remove, and worse than the defect it fixes, because the user then
+  // gets no page at all rather than a wrong one. The siblings can afford the same exposure —
+  // there a throw would replace an already-error 502/422 — while here it would eat the ONLY
+  // channel the user has. A forensic report must never outrank the response it annotates.
   if (capture && outcome.kind === "failed") {
-    Sentry.captureException(new Error(SIGNOUT_CAPTURE_MESSAGE), await buildSignOutFailureReport(outcome.cause));
+    try {
+      Sentry.captureException(new Error(SIGNOUT_CAPTURE_MESSAGE), await buildSignOutFailureReport(outcome.cause));
+    } catch {
+      // Swallowed on purpose, and it is the one swallow in this file that is correct: the report
+      // is strictly less important than the redirect below. Nothing is logged — `src/` writes no
+      // console output (`tests/lib/no-logging.test.ts`) — so a capture that fails is silent, which
+      // is the same boundary this route already states about delivery.
+    }
   }
 
   if (message === null) return context.redirect(path);

@@ -85,7 +85,29 @@ interface ErrorParamSurface {
    * surface, whose verdicts are therefore byte-identical to before this table existed.
    */
   readonly decisionModule?: string;
+  /**
+   * WHICH exports of `decisionModule` the exemption covers — never the module wholesale.
+   *
+   * Narrowed by C10X-51's impl-review (F1). Keyed on the module alone, the grant covered every
+   * name in the file's import list from it, while the defence covers exactly one: `signOutLanding`
+   * is total into `AUTH_MESSAGES` and `tests/lib/signout-outcome.test.ts` has the case saying so.
+   * Its sibling export `buildSignOutFailureReport` is total into nothing of the kind — its `tags`
+   * carry the upstream `name`/`code` verbatim — so a binding destructured from it was vouched for
+   * by a claim that was never about it. Measured before the narrowing rather than argued: the
+   * module-keyed set came back `['fromSibling', 'message', 'path', 'relabelled']`.
+   *
+   * Not a live leak at the time — nothing destructured the builder — but this is the one guard in
+   * this repo where every exemption has eventually turned out to be a defect (see the header), so
+   * the grant is made equal to what backs it rather than left one export ahead of it.
+   */
+  readonly decisionFunctions?: readonly string[];
 }
+
+/**
+ * The sign-out surface's decision functions, named once so the table and its control cannot
+ * disagree about what the exemption is claimed to cover.
+ */
+const SIGNOUT_DECISION_FUNCTIONS = ["signOutLanding"] as const;
 
 const ERROR_PARAM_SURFACES: readonly ErrorParamSurface[] = [
   { name: "deck routes", paths: [DECKS_API_DIR], vouchingModule: "@/lib/redirect-errors" },
@@ -94,6 +116,7 @@ const ERROR_PARAM_SURFACES: readonly ErrorParamSurface[] = [
     paths: [SIGNOUT_ROUTE],
     vouchingModule: "@/lib/auth-errors",
     decisionModule: "@/lib/signout-outcome",
+    decisionFunctions: SIGNOUT_DECISION_FUNCTIONS,
   },
 ];
 
@@ -477,14 +500,28 @@ describe("every ?error= value is a member of the closed set", () => {
    * being backed by anything — which is why it names the file rather than merely asserting
    * "trust the decision module".
    *
+   * WHICH IS ALSO WHY IT IS KEYED PER FUNCTION AND NOT PER MODULE (C10X-51 impl-review F1). The
+   * sentence above backs exactly one export; keyed on the module, the grant covered every name
+   * the file imported from it — including `buildSignOutFailureReport`, whose `tags` carry the
+   * upstream `name`/`code` verbatim and which no totality claim is made about anywhere. The
+   * caller passes `surface.decisionFunctions` and a name bound off anything else keeps its old
+   * verdict; the control below fabricates that exact shape.
+   *
    * WHY IT IS DECLARED PER SURFACE rather than granted globally. The deck surface sets no
    * `decisionModule`, so this returns an empty set there and every deck verdict is byte-identical
    * to before the table existed. An exemption nobody opted into cannot widen anything.
    */
-  function decisionBoundNames(source: string, module: string | undefined): Set<string> {
-    if (module === undefined) return new Set();
+  function decisionBoundNames(
+    source: string,
+    functions: readonly string[] | undefined,
+    module: string | undefined,
+  ): Set<string> {
+    if (module === undefined || functions === undefined) return new Set();
+    // Intersected, never unioned: a declared name the file never imported vouches for nothing,
+    // and an imported name the surface never declared is not a decision function.
+    const declared = new Set(functions);
     const bound = new Set<string>();
-    for (const fn of ownedNames(source, module)) {
+    for (const fn of [...ownedNames(source, module)].filter((name) => declared.has(name))) {
       // `\{([^}]*)\}` again cannot cross a brace, so a nested destructure is not swept in.
       const pattern = new RegExp(String.raw`const\s*\{([^}]*)\}\s*=\s*(?:await\s+)?${fn}\s*\(`, "g");
       for (const list of captures(source, pattern)) {
@@ -538,7 +575,7 @@ describe("every ?error= value is a member of the closed set", () => {
   function rejectionsIn({ file, surface }: ScannedFile): string[] {
     const source = readFileSync(file, "utf8");
     const owned = ownedNames(source, surface.vouchingModule);
-    const decisionBound = decisionBoundNames(source, surface.decisionModule);
+    const decisionBound = decisionBoundNames(source, surface.decisionFunctions, surface.decisionModule);
     const lines = codeLines(file);
 
     const helpers = new Map<number, { name: string; param: string }>();
@@ -680,22 +717,34 @@ describe("every ?error= value is a member of the closed set", () => {
   // an empty set, which is what makes the deck verdicts byte-identical to before this existed.
   it("vouches for a destructured binding only when the surface declared its decision module", () => {
     const source = [
-      'import { signOutLanding, type SignOutOutcome } from "@/lib/signout-outcome";',
+      'import { buildSignOutFailureReport, signOutLanding, type SignOutOutcome } from "@/lib/signout-outcome";',
       "const { path, message } = signOutLanding(outcome);",
       "const { message: relabelled } = signOutLanding(outcome);",
       "const { message: fromElsewhere } = somebodyElse(outcome);",
+      // A SIBLING export of the SAME declared module — the shape the exemption used to accept and
+      // must not (C10X-51 impl-review F1). The grant is per FUNCTION because that is what backs
+      // it: `signOutLanding` is total into `AUTH_MESSAGES` and has a case saying so, while
+      // `buildSignOutFailureReport` is total into nothing of the sort — its `tags` carry the
+      // upstream `name`/`code` verbatim. Keyed per module the two were indistinguishable, so a
+      // second export on this module would have opened the channel with the suite green.
+      "const { tags: fromSibling } = await buildSignOutFailureReport(cause);",
     ].join("\n");
-    const bound = decisionBoundNames(source, "@/lib/signout-outcome");
+    const bound = decisionBoundNames(source, SIGNOUT_DECISION_FUNCTIONS, "@/lib/signout-outcome");
 
     expect([...bound].sort()).toEqual(["message", "path", "relabelled"]);
     expect(rejection("encodeURIComponent(message)", new Set(), source, bound)).toBeNull();
     // Bound from a call this file did not import from the decision module: unchanged verdict.
     expect(rejection("fromElsewhere", new Set(), source, bound)).toContain("neither imported");
+    // …and bound from a call it DID import from that module, but which the surface never declared
+    // as a decision function: also unchanged. This is the half the module-keyed grant waved through.
+    expect(rejection("fromSibling", new Set(), source, bound)).toContain("neither imported");
     // …and a member access off the same binding stays refused, because the exemption sits after
     // the identifier test rather than before it.
     expect(rejection("message.raw", new Set(), source, bound)).toContain("not an identifier");
-    // A surface with no decision module opts into nothing.
-    expect(decisionBoundNames(source, undefined).size).toBe(0);
+    // A surface with no decision module opts into nothing — and neither does one that names a
+    // module but declares no function on it, which is the other half of the intersection.
+    expect(decisionBoundNames(source, SIGNOUT_DECISION_FUNCTIONS, undefined).size).toBe(0);
+    expect(decisionBoundNames(source, undefined, "@/lib/signout-outcome").size).toBe(0);
     expect(rejection("encodeURIComponent(message)", new Set(), source)).toContain("neither imported");
   });
 
