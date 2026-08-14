@@ -98,11 +98,23 @@ interface CaptureTarget {
   /** Repo-relative path of the handler, and the base every reported line is relative to. */
   path: string;
   /**
-   * A token proving the file read is THAT handler. `export const POST: APIRoute` is asserted for
-   * every row and does not discriminate — both targets are POST routes — so each row names
-   * something only it contains.
+   * A token proving the file read is THAT handler. {@link signature} is asserted for every row and
+   * discriminates only a KIND of file, so each row names something only it contains.
    */
   marker: string;
+  /**
+   * The token proving the file read is a first-party HANDLER at all, rather than a stub or a
+   * fixture that happens to sit at the path.
+   *
+   * Per target since C10X-52's impl-review, and it was `export const POST: APIRoute` hardcoded for
+   * every row until then. That was correct while every target was an API route and became a
+   * STRUCTURAL BLOCKER the moment one was not: `src/middleware.ts` is a capture site and exports
+   * no route handler at all, so the guard could not be extended to cover it without either
+   * weakening this control to nothing or asserting a token the file does not contain. Widening the
+   * field is what keeps the control at full strength on all three rows — it still refuses an
+   * emptied or stubbed file; it just no longer assumes every capture site is a POST route.
+   */
+  signature: string;
   /**
    * Lower bound on the file's code lines, and the slack is a DECISION rather than laziness. This
    * guard's own deliberate-breakage run deletes a capture statement from the target — four lines
@@ -129,6 +141,7 @@ const TARGETS: CaptureTarget[] = [
   {
     path: "src/pages/api/generate.ts",
     marker: "createGenerationSession(",
+    signature: "export const POST: APIRoute",
     lineFloor: 330,
     measured: "334 code lines, 2026-08-14",
     builder: "buildAuditFailureReport",
@@ -139,6 +152,7 @@ const TARGETS: CaptureTarget[] = [
   {
     path: "src/pages/api/auth/signout.ts",
     marker: "supabase.auth.signOut()",
+    signature: "export const POST: APIRoute",
     lineFloor: 30,
     measured: "35 code lines, 2026-08-14",
     builder: "buildSignOutFailureReport",
@@ -148,6 +162,37 @@ const TARGETS: CaptureTarget[] = [
     // echo what the user typed. The three beside it are not fields of any value on this path —
     // they are named so a future "let's attach a bit more context" edit is red rather than
     // reviewed, which is the direction this class actually fails in.
+    contentFields: ["message", "email", "access_token", "refresh_token"],
+  },
+  // The read-side guard (C10X-52 impl-review F1), and the first target that is NOT a route — see
+  // `signature` above for why that needed a field rather than an exception.
+  //
+  // Its capture is deliberately NARROWER than the other two: it fires on the `catch` around
+  // `getUser()` and on nothing else, so the returned-`AuthError` path a line above stays
+  // uncaptured by decision (D-01 — that path runs once per request for as long as GoTrue is down,
+  // where a capture is unsampled by construction). `captures: 1` is therefore load-bearing in BOTH
+  // directions here: it catches the capture being deleted, and it catches a second one being added
+  // to the outage branch, which is the edit D-01 exists to refuse.
+  {
+    path: "src/middleware.ts",
+    marker: "supabase.auth.getUser()",
+    signature: "defineMiddleware(",
+    // Slack sized to this guard's own neuter, per the field's rule: deleting the capture takes the
+    // wrapping `try`/`catch` with it, which is 9 code lines here rather than the 3-4 the two route
+    // targets lose — so a floor at the measured 80 would redden under the very breakage it exists
+    // to attribute. The shrink direction is covered where it belongs, by `captures: 1`.
+    lineFloor: 70,
+    measured: "80 code lines, 2026-08-14",
+    builder: "buildAuthCheckFailureReport",
+    module: "@/lib/auth-outcome",
+    captures: 1,
+    // Same set as `signout.ts`, and for the same reason rather than by copying: `message` is the
+    // one field a thrown value plausibly carries that can echo user input, and the three beside it
+    // are named so a future "attach a bit more context" edit is red rather than reviewed. This
+    // target has one field of its own worth naming — the Supabase session cookie is what the
+    // throwing layer handles — but its identifier is derived at runtime
+    // (`sb-<host>-auth-token`), so there is no literal to add here; the builder's field list is
+    // what bounds that, and `tests/lib/auth-outcome.test.ts` is where it is asserted.
     contentFields: ["message", "email", "access_token", "refresh_token"],
   },
 ];
@@ -231,7 +276,7 @@ describe.each(TARGETS)("$path routes every Sentry capture through its audited bu
   // THAT handler rather than any route; the floor is what stops a gutted one passing.
   it(`reads the real handler (${target.measured})`, () => {
     expect(lines.length).toBeGreaterThanOrEqual(target.lineFloor);
-    expect(source).toContain("export const POST: APIRoute");
+    expect(source).toContain(target.signature);
     expect(source).toContain(target.marker);
   });
 
@@ -410,14 +455,22 @@ describe("no unregistered file under src/ captures to Sentry", () => {
         // the comment filter is doing its job…
         "lib/signout-outcome.ts",
         "lib/audit-failure-report.ts",
+        // …the THIRD builder, added with the middleware target (C10X-52 impl-review F1) and
+        // unregistered for the same reason as its two siblings: it composes the context, it does
+        // not capture…
+        "lib/auth-outcome.ts",
         // …and a file with nothing to do with any of it, so the walk is shown to be a walk.
-        "middleware.ts",
+        // This was `middleware.ts` until 2026-08-14, when that file became a registered target —
+        // the exemplar had to move rather than be dropped, or the walk loses the one entry
+        // proving it reaches beyond the Sentry-adjacent modules.
+        "lib/utils.ts",
       ]),
     );
     // …and it must genuinely EXCLUDE the registered ones, or this block would duplicate the
     // per-target assertions and go red on their (correct, delegating) captures.
     expect(named).not.toContain("pages/api/generate.ts");
     expect(named).not.toContain("pages/api/auth/signout.ts");
+    expect(named).not.toContain("middleware.ts");
   });
 
   it("finds no Sentry.captureException outside the registered targets", () => {
