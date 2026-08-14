@@ -106,7 +106,19 @@ Nothing in that list returns `error: null`, and nothing in it throws. `_getUser`
 
 A signed-in user whose auth backend is briefly unreachable is told the **backend** is unreachable,
 not that their session expired — on both guard branches, in each caller's own convention. An
-anonymous visitor's experience is byte-identical to today.
+anonymous visitor's experience is byte-identical to today **on a configured deployment**.
+
+> **Scoped by this change's impl-review (F2, 2026-08-14), and the scope is the whole of the
+> correction.** The unqualified claim held for `unavailable` and was measured there (Phase 5 row 5,
+> in both stack states): `getUser()` answers `AuthSessionMissingError` before any transport is
+> attempted, so a visitor with no cookie cannot reach the outage branch however dead the backend
+> is. **`unconfigured` has no such short-circuit.** On a deployment missing
+> `SUPABASE_URL`/`SUPABASE_KEY` the guard answers EVERY caller — anonymous ones included — with
+> `AUTH_UNAVAILABLE_MESSAGE`, where before this change they got a bare `302` (or a `401`). That is
+> D-02 working as designed and it matches what all three sibling auth routes already do with the
+> same condition, so it is a widening rather than a defect — but the branch was never exercised
+> (`verification.md:704`: no run removed the two variables), so it is inference, and the
+> unqualified sentence would have read as a measurement covering it.
 
 Verified by: the classifier's truth table green on every `npm test`; `tests/middleware.test.ts`
 still 23/23 with no row edited; and one manual before/after run against a dead Supabase port,

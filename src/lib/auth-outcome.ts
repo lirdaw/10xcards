@@ -1,5 +1,6 @@
 import type { AuthErrorLike } from "@/lib/auth-errors";
 import { AUTH_NETWORK_MESSAGE, AUTH_UNAVAILABLE_MESSAGE } from "@/lib/auth-errors";
+import { fingerprint, type ContentFingerprint } from "@/lib/audit-failure-report";
 
 // What a failed session check in `src/middleware.ts` MEANS, and what the guard says about it
 // (C10X-52). The read-side twin of `@/lib/signout-outcome`, and deliberately its sibling in
@@ -127,6 +128,16 @@ const SERVER_ERROR_FLOOR = 500;
  * contradictory upstream answer — a session-scoped code arriving with a 5xx — falls to the safe
  * side rather than to the loud one.
  *
+ * NEITHER of those two rules is gated on `name === "AuthApiError"`, and that is a decision rather
+ * than an omission (impl-review F3). From `getUser()` the only class left after the two `name`
+ * tests above IS `AuthApiError`, so the gated and ungated readings coincide for every value this
+ * function can actually be handed — nothing is lost by omitting the gate, and no case below can
+ * tell the two apart, since every fabricated row carries a real class name. What the ungated form
+ * buys is the value it is NOT handed today: should auth-js ever answer with a class neither named
+ * above nor `AuthApiError`, a `429` or a `>= 500` on it still means the backend refused to serve,
+ * which is the same answer that class would want. Adding the gate would send exactly those values
+ * to `no-session` instead — a silent narrowing on the one population nobody has enumerated.
+ *
  * THE `default` ARM FALLS TO `no-session`, AND IT IS UNCONDITIONAL. `error-codes.d.ts` opens with
  * its own warning that the server may return codes absent from the union, so an unrecognised
  * `code` is an ordinary event rather than a corrupt one. A wrong `unavailable` tells a visitor who
@@ -192,4 +203,110 @@ export function authGuardLanding(outcome: AuthCheckOutcome): AuthGuardLanding {
     case "no-session":
       return { message: null };
   }
+}
+
+// ─── The forensic channel, and it covers ONE of the two populations that reach `unavailable` ───
+//
+// Added by this change's impl-review (F1). D-01 rules out a Sentry capture here and the reasoning
+// is sound — the middleware authenticates on EVERY request, so a capture on the outage path is
+// unsampled by construction and self-masking once quota runs out. What D-01 does not cover, and
+// what the plan inherited rather than argued, is that TWO different populations land on the same
+// `unavailable` outcome:
+//
+//   - a RETURNED `AuthError` — an infrastructure event, one per request for as long as GoTrue is
+//     down, i.e. exactly the volume D-01 describes. It still gets NO capture, and that is D-01
+//     working as written.
+//   - a THROWN non-`AuthError` — a programming error. `_getUser` rethrows only values that are not
+//     `AuthError`s (`GoTrueClient.js:2516`), so this is a bug in the cookie layer, the adapter or
+//     an upgrade, and it is rare by construction rather than per-request. Before C10X-52 it was an
+//     uncaught 500: loud, and at minimum visible to the user as a broken page. The `catch` that
+//     correctly stops the 500 also converts it into "the auth backend is briefly unreachable" —
+//     true-looking, wrong, and reaching NOBODY, since `src/` writes no console output
+//     (`tests/lib/no-logging.test.ts`) and there was no second channel.
+//
+// So the split is by CAUSE, never by outcome: the response stays identical for both (the user
+// cannot act on the difference and must not be shown it), and only the throw is reported. That is
+// why the capture lives at the `catch` in `src/middleware.ts` and nowhere else in that file.
+
+/**
+ * The synthetic error's message, so the capture statement interpolates NOTHING.
+ *
+ * Same contract as `SIGNOUT_CAPTURE_MESSAGE` one module over, and for the same reason: the first
+ * argument to `captureException` is serialised onto the event as `exception.values[].value`, where
+ * no builder can reach it — so it must never be the thrown value itself. Sentry groups on this
+ * literal, and the `name`/`code`/`status` tags are what discriminate one throw from another.
+ */
+export const AUTH_CHECK_CAPTURE_MESSAGE = "getUser() threw — the session check could not complete";
+
+/**
+ * What was thrown, narrowed to the fields the report may carry.
+ *
+ * `message` is widened in exactly the way `SignOutFailureCause` is, and for exactly its reason: the
+ * builder has to SEE the field in order to promise it never leaves verbatim. A type that hid it
+ * would make the promise unwritable and a leak invisible.
+ */
+export interface AuthCheckFailureCause extends AuthErrorLike {
+  message?: string;
+}
+
+/** What `Sentry.captureException`'s second argument accepts, narrowed to the two keys this builds. */
+export interface AuthCheckFailureReport {
+  tags: Record<string, string>;
+  extra: Record<string, unknown>;
+}
+
+/** The tag value for a field the throw does not carry. Matches the two sibling builders. */
+const NONE = "none";
+
+/**
+ * Narrow an arbitrary thrown value into a cause.
+ *
+ * Total over `unknown` and deliberately so — this runs in a `catch`, where the value is whatever
+ * the throw site produced, including a string, `null`, or an object with none of these fields.
+ * Structurally identical to `signout.ts`'s `thrownAsCause`, which is NOT refactored into a shared
+ * helper here: that would be a second edit to a route this change does not otherwise touch, and
+ * the two sites' content-field decisions are independent claims that should stay separately
+ * reviewable.
+ */
+export function thrownAsAuthCheckCause(thrown: unknown): AuthCheckFailureCause {
+  if (typeof thrown !== "object" || thrown === null) return {};
+  const { code, name, status, message } = thrown as Record<string, unknown>;
+  return {
+    code: typeof code === "string" ? code : undefined,
+    name: typeof name === "string" ? name : undefined,
+    status: typeof status === "number" ? status : undefined,
+    message: typeof message === "string" ? message : undefined,
+  };
+}
+
+/**
+ * The Sentry context for a thrown session check: structured fields verbatim, free-form text never.
+ *
+ * The bound on `name` and `code` here is WHO can throw, not a closed upstream vocabulary — the
+ * same narrower guarantee `buildSignOutFailureReport` states for its own throw path, and stated
+ * rather than left reading like the stronger one. The values reaching a `catch` around
+ * `getUser()` come from Astro's `cookies` implementation and from `@supabase/ssr`'s cookie
+ * parsing; neither puts a submitted value in those two fields. `message` needs no such caveat: it
+ * is fingerprinted below and never travels verbatim.
+ *
+ * Async because the digest is, which is why the call site `await`s it inline on the capture
+ * statement — one statement, so `tests/lib/sentry-capture-wiring.test.ts` can see the delegation.
+ */
+export async function buildAuthCheckFailureReport(cause: AuthCheckFailureCause): Promise<AuthCheckFailureReport> {
+  const message: ContentFingerprint | null = await fingerprint(cause.message);
+
+  return {
+    tags: {
+      name: cause.name === undefined || cause.name === "" ? NONE : cause.name,
+      code: cause.code === undefined || cause.code === "" ? NONE : cause.code,
+      // Stringified because a Sentry tag value is a string, and tested on `undefined` rather than
+      // on falsiness because `0` is a real reading on this family (see the sibling builder).
+      status: cause.status === undefined ? NONE : String(cause.status),
+    },
+    // The `_fingerprint` suffix is naming rather than decoration: a reader must not be able to
+    // mistake a digest for the value it stands in for.
+    extra: {
+      cause_message_fingerprint: message,
+    },
+  };
 }

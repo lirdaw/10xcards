@@ -1,7 +1,7 @@
 ---
 change_id: bug-middleware-getuser-swallowed
 title: Middleware reads a getUser() auth error as "not signed in"
-status: implemented
+status: impl_reviewed
 created: 2026-08-14
 updated: 2026-08-14
 archived_at: null

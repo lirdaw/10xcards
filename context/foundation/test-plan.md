@@ -45,6 +45,25 @@
 > consequence is stated rather than hidden — the 500, 429 and `bad_jwt` classes reach **no owner
 > at all**.
 >
+> > **Narrowed the same day by this change's impl-review (F1), and it is a narrowing of D-01's
+> > SCOPE rather than a reversal of it — the paragraph above is left standing because every clause
+> > in it is true of the population it was reasoning about.** D-01's argument is about volume, and
+> > volume distinguishes two populations that the fix deliberately collapses onto one outcome and
+> > one response. A **returned** `AuthError` is an infrastructure event arriving once per request
+> > for as long as GoTrue is down: that is exactly the unsampled, self-masking case, it still gets
+> > no capture, and **"the 500, 429 and `bad_jwt` classes reach no owner at all" is unchanged**. A
+> > **thrown** non-`AuthError` is not that population — auth-js rethrows only what is not an
+> > `AuthError`, so it is a bug and it is rare by construction. That class was the one thing this
+> > ticket made strictly HARDER to find than before it: an uncaught 500 became a plausible-looking
+> > "backend briefly unreachable" reaching nobody, `src/` writing no console output. It now fires
+> > one fingerprinted `Sentry.captureException` from the `catch` and nowhere else, and
+> > `src/middleware.ts` became the third registered target in
+> > `tests/lib/sentry-capture-wiring.test.ts` — where `captures: 1` is load-bearing in both
+> > directions, refusing a second capture on the outage branch, which is the edit D-01 exists to
+> > refuse. Registering it required generalising that guard's hardcoded
+> > `export const POST: APIRoute` control into a per-target `signature`, the first non-route target
+> > it has ever carried. **Delivery stays unproven**, identically to the two sibling sites.
+>
 > **The evidence splits as C10X-51's did, on the same structural reason, and one step worse.**
 > BOTH failure branches are unreachable from the suite, so a pure module with an exhaustive truth
 > table owns the decision and **one manual run owns the endpoint's use of it** — a before/after
@@ -2322,11 +2341,27 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   >
   > - **Only ONE failure class was ever provoked**: `AuthRetryableFetchError` at status 0, from a
   >   refused connection. **500 and 429 were never provoked**, and neither was `unconfigured` — all
-  >   three are carried by the truth table alone.
-  > - **There is NO Sentry channel for this failure, by decision** (D-01), and this is the one place
-  >   the class breaks with its four siblings' two-channel pattern. The middleware authenticates on
-  >   every request, so a first-party capture is unsampled by construction and self-masking on quota
-  >   exhaustion. The 500, 429 and `bad_jwt` classes therefore reach **no owner at all**.
+  >   three are carried by the truth table alone. **And `unconfigured` is the one of the three that
+  >   changes an ANONYMOUS visitor's experience** (impl-review F2): the "byte-identical to today"
+  >   claim rests on `getUser()` short-circuiting before any transport, which is true of a dead
+  >   backend and has no counterpart when the client is `null` — so on a deployment missing
+  >   `SUPABASE_URL`/`SUPABASE_KEY` every caller meets `AUTH_UNAVAILABLE_MESSAGE`, where a bare
+  >   `302` (or `401`) stood before. Intended (D-02) and consistent with all three sibling auth
+  >   routes; inference rather than measurement, which is why it is named here.
+  > - **The Sentry channel covers the THROW and nothing else** (impl-review F1; D-01 as shipped said
+  >   "none", and the correction is a narrowing of D-01's scope rather than a reversal of it). D-01's
+  >   argument is about VOLUME — the middleware authenticates on every request, so a capture on the
+  >   outage path is unsampled by construction and self-masking on quota exhaustion — and that holds
+  >   for a **returned** `AuthError`, which still reaches no owner: **the 500, 429 and `bad_jwt`
+  >   classes reach no owner at all**, unchanged. It does not hold for a **thrown** non-`AuthError`,
+  >   which auth-js produces only for a genuine bug and which is therefore rare by construction. That
+  >   one was strictly harder to find after C10X-52 than before it — an uncaught 500 became a
+  >   plausible-looking "backend briefly unreachable" reaching nobody — so it now fires one
+  >   fingerprinted `Sentry.captureException` carrying no user content, and `src/middleware.ts` is a
+  >   registered target in `tests/lib/sentry-capture-wiring.test.ts` where `captures: 1` refuses a
+  >   second capture on the outage branch. **Delivery is unproven exactly as for the two sibling
+  >   sites** — no DSN is configured under the runner or under `npm run dev` — so this adds an owner
+  >   in principle, never an observed event.
   > - **`tests/middleware.test.ts` gained NO case for the new branch.** Its 23 are a regression proof
   >   and say nothing about the fix; a future edit to the outage branch reddens none of them.
   > - **The `Vary` header on the two NEW representations is asserted by nothing**, and this one was
@@ -6329,6 +6364,27 @@ generated_count 3 | keyed | 0 cards`. The response is Phase 2's distinct copy ca
   measured. `tests/middleware.test.ts` gained **no** case for the new branch. Three of the four
   `fetch`-carrying islands were never driven. And `customfield_10041` on **C10X-52** is
   `/jira-finish-work`'s to fill.
+
+  > **Two clauses of that bullet were changed by this change's own impl-review, later the same day,
+  > and the bullet is left standing as the accurate record of what shipped from Phase 6.**
+  >
+  > **F1 — "this change adds no capture site" is retired; the rest of the Sentry clause is not.**
+  > There is now exactly one, at the `catch` around `getUser()`, so a **thrown** non-`AuthError` —
+  > a bug, rare by construction — reaches an owner. The **returned**-`AuthError` population is
+  > untouched and D-01 governs it unchanged, so "the 500 and 429 classes … reach no owner at all"
+  > is still true, which is why this is a narrowing rather than a reversal. **The delivery debt's
+  > owner is unchanged and now carries one more unproven site**: no DSN is configured under the
+  > runner or under `npm run dev`, so nothing here observes an event arriving. Suite **521 → 527,
+  > 41 files** (+6, all in `tests/lib/sentry-capture-wiring.test.ts` from the third target's
+  > `describe.each` block, measured by running that file rather than by arithmetic). The capture
+  > was falsified rather than assumed: deleting it turns that guard **1 of 23 red**, naming the
+  > target by path, restored by byte copy with `md5sum` verified.
+  >
+  > **F2 — "neither was `unconfigured`" is unchanged and gains its consequence.** That branch is
+  > still carried by the truth table alone, and it is the one of the three whose widening reaches an
+  > **anonymous** visitor: the "byte-identical to today" claim rests on a short-circuit that exists
+  > for a dead backend and not for a `null` client. Intended (D-02), unmeasured, and now said
+  > wherever the claim is made.
 
 Refresh (`/10x-test-plan --refresh`) when:
 

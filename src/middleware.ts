@@ -1,6 +1,16 @@
 import { defineMiddleware } from "astro:middleware";
+import * as Sentry from "@sentry/cloudflare";
 import { createClient } from "@/lib/supabase";
 import { authGuardLanding, classifyAuthError } from "@/lib/auth-outcome";
+// The FOURTH module in `src/` to import the Sentry SDK, after `src/worker.ts`,
+// `src/pages/api/generate.ts` and `src/pages/api/auth/signout.ts`. The reasons those give for the
+// import being safe are properties of the package and of the SDK's global hub rather than of any
+// route, so they transfer verbatim: `@sentry/cloudflare` carries no `cloudflare:` runtime import
+// outside its `./vite` export, and with no client configured `captureException` returns an event
+// id and does nothing else — which is its state under the test runner and under `npm run dev`
+// without a DSN. That last property is what makes the import safe on a file running on EVERY
+// request: the cost of the unconfigured case is a function call, not a transport.
+import { AUTH_CHECK_CAPTURE_MESSAGE, buildAuthCheckFailureReport, thrownAsAuthCheckCause } from "@/lib/auth-outcome";
 import type { AuthCheckOutcome } from "@/lib/auth-outcome";
 
 // Prefix-matched below, so "/api/study" needs its own entry — it does NOT begin with
@@ -86,7 +96,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
       } = await supabase.auth.getUser();
       context.locals.user = user ?? null;
       outcome = { kind: classifyAuthError(error) };
-    } catch {
+    } catch (thrown) {
       // `_getUser` rethrows anything that is not an `AuthError` (`GoTrueClient.js:2516`), and
       // this file had no `catch` — so that state was an uncaught 500 on EVERY request, owned by
       // no ticket (D-03). A throw and a returned error leave the caller in the same place, so
@@ -99,6 +109,43 @@ export const onRequest = defineMiddleware(async (context, next) => {
       // defect gets shipped inverted.
       context.locals.user = null;
       outcome = { kind: "unavailable" };
+
+      // THE SECOND CHANNEL, and its scope is the one thing to read carefully here: it is on the
+      // THROW only, never on the returned-error path a line above. Those two land the same
+      // outcome and the same response on purpose — the user cannot act on the difference — but
+      // they are different POPULATIONS, and D-01's argument against a capture in this file is an
+      // argument about volume that holds for one of them and not the other. A returned
+      // `AuthError` is an infrastructure event arriving once per request for as long as GoTrue is
+      // down, so a capture there is unsampled by construction and self-masking on quota: D-01
+      // stands, and there is no capture on that branch. A throw is a BUG — auth-js rethrows only
+      // non-`AuthError` values — so it is rare by construction and carries none of that hazard.
+      // Without this it was the one class here that got strictly HARDER to find than before
+      // C10X-52: an uncaught 500 became a plausible-looking "backend briefly unreachable" that
+      // reaches nobody, `src/` writing no console output (`tests/lib/no-logging.test.ts`).
+      // Added by this change's impl-review (F1); the full argument is at the builder.
+      //
+      // Wrapped, and the wrap is not defensive habit — it is `signout.ts:126-135`'s rule, which
+      // matters more here than anywhere it has been applied before. `buildAuthCheckFailureReport`
+      // awaits `crypto.subtle.digest`; if that rejected, the rejection would escape this
+      // middleware and Astro would answer an uncaught 500 on EVERY request — reinstating the
+      // exact hole D-03 exists to close, from inside the code that closes it. A forensic report
+      // must never outrank the response it annotates. The inner swallow is silent for the same
+      // reason the outer one cannot be logged, and it is the same boundary this change already
+      // states about delivery: nothing here proves an event ARRIVES.
+      //
+      // The exception is SYNTHETIC and the cause travels as the builder's ARGUMENT: the first
+      // argument lands on the event as `exception.values[].value`, where no builder can reach it,
+      // so passing `thrown` itself would ship whatever free-form strings it carries past every
+      // guard. `tests/lib/sentry-capture-wiring.test.ts` holds that shape per statement.
+      try {
+        Sentry.captureException(
+          new Error(AUTH_CHECK_CAPTURE_MESSAGE),
+          await buildAuthCheckFailureReport(thrownAsAuthCheckCause(thrown)),
+        );
+      } catch {
+        // Deliberate, and the one swallow in this file that is correct: the report is strictly
+        // less important than serving the request.
+      }
     }
   }
 
