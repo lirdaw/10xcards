@@ -3,9 +3,13 @@ import * as Sentry from "@sentry/cloudflare";
 import { z } from "zod";
 import type { Json, TablesInsert } from "@/db/database.types";
 import { createClient } from "@/lib/supabase";
-// The ONLY module in `src/` that imports the Sentry SDK besides `src/worker.ts`, and the
-// import is safe rather than merely convenient: `@sentry/cloudflare` carries no `cloudflare:`
-// runtime import outside its `./vite` export, and with no client configured
+// One of THREE modules in `src/` that import the Sentry SDK, with `src/worker.ts` and — since
+// C10X-51, 2026-08-14 — `src/pages/api/auth/signout.ts`. It read "the ONLY module besides
+// `src/worker.ts`" until that date; corrected here rather than left to rot, because the sentence
+// was load-bearing for the paragraph it opens. The import is safe rather than merely convenient,
+// and every reason is a property of the package and of the SDK's global hub rather than of this
+// route, which is why they transfer to the third importer unchanged: `@sentry/cloudflare` carries
+// no `cloudflare:` runtime import outside its `./vite` export, and with no client configured
 // `captureException` returns an event id and does nothing else — which is exactly what it does
 // under the test runner and under `npm run dev` without a DSN.
 import { AUDIT_CAPTURE_MESSAGE, buildAuditFailureReport } from "@/lib/audit-failure-report";

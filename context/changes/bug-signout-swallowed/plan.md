@@ -833,32 +833,32 @@ No migration, no schema change, nothing pushed to the cloud. The C10X-29 drift g
 
 #### Automated
 
-- [x] 3.1 Full suite green: `npm test`
-- [x] 3.2 Breakage: an inline literal in `signout.ts` turns the guard red, naming file and line
-- [x] 3.3 Breakage: a `REDIRECT_MESSAGES` member emitted from `signout.ts` is rejected
-- [x] 3.4 The detector's four existing rejection controls still pass
-- [x] 3.5 The deck surface's claims are unchanged — same emissions inspected, same verdicts
+- [x] 3.1 Full suite green: `npm test` — 8a11341
+- [x] 3.2 Breakage: an inline literal in `signout.ts` turns the guard red, naming file and line — 8a11341
+- [x] 3.3 Breakage: a `REDIRECT_MESSAGES` member emitted from `signout.ts` is rejected — 8a11341
+- [x] 3.4 The detector's four existing rejection controls still pass — 8a11341
+- [x] 3.5 The deck surface's claims are unchanged — same emissions inspected, same verdicts — 8a11341
 
 #### Manual
 
-- [x] 3.6 The re-measured floors were obtained by running, not derived
-- [x] 3.7 The SCOPE comment states what is scanned and what is deliberately not, and the follow-up exists
+- [x] 3.6 The re-measured floors were obtained by running, not derived — 8a11341
+- [x] 3.7 The SCOPE comment states what is scanned and what is deliberately not, and the follow-up exists — 8a11341
 
 ### Phase 4: The Sentry channel, and the guard that holds it
 
 #### Automated
 
-- [ ] 4.1 Type gate passes: `npm run typecheck`
-- [ ] 4.2 Full suite green: `npm test`
-- [ ] 4.3 Breakage: deleting the `signout.ts` capture turns the guard red by name
-- [ ] 4.4 Breakage: a raw-cause first argument reddens only the synthetic-first-argument assertion
-- [ ] 4.5 Breakage: a capture planted in an unregistered `src/` file turns the catch-all red
-- [ ] 4.6 `generate.ts`'s existing claims all still pass — seven `it()`s, six about `generate.ts`
+- [x] 4.1 Type gate passes: `npm run typecheck`
+- [x] 4.2 Full suite green: `npm test`
+- [x] 4.3 Breakage: deleting the `signout.ts` capture turns the guard red by name
+- [x] 4.4 Breakage: a raw-cause first argument reddens only the synthetic-first-argument assertion
+- [x] 4.5 Breakage: a capture planted in an unregistered `src/` file turns the catch-all red
+- [x] 4.6 `generate.ts`'s existing claims all still pass — seven `it()`s, six about `generate.ts`
       plus the detector control; count re-measured, not carried over
 
 #### Manual
 
-- [ ] 4.7 The rewritten header states what the guard does not prove (no delivery claim)
+- [x] 4.7 The rewritten header states what the guard does not prove (no delivery claim)
 
 ### Phase 5: Evidence and doc-sync
 

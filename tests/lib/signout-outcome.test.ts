@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { AUTH_MESSAGES, AUTH_UNAVAILABLE_MESSAGE, SIGNOUT_FAILED_MESSAGE } from "@/lib/auth-errors";
-import { signOutLanding, type SignOutOutcome } from "@/lib/signout-outcome";
+import {
+  buildSignOutFailureReport,
+  signOutLanding,
+  type SignOutFailureCause,
+  type SignOutFailureReport,
+  type SignOutOutcome,
+} from "@/lib/signout-outcome";
 
 // The truth table for `POST /api/auth/signout`'s decision (C10X-51).
 //
@@ -115,5 +121,196 @@ describe("signOutLanding — the invariants", () => {
 
     expect(new Set(landings.map(({ path, message }) => `${path}|${message}`)).size).toBe(3);
     expect(new Set(landings.map(({ path }) => path)).size).toBe(2);
+  });
+
+  // The flag the CAPTURE reads, asserted as its own claim rather than only inside the three
+  // `toEqual` rows above. `src/pages/api/auth/signout.ts` fires on `capture && kind === "failed"`,
+  // i.e. on two conditions that must never disagree: were `unconfigured` to start capturing, the
+  // route would bill Sentry on every request of a misconfigured deployment for a fact its own
+  // configuration banner already states. This is the case that reddens if someone "simplifies"
+  // the flag to `message !== null`.
+  it("captures on the failed branch and on nothing else", () => {
+    expect(signOutLanding(TRANSPORT_FAILURE).capture).toBe(true);
+    expect(signOutLanding({ kind: "unconfigured" }).capture).toBe(false);
+    expect(signOutLanding({ kind: "signed-out" }).capture).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// THE PRIVACY TRUTH TABLE for the second channel (C10X-51 Phase 4).
+//
+// The builder decides what leaves the process toward a THIRD PARTY on a path that carries an
+// `AuthError` — and GoTrue interpolates the submitted address into its own copy (`Email address
+// %q is invalid`), while `_getErrorMessage` falls back to `JSON.stringify(err)` on an unexpected
+// body. That is the same material `@/lib/auth-errors` exists to keep out of a URL, one channel
+// over, which is why `message` is fingerprinted rather than dropped or trusted.
+//
+// WHAT IT DOES NOT PROVE, stated so nobody reads it as more. It says nothing about whether the
+// ROUTE still calls the builder — that is `tests/lib/sentry-capture-wiring.test.ts`, and the two
+// are one claim split in half, exactly as `sentry-sampling.test.ts` and `sentry-wiring.test.ts`
+// are. It also says nothing about whether a captured event ever ARRIVES in the Sentry UI; no
+// layer in this project can assert that since C10X-54 deleted `/api/shipprobe`.
+//
+// EVERY VALUE BELOW IS FABRICATED. No stack, no network, no fixture.
+// ---------------------------------------------------------------------------------------------
+
+/** Distinct per field, so a red names WHICH one leaked rather than only that something did. */
+const CAUSE_MESSAGE = 'SENTINEL-cause-message-8f21 Email address "ala@example.com" is invalid';
+const USER_ADDRESS = "ala@example.com";
+
+/** The shape the DOMINANT failure class arrives in: a `fetch` that never reached GoTrue. */
+function cause(overrides: Partial<SignOutFailureCause> = {}): SignOutFailureCause {
+  return {
+    name: "AuthRetryableFetchError",
+    code: "unexpected_failure",
+    status: 0,
+    message: CAUSE_MESSAGE,
+    ...overrides,
+  };
+}
+
+/**
+ * The leak detector. Deliberately over-broad — the WHOLE serialised report, tags and extra
+ * together — because a privacy assertion scoped to the fields you remembered to look at is the
+ * "correct on what it looks at, silent about what it never looks at" class this project has now
+ * recorded five times.
+ *
+ * IT MATCHES THE ESCAPED FORM TOO, and that is not defensive padding — it was measured. A
+ * needle carrying a double quote survives `JSON.stringify` only as `\"`, so the raw-only check
+ * this started as reported the positive control below as NOT leaking over a report that plainly
+ * did. And the quote is not incidental to the fixture: GoTrue's copy is `Email address %q is
+ * invalid`, i.e. `%q` — the one upstream string on this path that can carry a submitted address
+ * quotes it. A raw-only detector would therefore have been blind to the exact leak this file
+ * exists to catch, while reading green.
+ */
+function carries(report: SignOutFailureReport, needle: string): boolean {
+  const serialised = JSON.stringify(report);
+  // `slice(1, -1)` drops the wrapping quotes `JSON.stringify` adds around a string, leaving the
+  // escaped body as it would appear INSIDE the serialised report.
+  return serialised.includes(needle) || serialised.includes(JSON.stringify(needle).slice(1, -1));
+}
+
+describe("buildSignOutFailureReport", () => {
+  // THE LOAD-BEARING HALF. `message` is the one field on an `AuthError` that can echo what the
+  // user typed, and the alternative shape — handing the error straight to `captureException` —
+  // would put it on the event as `exception.values[].value`, where no builder and no guard can
+  // reach it. Both the sentinel and the address inside it are asserted, because a truncation that
+  // kept the first N characters would drop the sentinel and still ship the address.
+  it("carries neither the cause's message nor anything inside it", async () => {
+    const report = await buildSignOutFailureReport(cause());
+
+    expect(carries(report, CAUSE_MESSAGE)).toBe(false);
+    expect(carries(report, USER_ADDRESS)).toBe(false);
+  });
+
+  // …and the same claim from the other side, so "dropped everything" cannot satisfy it: the
+  // fingerprint is PRESENT and describes the value that was dropped.
+  it("replaces it with a fingerprint that describes what was dropped", async () => {
+    const report = await buildSignOutFailureReport(cause());
+    const printed = report.extra.cause_message_fingerprint as { length: number; sha256: string } | null;
+
+    expect(printed?.length).toBe(CAUSE_MESSAGE.length);
+    expect(printed?.sha256).toMatch(/^[0-9a-f]{16}$/);
+  });
+
+  // THE POSITIVE CONTROL FOR BOTH CASES ABOVE. Without it a builder returning `{}` — or a
+  // detector that never matches — satisfies them and reads as perfect protection.
+  it("the leak detector fires on a report that DOES carry the message", () => {
+    const leaky: SignOutFailureReport = {
+      tags: { name: "AuthRetryableFetchError" },
+      extra: { cause_message: CAUSE_MESSAGE },
+    };
+
+    expect(carries(leaky, CAUSE_MESSAGE)).toBe(true);
+    expect(carries(leaky, USER_ADDRESS)).toBe(true);
+  });
+
+  // Retention, asserted in the same breath so the privacy cases cannot be satisfied by dropping
+  // the cause wholesale. These three are a closed upstream vocabulary — assigned by the SDK's own
+  // error classes and by GoTrue's response envelope, never by anything the user typed — and they
+  // are what discriminates a dead GoTrue from a 500 from a 429 once the captured error is a fixed
+  // literal with no upstream stack behind it.
+  it("keeps name, code and status verbatim", async () => {
+    const report = await buildSignOutFailureReport(cause({ name: "AuthApiError", code: "over_request_rate_limit" }));
+
+    expect(report.tags).toEqual({ name: "AuthApiError", code: "over_request_rate_limit", status: "0" });
+  });
+
+  // `0` is a REAL status here — it is what `AuthRetryableFetchError` carries when the request
+  // never left the process, i.e. the dominant class — so it must stay distinguishable from the
+  // absent case. A falsiness test rather than an `undefined` test collapses the two, and this is
+  // the case that reddens if someone writes one.
+  it("tells a status of 0 apart from no status at all", async () => {
+    const zero = await buildSignOutFailureReport(cause({ status: 0 }));
+    const absent = await buildSignOutFailureReport(cause({ status: undefined }));
+
+    expect(zero.tags.status).toBe("0");
+    expect(absent.tags.status).toBe("none");
+    expect(zero.tags.status).not.toBe(absent.tags.status);
+  });
+
+  // The transport class carries no `code` at all and `thrownAsCause` degrades an unrecognisable
+  // throw to `{}`, so an absent tag is the ordinary reading rather than an edge case. An empty
+  // value would read in Sentry as "no error" rather than as "the client never got one".
+  it.each([
+    { label: "an empty string", over: { name: "", code: "" } },
+    { label: "undefined", over: {} },
+  ])("substitutes a fixed literal for a name and code that are $label", async ({ over }) => {
+    const report = await buildSignOutFailureReport({ status: 500, ...over });
+
+    expect(report.tags.name).toBe("none");
+    expect(report.tags.code).toBe("none");
+  });
+
+  // The digest is `@/lib/audit-failure-report`'s, borrowed rather than re-derived — but "the
+  // report is stable and discriminating" is a claim about THIS builder, and a change that stopped
+  // fingerprinting the message (or fingerprinted a constant instead) would leave that module's
+  // own truth table fully green. So both directions are asserted through the report.
+  it("fingerprints stably, and discriminates a one-character change", async () => {
+    const [first, second, other] = await Promise.all([
+      buildSignOutFailureReport(cause({ message: "abcdef" })),
+      buildSignOutFailureReport(cause({ message: "abcdef" })),
+      buildSignOutFailureReport(cause({ message: "abcdeg" })),
+    ]);
+
+    expect(first.extra.cause_message_fingerprint).toEqual(second.extra.cause_message_fingerprint);
+    expect(first.extra.cause_message_fingerprint).not.toEqual(other.extra.cause_message_fingerprint);
+  });
+
+  // An absent message stays legibly ABSENT rather than becoming the fingerprint of the four
+  // characters `null` — otherwise a reader cannot tell "nothing was captured" from "the string
+  // 'null' was captured". Reachable in production: `thrownAsCause` produces exactly `{}` for a
+  // thrown non-object.
+  it("reports no message as null rather than dropping the key", async () => {
+    const report = await buildSignOutFailureReport({});
+
+    expect(report.extra).toHaveProperty("cause_message_fingerprint", null);
+  });
+
+  // NO USER IDENTIFIER, and it is the sharpest line in this module rather than a default: the
+  // event is about one named person's live session, so an id or an address would make the report
+  // identify exactly the party it exists to protect. Asserted over a cause carrying BOTH on
+  // fields the builder never reads, because "the builder ignores unknown keys" is precisely the
+  // property that stops a future `...cause` spread from shipping them.
+  it("carries no user identifier, even when the cause is decorated with one", async () => {
+    const decorated = { ...cause(), user_id: "SENTINEL-user-id-3ac0", email: USER_ADDRESS };
+    const report = await buildSignOutFailureReport(decorated);
+
+    for (const sentinel of ["SENTINEL-user-id-3ac0", USER_ADDRESS]) expect(carries(report, sentinel)).toBe(false);
+  });
+
+  // THE CONTRACT THAT KEEPS THE 302 A 302, asserted as `resolves` and never as a caught throw: a
+  // test that CAUGHT the throw would pass over an implementation that still kills the response.
+  // The capture sits immediately before the redirect that carries the banner, so a throw here
+  // replaces a 302 the user can act on with an uncaught framework 500 — strictly worse than the
+  // defect this change fixes.
+  it.each([
+    { label: "a message that is not a string", over: { message: 1n as unknown as string } },
+    { label: "a cause with no fields at all", over: {} },
+  ])("resolves over $label", async ({ over }) => {
+    const report = await buildSignOutFailureReport({ ...over });
+
+    expect(report.tags).toHaveProperty("name");
+    expect(report.extra).toHaveProperty("cause_message_fingerprint");
   });
 });

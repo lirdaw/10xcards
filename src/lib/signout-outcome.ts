@@ -1,5 +1,13 @@
 import type { AuthErrorLike } from "@/lib/auth-errors";
 import { AUTH_UNAVAILABLE_MESSAGE, SIGNOUT_FAILED_MESSAGE } from "@/lib/auth-errors";
+// The digest, borrowed rather than re-derived (C10X-51 D-13). `fingerprint` is a pure, total
+// function over `unknown` that CANNOT throw — the property the site below depends on — and it
+// already carries its own truth table in `tests/lib/audit-failure-report.test.ts`. A second
+// implementation here would be a second thing to keep correct, and the two reports would drift
+// on the one shape a reader compares them by. What is NOT borrowed is the report itself: that
+// module's builder takes a `generation_session` row and answers about a lost audit record, which
+// has nothing to do with a sign-out.
+import { fingerprint, type ContentFingerprint } from "@/lib/audit-failure-report";
 
 // Where a sign-out attempt leaves the user, and whether an owner hears about it (C10X-51).
 //
@@ -106,4 +114,113 @@ export function signOutLanding(outcome: SignOutOutcome): SignOutLanding {
     case "signed-out":
       return { path: SUCCESS_PATH, message: null, capture: false };
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// THE SECOND CHANNEL (C10X-51 Phase 4).
+//
+// The banner is the whole of what the USER gets, and it is the right channel for them: it names
+// the live session and the two exits. It is the wrong channel for an OWNER — it reaches exactly
+// one person, who cannot fix a dead GoTrue, and it survives nowhere. So the failure branch also
+// captures, for the same reason C10X-50's two audit sites do (test-plan §6.6): the person who is
+// told and the person who could act are not the same person.
+//
+// Everything the capture may carry is decided HERE, as a pure function over its argument, so the
+// privacy property is a truth table rather than a reviewer's attention — the split
+// `@/lib/audit-failure-report` + `tests/lib/audit-failure-report.test.ts` already established,
+// and `tests/lib/sentry-capture-wiring.test.ts` is the guard that the route still calls it.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The failure `signOut()` came back with, as the capture sees it.
+ *
+ * `AuthErrorLike` plus the one field it deliberately omits. That omission is not an oversight to
+ * repair — `@/lib/auth-errors` excludes `message` precisely so no mapper can relay it into a URL,
+ * because GoTrue interpolates submitted values into its own copy and `_getErrorMessage` falls
+ * back to `JSON.stringify(err)` on an unexpected body. But the VALUE the route hands over is a
+ * real `AuthError`, which carries `message` at runtime whatever the static type says, so this
+ * builder has to see the field in order to promise it never leaves verbatim. Widening the type
+ * here and fingerprinting the field is what makes that promise checkable; narrowing it away
+ * would make the promise unwritable and the leak invisible.
+ */
+export interface SignOutFailureCause extends AuthErrorLike {
+  message?: string;
+}
+
+/** What `Sentry.captureException`'s second argument accepts, narrowed to the two keys this builds. */
+export interface SignOutFailureReport {
+  tags: Record<string, string>;
+  extra: Record<string, unknown>;
+}
+
+/**
+ * The synthetic error's message, so the capture statement interpolates NOTHING and the wiring
+ * guard can assert its first argument is a `new Error(...)` rather than the auth failure itself.
+ *
+ * Fixed literal, with the cost stated rather than hidden: Sentry groups on it and there is no
+ * upstream stack, so the `name` and `status` tags are what discriminate classes — a dead GoTrue
+ * (`AuthRetryableFetchError`, status 0) from a 500 from a 429.
+ */
+export const SIGNOUT_CAPTURE_MESSAGE = "signOut did not complete — the session may still be live";
+
+/**
+ * The tag value for a field the failure does not carry.
+ *
+ * A fixed literal rather than `""`, for the reason `@/lib/audit-failure-report` records one line
+ * over: an empty tag value reads in Sentry as "no error" rather than as "the client never got
+ * one" — and here that is the DOMINANT class, since a `fetch` that never reached GoTrue has no
+ * status and no code at all.
+ */
+const NONE = "none";
+
+/**
+ * Build the capture context for a sign-out that did not complete.
+ *
+ * The privacy rule, in one sentence: **the three structural fields travel verbatim and every
+ * free-form string leaves as a length plus a digest prefix.** `code`, `name` and `status` are a
+ * closed upstream vocabulary carrying no submitted value, which is what makes them safe as tags;
+ * `message` is the one field on an `AuthError` that can echo what the user typed, so it leaves
+ * only as a shape.
+ *
+ * NO USER IDENTIFIER, and that is the sharpest line here rather than a default. This event is
+ * about one named person's session; an id or an address would make the report identify exactly
+ * the party it exists to protect. Nothing on this path even reads the user — the route never
+ * touches `locals.user` — so the absence is structural as well as intended.
+ *
+ * **IT MUST NOT THROW, and that is a hard contract rather than a nicety.** The call site sits on
+ * the failure path immediately before the redirect that carries the banner, so a throw here does
+ * not degrade the report — it replaces a 302 the user can act on with an uncaught framework 500,
+ * i.e. strictly worse than the defect this whole change fixes. The risky half is delegated to
+ * `fingerprint`, which wraps both the serialisation and the digest; everything else is a property
+ * read off a plain object.
+ *
+ * Async because the digest is (`crypto.subtle.digest` returns a Promise), which is why the call
+ * site `await`s it inline on the capture statement — one statement, so the wiring guard can see
+ * the delegation.
+ *
+ * @param cause what `signOut()` returned or threw, already narrowed by the route
+ */
+export async function buildSignOutFailureReport(cause: SignOutFailureCause): Promise<SignOutFailureReport> {
+  const message: ContentFingerprint | null = await fingerprint(cause.message);
+
+  return {
+    // Low-cardinality and indexed by Sentry — grouping and filtering, never content. These are
+    // the same three fields `authErrorMessage` keys its closed-set lookup on, and for the same
+    // reason: they are assigned by the SDK's own classes and by GoTrue's response envelope, not
+    // by anything the user typed.
+    tags: {
+      name: cause.name === undefined || cause.name === "" ? NONE : cause.name,
+      code: cause.code === undefined || cause.code === "" ? NONE : cause.code,
+      // Stringified because a Sentry tag value is a string. `0` is a REAL reading here — it is
+      // what `AuthRetryableFetchError` carries when the request never left the process — so it
+      // must stay distinguishable from the absent case, which is why the test is on `undefined`
+      // and not on falsiness.
+      status: cause.status === undefined ? NONE : String(cause.status),
+    },
+    // The `_fingerprint` suffix is deliberate naming rather than decoration: a reader must not be
+    // able to mistake a digest for the value it stands in for.
+    extra: {
+      cause_message_fingerprint: message,
+    },
+  };
 }

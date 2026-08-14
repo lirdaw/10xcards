@@ -1,7 +1,16 @@
 import type { APIRoute } from "astro";
+import * as Sentry from "@sentry/cloudflare";
 import type { AuthErrorLike } from "@/lib/auth-errors";
 import { createClient } from "@/lib/supabase";
-import { signOutLanding, type SignOutOutcome } from "@/lib/signout-outcome";
+// The THIRD module in `src/` to import the Sentry SDK, after `src/worker.ts` and
+// `src/pages/api/generate.ts`. The reasons `generate.ts` gives for the import being safe are
+// properties of the package and of the SDK's global hub rather than of that route, so they
+// transfer verbatim: `@sentry/cloudflare` carries no `cloudflare:` runtime import outside its
+// `./vite` export, and with no client configured `captureException` returns an event id and does
+// nothing else — which is exactly its state under the test runner and under `npm run dev`
+// without a DSN.
+import { buildSignOutFailureReport, signOutLanding, SIGNOUT_CAPTURE_MESSAGE } from "@/lib/signout-outcome";
+import type { SignOutOutcome } from "@/lib/signout-outcome";
 
 // C10X-51. This route used to be ten lines with two swallow points, and both presented a
 // failure as SUCCESS:
@@ -68,7 +77,36 @@ export const POST: APIRoute = async (context) => {
     }
   }
 
-  const { path, message } = signOutLanding(outcome);
+  const { path, message, capture } = signOutLanding(outcome);
+
+  // THE SECOND CHANNEL, and it exists because the first one reaches the wrong person. The banner
+  // tells the user their session is live, which is what they need; it tells nobody who could fix
+  // a dead GoTrue, and it survives nowhere. Same reasoning as C10X-50's two audit sites one route
+  // over, with one difference worth naming: there the response was useless to the user because
+  // the lost record was invisible to them, while here BOTH channels carry real information — they
+  // just carry it to different people.
+  //
+  // The narrowing is not redundant with the flag. `capture` is the DECISION (it is what the truth
+  // table pins, and it is `false` for `unconfigured`, which is a deployment state rather than an
+  // incident); `outcome.kind === "failed"` is what gives the compiler a `cause` to hand over. The
+  // two cannot disagree — only the `failed` arm sets `capture` — and a case in
+  // `tests/lib/signout-outcome.test.ts` is what keeps that true.
+  //
+  // The exception is SYNTHETIC and carries a fixed literal, never the auth error itself: the
+  // first argument is serialised onto the event as `exception.values[].value`, where no builder
+  // can reach it, and an `AuthError`'s `message` is the field GoTrue interpolates the submitted
+  // address into. The cause travels as the builder's argument instead, where `code`/`name`/
+  // `status` pass verbatim and `message` leaves as a length plus a digest prefix.
+  //
+  // WHAT THIS PROVES AND WHAT IT DOES NOT. `tests/lib/sentry-capture-wiring.test.ts` holds that
+  // the call is present and composed; the truth table holds what it may carry. NEITHER asserts
+  // that an event ARRIVES, and no layer in this project does — `/api/shipprobe`, the one
+  // instrument that ever showed a first-party error reaching the Sentry UI, was deleted by
+  // C10X-54.
+  if (capture && outcome.kind === "failed") {
+    Sentry.captureException(new Error(SIGNOUT_CAPTURE_MESSAGE), await buildSignOutFailureReport(outcome.cause));
+  }
+
   if (message === null) return context.redirect(path);
   // Assembled HERE rather than returned finished by `signOutLanding`, on purpose:
   // `tests/lib/form-endpoint-guards.test.ts`'s `?error=` sweeps are TEXTUAL, so a URL built
