@@ -1,4 +1,5 @@
 import { experimental_AstroContainer as AstroContainer } from "astro/container";
+import { App } from "astro/app";
 import type { APIRoute } from "astro";
 import type { User } from "@supabase/supabase-js";
 import type { TestAccount } from "./accounts";
@@ -20,6 +21,13 @@ import type { TestAccount } from "./accounts";
 //    createClient(context.request.headers, context.cookies), which reads the session out
 //    of the Cookie header — so the real cookie -> JWT -> RLS -> Postgres chain runs. Only
 //    locals.user is fabricated.
+//
+// 3. A cookie an endpoint WRITES does not appear as a Set-Cookie header here. Astro carries
+//    context.cookies on the response under Symbol.for("astro.cookies") and only the app/adapter
+//    layer materialises them into real headers (dist/core/app/prepare-response.js) — and the
+//    Container runs neither. Measured, not assumed: for a route whose signOut() stages
+//    `sb-127-auth-token=; Max-Age=0; Path=/; SameSite=Lax`, response.headers.getSetCookie()
+//    is [] while the carried cookies hold exactly that. Read them with stagedCookies() below.
 
 /** A namespace-imported endpoint module: `import * as Endpoint from "@/pages/api/..."`. */
 export type EndpointModule = Partial<Record<"GET" | "POST", APIRoute>>;
@@ -98,4 +106,20 @@ export async function callEndpoint(
     params,
     locals: locals as App.Locals,
   });
+}
+
+/**
+ * The Set-Cookie strings an endpoint staged on its response — see note 3 above for why
+ * `response.headers.getSetCookie()` cannot answer this under the Container API.
+ *
+ * `App.getSetCookieFromResponse` is Astro's own public accessor for exactly this (its JSDoc at
+ * `dist/core/app/base.d.ts:162` demonstrates this call), which is why the symbol is not read by
+ * hand: the carrier is internal and would drift silently, and a test that read `undefined` off a
+ * renamed symbol would report "no cookie staged" — indistinguishable from the defect.
+ *
+ * DESTRUCTIVE: the underlying `consume()` drains the carried cookies, so a second call returns
+ * nothing. Call it once and assert on the result.
+ */
+export function stagedCookies(response: Response): string[] {
+  return [...App.getSetCookieFromResponse(response)];
 }

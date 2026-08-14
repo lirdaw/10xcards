@@ -34,7 +34,21 @@ declare module "vitest" {
 
 const PASSWORD = "harness-passw0rd";
 
-async function provision(label: string, runId: string): Promise<TestAccount> {
+/**
+ * One account, signed in, with its session captured.
+ *
+ * Exported for the ONE caller that must not share A or B: `tests/auth/signout.test.ts` drives
+ * the real sign-out, whose default scope is `global` (`GoTrueClient.js:3173`). Measured against
+ * this stack (C10X-51, 2026-08-14): after that call the account's ACCESS token is dead
+ * immediately — `GET /auth/v1/user` goes 200 → 403 and the captured Cookie header stops
+ * resolving a user — while a control account signed in through this same function stayed 200.
+ * So signing out A or B would invalidate the shared `cookieHeader` for every file still running
+ * in parallel, and it would surface as unrelated cross-file flakiness rather than as this test.
+ *
+ * Callers outside globalSetup should mint inside the `it()` that consumes the session, not in a
+ * `beforeAll` — the session is the fixture being mutated (test-plan §6.2 / C10X-32).
+ */
+export async function provision(label: string, runId: string): Promise<TestAccount> {
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     throw new Error("SUPABASE_URL / SUPABASE_KEY are unset — preflight should have stopped this run.");
   }

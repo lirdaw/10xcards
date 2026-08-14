@@ -801,33 +801,33 @@ No migration, no schema change, nothing pushed to the cloud. The C10X-29 drift g
 
 #### Automated
 
-- [x] 1.1 Type gate passes: `npm run typecheck`
-- [x] 1.2 Lint passes: `npm run lint`
-- [x] 1.3 Full suite green: `npm test`
-- [x] 1.4 The truth table's control fails when the decision is collapsed to a single location
+- [x] 1.1 Type gate passes: `npm run typecheck` — 345249e
+- [x] 1.2 Lint passes: `npm run lint` — 345249e
+- [x] 1.3 Full suite green: `npm test` — 345249e
+- [x] 1.4 The truth table's control fails when the decision is collapsed to a single location — 345249e
 
 #### Manual
 
 - [x] 1.5 The new copy names the live session and a way out, and cannot be confused with
-      `AUTH_SESSION_MISSING_MESSAGE` beside it in the same set
-- [x] 1.6 H-19's three roadmap edits match H-18's field order and formatting
+      `AUTH_SESSION_MISSING_MESSAGE` beside it in the same set — 345249e
+- [x] 1.6 H-19's three roadmap edits match H-18's field order and formatting — 345249e
 
 ### Phase 2: The route and the banner
 
 #### Automated
 
-- [ ] 2.1 Type gate passes: `npm run typecheck`
-- [ ] 2.2 Lint passes: `npm run lint`
-- [ ] 2.3 Full suite green on three fresh shuffle seeds: `npm test`
-- [ ] 2.4 `npm run e2e` still green
+- [x] 2.1 Type gate passes: `npm run typecheck`
+- [x] 2.2 Lint passes: `npm run lint`
+- [x] 2.3 Full suite green on three fresh shuffle seeds: `npm test`
+- [x] 2.4 `npm run e2e` still green
 
 #### Manual
 
-- [ ] 2.0 The global-sign-out access-token question measured and recorded **before** the test is
+- [x] 2.0 The global-sign-out access-token question measured and recorded **before** the test is
       written; the design branch it selects is stated in `verification.md`
-- [ ] 2.5 Normal sign-out still lands on the guest landing with no `sb-` cookie
-- [ ] 2.6 The banner renders on `/auth/signin` with `role="alert"`, and is absent on an ordinary load
-- [ ] 2.7 A crafted `/auth/signin?error=` value renders no banner
+- [x] 2.5 Normal sign-out still lands on the guest landing with no `sb-` cookie
+- [x] 2.6 The banner renders on `/auth/signin` with `role="alert"`, and is absent on an ordinary load
+- [x] 2.7 A crafted `/auth/signin?error=` value renders no banner
 
 ### Phase 3: Close the `?error=` guard blind spot
 
