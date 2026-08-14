@@ -692,29 +692,29 @@ Postgres solely through `docker exec` on a container name derived from this chec
 
 #### Automated
 
-- [x] 1.1 `tests/lib/deck-name-stems.test.ts` passes and is proved falsifiable by a planted duplicate
-- [x] 1.2 Full suite green: `npm test`
-- [x] 1.3 Type gate passes: `npm run typecheck`
-- [x] 1.4 Lint passes: `npm run lint`
+- [x] 1.1 `tests/lib/deck-name-stems.test.ts` passes and is proved falsifiable by a planted duplicate — 0365900
+- [x] 1.2 Full suite green: `npm test` — 0365900
+- [x] 1.3 Type gate passes: `npm run typecheck` — 0365900
+- [x] 1.4 Lint passes: `npm run lint` — 0365900
 
 #### Manual
 
-- [x] 1.5 Deterministic forced-collision pair: red before the rename, green after, suffix lines restored and hash-verified
-- [x] 1.6 `roadmap.md` H-21 renders correctly and carries no `## Done` entry
+- [x] 1.5 Deterministic forced-collision pair: red before the rename, green after, suffix lines restored and hash-verified — 0365900
+- [x] 1.6 `roadmap.md` H-21 renders correctly and carries no `## Done` entry — 0365900
 
 ### Phase 2: Harden the two assertions, and measure the false pass while it exists
 
 #### Automated
 
-- [ ] 2.1 Full suite green with both hardened assertions: `npm test`
-- [ ] 2.2 Type gate passes: `npm run typecheck`
-- [ ] 2.3 Lint passes: `npm run lint`
+- [x] 2.1 Full suite green with both hardened assertions: `npm test`
+- [x] 2.2 Type gate passes: `npm run typecheck`
+- [x] 2.3 Lint passes: `npm run lint`
 
 #### Manual
 
-- [ ] 2.4 The perishable false pass measured in one neuter window on the un-repaid database: the pre-hardening shape passes; the hardened shape's behaviour recorded as observed, asserted in neither direction
-- [ ] 2.5 Policies restored, verified by a `pg_policies` before/after diff
-- [ ] 2.6 Full suite green after the restore
+- [x] 2.4 The perishable false pass measured in one neuter window on the un-repaid database: the pre-hardening shape passes; the hardened shape's behaviour recorded as observed, asserted in neither direction
+- [x] 2.5 Policies restored, verified by a `pg_policies` before/after diff
+- [x] 2.6 Full suite green after the restore
 
 ### Phase 3: `npm run db:clean`
 

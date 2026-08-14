@@ -48,6 +48,27 @@ const suffix = Date.now().toString(36);
 
 const SOURCE_MANUAL = 1;
 
+/**
+ * Every deck this file has given account A a GENERATED card in — the reference set the
+ * cross-account denial in "countCandidatesByDeck backs the deck-list review chip" bounds
+ * B's result against (C10X-47).
+ *
+ * Generated, not merely created, and the narrowing is load-bearing:
+ * `candidate_counts_by_deck` INNER JOINs on `state_id = 1`
+ * (`20260725150000_candidate_counts_rpc.sql:31-40`), so a deck appears only while it holds a
+ * candidate. A set built from every deck this file created would be satisfiable by a deck
+ * that was never eligible to appear — an assertion that cannot go red, which is the exact
+ * class this hardening exists to remove. `generated` is not a reachable transition target
+ * (`ALLOWED_FROM` has no key for it), so `seedCard` is the only way a card enters that state
+ * here and registering there closes the set.
+ *
+ * TEST-LOCAL BY CONSTRUCTION — see the twin in tests/study/study.test.ts for why neither
+ * "assert the map is empty" nor "read the reference set through a query" can work: the first
+ * is order-dependent, the second hands the neuter the very set it is supposed to be judged
+ * against. Append-only and read only inside an `it()`.
+ */
+const aCandidateDeckPublicIds: string[] = [];
+
 function deckForm(name: string): FormData {
   const body = new FormData();
   body.set("name", name);
@@ -142,6 +163,10 @@ async function seedCard(
   // replayed insert arrives in a DIFFERENT response carrying a different public_id — so it
   // is a false oracle for this class, project-wide. Only a re-read can count.
   expect(await countCardsWithFront(client, deckId, front)).toBe(1);
+
+  if (as === a && stateId === STATE_GENERATED && !aCandidateDeckPublicIds.includes(deckPublicId)) {
+    aCandidateDeckPublicIds.push(deckPublicId);
+  }
 
   return data.public_id;
 }
@@ -611,6 +636,29 @@ describe("countCandidatesByDeck backs the deck-list review chip", () => {
     expect(foreign.error).toBeNull();
     // Absence, not a raised denial — the same shape as a deck that does not exist.
     expect(foreign.data?.[withCandidates]).toBeUndefined();
+
+    // …and B's result is BOUNDED to B's own decks, not merely missing this one. This site is
+    // the SECOND member of the truncation-vulnerable class and had never been named in any
+    // artifact before C10X-47 — note that this RPC's own migration header documents the
+    // `max_rows` truncation class as the reason the RPC exists, while reproducing the
+    // identical shape one layer down. Measured 2026-08-14 at 21,345 decks with all four
+    // guarding policies set `using (true)`: `candidate_counts_by_deck` handed B **7,420**
+    // rows — every deck in the database holding a candidate — truncated to 1,000, and this
+    // deck was not among them, so the line above would have passed with the guard fully
+    // disabled. It is not ordered and not bounded, so a fresh deck lands inside the window
+    // about 4 times in 10.
+    //
+    // Falsifiable on the repaid database rather than on this one, by design: the reference
+    // set is test-local, so the neuter cannot poison it, and once nothing truncates, every
+    // one of A's candidate decks is present in B's neutered result (§6.6's C10X-47 entry).
+    // Independently of any neuter it is falsifiable DETERMINISTICALLY, and that was proved
+    // rather than argued: a deck B owns carrying a generated card, pushed into the set,
+    // reddens this line naming that deck (C10X-47 verification.md §3.6). The set was measured
+    // non-empty in every permutation tried (2, 2, 10, 12 decks), which is the failure mode
+    // this kind of assertion dies of — a reference set that is silently always empty.
+    const leakedToB = aCandidateDeckPublicIds.filter((publicId) => foreign.data?.[publicId] !== undefined);
+    expect(leakedToB).toEqual([]);
+
     // Positive control: a wholesale-broken policy would also read as "B sees nothing".
     // Asserted right here so the denial above cannot be satisfied by a broken chain.
     const owner = await countCandidatesByDeck(clientFor(a.cookieHeader));
