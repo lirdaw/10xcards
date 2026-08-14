@@ -1747,6 +1747,31 @@ file touching the same table). Namespace with `Date.now().toString(36)` at
 `provisionAccounts`' per-run one, and it is the file-level one your
 `source_text` values must carry.
 
+**A DECK-NAME stem is owned by exactly one file, and that file-level suffix is not enough to
+make it so** (added 2026-08-14 by C10X-47). The suffix above namespaces a file against the
+_other cases in its own run_; it does **not** namespace two files against each other, because
+`Date.now()` has millisecond resolution and two modules can load in the same millisecond. On
+`source_text` that costs nothing — the column carries no constraint. On a deck name it is a
+real collision: `deck_user_name_unique` is an actual constraint and every integration file
+creates its decks as the same account A, so the second create is refused and the file's own
+setup guard throws `Setup failed: deck "…" was never written` or the endpoint answers
+`Talia o tej nazwie już istnieje`. **`Gate deck ${suffix}` was used by
+`tests/study/study.test.ts:609` and `tests/review/candidates.test.ts:908`**, measured at a
+**~3.3 % red rate**, and it is the flake C10X-51's §8 entry recorded **twice** and could not
+attribute. The oracle that identifies it without reading a log is a `deck_delta` of **67**
+instead of 68 for the run. The rule: **one stem, one owning file** — and it is enforced rather
+than conventional, by `tests/lib/deck-name-stems.test.ts`, which fails naming both files.
+
+**The second-order rule is the more valuable half, because this had already been found.**
+`context/archive/2026-07-29-flashcards-test-order/reviews/impl-review.md:303` names the
+mechanism verbatim — the same two files, the same cross-file `Date.now().toString(36)`
+collision — under the heading **"Deliberately not raised as findings"**, correctly out of
+scope by that plan. So it was identified **16 days** before it cost C10X-51 two unattributable
+reds and C10X-47 a reproduction matrix. That archive entry takes **no** dated correction: it
+was accurate and its scope decision was right. What failed is that nothing carried it forward.
+So: **a deliberately-deferred finding needs a ticket or an entry in a live document — a line in
+one review's not-raised section is invisible to everyone afterwards.**
+
 **The deliberate-breakage check, and why its shape changed.** §6.6's precedent
 is "neuter the guard, confirm red". While this file asserted that _two_
 sessions were written, that was impossible — the assertion would have been

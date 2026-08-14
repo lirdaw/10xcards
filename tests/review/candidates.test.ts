@@ -905,7 +905,13 @@ describe("the lifecycle transition moves a card through the study gate", () => {
   const LATER = new Date("2028-07-25T09:00:00.000Z");
 
   it("admits a card when it is accepted, drops it when rejected, and resumes its schedule on Przywróć", async () => {
-    const deckPublicId = await createDeck(a, `Gate deck ${suffix}`);
+    // "Study-gate deck", not "Gate deck": that stem is study.test.ts:609's, and a deck NAME is
+    // unique per account (`deck_user_name_unique`), so two files sharing one stem collide for
+    // real whenever their module-load `Date.now()` lands in the same millisecond — a measured
+    // ~3.3 % red rate, and the pair of unattributable reds C10X-51's §8 entry recorded twice.
+    // The rule and its history are in test-plan.md §6.5; `tests/lib/deck-name-stems.test.ts`
+    // enforces it, so this is not a convention anyone has to remember.
+    const deckPublicId = await createDeck(a, `Study-gate deck ${suffix}`);
     const deckId = await deckIdOf(a, deckPublicId);
     const client = clientFor(a.cookieHeader);
     const cardPublicId = await seedCard(a, deckPublicId, `Gate candidate ${suffix}`, STATE_GENERATED);

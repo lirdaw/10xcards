@@ -692,15 +692,15 @@ Postgres solely through `docker exec` on a container name derived from this chec
 
 #### Automated
 
-- [ ] 1.1 `tests/lib/deck-name-stems.test.ts` passes and is proved falsifiable by a planted duplicate
-- [ ] 1.2 Full suite green: `npm test`
-- [ ] 1.3 Type gate passes: `npm run typecheck`
-- [ ] 1.4 Lint passes: `npm run lint`
+- [x] 1.1 `tests/lib/deck-name-stems.test.ts` passes and is proved falsifiable by a planted duplicate
+- [x] 1.2 Full suite green: `npm test`
+- [x] 1.3 Type gate passes: `npm run typecheck`
+- [x] 1.4 Lint passes: `npm run lint`
 
 #### Manual
 
-- [ ] 1.5 Deterministic forced-collision pair: red before the rename, green after, suffix lines restored and hash-verified
-- [ ] 1.6 `roadmap.md` H-21 renders correctly and carries no `## Done` entry
+- [x] 1.5 Deterministic forced-collision pair: red before the rename, green after, suffix lines restored and hash-verified
+- [x] 1.6 `roadmap.md` H-21 renders correctly and carries no `## Done` entry
 
 ### Phase 2: Harden the two assertions, and measure the false pass while it exists
 
