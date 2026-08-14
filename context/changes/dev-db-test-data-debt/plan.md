@@ -706,29 +706,29 @@ Postgres solely through `docker exec` on a container name derived from this chec
 
 #### Automated
 
-- [x] 2.1 Full suite green with both hardened assertions: `npm test`
-- [x] 2.2 Type gate passes: `npm run typecheck`
-- [x] 2.3 Lint passes: `npm run lint`
+- [x] 2.1 Full suite green with both hardened assertions: `npm test` — 3eea344
+- [x] 2.2 Type gate passes: `npm run typecheck` — 3eea344
+- [x] 2.3 Lint passes: `npm run lint` — 3eea344
 
 #### Manual
 
-- [x] 2.4 The perishable false pass measured in one neuter window on the un-repaid database: the pre-hardening shape passes; the hardened shape's behaviour recorded as observed, asserted in neither direction
-- [x] 2.5 Policies restored, verified by a `pg_policies` before/after diff
-- [x] 2.6 Full suite green after the restore
+- [x] 2.4 The perishable false pass measured in one neuter window on the un-repaid database: the pre-hardening shape passes; the hardened shape's behaviour recorded as observed, asserted in neither direction — 3eea344
+- [x] 2.5 Policies restored, verified by a `pg_policies` before/after diff — 3eea344
+- [x] 2.6 Full suite green after the restore — 3eea344
 
 ### Phase 3: `npm run db:clean`
 
 #### Automated
 
-- [ ] 3.1 New tests pass and the suite is green: `npm test`
-- [ ] 3.2 Type gate passes: `npm run typecheck`
-- [ ] 3.3 Lint passes: `npm run lint`
+- [x] 3.1 New tests pass and the suite is green: `npm test`
+- [x] 3.2 Type gate passes: `npm run typecheck`
+- [x] 3.3 Lint passes: `npm run lint`
 
 #### Manual
 
-- [ ] 3.4 A bare `npm run db:clean` prints the census and deletes nothing, verified independently
-- [ ] 3.5 Fail-closed census parsing proved falsifiable: malformed input refuses rather than reporting zero
-- [ ] 3.6 `--yes` deliberately not run in this phase
+- [x] 3.4 A bare `npm run db:clean` prints the census and deletes nothing, verified independently
+- [x] 3.5 Fail-closed census parsing proved falsifiable: malformed input refuses rather than reporting zero
+- [x] 3.6 `--yes` deliberately not run in this phase
 
 ### Phase 4: Repay the backlog
 

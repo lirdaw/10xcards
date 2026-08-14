@@ -317,3 +317,241 @@ Census after the phase: `auth.users` 1,534 (1,520 harness) · `deck` 21,480 · `
   property that decayed locally and produced this ticket.
 - **The class is not closed.** Two assertions are hardened. A future assertion written against an
   unordered, unbounded RPC inherits the trap, and nothing detects that automatically.
+
+---
+
+## Phase 3 — `npm run db:clean`
+
+### 0. What this phase added
+
+Four files, following the project's `scripts/` pure + IO pair convention (`kong-keepalive` /
+`disable-kong-keepalive`, `schema-drift` / `check-schema-drift`, `typecheck` / `run-typecheck`).
+
+| File                           | Role                                                                                  |
+| ------------------------------ | ------------------------------------------------------------------------------------- |
+| `scripts/db-cleanup.ts`        | pure half — pattern, `LIKE` mirror, `project_id`, container name, statements, parsers |
+| `scripts/run-db-cleanup.ts`    | I/O half — `docker exec … psql`, the report, the delete, the two read-back oracles    |
+| `tests/lib/db-cleanup.test.ts` | the pure half's assertions, **32 cases**                                              |
+| `package.json`                 | `"db:clean": "node --experimental-strip-types scripts/run-db-cleanup.ts"`             |
+
+**Nothing is wired into `db:start`, a hook, or CI** — developer-invoked by decision (plan
+§What We're NOT Doing). `db:clean -- --yes` is deliberately **not run in this phase**; the
+repayment is Phase 4.
+
+### 1. Gates
+
+| Gate                | Result                                                                                       |
+| ------------------- | -------------------------------------------------------------------------------------------- |
+| `npm test`          | **563 passed (563), 43 files**, seed `1786743760368`, 7.97 s                                 |
+| `npm run typecheck` | **OK — 163 files checked**, 0 errors, 0 warnings                                             |
+| `npm run lint`      | **0 errors**, 3 warnings — all `no-console` in `evals/generation-quality.eval.ts`, unchanged |
+
+**Both suite figures were measured by RUNNING, not by arithmetic**, which is the discipline this
+project has caught itself missing four times. `npx vitest run tests/lib/db-cleanup.test.ts` alone
+reports **32 passed (32)** (seed `1786743584256`); the full suite moved **531 → 563** and
+**42 → 43 files** from the Phase 2 figure. The two agree, and the agreement is a check on the
+measurement rather than its source. `typecheck` moved **160 → 163 files** — the three new `.ts`
+files, entering the gate silently through `tsconfig.json`'s `include: ["**/*"]`.
+
+### 2. Criterion 3.4 — a bare `npm run db:clean` prints the census and deletes nothing
+
+Verified by a row count taken **independently of the script**, before and after, through a
+different statement (five scalar sub-selects rather than the script's five-branch `UNION ALL`):
+
+```
+BEFORE  users=1570 deck=21958 flashcard=37939 sched=7427 gs=9736
+AFTER   users=1570 deck=21958 flashcard=37939 sched=7427 gs=9736
+```
+
+Byte-identical on all five measures; the script exited 0. Its own report in between:
+
+```
+db:clean: supabase_db_10x-astro-starter — harness accounts match `harness-%`
+
+before:
+  table                 harness      other
+  users                    1556         14
+  deck                    21950          8
+  flashcard               37898         41
+  flashcard_schedule       7424          3
+  generation_session       9725         11
+
+db:clean: 78553 harness row(s) would be deleted. Nothing was deleted.
+db:clean: to delete, re-run with:  npm run db:clean -- --yes
+db:clean: the `--` is required — npm eats a bare `--yes` and this script reports only.
+```
+
+**The independent read also corroborates the census itself, which is the stronger half of this
+criterion.** `harness + other` reconciles exactly on every one of the five measures
+(1556 + 14 = 1570 · 21950 + 8 = 21958 · 37898 + 41 = 37939 · 7424 + 3 = 7427 · 9725 + 11 = 9736).
+So the split the delete will act on is not merely self-consistent; it agrees with a query sharing
+none of its joins.
+
+An earlier pass of the same criterion, before this phase's last few suite runs, reads
+`users=1562 deck=21822 flashcard=37707 sched=7383 gs=9670` before and after, and reconciles the
+same way. The two passes differ only by the growth this change exists to measure — 2 users and
+~68 decks per `vitest` invocation — which is itself the debt, observed twice an hour apart.
+
+### 3. Criterion 3.5 — fail-closed census parsing, proved falsifiable on the RUNNER
+
+The unit cases pin `parseCensus` in isolation; these runs prove the runner honours it. **Three
+variants, one per layer of the contract**, because "the census did not parse" is not one failure
+mode — and a single variant would have left the other two carried by reading.
+
+| Variant                            | Neuter                                         | Observed                                                                                        |
+| ---------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **1 — short result**               | the `deck` branch deleted from the `UNION ALL` | `census: no row for deck — the query did not run to completion`, **exit 1**                     |
+| **2 — unreadable count**           | `deck`'s two counts replaced with `null, null` | `census: \`deck\` count is not a number: ""`, **exit 1**                                        |
+| **3 — the statement itself fails** | `public.deck` → `public.no_such_deck_table`    | psql's own `ERROR: relation … does not exist`, then `Command failed: docker exec …`, **exit 1** |
+
+Each is the shape of a real failure, and each is a different layer:
+
+- **Variant 1** is a truncated or partially-failed result — every row that arrives parses fine and
+  one is simply missing. This is the one a positional or forgiving parser reports as `deck 0`.
+- **Variant 2** is the field a bare `Number("")` reads as **0**, i.e. as a genuine zero. It is the
+  narrowest gap between "nothing to clean" and "I could not tell", and it is closed by
+  `countOf`'s `/^\d+$/` rather than by a `Number.isFinite` check, which `""` passes.
+- **Variant 3** proves `-v ON_ERROR_STOP=1` is doing its job **through the runner**, not merely
+  when typed at a shell: without that flag psql prints its error and exits **0**, which is
+  verbatim `lessons.md`'s "a command that always exits 0 is not a gate" one vendor over.
+  `execFileSync` throws on the non-zero exit, so the failed statement becomes a refusal.
+
+**In all three the script printed no census table at all, and in none of them did any measure read
+`0`.** That is the whole contract: a census that cannot be read must never resolve to "nothing to
+clean", because that sentence is indistinguishable from a debt already repaid.
+
+> **A restore that did not happen, recorded because it is the reason this project checks them.**
+> Between variants 1 and 2 the neuter was reverted with `git checkout -- scripts/db-cleanup.ts`,
+> which **silently did nothing** — the file is still untracked at that point in the phase, so git
+> had no version to restore and reported no error either. `md5sum -c` caught it immediately
+> (`scripts/db-cleanup.ts: FAILED` beside two `OK`s) and the revert was redone as an edit. A
+> restore command that no-ops on an untracked file is a new instance of the class §6.6 already
+> records for a heredoc piped without `-i`: the operation reports success and changes nothing.
+
+### 4. Breakage run — the whole-set positive control on the pattern
+
+`HARNESS_EMAIL_PATTERN` widened `harness-%` → `%harness%`, i.e. the containment read a reasonable
+implementer would reach for. **3 of 32 red**, and the three are the ones that carry the claim:
+
+```
+× matches every per-run harness account and NONE of the accounts that must survive
+    AssertionError: expected true to be false   tests/lib/db-cleanup.test.ts:87
+× spares `e2e-harness@example.com`, which contains `harness` but does not begin with it
+    AssertionError: expected true to be false   tests/lib/db-cleanup.test.ts:94
+× is anchored at the start and pinned as a value
+    AssertionError: expected '%harness%' to be 'harness-%'   tests/lib/db-cleanup.test.ts:102
+```
+
+The remaining **29 stayed green**, which is the attribution: the neuter removes the pattern's
+anchor, it does not break parsing, statement building or the oracles.
+
+**Why `e2e-harness@example.com` has a case of its own rather than being element 4 of a loop.** The
+whole-set control iterates, so its failure message names no address — it reports
+`expected true to be false` and nothing else. The one account whose deletion a widened pattern
+actually causes therefore appears in a **test title**, so a reader scanning failures meets it by
+name. Concretely, that widening deletes C10X-46's dedicated e2e identity, and `npm run e2e` signs
+in as it: the layer would not go red, it would silently start minting a new account every run.
+
+### 5. The npm flag semantics, measured rather than assumed
+
+The plan predicted these; they were re-measured on this machine (npm 11.16.0) because the
+invocation depends on them.
+
+| Invocation                                    | What the script receives | Observed                                            |
+| --------------------------------------------- | ------------------------ | --------------------------------------------------- |
+| `node … scripts/run-db-cleanup.ts --yess`     | `["--yess"]`             | **exit 1** — `unrecognised argument \`--yess\``     |
+| `npm run db:clean --yess`                     | `[]`                     | **exit 0**, report only — npm ate the flag          |
+| `npm run db:clean -- --proof-that-…-forwards` | the flag, verbatim       | **exit 1** — refused, so `--` demonstrably forwards |
+
+The third row is how `-- --yes` was proved to reach the script **without deleting anything**: a
+harmless unknown flag exercises the same forwarding path as `--yes` and is refused instead of
+acted on. So `npm run db:clean -- --yes` is confirmed as the working invocation for Phase 4, and
+the unknown-flag guard is confirmed as unreachable-but-fail-safe through the npm script — a
+mistyped flag never arrives, and report-only is the safe direction.
+
+Second layer, also measured: `psql -v ON_ERROR_STOP=1` exits **1** on a bad table name. Without
+that flag psql prints its error and exits 0, which is verbatim `lessons.md`'s "a command that
+always exits 0 is not a gate" one vendor over — `execFileSync` throws on the non-zero exit, so a
+failed statement becomes a refusal rather than an empty result the parser has to catch.
+
+### 6. Two findings this phase produced that were not predicted
+
+**`UNION ALL` came back in a different order than it was written.** Run against the live stack,
+the five-branch census returned `users, deck, generation_session, flashcard_schedule, flashcard`.
+`UNION ALL` guarantees no ordering, and a positional parser would have reported `flashcard`'s
+counts under `generation_session` with nothing looking wrong. `parseCensus` keys rows by **label**
+and requires all five exactly once; the real, reordered output is the test fixture, so a
+positional rewrite reddens. (Re-running a three-branch variant three times gave a stable order —
+which is precisely why "it looked fine when I ran it" is not evidence here.)
+
+**A gate's own failure message is part of the gate, and this one was wrong.** The short-census run
+in §3 exited correctly and then advised `The local stack must be running before this step` — for a
+failure where the stack was up and answering. Same class as C10X-43's `readTscFailure`, which
+announced a `tsconfig` problem for an ordinary `TS2322`. The top-level catch now **enumerates**
+candidate causes instead of asserting one, and names the census-parse refusal as deliberate. Found
+by running the check, not by reading the code.
+
+### 7. One divergence from the plan's contract, recorded rather than smoothed over
+
+Plan Phase 3 §3 asks the fixture to carry "the seven real non-harness emails measured in Current
+State Analysis". The fixture carries **fourteen** — every non-harness account in `auth.users` on
+2026-08-14, read directly:
+
+```
+docker exec supabase_db_10x-astro-starter psql -U postgres -d postgres -t -A \
+  -c "select email from auth.users where email not like 'harness-%' order by created_at;"
+```
+
+The plan's seven counts the accounts that own the eight artifact **decks**; the delete's blast
+radius is every non-harness **account**, including the seven that own no deck (C10X-50's phase-4
+account, three sign-out probes, three C10X-51/52 manual accounts). Fixturing the smaller set would
+have left a pattern free to delete accounts that carry generation-session rows the census counts.
+Strictly stronger, and it is the set the sharpest decoy lives in.
+
+### 8. Criterion 3.6 — `--yes` was not run in this phase
+
+Confirmed by the state it would have destroyed: after every run above, `npm run db:clean` still
+reports **78,553 harness row(s) would be deleted**. The repayment is Phase 4's, and this figure is
+its starting point rather than a leftover.
+
+### 9. Restores, verified rather than remembered
+
+**Four** breakage edits across this phase — one to the pattern (§4) and three to the census
+statement (§3) — all to `scripts/db-cleanup.ts`, each reverted and each confirmed against hashes
+taken before the first edit of its run:
+
+```
+md5sum -c  →  scripts/db-cleanup.ts: OK
+              scripts/run-db-cleanup.ts: OK
+              tests/lib/db-cleanup.test.ts: OK
+```
+
+One of those checks came back `FAILED` and is the §3 note above; the rest are `OK` at the close.
+`run-db-cleanup.ts` was additionally edited **on purpose** between runs — §6's failure-message fix
+— which is why its hash differs from the earliest recording and matches the latest.
+
+Gates re-run on the fully restored tree, after every neuter: `npm test` **563 passed (563), 43
+files**, `npm run typecheck` **OK — 163 files**, `npm run lint` **0 errors / 3 standing warnings**.
+
+### 10. What this phase does NOT prove
+
+- **The delete has never been executed.** Every claim above is about the census, the parsers, the
+  oracles and the report. `--yes` is Phase 4's, deliberately, and until it runs the two read-back
+  oracles (`harnessRemnants`, `nonHarnessDrift`) have been exercised only against fabricated
+  censuses — never against a real before/after pair.
+- **No test touches Docker, and none will.** `npm test` covers the pure half only;
+  `scripts/run-db-cleanup.ts` gets no unit test, because every branch in it is I/O against the
+  local Docker daemon — the same boundary test-plan.md §6.6 draws for the drift runner and for
+  `disable-kong-keepalive.ts`. The wiring is carried by the runs recorded here, not by an
+  assertion.
+- **The `LIKE` mirror is a translation, not the database's own answer.** `matchesLikePattern`
+  implements `%`, `_`, both anchors and case-sensitivity, and the test fixtures real addresses —
+  but Postgres evaluates the delete, not this function. What connects them is that both read
+  `HARNESS_EMAIL_PATTERN`, and §2's reconciliation (the census's `harness`/`other` split agreeing
+  with an independent count) is the closest thing here to a cross-check of the two.
+- **The safety invariant is post-hoc by construction.** `nonHarnessDrift` reports, after the fact,
+  that something outside the pattern was destroyed. It cannot put it back. That is why plan
+  Phase 4 takes a `pg_dump` snapshot **before** the delete rather than relying on this.
+- **Nothing here repays the debt.** The database is measured, reported, and untouched: 21,822
+  decks at the close of this phase, up from 21,312 when Phase 2 opened, because this phase ran the
+  suite four times.
