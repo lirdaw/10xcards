@@ -723,30 +723,30 @@ None. No schema change, no migration file, nothing pushed to the cloud.
 
 #### Automated
 
-- [x] 1.1 `tests/lib/auth-outcome.test.ts` passes; case count recorded from the run
-- [x] 1.2 `npm run typecheck` exits 0
-- [x] 1.3 `npm run lint` exits 0, 3 standing `no-console` warnings unchanged
-- [x] 1.4 `tests/middleware.test.ts` still 23 passed
+- [x] 1.1 `tests/lib/auth-outcome.test.ts` passes; case count recorded from the run — 889042d
+- [x] 1.2 `npm run typecheck` exits 0 — 889042d
+- [x] 1.3 `npm run lint` exits 0, 3 standing `no-console` warnings unchanged — 889042d
+- [x] 1.4 `tests/middleware.test.ts` still 23 passed — 889042d
 
 #### Manual
 
-- [x] 1.5 Module header argues module-not-branches, not-`authErrorMessage`, `name`/`code`-not-`status`
+- [x] 1.5 Module header argues module-not-branches, not-`authErrorMessage`, `name`/`code`-not-`status` — 889042d
 
 ### Phase 2: Middleware wiring
 
 #### Automated
 
-- [ ] 2.1 `tests/middleware.test.ts` 23 passed, no row edited
-- [ ] 2.2 `tests/lib/http.test.ts` passes unchanged
-- [ ] 2.3 `npm test` green, total recorded from the run
-- [ ] 2.4 `npm run typecheck` exits 0
-- [ ] 2.5 `npm run lint` exits 0
-- [ ] 2.6 `npm run build` exits 0
+- [x] 2.1 `tests/middleware.test.ts` 23 passed, no row edited
+- [x] 2.2 `tests/lib/http.test.ts` passes unchanged
+- [x] 2.3 `npm test` green, total recorded from the run
+- [x] 2.4 `npm run typecheck` exits 0
+- [x] 2.5 `npm run lint` exits 0
+- [x] 2.6 `npm run build` exits 0
 
 #### Manual
 
-- [ ] 2.7 `git diff tests/middleware.test.ts` empty
-- [ ] 2.8 New branch confirmed inside both existing conditions
+- [x] 2.7 `git diff tests/middleware.test.ts` empty
+- [x] 2.8 New branch confirmed inside both existing conditions
 
 ### Phase 3: Guard registration
 
