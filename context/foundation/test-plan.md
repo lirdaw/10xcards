@@ -6,12 +6,85 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-08-14 (C10X-51 `bug-signout-swallowed` — **not a §3 rollout phase and not a
+> Last updated: 2026-08-14 (C10X-52 `bug-middleware-getuser-swallowed` — **not a §3 rollout phase
+> and not a coverage widening: no §2 risk row moves, no §3 phase status changes, and §3's table is
+> untouched.** The **fifth and genuinely last** entry of the swallowed-errors audit (2026-08-11).
+> The four before it closed the WRITE side; this closes the **read** side, and it is the entry the
+> C10X-51 block below points at when it says "still live as **C10X-52**".
+>
+> **The finding that inverts what the ticket predicted, and it is the whole entry.** `change.md`
+> expected a plain `if (error)`, the shape C10X-51 could afford one route over. It is **wrong
+> here**, and provably: `getUser()` answers with an error for the ORDINARY SIGNED-OUT VISITOR too,
+> returned at `GoTrueClient.js:2493-2494` **before any network call at all**, because `_getUser`
+> has no allow-list where `_signOut` has one. A plain check would banner every anonymous visitor to
+> `/`, `/auth/signin` and `/auth/signup`. So the fix is a **classifier**, and its split keys on
+> `name` and `code` and never on `status` — three upstream facts, each of which would have cost a
+> wrong branch: `AuthSessionMissingError` **fabricates** its status (the constructor hardcodes 400
+> whatever GoTrue answered), a plain **500 is NOT retryable** in auth-js (`NETWORK_ERROR_CODES`
+> omits it), and an ordinarily **expired** session arrives as `AuthApiError(400, validation_failed)`
+> rather than as a missing session — so keying on the missing-session class alone would banner a
+> user whose session merely lapsed, i.e. this ticket's own defect one class over.
+>
+> **The defect, stated as an identity rather than an analogy, because it was measured that way.**
+> Before the fix, with a dead Supabase port, `GET /decks` carrying a **valid session** answers
+> byte-identically to an anonymous visitor's request: same `302`, same `Location`, same `Vary`,
+> **no** `?error=`, and a landing page with **zero** alerts on it. Both rows sit one above the
+> other in the evidence so the sameness is readable rather than argued.
+>
+> **`503`, not `401`, and that choice is the one thing in this change that is falsifiable in
+> exactly one place.** `src/lib/http.ts:52-53` replaces the body of **any** `401` with
+> "Twoja sesja wygasła", so a `401` carrying outage copy arrives at the island as the very message
+> this ticket removes. Measured on both sides of one line: with `status: 401` the mounted
+> `StudySession` renders the misleading copy; with `503` it renders the outage copy. Nothing
+> automated can see this — it moved out of the falsification phase into the manual run for that
+> reason.
+>
+> **Deliberately NO Sentry capture** (D-01), breaking with all four siblings' two-channel pattern
+> and arguing it rather than inheriting it: the middleware authenticates on **every** request, so a
+> first-party capture here is unsampled by construction and self-masking on quota exhaustion. The
+> consequence is stated rather than hidden — the 500, 429 and `bad_jwt` classes reach **no owner
+> at all**.
+>
+> **The evidence splits as C10X-51's did, on the same structural reason, and one step worse.**
+> BOTH failure branches are unreachable from the suite, so a pure module with an exhaustive truth
+> table owns the decision and **one manual run owns the endpoint's use of it** — a before/after
+> pair on one machine, plus a one-variable control, plus an anonymous control run in **both** stack
+> states. That last one is the case a naive fix breaks, and during the outage it is the stronger
+> reading: an anonymous visitor is byte-identical to today because the short-circuit fires before
+> any transport is attempted. **Nothing bridges the two, and no test in this project can.**
+>
+> **The manual run went further than the plan asked, and closed the boundary it had written down.**
+> Beyond the six planned rows it was re-driven in a real browser, and `StudySession` was seeded,
+> **mounted and clicked** — so "no React island was mounted", a boundary every sibling in this
+> class states and none closes, is closed here for the one island that matters (the only importer
+> of `readJsonResponse` in `src/`). It produced two things no probe reaches: the session **refuses
+> to advance** and the rating buttons survive, and a reload after the backend returns finds all
+> three cards still due — the C10X-27 silent-discard failure mode, checked on this new branch
+> rather than assumed away. It also found a **second** `readJsonResponse` call site
+> (`SessionSizeControl.save()`), which no document had named.
+>
+> Suite **501 → 521, 40 → 41 files** (+20, +1), the delta measured by RUNNING the new file alone
+> rather than by arithmetic: `tests/lib/auth-outcome.test.ts` **20**. `tests/middleware.test.ts`
+> stays at **23 with no row edited** — that is the regression proof and it is deliberately not
+> coverage of the fix — and `tests/lib/form-endpoint-guards.test.ts` stays at **11**, correctly:
+> Phase 3 added assertions inside existing cases and renamed one title, creating no `it()`.
+> Evidence: `context/changes/bug-middleware-getuser-swallowed/verification.md`.
+>
+> Previously: 2026-08-14 (C10X-51 `bug-signout-swallowed` — **not a §3 rollout phase and not a
 > coverage widening: no §2 risk row moves, no §3 phase status changes, and §3's table is
 > untouched.** The fourth and LAST entry of the swallowed-errors audit (2026-08-11), and the one
 > that closes the class **project-wide** rather than in one file: `src/pages/api/auth/signout.ts`
 > was the single remaining discarded-result Supabase mutation anywhere in `src/`, carved out by
 > the three entries below rather than folded into them. There is now no other.
+>
+> > **Corrected 2026-08-14 (C10X-52), one word, and the sentence is NOT rewritten.** "The fourth
+> > and **LAST** entry of the swallowed-errors audit" is false: there is a fifth, and it is the
+> > entry now at the top of this block. What C10X-51's own text made clear even on its own date is
+> > why the word was reachable at all — everything else in this sentence is scoped to a discarded
+> > **MUTATION** result, and on that scope it stands unchanged: `signout.ts` was the last write-side
+> > hit and "there is now no other" is still true of writes. The fifth hit is a **read**
+> > (`getUser()`), which this same block already names two paragraphs down as "still live as
+> > **C10X-52**". So the correction is to the count, never to the claim about mutations.
 >
 > **It differs from all three siblings in the one way that decides its weight.** Those lost an
 > audit RECORD; this one leaves a **live session behind a screen that says goodbye**. Both
@@ -1949,6 +2022,16 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   > READ-side twin of the same shape and is still live as **C10X-52**; and this closure is about
   > the write result being READ, never about the sign-out being forced through — the route detects,
   > it does not clear the session by hand (the C10X-49 shape).
+  >
+  > > **Corrected 2026-08-14 (C10X-52) — a FIFTH dated line, and this one really does end the
+  > > chain.** "Still live as **C10X-52**" is closed: `middleware.ts` reads `getUser()`'s error,
+  > > classifies it, catches the throw that was an uncaught 500 on every request, and answers an
+  > > outage in each caller's own convention. So the audit's class is closed on the **read** side
+  > > as well as the write side, and no entry remains. The line above is left standing because it
+  > > was the accurate record of 2026-08-14 before this change landed the same day — and because it
+  > > is the sentence C10X-52's own entry points back at. What does NOT follow: the fix is a
+  > > **classifier**, not the `if (error)` this chain's four earlier links could each afford, for a
+  > > reason none of them faced — `getUser()` errors for the ordinary signed-out visitor too.
 
   > **Extended 2026-08-13 (C10X-49 `bug-generation-deck-undo-swallowed`) — the sibling of the entry
   > above: same file, same class, the other call site, the same day.** **No §2 risk row moves and
@@ -2162,6 +2245,15 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   > `context/changes/bug-signout-swallowed/verification.md` (after archiving:
   > `context/archive/<date>-bug-signout-swallowed/verification.md`).
   >
+  > > **Corrected 2026-08-14 (C10X-52), one clause of that list.** "The read-side twin … is
+  > > untouched and **still live as C10X-52**" is closed, later the same day; its own §6.6 entry is
+  > > at the end of this section. The clause is left standing as the accurate record of what was
+  > > open when C10X-51 shipped, and the rest of the paragraph is untouched — in particular
+  > > **"nothing here proves a Sentry event is delivered" is unchanged and is if anything wider
+  > > now**: C10X-52 adds **no capture site at all**, so its own failure classes reach no owner.
+  > > The sentence that survives best is the last one: landing on `/auth/signin` removed C10X-51's
+  > > DEPENDENCE on this fix, never the defect — and the defect is what C10X-52 removed.
+  >
   > **A note on this file's own pointers, because C10X-51 renamed a guard.** Every dated entry here
   > that names `tests/lib/audit-failure-wiring.test.ts` — §6.6's C10X-50 claims table and
   > suite-count breakdown, §7's C10X-50 note, §8's C10X-50 ledger bullet, and the header's
@@ -2171,6 +2263,96 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   > (`src/worker.ts`, `src/pages/api/generate.ts`, `tests/lib/audit-failure-report.test.ts`) were
   > repointed instead — the live-declaration-versus-dated-snapshot split this project states as a
   > rule.
+
+  > **Extended 2026-08-14 (C10X-52 `bug-middleware-getuser-swallowed`) — the FIFTH entry of the
+  > 2026-08-11 audit and the one that closes its READ side**, where the four above closed the write
+  > side and each carved this one out by name. **No §2 risk row moves and no §3 phase status
+  > changes.** It is filed here beside its siblings because it is the same defect class read from
+  > the other direction, and the reader who arrives from the four notes above is the reader it is
+  > for.
+  >
+  > **What makes it different from all four, in one sentence, and it inverts what the ticket
+  > predicted.** Those could each ship a plain `if (error)`; **this one cannot**, and the reason is
+  > upstream and measurable: `getUser()` answers with an error for the ORDINARY SIGNED-OUT VISITOR
+  > as well, returned at `GoTrueClient.js:2493-2494` **before any network call**, because `_getUser`
+  > has no allow-list where `_signOut` has one. So the naive check would banner every anonymous
+  > visitor to `/`, `/auth/signin` and `/auth/signup` — the defect this ticket removes, inverted —
+  > and what ships instead is a **classifier**.
+  >
+  > **Read the split before the coverage: BOTH failure branches are unreachable from this suite**,
+  > the same one-worse-than-any-sibling position C10X-51 was in, for the same two structural
+  > reasons (a healthy local stack cannot be made to fail; `astro:env/server` is inlined at
+  > transform time). So a pure module owns the decision — the project's **fifth** such extraction
+  > after `readJsonResponse` / `rateOutcome` (C10X-27), `visibleConfigStatuses` (C10X-34) and
+  > `signOutLanding` (C10X-51) — and **one manual run owns the endpoint's use of it**, driven with
+  > `curl`, then re-driven in a real browser, then extended to a mounted island. **Nothing bridges
+  > them and the suite, and no test in this project can.**
+  >
+  > | Claim                                                            | What proves it                                                                                                                                                                                                                                                                                                     |
+  > | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+  > | An outage is told apart from an absent session                   | `tests/lib/auth-outcome.test.ts` (**20** cases) — one per row of the failure taxonomy (a, b1, b2, b3, c, d, d', e, f1, f2), each asserting the classification **and** the resulting message, over inputs that are entirely **fabricated**: nothing imports auth-js or constructs a real error                      |
+  > | …and the split does NOT key on `status`                          | three upstream facts, each read out of the installed `@supabase/auth-js` 2.105.3 rather than assumed: `AuthSessionMissingError` **fabricates** 400 whatever GoTrue answered, `NETWORK_ERROR_CODES` omits **500** so a plain 500 is not retryable, and an expired session is `AuthApiError(400, validation_failed)` |
+  > | The safe default is real, and it is ONE arm                      | an unrecognised `code` and a shapeless value both answer `no-session`, asserted **in that direction** — a wrong `unavailable` banners a signed-out visitor, and only one of the two directions is a regression                                                                                                     |
+  > | …and a THROW does not come through it                            | `middleware.ts`'s `catch` constructs `{ kind: "unavailable" }` itself, so the classifier's default never has to point two ways at once — closing a branch that was an uncaught **500 on every request** and belonged to no ticket                                                                                  |
+  > | The classifier is not one constant wearing a union               | the whole-set positive control: at least two distinct classifications, every non-null message an `AUTH_MESSAGES` member by **equality**, plus a distinctness case pinning the two failure messages as different strings                                                                                            |
+  > | The signed-out path is byte-identical to before                  | `tests/middleware.test.ts` at **23 passed with NO row edited** — the regression proof, and deliberately not coverage of the fix                                                                                                                                                                                    |
+  > | The new `?error=` producer is ENFORCED, not conventional         | `src/middleware.ts` registered as a third `ERROR_PARAM_SURFACES` entry, with two NAMED pins beside the four floors — the file resolves, and `emissionCount(MIDDLEWARE_FILE) > 0` — because all four floors are `toBeGreaterThanOrEqual` and were **already satisfied**, so an unseen emission would pass           |
+  > | Both branches are reachable in production and answer the new way | one manual before/after pair against a dead port, with a one-variable control and an anonymous control in **both** stack states; no committed test can reach either                                                                                                                                                |
+  > | `503` rather than `401` is the right status                      | measured on both sides of one line: with `401` the mounted `StudySession` renders "Twoja sesja wygasła" (`http.ts:52-53` overrides any 401's body), with `503` it renders the outage copy                                                                                                                          |
+  >
+  > **The manual run closed a boundary every sibling in this class states and none closes.**
+  > `StudySession` — the only importer of `readJsonResponse` in `src/` — was seeded, **mounted and
+  > clicked** against a dead backend. Two things came out of it that no probe reaches: the session
+  > **refuses to advance** and keeps its rating buttons, and a reload after the backend returns
+  > finds all three cards still due, so the C10X-27 silent-discard failure mode is checked on this
+  > new branch rather than assumed away. It also found a **second** `readJsonResponse` call site
+  > (`SessionSizeControl.save()`) that no document had named, and a **three**-`[role="alert"]` page,
+  > which is the scoping trap in a worse form than the landing this change redirects to.
+  >
+  > Suite **501 → 521, 40 → 41 files**, the +20/+1 measured by RUNNING the new file alone:
+  > `tests/lib/auth-outcome.test.ts` **20**. `tests/middleware.test.ts` **23** and
+  > `tests/lib/form-endpoint-guards.test.ts` **11**, both unchanged and both re-measured rather than
+  > carried over — Phase 3 added assertions inside existing cases and renamed one title, creating no
+  > `it()`. Five breakage criteria (B1-B5); B2 is the load-bearing one and its **red count matched
+  > the prediction exactly at 17 of 23 while its GREEN set did not** — six rows stayed green, not
+  > the four the plan enumerated, recorded as observed.
+  >
+  > **What this does NOT prove — read this before citing the read side as covered.** The list is as
+  > long as the claims table, deliberately.
+  >
+  > - **Only ONE failure class was ever provoked**: `AuthRetryableFetchError` at status 0, from a
+  >   refused connection. **500 and 429 were never provoked**, and neither was `unconfigured` — all
+  >   three are carried by the truth table alone.
+  > - **There is NO Sentry channel for this failure, by decision** (D-01), and this is the one place
+  >   the class breaks with its four siblings' two-channel pattern. The middleware authenticates on
+  >   every request, so a first-party capture is unsampled by construction and self-masking on quota
+  >   exhaustion. The 500, 429 and `bad_jwt` classes therefore reach **no owner at all**.
+  > - **`tests/middleware.test.ts` gained NO case for the new branch.** Its 23 are a regression proof
+  >   and say nothing about the fix; a future edit to the outage branch reddens none of them.
+  > - **The `Vary` header on the two NEW representations is asserted by nothing**, and this one was
+  >   measured rather than inferred: that file's `Vary` row probes the two KNOWN branches **by URL**
+  >   rather than by iteration, and it stayed **green** through B2 — a neuter that changed the status
+  >   on both new branches. A row that would correctly catch a _missing_ `Vary` does not catch a
+  >   changed one, so the identical header on the 503 and the `?error=` redirect rests on reading.
+  > - **The `/` and `Topbar.astro` symptom survives**, and is now **measured** rather than cited:
+  >   during an outage a user with a live session gets the guest landing, e-mail absent. That is
+  >   D-04's stated cost of keeping `locals.user` as `User | null`, which is also what keeps the
+  >   config banner suppressed for anonymous visitors.
+  > - **The island evidence is one recorded run, not a layer.** Three of the four `fetch`-carrying
+  >   islands were never driven, and nothing in this project executes any of it — §7's
+  >   review-by-reading rule is unchanged and is more load-bearing now that a second
+  >   `readJsonResponse` call site is known to exist.
+  > - **Announcement by assistive technology is claimed nowhere**, exactly as C10X-34 and C10X-51
+  >   recorded for the same component.
+  > - **One machine, one day, one local stack, one GoTrue build.** Whether hosted GoTrue answers the
+  >   same statuses is unestablished — which is precisely why the split keys on `name`/`code`.
+  > - **The `default` arm's direction is a bet**, stated as one: an unrecognised code during a real
+  >   outage still shows the old misleading message.
+  >
+  > Full record — the five breakage runs with their observed strings and denominators, the
+  > before/after pair, the browser run, the mounted-island run, and every hash-verified restore:
+  > `context/changes/bug-middleware-getuser-swallowed/verification.md` (after archiving:
+  > `context/archive/<date>-bug-middleware-getuser-swallowed/verification.md`).
 
 - **Phase 4 (`srs-study-session`, 2026-07-24; audited 2026-07-26; closed by C10X-27
   the same day)** — Risk #3 is **covered, both halves**. "The schedule writes the wrong
@@ -6066,6 +6248,87 @@ generated_count 3 | keyed | 0 cards`. The response is Phase 2's distinct copy ca
   The route **detects and does not clear**: a failed sign-out leaves the session alive by design
   (the C10X-49 shape), and the three triggers' inconsistent accessible names ("Wyloguj" ×1, "Sign
   out" ×2) are untouched. And `customfield_10041` on **C10X-51** is `/jira-finish-work`'s to fill.
+
+  > **Corrected 2026-08-14 (C10X-52), the FIRST item only.** The read-side twin is closed, later
+  > the same day, and its own ledger entry is directly below. Everything else in this bullet is
+  > untouched and every part of it is **still open**: `signin.ts`/`signup.ts` are still outside the
+  > `?error=` membership sweep, the route still detects rather than clears, the three triggers still
+  > carry inconsistent accessible names, and — the one worth re-reading — **no Sentry DSN has still
+  > ever been pointed at a real sink**, which C10X-52 does not change and does not even test,
+  > because it adds no capture site at all.
+
+- **The READ side of the swallowed-errors audit last proven by execution: 2026-08-14** (C10X-52,
+  change folder `bug-middleware-getuser-swallowed`). The fifth and genuinely last entry of the
+  2026-08-11 audit: the four before it closed the write side, each carving this one out by name.
+  **No §2 risk row moves and no §3 phase status changes.** Suite **521 passed / 521, 41 files**;
+  `npm run typecheck`, `npm run lint` (3 standing `no-console` warnings in
+  `evals/generation-quality.eval.ts`, unchanged) and `npm run build` all exit 0;
+  `git diff -- src/ tests/` **empty** after every breakage restore, each file `md5sum`-verified
+  against a pristine copy; **no migration**, so nothing under `supabase/` is touched and the
+  C10X-29 drift gate is not involved.
+- **Suite delta 501 → 521, files 40 → 41, both halves measured by RUNNING.** The +20/+1 is
+  `tests/lib/auth-outcome.test.ts` **20**, from a run of that file alone. The two files the change
+  touches without adding cases were re-measured rather than assumed:
+  `tests/middleware.test.ts` **23** and `tests/lib/form-endpoint-guards.test.ts` **11**. `501 + 20 = 521`
+  closes as a check on the measurement, never as its source — the total-versus-breakdown slip this
+  ledger has now caught itself on four times.
+- **The ticket predicted the wrong fix, and the plan inverted it before a line was written.**
+  `change.md` expected a plain `if (error)`, the shape C10X-51 could afford. It is wrong here:
+  `getUser()` returns an error for the ordinary signed-out visitor as well, at
+  `GoTrueClient.js:2493-2494`, **before any network call**, because `_getUser` has no allow-list
+  where `_signOut` has one. The naive check banners every anonymous visitor to `/`,
+  `/auth/signin` and `/auth/signup`. What ships is a classifier whose split keys on `name` and
+  `code` and never on `status` — three upstream facts each worth a wrong branch:
+  `AuthSessionMissingError` **fabricates** its status, a plain **500 is not** in auth-js's
+  retryable set, and an ordinarily expired session is `AuthApiError(400, validation_failed)`.
+- **The defect was reproduced as an IDENTITY, not an analogy.** With the fix stashed and the
+  Supabase port dead, `GET /decks` carrying a valid session answers byte-identically to an
+  anonymous request — same `302`, same `Location`, same `Vary`, **no** `?error=`, landing page with
+  **zero** alerts. The two rows sit adjacent in the evidence so the sameness is readable.
+- **`503` and not `401`, and it is falsifiable in exactly one place — which is why it moved phases.**
+  `src/lib/http.ts:52-53` replaces any `401`'s body with "Twoja sesja wygasła", so a `401` carrying
+  outage copy arrives at the island as the message this ticket removes. Nothing automated can see
+  that, so the criterion was moved out of falsification into the manual run and measured on both
+  sides of one line (`status: 503,` → `status: 401,`), first through the real `readJsonResponse`
+  over a real wire response, then through the mounted component.
+- **The manual run went past its own plan and closed the boundary every sibling states.**
+  Six planned rows, then a re-drive in a real browser, then `StudySession` **seeded, mounted and
+  clicked** — so "no React island was mounted" is closed for the one island that matters. Two
+  results no probe reaches: the session **refuses to advance** and keeps its rating buttons, and a
+  reload after the backend returns finds all three cards still due — the C10X-27 silent-discard
+  mode, checked rather than assumed. It also found a **second** `readJsonResponse` call site
+  (`SessionSizeControl.save()`) that no document had named.
+- **Five predictions held and five diverged, each recorded as observed.** B2's red count matched
+  exactly at 17 of 23 while its **green** set did not (six rows, not the four the plan enumerated).
+  Two claims written during this very change were measured false and corrected in place: that the
+  outage class does not reproduce C10X-51's two-alert page (the study screen carries **three**),
+  and that mounting the island would add moving parts rather than proof. A third correction is of a
+  probe, not the app — a first pass reported the rating buttons gone because its filter split
+  labels on a `\n` that is not there.
+- **A trap C10X-51 documented was met again, independently, and it invalidates nothing.** The
+  Chrome profile still carried C10X-51's live session, so a public page rendered a
+  `requiresSession: true` config banner — the tell, since the extension blocks `document.cookie`.
+  The `curl` evidence is unaffected (every "no cookie" row used an explicit jar), and the lesson is
+  sharper than "check the cookie": **"no sign-out button" does not mean "signed out" on a page that
+  never renders one**. The profile was signed out before the run proper and again at the end.
+- **Two incidental corroborations of things this file already records.** A browser sign-out killed
+  the `curl` jar as well — `signOut()`'s default `scope: "global"`, which §6.4 gives as the reason
+  a sign-out test must mint its own account, seen here from the other direction. And Prettier was
+  run on an **in-repo** copy before every markdown write, per the C10X-51 finding that a `/tmp`
+  copy escapes config resolution.
+- **The roadmap Status flip was NOT performed, by decision** — recorded so nobody hunts for a
+  missing edit. `lessons.md` reserves `Status → done` and the `## Done` entry for `/10x-archive`.
+  **H-20 stays `in progress`**, with its summary row and detail block added during implementation
+  rather than backfilled — the omission that produced the H-04/H-07/H-08 backfills.
+- **Still open after this entry, deliberately**: the 500 and 429 classes were **never provoked**
+  and neither was `unconfigured` — all three rest on the truth table alone. There is **no Sentry
+  channel for any of them**, by decision (D-01), so they reach no owner at all; this change adds no
+  capture site, and the delivery debt's owner is unchanged
+  (`context/archive/2026-08-13-bug-generation-failed-audit-swallowed/follow-ups/sentry-delivery.md`).
+  `/` and `Topbar.astro` still read as signed-out during an outage — D-04's stated cost, now
+  measured. `tests/middleware.test.ts` gained **no** case for the new branch. Three of the four
+  `fetch`-carrying islands were never driven. And `customfield_10041` on **C10X-52** is
+  `/jira-finish-work`'s to fill.
 
 Refresh (`/10x-test-plan --refresh`) when:
 

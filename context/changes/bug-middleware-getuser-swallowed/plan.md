@@ -779,24 +779,24 @@ None. No schema change, no migration file, nothing pushed to the cloud.
 
 #### Automated
 
-- [x] 5.1 `npm test` green after the `.env` restore
-- [x] 5.2 `.env` `md5sum` identical to the pristine copy
-- [x] 5.3 `git status --porcelain -uall` clean outside the change folder
+- [x] 5.1 `npm test` green after the `.env` restore — ebcba85
+- [x] 5.2 `.env` `md5sum` identical to the pristine copy — ebcba85
+- [x] 5.3 `git status --porcelain -uall` clean outside the change folder — ebcba85
 
 #### Manual
 
-- [x] 5.4 All six rows observed and recorded with raw status and `Location` / body
-- [x] 5.5 Banner confirmed rendered, scoped past the second `[role="alert"]`
+- [x] 5.4 All six rows observed and recorded with raw status and `Location` / body — ebcba85
+- [x] 5.5 Banner confirmed rendered, scoped past the second `[role="alert"]` — ebcba85
 
 ### Phase 6: Doc sync
 
 #### Automated
 
-- [ ] 6.1 `npm run typecheck`, `npm run lint`, `npm run build` all exit 0
-- [ ] 6.2 `npm test` green, total with per-file breakdown from the run
-- [ ] 6.3 `prettier --check` clean on every edited markdown file
+- [x] 6.1 `npm run typecheck`, `npm run lint`, `npm run build` all exit 0
+- [x] 6.2 `npm test` green, total with per-file breakdown from the run
+- [x] 6.3 `prettier --check` clean on every edited markdown file
 
 #### Manual
 
-- [ ] 6.4 §6.6 does-NOT-prove list as long as the claims table
-- [ ] 6.5 No roadmap Status flipped to `done`
+- [x] 6.4 §6.6 does-NOT-prove list as long as the claims table
+- [x] 6.5 No roadmap Status flipped to `done`
