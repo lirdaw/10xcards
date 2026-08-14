@@ -752,28 +752,28 @@ None. No schema change, no migration file, nothing pushed to the cloud.
 
 #### Automated
 
-- [x] 3.1 `form-endpoint-guards.test.ts` passes with all four floors re-measured and both `MIDDLEWARE_FILE` pins present
-- [x] 3.2 The six-`formData()`-readers case unchanged
-- [x] 3.3 `sentry-capture-wiring.test.ts` passes with no edit
-- [x] 3.4 `error-param-guard.test.ts` passes unchanged
-- [x] 3.5 `npm test` green
+- [x] 3.1 `form-endpoint-guards.test.ts` passes with all four floors re-measured and both `MIDDLEWARE_FILE` pins present — f380799
+- [x] 3.2 The six-`formData()`-readers case unchanged — f380799
+- [x] 3.3 `sentry-capture-wiring.test.ts` passes with no edit — f380799
+- [x] 3.4 `error-param-guard.test.ts` passes unchanged — f380799
+- [x] 3.5 `npm test` green — f380799
 
 #### Manual
 
-- [x] 3.6 `git diff tests/lib/sentry-capture-wiring.test.ts` empty
-- [x] 3.7 Each moved floor comments its measured value and date
+- [x] 3.6 `git diff tests/lib/sentry-capture-wiring.test.ts` empty — f380799
+- [x] 3.7 Each moved floor comments its measured value and date — f380799
 
 ### Phase 4: Falsification
 
 #### Automated
 
-- [ ] 4.1 B1-B5 run, each with observed failure string and split with denominator
-- [ ] 4.2 After every restore: `git diff -- src/ tests/` empty, each file `md5sum`-verified
-- [ ] 4.3 `npm test` green after the last restore
+- [x] 4.1 B1-B5 run, each with observed failure string and split with denominator
+- [x] 4.2 After every restore: `git diff -- src/ tests/` empty, each file `md5sum`-verified
+- [x] 4.3 `npm test` green after the last restore
 
 #### Manual
 
-- [ ] 4.4 Any prediction that did not survive contact recorded as observed
+- [x] 4.4 Any prediction that did not survive contact recorded as observed
 
 ### Phase 5: Manual before/after
 
