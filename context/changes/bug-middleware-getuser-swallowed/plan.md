@@ -767,26 +767,26 @@ None. No schema change, no migration file, nothing pushed to the cloud.
 
 #### Automated
 
-- [x] 4.1 B1-B5 run, each with observed failure string and split with denominator
-- [x] 4.2 After every restore: `git diff -- src/ tests/` empty, each file `md5sum`-verified
-- [x] 4.3 `npm test` green after the last restore
+- [x] 4.1 B1-B5 run, each with observed failure string and split with denominator — 8fb99d4
+- [x] 4.2 After every restore: `git diff -- src/ tests/` empty, each file `md5sum`-verified — 8fb99d4
+- [x] 4.3 `npm test` green after the last restore — 8fb99d4
 
 #### Manual
 
-- [x] 4.4 Any prediction that did not survive contact recorded as observed
+- [x] 4.4 Any prediction that did not survive contact recorded as observed — 8fb99d4
 
 ### Phase 5: Manual before/after
 
 #### Automated
 
-- [ ] 5.1 `npm test` green after the `.env` restore
-- [ ] 5.2 `.env` `md5sum` identical to the pristine copy
-- [ ] 5.3 `git status --porcelain -uall` clean outside the change folder
+- [x] 5.1 `npm test` green after the `.env` restore
+- [x] 5.2 `.env` `md5sum` identical to the pristine copy
+- [x] 5.3 `git status --porcelain -uall` clean outside the change folder
 
 #### Manual
 
-- [ ] 5.4 All six rows observed and recorded with raw status and `Location` / body
-- [ ] 5.5 Banner confirmed rendered, scoped past the second `[role="alert"]`
+- [x] 5.4 All six rows observed and recorded with raw status and `Location` / body
+- [x] 5.5 Banner confirmed rendered, scoped past the second `[role="alert"]`
 
 ### Phase 6: Doc sync
 
