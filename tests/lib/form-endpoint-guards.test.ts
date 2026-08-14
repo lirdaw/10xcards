@@ -30,18 +30,33 @@ import { describe, expect, it } from "vitest";
 //   - the `formData()` sweep covers `src/pages/api/` entire: six readers, three JSON endpoints,
 //     three body-less routes;
 //   - the two `?error=` sweeps cover the REGISTERED SURFACES in `ERROR_PARAM_SURFACES` below —
-//     the deck route tree, and `auth/signout.ts`. `auth/signin.ts` and `auth/signup.ts` are a
-//     deliberate, MEASURED exclusion, with the verdicts and the exemptions a full widening
-//     would need written out beside that table.
+//     the deck route tree, `auth/signout.ts`, and (since C10X-52) `src/middleware.ts`, which is
+//     the first registered surface OUTSIDE `src/pages/api/` at all. `auth/signin.ts` and
+//     `auth/signup.ts` are a deliberate, MEASURED exclusion, with the verdicts and the
+//     exemptions a full widening would need written out beside that table.
 //
 // Textual, like every other first-party guard here (`no-logging.test.ts`,
 // `no-env-access.test.ts`, `error-param-guard.test.ts`, `no-client-redirect-errors.test.ts`), and
 // for the same reason: it must fire on the code as WRITTEN. The cost — a mention inside a comment
 // can trip it — is the intended trade, and every failure names file and line.
 
-const API_DIR = fileURLToPath(new URL("../../src/pages/api", import.meta.url));
+/**
+ * The root the two `?error=` sweeps label against, and it is NOT `API_DIR` (C10X-52, 2026-08-14).
+ *
+ * The third surface registered below is `src/middleware.ts`, which sits OUTSIDE `src/pages/api`,
+ * so an API-relative label reports it as `../../middleware.ts` — a path a reader has to decode
+ * before they can tell whether it is a bug or a real file. Rooting those labels here instead
+ * means a surface anywhere under `src/` reads as its own path, whatever the table grows to.
+ *
+ * The `formData()` describe deliberately keeps `API_DIR`: its hard count asserts on those labels
+ * BY EQUALITY (`auth/signin.ts`, `decks/index.ts`, …), and that population genuinely is the API
+ * tree rather than the surface table — see the note on that case.
+ */
+const SRC_DIR = fileURLToPath(new URL("../../src", import.meta.url));
+const API_DIR = join(SRC_DIR, "pages", "api");
 const DECKS_API_DIR = join(API_DIR, "decks");
 const SIGNOUT_ROUTE = join(API_DIR, "auth", "signout.ts");
+const MIDDLEWARE_FILE = join(SRC_DIR, "middleware.ts");
 
 /**
  * One `?error=` surface: the paths it covers, and the module its vocabulary arrives through.
@@ -109,6 +124,19 @@ interface ErrorParamSurface {
  */
 const SIGNOUT_DECISION_FUNCTIONS = ["signOutLanding"] as const;
 
+/**
+ * The middleware surface's decision functions (C10X-52), named once for the same reason.
+ *
+ * `authGuardLanding` ALONE, never `@/lib/auth-outcome` wholesale — the C10X-51 impl-review F1
+ * narrowing applied on the first attempt rather than rediscovered. What backs the grant is
+ * `tests/lib/auth-outcome.test.ts`'s membership case: `authGuardLanding` is total into
+ * `AUTH_MESSAGES ∪ {null}` and that case asserts it by equality over every outcome. Its sibling
+ * export `classifyAuthError` returns a `"no-session" | "unavailable"` DISCRIMINATOR — a string
+ * that is not a message at all and that no membership claim is or could be made about — so a
+ * binding destructured off it must keep its ordinary verdict.
+ */
+const MIDDLEWARE_DECISION_FUNCTIONS = ["authGuardLanding"] as const;
+
 const ERROR_PARAM_SURFACES: readonly ErrorParamSurface[] = [
   { name: "deck routes", paths: [DECKS_API_DIR], vouchingModule: "@/lib/redirect-errors" },
   {
@@ -117,6 +145,26 @@ const ERROR_PARAM_SURFACES: readonly ErrorParamSurface[] = [
     vouchingModule: "@/lib/auth-errors",
     decisionModule: "@/lib/signout-outcome",
     decisionFunctions: SIGNOUT_DECISION_FUNCTIONS,
+  },
+  // The read-side guard (C10X-52). Registered because `src/middleware.ts` became a `?error=`
+  // PRODUCER — it redirects an outage to `/auth/signin?error=<AUTH_MESSAGES member>` — and no
+  // guard in this repo inspects that file: this one had a surface table and no catch-all, and
+  // `error-param-guard.test.ts` scans the READ side (`.astro` pages) only. Left unregistered,
+  // the producer would be inspected by nothing at all, which is the blind-spot class C10X-51
+  // closed one level down.
+  //
+  // Its vouching module is `@/lib/auth-errors` — the same closed set the sign-out surface uses,
+  // and correctly so: both land on `/auth/signin`, which vouches with `ownedAuthMessage`. The
+  // middleware imports NOTHING from it (the message arrives through the decision module), so
+  // `ownedNames` is empty here and the exemption below is the whole of what vouches for the
+  // emission. That is not a weakening — it is the shape the exemption exists for, and it is
+  // exactly why the grant is keyed per function.
+  {
+    name: "middleware guard",
+    paths: [MIDDLEWARE_FILE],
+    vouchingModule: "@/lib/auth-errors",
+    decisionModule: "@/lib/auth-outcome",
+    decisionFunctions: MIDDLEWARE_DECISION_FUNCTIONS,
   },
 ];
 
@@ -146,7 +194,7 @@ function scannedErrorParamFiles(): ScannedFile[] {
 /** Registered paths that are not on disk. Fail closed: a rename must redden, never quietly skip. */
 function unresolvedSurfacePaths(): string[] {
   return ERROR_PARAM_SURFACES.flatMap((surface) =>
-    surface.paths.filter((path) => !existsSync(path)).map((path) => `${surface.name}: ${relative(API_DIR, path)}`),
+    surface.paths.filter((path) => !existsSync(path)).map((path) => `${surface.name}: ${relative(SRC_DIR, path)}`),
   );
 }
 
@@ -259,6 +307,13 @@ describe("every form endpoint guards its body read", () => {
   // both assertions below pass while enumerating zero readers. The count is pinned exactly — the
   // whole point is that a SEVENTH reader must not appear unnoticed, so "at least six" would defeat
   // the guard. A new form endpoint is expected to bump this number in the same commit.
+  //
+  // AND IT IS NOT MOVED BY REGISTERING AN `?error=` SURFACE, which is the first thing a reader
+  // seeing a hard count next to a growing table will fear (C10X-52, 2026-08-14). This describe
+  // walks `API_DIR` — `const files = sourceFiles(API_DIR)` above — and never consults
+  // `ERROR_PARAM_SURFACES` at all. `src/middleware.ts` joined that table and reads no `formData()`
+  // anyway, but the reason this count is unaffected is the ROOT, not the file: a surface outside
+  // `src/pages/api/` cannot enter this population however many of them there are.
   it("finds exactly the six known formData() readers", () => {
     const readers = files.flatMap((file) =>
       codeLines(file)
@@ -341,16 +396,27 @@ describe("no registered surface puts an inline literal into ?error=", () => {
   // path resolves (a renamed route must redden rather than empty a sweep, and an empty sweep is
   // green); and the detector fires on the regression while staying silent on the shipped shape.
   //
-  // The named files pin that BOTH surfaces are actually reached — a table whose second row
-  // silently contributed nothing would leave this ticket's own producer unguarded while reading
-  // exactly like coverage.
+  // The named files pin that EVERY surface is actually reached — a table row that silently
+  // contributed nothing would leave its own producer unguarded while reading exactly like
+  // coverage. That is not the same claim as the per-surface loop below it: the loop asserts each
+  // row contributes at least one file, the named pins assert WHICH file, so a row repointed at a
+  // sibling path satisfies the loop and fails the pin.
   it("resolves every registered surface and detects an inline literal", () => {
     expect(unresolvedSurfacePaths()).toEqual([]);
-    expect(scanned.length).toBeGreaterThanOrEqual(8);
+    // Re-MEASURED for the widened table rather than scaled by arithmetic (C10X-52, 2026-08-14):
+    // 9 files, up from 8. The per-surface loop below is what stops a row contributing nothing.
+    expect(scanned.length).toBeGreaterThanOrEqual(9);
     for (const surface of ERROR_PARAM_SURFACES) {
       expect(scanned.filter(({ surface: owner }) => owner === surface).length).toBeGreaterThanOrEqual(1);
     }
     expect(scanned.map(({ file }) => file)).toContain(SIGNOUT_ROUTE);
+    // The named pin for the third surface, and it is NOT redundant with the floor above: all four
+    // floors in this file are `toBeGreaterThanOrEqual` and were ALREADY satisfied by the values
+    // this row moved off, so a middleware path that stopped resolving — a rename, a move — would
+    // leave every one of them green while the sweeps inspected that file zero times. Verbatim the
+    // "an empty sweep is green" failure this describe's own header states, which is why the pin
+    // ships with the row rather than after it.
+    expect(scanned.map(({ file }) => file)).toContain(MIDDLEWARE_FILE);
 
     expect(INLINE_ERROR_LITERAL.test('`/decks?error=${encodeURIComponent("Nie udało się")}&open=create`')).toBe(true);
     expect(INLINE_ERROR_LITERAL.test("`/decks?error='oops'`")).toBe(true);
@@ -370,7 +436,7 @@ describe("no registered surface puts an inline literal into ?error=", () => {
     const inline = scanned.flatMap(({ file }) =>
       codeLines(file)
         .filter(({ text }) => INLINE_ERROR_LITERAL.test(text))
-        .map(({ text, index }) => label(file, API_DIR, index, text)),
+        .map(({ text, index }) => label(file, SRC_DIR, index, text)),
     );
 
     expect(inline).toEqual([]);
@@ -388,14 +454,20 @@ describe("no registered surface puts an inline literal into ?error=", () => {
   // That direction is the sweep below.
   it("takes its vocabulary from an owned module in every producer", () => {
     const producers = scanned.filter(({ file }) => /[?&]error=/.test(readFileSync(file, "utf8")));
-    expect(producers.length).toBeGreaterThanOrEqual(7);
+    // Re-measured for the widened table (C10X-52, 2026-08-14): **9**, and the re-measurement
+    // found this one carrying slack rather than merely moving it. It read 7 against a MEASURED 8
+    // — every scanned file was already a producer — so one file could have dropped out of the
+    // channel with this green. That is exactly the shrink direction C10X-40's impl-review F3
+    // closed on the emission floor below and did not close here. A floor is right for GROWTH; it
+    // must still sit ON the measured value, never below it.
+    expect(producers.length).toBeGreaterThanOrEqual(9);
 
     const withoutTheSet = producers
       .filter(({ file, surface }) => {
         const module = (surface.decisionModule ?? surface.vouchingModule).replace(/[\\^$*+?.()|[\]{}]/g, "\\$&");
         return !new RegExp(String.raw`from\s*["']${module}["']`).test(readFileSync(file, "utf8"));
       })
-      .map(({ file }) => relative(API_DIR, file).split(sep).join("/"));
+      .map(({ file }) => relative(SRC_DIR, file).split(sep).join("/"));
 
     expect(withoutTheSet).toEqual([]);
   });
@@ -594,12 +666,12 @@ describe("every ?error= value is a member of the closed set", () => {
         // parameter and nothing else, or a helper could smuggle a literal past every call site.
         for (const expression of captures(text, ERROR_INTERPOLATION)) {
           const value = (ENCODE_WRAPPER.exec(expression.trim())?.[1] ?? expression).trim();
-          if (value !== declared.param) found.push(label(file, API_DIR, index, `helper body: ${value}`));
+          if (value !== declared.param) found.push(label(file, SRC_DIR, index, `helper body: ${value}`));
         }
       } else {
         for (const expression of captures(text, ERROR_INTERPOLATION)) {
           const reason = rejection(expression, owned, source, decisionBound);
-          if (reason) found.push(label(file, API_DIR, index, reason));
+          if (reason) found.push(label(file, SRC_DIR, index, reason));
         }
       }
 
@@ -607,7 +679,7 @@ describe("every ?error= value is a member of the closed set", () => {
         if (index === [...helpers.entries()].find(([, h]) => h.name === name)?.[0]) continue;
         for (const argument of captures(text, new RegExp(`\\b${name}\\s*\\(([^)]*)\\)`, "g"))) {
           const reason = rejection(argument, owned, source, decisionBound);
-          if (reason) found.push(label(file, API_DIR, index, reason));
+          if (reason) found.push(label(file, SRC_DIR, index, reason));
         }
       }
       return found;
@@ -635,9 +707,10 @@ describe("every ?error= value is a member of the closed set", () => {
   // Positive control, in both halves. Without the floor, a walker that found nothing would make
   // the claim below pass while inspecting zero emissions — the shape this whole file exists to
   // stop. The named files pin that BOTH idioms are reached: `decks/index.ts` interpolates inline,
-  // `[publicId]/cards/index.ts` goes through the helper — and, since C10X-51, that the second
-  // SURFACE is reached at all: `auth/signout.ts` contributes the one emission this ticket added,
-  // and a table row that quietly matched nothing would otherwise read exactly like coverage.
+  // `[publicId]/cards/index.ts` goes through the helper — and, since C10X-51, that EVERY surface
+  // is reached at all: `auth/signout.ts` and, since C10X-52, `src/middleware.ts` each contribute
+  // the one emission their ticket added, and a table row that quietly matched nothing would
+  // otherwise read exactly like coverage.
   //
   // THE FLOOR IS THE MEASURED VALUE, not a round number below it (C10X-40 impl-review F3). It sat
   // at 25 against a measured 29, so up to four emissions could drop out of the walker's reach —
@@ -647,23 +720,35 @@ describe("every ?error= value is a member of the closed set", () => {
   // measured value gives away the shrink direction too, and shrink is the silent one.
   //
   // Both floors were RE-MEASURED for the widened scan rather than scaled by arithmetic (C10X-51,
-  // 2026-08-14): 30 emissions across 7 producing files.
+  // 2026-08-14): 30 emissions across 7 producing files. Re-measured again on the same rule when
+  // the middleware surface was registered (C10X-52, 2026-08-14): **31 emissions across 8 files**
+  // — the +1 is `src/middleware.ts`'s single outage redirect, and the eighth file is that file.
   //
   // KNOWN LIMITATION, deliberately not closed here: the call-site regex runs per LINE, so a call
   // Prettier has broken across lines (printWidth 120) matches nothing and is never inspected —
   // not rejected, unexamined. Every other bypass in this file fails loud; this one does not. No
   // call site is wrapped today, and this floor is what would notice if one became so.
-  it("reaches every emission site, through both idioms and on both surfaces", () => {
+  it("reaches every emission site, through both idioms and on every surface", () => {
     const perFile = scanned
-      .map(({ file }) => [relative(API_DIR, file).split(sep).join("/"), emissionCount(file)] as const)
+      .map(({ file }) => [relative(SRC_DIR, file).split(sep).join("/"), emissionCount(file)] as const)
       .filter(([, count]) => count > 0);
     const total = scanned.reduce((sum, { file }) => sum + emissionCount(file), 0);
 
-    expect(total).toBeGreaterThanOrEqual(30);
-    expect(perFile.length).toBeGreaterThanOrEqual(7);
+    expect(total).toBeGreaterThanOrEqual(31);
+    expect(perFile.length).toBeGreaterThanOrEqual(8);
     expect(emissionCount(join(DECKS_API_DIR, "index.ts"))).toBeGreaterThan(0);
     expect(emissionCount(join(DECKS_API_DIR, "[publicId]", "cards", "index.ts"))).toBeGreaterThan(0);
     expect(emissionCount(SIGNOUT_ROUTE)).toBeGreaterThan(0);
+    // …and the pin that matters more than the surface one above (C10X-52, 2026-08-14), because
+    // this surface's emission is a single line and therefore exactly the shape the walker can
+    // lose silently. `ERROR_INTERPOLATION` runs per LINE, so a Prettier wrap (printWidth 120)
+    // leaves that call matching nothing — not rejected, UNEXAMINED, the KNOWN LIMITATION recorded
+    // above — and a concatenation in place of the template literal contributes zero emissions the
+    // same way. Either one keeps all four floors green off the other eight files while this
+    // surface is inspected zero times. That is why `src/middleware.ts` builds its URL on one line
+    // with a template literal, and it is what makes this a STANDING guard where the change's own
+    // breakage run is a one-off.
+    expect(emissionCount(MIDDLEWARE_FILE)).toBeGreaterThan(0);
   });
 
   // The other half: the detector fires on each regression it claims to detect, and stays silent on

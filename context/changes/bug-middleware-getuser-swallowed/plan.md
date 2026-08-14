@@ -736,32 +736,32 @@ None. No schema change, no migration file, nothing pushed to the cloud.
 
 #### Automated
 
-- [x] 2.1 `tests/middleware.test.ts` 23 passed, no row edited
-- [x] 2.2 `tests/lib/http.test.ts` passes unchanged
-- [x] 2.3 `npm test` green, total recorded from the run
-- [x] 2.4 `npm run typecheck` exits 0
-- [x] 2.5 `npm run lint` exits 0
-- [x] 2.6 `npm run build` exits 0
+- [x] 2.1 `tests/middleware.test.ts` 23 passed, no row edited — 9c38382
+- [x] 2.2 `tests/lib/http.test.ts` passes unchanged — 9c38382
+- [x] 2.3 `npm test` green, total recorded from the run — 9c38382
+- [x] 2.4 `npm run typecheck` exits 0 — 9c38382
+- [x] 2.5 `npm run lint` exits 0 — 9c38382
+- [x] 2.6 `npm run build` exits 0 — 9c38382
 
 #### Manual
 
-- [x] 2.7 `git diff tests/middleware.test.ts` empty
-- [x] 2.8 New branch confirmed inside both existing conditions
+- [x] 2.7 `git diff tests/middleware.test.ts` empty — 9c38382
+- [x] 2.8 New branch confirmed inside both existing conditions — 9c38382
 
 ### Phase 3: Guard registration
 
 #### Automated
 
-- [ ] 3.1 `form-endpoint-guards.test.ts` passes with all four floors re-measured and both `MIDDLEWARE_FILE` pins present
-- [ ] 3.2 The six-`formData()`-readers case unchanged
-- [ ] 3.3 `sentry-capture-wiring.test.ts` passes with no edit
-- [ ] 3.4 `error-param-guard.test.ts` passes unchanged
-- [ ] 3.5 `npm test` green
+- [x] 3.1 `form-endpoint-guards.test.ts` passes with all four floors re-measured and both `MIDDLEWARE_FILE` pins present
+- [x] 3.2 The six-`formData()`-readers case unchanged
+- [x] 3.3 `sentry-capture-wiring.test.ts` passes with no edit
+- [x] 3.4 `error-param-guard.test.ts` passes unchanged
+- [x] 3.5 `npm test` green
 
 #### Manual
 
-- [ ] 3.6 `git diff tests/lib/sentry-capture-wiring.test.ts` empty
-- [ ] 3.7 Each moved floor comments its measured value and date
+- [x] 3.6 `git diff tests/lib/sentry-capture-wiring.test.ts` empty
+- [x] 3.7 Each moved floor comments its measured value and date
 
 ### Phase 4: Falsification
 
