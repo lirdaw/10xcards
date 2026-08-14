@@ -864,16 +864,16 @@ No migration, no schema change, nothing pushed to the cloud. The C10X-29 drift g
 
 #### Automated
 
-- [x] 5.1 Type gate passes: `npm run typecheck`
-- [x] 5.2 Lint passes: `npm run lint`
-- [x] 5.3 Build passes: `npm run build`
-- [x] 5.4 Full suite green: `npm test`
-- [x] 5.5 `git diff -- src/` empty after every breakage restore, verified by hash
+- [x] 5.1 Type gate passes: `npm run typecheck` — 072df11
+- [x] 5.2 Lint passes: `npm run lint` — 072df11
+- [x] 5.3 Build passes: `npm run build` — 072df11
+- [x] 5.4 Full suite green: `npm test` — 072df11
+- [x] 5.5 `git diff -- src/` empty after every breakage restore, verified by hash — 072df11
 
 #### Manual
 
 - [x] 5.6 The failure branch reached in a running app, banner observed on `/auth/signin`, with its
-      one-variable control
-- [x] 5.7 The session proved still alive after the failed sign-out — port restored first, no re-sign-in
-- [x] 5.8 Every env change restored and the restore proved
-- [x] 5.9 All four carve-out sites resolved by heading and classified live-edit vs dated-correction
+      one-variable control — 072df11
+- [x] 5.7 The session proved still alive after the failed sign-out — port restored first, no re-sign-in — 072df11
+- [x] 5.8 Every env change restored and the restore proved — 072df11
+- [x] 5.9 All four carve-out sites resolved by heading and classified live-edit vs dated-correction — 072df11
