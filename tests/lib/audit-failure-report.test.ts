@@ -20,10 +20,17 @@ import {
 //
 // WHAT IT DOES NOT PROVE, stated so nobody reads it as more. It says nothing about whether
 // `src/pages/api/generate.ts` still CALLS the builder — that is
-// `tests/lib/audit-failure-wiring.test.ts`, and the two are one claim split in half, exactly as
-// `sentry-sampling.test.ts` and `sentry-wiring.test.ts` are. It also says nothing about whether a
+// `tests/lib/sentry-capture-wiring.test.ts` (named `audit-failure-wiring.test.ts` until 2026-08-14,
+// when C10X-51 generalised it from this one handler to a registered-targets table plus a catch-all
+// over `src/`), and the two are one claim split in half, exactly as `sentry-sampling.test.ts` and
+// `sentry-wiring.test.ts` are. It also says nothing about whether a
 // captured event ever ARRIVES in the Sentry UI; no layer in this project can assert that since
 // C10X-54 deleted `/api/shipprobe`.
+//
+// This file's own scope did NOT widen with that rename: it is the truth table for
+// `@/lib/audit-failure-report` alone. The sign-out builder C10X-51 added has its own, in the second
+// half of `tests/lib/signout-outcome.test.ts` — one builder, one truth table, neither covering the
+// other's claim.
 //
 // EVERY VALUE HERE IS FABRICATED. The real row shapes live in the endpoint, and a test that
 // imported them would drift with the endpoint instead of pinning it.

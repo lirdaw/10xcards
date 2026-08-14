@@ -1,5 +1,16 @@
 # Follow-up: prove the audit-failure capture actually reaches Sentry
 
+> **Dated note, 2026-08-14 (C10X-51) — this follow-up is still OPEN and its subject just got
+> wider; nothing below is rewritten.** Two pointer corrections and one scope fact. The guard named
+> here as `tests/lib/audit-failure-wiring.test.ts` is now **`tests/lib/sentry-capture-wiring.test.ts`**
+> — renamed and generalised from one hardcoded handler into registered targets plus a catch-all
+> over all of `src/`. And there are now **two** first-party capture sites, not one:
+> `src/pages/api/generate.ts` and `src/pages/api/auth/signout.ts`. Everything this document says
+> about DELIVERY holds for both and is unchanged by either — no DSN is configured under the test
+> runner or under `npm run dev`, `/api/shipprobe` is gone, and no layer in this project asserts
+> that an event is emitted, sampled, transported or delivered. C10X-51 added a capture; it added no
+> evidence of arrival, and deliberately claimed none.
+
 > Raised by **C10X-50** (`bug-generation-failed-audit-swallowed`), Phase 5. **To be ticketed via
 > `/jira-backlog-sync`** — no ticket is created by this change, deliberately, the same idiom
 > C10X-31's deferred `workflow_dispatch` leg used.

@@ -485,11 +485,18 @@ export const POST: APIRoute = async (context) => {
     // to collide with. The row is a pure write-only forensic artifact, so a message to the person
     // who cannot act on it is not a signal — the capture below is the half that reaches an owner.
     //
-    // WHAT THE CAPTURE PROVES AND WHAT IT DOES NOT. `tests/lib/audit-failure-wiring.test.ts`
+    // WHAT THE CAPTURE PROVES AND WHAT IT DOES NOT. `tests/lib/sentry-capture-wiring.test.ts`
     // holds that the call is present and composed, and `tests/lib/audit-failure-report.test.ts`
     // holds what it may carry. NEITHER asserts that an event ARRIVES, and no layer in this
     // project does: `/api/shipprobe` — the one instrument that ever showed a first-party error
-    // reaching the Sentry UI — was deleted by C10X-54. See follow-ups/sentry-delivery.md.
+    // reaching the Sentry UI — was deleted by C10X-54. See follow-ups/sentry-delivery.md, now at
+    // `context/archive/2026-08-13-bug-generation-failed-audit-swallowed/`.
+    //
+    // The guard was `tests/lib/audit-failure-wiring.test.ts` — hardcoded to THIS file — until
+    // 2026-08-14 (C10X-51), which generalised it into registered targets plus a catch-all over all
+    // of `src/`. This route's own claims are unchanged and still asserted per row: exactly two
+    // capture statements, both delegating, both synthetic-first-argument, neither naming a content
+    // field. What changed is that a capture landing anywhere ELSE is now red rather than unlooked-at.
     //
     // The exception is SYNTHETIC and carries a fixed literal, never `auditError` itself: the
     // first argument is serialised onto the event where the builder cannot reach it, and a

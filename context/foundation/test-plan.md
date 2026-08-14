@@ -6,7 +6,66 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-08-13 (C10X-50 `bug-generation-failed-audit-swallowed` — **not a §3 rollout
+> Last updated: 2026-08-14 (C10X-51 `bug-signout-swallowed` — **not a §3 rollout phase and not a
+> coverage widening: no §2 risk row moves, no §3 phase status changes, and §3's table is
+> untouched.** The fourth and LAST entry of the swallowed-errors audit (2026-08-11), and the one
+> that closes the class **project-wide** rather than in one file: `src/pages/api/auth/signout.ts`
+> was the single remaining discarded-result Supabase mutation anywhere in `src/`, carved out by
+> the three entries below rather than folded into them. There is now no other.
+>
+> **It differs from all three siblings in the one way that decides its weight.** Those lost an
+> audit RECORD; this one leaves a **live session behind a screen that says goodbye**. Both
+> `return { error }` statements in `_signOut` sit ABOVE the `_removeSession()` that clears the
+> cookie (`GoTrueClient.js:3184`, `:3195`, `:3200`), so on every transport failure, 500 and 429
+> nothing is revoked and nothing is cleared — while 401/403/404 and `AuthSessionMissingError` are
+> allow-listed upstream and come back `{ error: null }`, which is why a plain `if (error)` raises
+> no spurious banner on the ordinary already-signed-out case. The old symptom was a silent ROUND
+> TRIP rather than a stale page: `middleware.ts` bounces an authenticated visitor from `/` to
+> `/decks`, so the user clicked "Wyloguj", was thrown back into the app with their own e-mail in
+> the header, and nothing on any channel said why.
+>
+> **The design decision is the LANDING PAGE, and it was measured rather than argued** (plan-review
+> F1). Both failure branches land on `/auth/signin`, not `/decks`. The same failure class that
+> breaks `signOut()` breaks the client `middleware.ts` reads the session with — `getUser()` is a
+> real round trip on EVERY request — so on the next hop `locals.user` is `null`, `/decks` matches
+> `PROTECTED_ROUTES`, and the redirect would be bounced **with the `?error=` dropped**: the user
+> would meet the sign-in page with no message over a live session, i.e. the original defect
+> wearing a different landing page. Measured in Phase 5's manual run, not inferred. `/auth/signin`
+> cannot be bounced (no `/auth/*` path is protected) and already reads and vouches the parameter
+> at `signin.astro:7`, so the message costs **no** new render site. The accepted cost is §2.4's
+> narrow false-alarm class — where the cookie was cleared and the error propagated anyway, the
+> user reads "you are still signed in" on a page they are already on. Accepted, **not**
+> neutralised, and said so at the site.
+>
+> **Two channels, as the sibling below, and the second one is now GUARDED for every future site.**
+> The banner is the whole user-facing surface — all three sign-out triggers are native form POSTs,
+> so there is no island and no `retriable` flag with a reader — and one `Sentry.captureException`
+> carries a synthetic `Error` plus a fingerprinted report with **no user identifier**, the session's
+> owner being exactly who the event must not name. Along the way this change closes the two guard
+> blind spots it makes load-bearing, and neither was guarding anything before it:
+> `form-endpoint-guards.test.ts`'s two `?error=` sweeps were rooted at `src/pages/api/decks`
+> **despite a SCOPE comment claiming `src/pages/api/` entire**, and the Sentry wiring guard was
+> hardcoded to `src/pages/api/generate.ts`. The first becomes a per-surface table (each surface
+> declaring its own vouching module — proved by a neuter emitting a `REDIRECT_MESSAGES` member from
+> `signout.ts` and being REFUSED, which a union of both closed sets would have waved through); the
+> second becomes registered targets **plus a catch-all over all of `src/`**, so the next capture
+> site cannot land unguarded either.
+>
+> **The evidence splits the same way all three siblings' did, and here BOTH failure branches are
+> unreachable from the suite** — the runner drives a healthy local stack, and `astro:env/server` is
+> inlined at transform time, so neither a failing GoTrue nor a `null` client can be produced from
+> inside it. So a pure function with an exhaustive truth table owns the decision, and **one manual
+> run** owns the endpoint's use of it, with a one-variable control. Nothing bridges them.
+>
+> Suite **478 → 501, 40 files** (unchanged — the guard rename is one file out and one in), the +23
+> measured by RUNNING each file alone rather than by arithmetic: `tests/lib/signout-outcome.test.ts`
+> **20** (7 at Phase 1, extended by Phase 4's privacy truth table) and the renamed
+> `tests/lib/sentry-capture-wiring.test.ts` **17**, replacing `tests/lib/audit-failure-wiring.test.ts`
+> at **7**. Note the static `it(` count is 16 in the first of those and the run reports 20 —
+> `it.each` is why this file keeps insisting the figure comes from a run. Evidence:
+> `context/changes/bug-signout-swallowed/verification.md`.
+>
+> Previously: 2026-08-13 (C10X-50 `bug-generation-failed-audit-swallowed` — **not a §3 rollout
 > phase and not a coverage widening: no §2 risk row moves, no §3 phase status changes, and §3's
 > table is untouched.** The third entry of the day and the last of the class: C10X-48 fixed the
 > swallowed compensation, C10X-49 fixed the swallowed deck undo, and this one closes the two
@@ -14,6 +73,12 @@
 > transport-failure `catch` and the 0-saved boundary. **The class is now closed in this file**;
 > the one remaining discarded-result Supabase mutation anywhere in `src/` is
 > `src/pages/api/auth/signout.ts:7`, carved out explicitly as C10X-51's rather than folded in.
+>
+> > **Corrected 2026-08-14 (C10X-51).** That carve-out is closed: the route reads `{ error }`,
+> > branches on it, and answers both failure conditions on `/auth/signin`. The sentence is left
+> > standing as the accurate record of what was open on 2026-08-13, and the line number in it was
+> > already stale by the time the fix landed — this change's own comments move the call site well
+> > past `:7`, which is why the entry above resolves it by heading rather than by number.
 >
 > **Two channels, and that is the one thing this site does differently from both siblings.** A
 > lost `failed` row costs the user nothing — nothing in `src/` reads `status`, `error_message` or
@@ -1419,6 +1484,21 @@ the real local Postgres.** Nothing is mocked. The three helpers in
 - `accounts.ts` — provisions the run's two accounts (A and B) once, via the
   anon key, and hands them to every file. Two accounts per run, not per
   test: the auth rate limit is 30 sign-ins / 5 min / IP.
+  - **A test that SIGNS OUT must mint its own account, and this is invisible from the
+    test file** (added 2026-08-14 by C10X-51). `signOut()`'s default scope is `global`
+    (`GoTrueClient.js:3173`), and the access token dies with the session **immediately**
+    rather than surviving to its expiry — measured, not read out of the docs, because
+    Supabase documents global sign-out as revoking REFRESH tokens: a subject account and a
+    control account were captured through `session.ts`'s own path, one signed out, and the
+    subject's `GET /auth/v1/user` went `200 → 403` while the control stayed `200`
+    (`context/changes/bug-signout-swallowed/verification.md` §Phase 2 §0). So signing out A
+    or B invalidates the `cookieHeader` every other file is still holding, **mid-run**, and
+    it surfaces as unrelated cross-file flakiness in whatever happened to be running — never
+    as the sign-out test. `provision` is exported for exactly this; call it **inside the
+    `it()`** that consumes the session (§6.2's own rule — the session is the fixture being
+    mutated), never in `beforeAll` and never through `provide`/`inject`, which would make it
+    injectable everywhere and cap the file at one session-consuming case forever.
+    Rate-limit cost: 2 auth requests, and only on runs that execute that file.
 - `session.ts` — turns a signed-in session into a `Cookie` header by
   capturing what `createServerClient` writes through `setAll`.
 - `endpoint.ts` — renders an API route via the Astro Container API with that
@@ -1858,6 +1938,17 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   > fingerprinted `Sentry.captureException`). C10X-48's original sentence is therefore accurate on
   > neither of its two named owners any more; both are read as historical. The class is closed **in
   > this file**, with `src/pages/api/auth/signout.ts:7` carved out explicitly as C10X-51's.
+  >
+  > **Corrected 2026-08-14 (C10X-51 `bug-signout-swallowed`) — a FOURTH dated line on the same
+  > original sentence, and the one that ends the chain.** The carve-out above is closed: the
+  > sign-out route reads `{ error }` off `signOut()`, catches a throw onto the same outcome, and
+  > answers the `null`-client condition as a refusal instead of as success. So the class is no
+  > longer merely "closed in this file" — it is closed **project-wide**, and there is no remaining
+  > discarded-result Supabase mutation anywhere in `src/`. Two things do NOT follow and are said
+  > here rather than inferred: `middleware.ts`'s `getUser()` error, read as "not signed in", is the
+  > READ-side twin of the same shape and is still live as **C10X-52**; and this closure is about
+  > the write result being READ, never about the sign-out being forced through — the route detects,
+  > it does not clear the session by hand (the C10X-49 shape).
 
   > **Extended 2026-08-13 (C10X-49 `bug-generation-deck-undo-swallowed`) — the sibling of the entry
   > above: same file, same class, the other call site, the same day.** **No §2 risk row moves and
@@ -1919,6 +2010,12 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   > the two `failed`-audit-row inserts — the transport-failure `catch` (answers 502) and the
   > 0-saved boundary (answers 422) — that both left it. `createGenerationSession` had **no caller
   > anywhere in `tests/`**, exactly the state C10X-49 found `deleteDeck` in.
+  >
+  > **Corrected 2026-08-14 (C10X-51).** The parenthesis in the paragraph above is closed: the
+  > sign-out route no longer discards its write result, so the class is closed project-wide and not
+  > only in `generate.ts`. The sentence is left standing as the accurate record of 2026-08-13.
+  > C10X-51's own §6.6 entry is below; its `middleware.ts` read-side twin (**C10X-52**) is separate
+  > and still live.
   >
   > **Read the boundary before the coverage, because this entry is committed tests plus TWO manual
   > runs, not one.** Both siblings needed a single manual DCL run because each fixed one call site;
@@ -1982,6 +2079,98 @@ duplicated`, the seeded `failed` row against its own `succeeded` result).
   > Full record — every breakage run's observed failure string and split, both manual DCL runs with
   > their four restore oracles, and the §6.9 second-double deviation stated on its own terms:
   > `context/changes/bug-generation-failed-audit-swallowed/verification.md`.
+
+  > **Extended 2026-08-14 (C10X-51 `bug-signout-swallowed`) — the fourth entry of the
+  > swallowed-errors audit and the one that closes the class PROJECT-WIDE**, where the three above
+  > closed it inside `generate.ts` and each explicitly carved this route out. **No §2 risk row
+  > moves and no §3 phase status changes.** It is filed here rather than under an auth heading
+  > because it is the same defect class, and the reader who arrives from the three notes above is
+  > the reader it is for.
+  >
+  > **What makes it the heaviest of the four, in one sentence.** The three siblings lost an audit
+  > RECORD; this one leaves a **live session behind a screen that says goodbye** — and the symptom
+  > was a silent ROUND TRIP rather than a stale page, because `middleware.ts` bounces an
+  > authenticated visitor from `/` to `/decks`, so the user clicked "Wyloguj" and was thrown back
+  > into the app with their own e-mail in the header.
+  >
+  > **Read the split before the coverage: BOTH failure branches are unreachable from this suite,
+  > which is one worse than any sibling.** C10X-49 and C10X-50 each had one branch the runner could
+  > not force; here neither can be. The runner drives a healthy local Supabase, so nothing can make
+  > GoTrue's `/logout` fail from inside it; and `astro:env/server` is inlined at transform time, so
+  > `createClient() === null` needs the module double §6.9 confines to one file. So the DECISION was
+  > extracted into a pure function — the project's fourth such extraction after `readJsonResponse`
+  > and `rateOutcome` (C10X-27) and `visibleConfigStatuses` (C10X-34) — and **one manual run, driven
+  > twice**, owns the endpoint's use of it: once with `curl` against the running dev server (the
+  > reproducible record), once in a real browser clicking the real "Wyloguj" button. The two agree
+  > row for row. **Nothing bridges either of them and the suite, and no test in this project can.**
+  >
+  > | Claim                                                             | What proves it                                                                                                                                                                                                                                                                                                                                  |
+  > | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  > | A returned error and a THROW land on the same outcome             | `signOut()` can throw as well as return — `_notifyAllSubscribers` rethrows a callback error and neither `_signOut` nor `signOut` has a `catch` — and the user's state is identical either way, so the route's `try`/`catch` maps both onto one `failed` outcome                                                                                 |
+  > | …and the ordinary already-signed-out case raises NO banner        | `AuthSessionMissingError` and 401/403/404 are allow-listed upstream and come back `{ error: null }`, so a plain `if (error)` is not over-eager — read out of the installed `@supabase/auth-js` 2.105.3, not assumed                                                                                                                             |
+  > | Every outcome lands where the truth table says                    | `tests/lib/signout-outcome.test.ts` — one case per outcome on the exact `(path, message)` pair, the §2.4 false-alarm class asserted to land like any other failure, membership in `AUTH_MESSAGES` by **equality**, the two failure branches pinned as DIFFERENT messages, and the control that the three outcomes produce three different pairs |
+  > | The banner cannot render attacker copy                            | the landing page vouches with `ownedAuthMessage` (`signin.astro:7`), already asserted by `tests/lib/error-param-guard.test.ts`; measured server-side in Phase 2 as 1 banner for the member, **0** for `dowolny tekst` and 0 for the member with text appended                                                                                   |
+  > | The new producer is ENFORCED, not conventional                    | `tests/lib/form-endpoint-guards.test.ts`'s two `?error=` sweeps became a per-surface table; emitting a `REDIRECT_MESSAGES` member from `signout.ts` is REFUSED, which a table vouching for the union of both closed sets would have accepted silently                                                                                           |
+  > | An owner is told, without naming the session's owner              | `buildSignOutFailureReport` — structured `name`/`status`/`code` verbatim as tags, free-form text as length + digest prefix, and **no user identifier at all**, the session's owner being exactly who the event must not name                                                                                                                    |
+  > | …and no FUTURE capture site can land unguarded                    | the wiring guard became registered targets **plus a catch-all over all of `src/`** — a planted capture in `src/middleware.ts` reddens it by name                                                                                                                                                                                                |
+  > | Both branches are reachable in production and answer the new body | one manual run with a one-variable control (below); no committed test can reach either                                                                                                                                                                                                                                                          |
+  >
+  > **The design decision is the LANDING PAGE, and it is the finding worth carrying out of this
+  > entry.** Both failure branches land on `/auth/signin`, not on `/decks`, and the reason is a
+  > mechanism this file already documents from the other side: `middleware.ts` sets `locals.user`
+  > from a real `getUser()` round trip on EVERY request. The dominant failure class here is "GoTrue
+  > is unreachable" — so on the very next hop that same call fails, `locals.user` is `null`,
+  > `/decks` matches `PROTECTED_ROUTES`, and the redirect is bounced to `/auth/signin` **with the
+  > `?error=` dropped**. The user would meet the sign-in page with no message over a live session,
+  > i.e. this ticket's own defect wearing a different landing page. **Measured** in the manual run
+  > (`GET /decks` with a live cookie and a dead Supabase port → `302 → /auth/signin`), not argued.
+  > `/auth/signin` cannot be bounced (no `/auth/*` path is protected), and it already reads and
+  > vouches the parameter into a page-level `ServerError`, so the message cost **no** new render
+  > site. Generalise it as: **a failure's landing page must not be one the same failure can gate.**
+  >
+  > **The accepted cost, stated because it is accepted rather than neutralised.** In §2.4's narrow
+  > class — where the cookie was cleared and the error propagated anyway — the sign-out effectively
+  > succeeded and the user reads "you are still signed in" on a page they are already on. Wrong
+  > copy in a narrow class, chosen over the dominant class silently lying, which is what `/decks`
+  > would have bought. No `isAuthRetryableFetchError` discrimination is added; that is the branch
+  > to add it on if it is ever wanted.
+  >
+  > Suite **478 → 501, 40 files** — file count unchanged because the guard rename is one file out
+  > and one in — with the +23 measured by RUNNING each file alone:
+  > `tests/lib/signout-outcome.test.ts` **20** and `tests/lib/sentry-capture-wiring.test.ts` **17**,
+  > which replaced `tests/lib/audit-failure-wiring.test.ts` at **7**. No other file's count moved.
+  > **One full-suite run went red and did not reproduce**, and it is recorded as observed rather
+  > than explained away: a deck-name collision in `tests/study/study.test.ts` (`expected "/decks"`,
+  > received `/decks?error=Talia o tej nazwie już istnieje&open=create`), i.e. the duplicate-write
+  > seam C10X-39 records as LOUD-by-`deck_user_name_unique` firing as a red. Four consecutive runs
+  > afterwards were green (501/501), and the obvious cause is **ruled out by measurement**: Kong's
+  > `.kong_env` reads `upstream_keepalive_pool_size = 0`, so the C10X-39 fix is applied on this
+  > machine. Cause unattributed; the run's own seed was not captured, which is the mistake to
+  > avoid repeating. Same shape as C10X-46's post-review unexplained red.
+  >
+  > **What this does NOT prove — read this before citing the sign-out path as covered.**
+  > The `unconfigured` branch is unreachable from the suite and is carried by the truth table plus
+  > the manual run alone. **Nothing here proves a Sentry event is delivered**, and that boundary is
+  > exactly C10X-50's, unchanged: no DSN is configured under the test runner or under
+  > `npm run dev`, and `/api/shipprobe` is gone. The manual run provoked ONE failure class (a dead
+  > port, `AuthRetryableFetchError` at status 0); the 500/429 classes reach the same `if (error)`
+  > and are covered by the truth table, not by the run. And the read-side twin of the same shape —
+  > `middleware.ts` reading `getUser()`'s error as "not signed in" — is untouched and still live as
+  > **C10X-52**; landing on `/auth/signin` removed this change's DEPENDENCE on it, not the defect.
+  > Full record — the re-executed Phase 4 breakage runs, the manual run's thirteen rows with its
+  > one-variable control, the `checkOrigin` measurement and every hash-verified restore:
+  > `context/changes/bug-signout-swallowed/verification.md` (after archiving:
+  > `context/archive/<date>-bug-signout-swallowed/verification.md`).
+  >
+  > **A note on this file's own pointers, because C10X-51 renamed a guard.** Every dated entry here
+  > that names `tests/lib/audit-failure-wiring.test.ts` — §6.6's C10X-50 claims table and
+  > suite-count breakdown, §7's C10X-50 note, §8's C10X-50 ledger bullet, and the header's
+  > "Previously" block — means the file now called `tests/lib/sentry-capture-wiring.test.ts`. Those
+  > entries are **deliberately not rewritten**: the old name was true on their dates and the
+  > figures beside it were measured under it. The three LIVE code comments that pointed at it
+  > (`src/worker.ts`, `src/pages/api/generate.ts`, `tests/lib/audit-failure-report.test.ts`) were
+  > repointed instead — the live-declaration-versus-dated-snapshot split this project states as a
+  > rule.
 
 - **Phase 4 (`srs-study-session`, 2026-07-24; audited 2026-07-26; closed by C10X-27
   the same day)** — Risk #3 is **covered, both halves**. "The schedule writes the wrong
@@ -4239,6 +4428,17 @@ contributors should respect these unless the underlying assumption changes.
   > proves an event arrives, for the identical reason this bullet already gives — no DSN is ever
   > pointed at a real sink from any layer here, and `/api/shipprobe` is gone. See
   > `context/changes/bug-generation-failed-audit-swallowed/follow-ups/sentry-delivery.md`.
+  > **Dated note, 2026-08-14 (C10X-51): two POINTERS in the note above no longer resolve, and no
+  > claim in it moved.** The guard is `tests/lib/sentry-capture-wiring.test.ts` — same file,
+  > renamed and generalised from one hardcoded handler into a registered-targets table plus a
+  > catch-all over all of `src/` — and the follow-up is at
+  > `context/archive/2026-08-13-bug-generation-failed-audit-swallowed/follow-ups/sentry-delivery.md`
+  > since that change was archived. Every dated entry elsewhere in this file that names the old
+  > path means the same file under its old name and is deliberately NOT rewritten. What IS new is
+  > a SECOND first-party capture site, `src/pages/api/auth/signout.ts`, which reaches `beforeSend`
+  > on the same fail-open branch for the same reason (no console stamp) and is guarded by the same
+  > file. **The last sentence of the bullet above is the one to re-read rather than the pointers**:
+  > nothing here still proves an event arrives, and C10X-51 changes nothing about that.
 - **Rate limiting on generation** — no rate limit exists, so a test would
   require adding the safeguard first. Re-evaluate if a limit is
   implemented; the cost exposure is partially covered by Risk #6
@@ -5736,6 +5936,136 @@ generated_count 3 | keyed | 0 cards`. The response is Phase 2's distinct copy ca
   already-lost audit rows from before this change are **not** backfilled, because there is nothing
   to reconstruct them from; and no Sentry DSN was ever pointed at a real sink — the Sentry half's
   evidence is the truth table plus the wiring guard, by decision (D-05), not an oversight.
+
+  > **Corrected 2026-08-14 (C10X-51), the first item only.** The sign-out carve-out is closed and
+  > the class is closed project-wide; the entry's own ledger bullet is at the end of this section.
+  > **The other three items are untouched and every one is still open**, which is the reason this
+  > correction is narrow rather than a rewrite: the hoist-the-undo pointer is still unticketed, the
+  > lost audit rows are still not backfilled, and **no Sentry DSN has still ever been pointed at a
+  > real sink** — C10X-51 adds a second capture site and changes nothing about that boundary.
+
+- **The swallowed-signout class last proven closed by execution: 2026-08-14** (C10X-51, change
+  folder `bug-signout-swallowed`). The fourth and last entry of the 2026-08-11 swallowed-errors
+  audit, and the first that closes the class **project-wide** rather than inside one file: the
+  three entries above each carved this route out by name. Not a §3 rollout phase and **not a
+  coverage widening** — no §2 risk row moves, no §3 phase status changes, §3's table is untouched.
+  Suite **501 passed / 501, 40 files**; `npm run typecheck`, `npm run lint` and `npm run build` as
+  recorded below; `git diff -- src/` **empty** after every breakage restore, each additionally
+  verified by per-file `md5sum`; `git diff -- supabase/` **empty** — **no migration ships**, so the
+  C10X-29 drift gate is not involved.
+- **Suite delta 478 → 501, files unchanged at 40, and both halves measured by RUNNING.** The
+  file count does not move because the guard rename is one file out and one in. The +23 sits in
+  exactly two files, each run alone: `tests/lib/signout-outcome.test.ts` at **20** (Phase 1's
+  truth table, extended by Phase 4's privacy half) and `tests/lib/sentry-capture-wiring.test.ts` at
+  **17**, replacing `tests/lib/audit-failure-wiring.test.ts` at **7**. Worth one sentence because
+  this ledger has been caught on it four times: the static `it(` count in the first of those is
+  **16** while the run reports **20** — `it.each` is the difference, so an `it(`-count breakdown
+  would have disagreed with the total and neither figure would have been wrong by arithmetic.
+- **The evidence splits worse than any of the three siblings, and the entry says so first.** BOTH
+  failure branches are unreachable from this suite — a healthy local Supabase cannot be made to
+  fail `/logout`, and `astro:env/server` is inlined at transform time so `createClient() === null`
+  needs the module double §6.9 confines to one file. So the decision is a pure function with an
+  exhaustive truth table, and **one manual run, driven twice**, owns the endpoint's use of it —
+  once with `curl` against the running dev server, once in a real browser clicking the real
+  "Wyloguj" button, agreeing row for row. Nothing bridges either of them and the suite.
+  The manual run's thirteen rows carry a one-variable control (the Supabase port restored,
+  everything else identical) which lands the ordinary success — without it, a message that fires on
+  every sign-out is indistinguishable from one that fires on the right sign-out, the
+  unfalsifiable-rehearsal class this ledger records against C10X-29.
+- **The claim the whole ticket rests on was proved by three independent readings, in the order the
+  plan fixes.** After the failed sign-out, with the port restored and **no re-sign-in**, the same
+  cookie lands `GET /decks` at `200`, the account e-mail renders in that page, and `GET /` bounces
+  to `/decks`. The mechanism was observed on the wire in the same run: the failing sign-out
+  response carried **no `Set-Cookie` at all**, which is `_signOut` returning above the
+  `_removeSession()` that clears it. Ordering is not housekeeping — "still alive" cannot be shown
+  while the port is dead, because nothing can resolve a user then.
+- **A measurement that inverted a written caution, and it is the reusable half.** Research warned
+  that a browser POST to this route might answer **403** on Astro's `checkOrigin` CSRF grounds.
+  Measured as a triple, differing only in headers: same-origin `Origin` plus a form content-type →
+  **302**, the route's own answer; form content-type with **no** `Origin` → **403**; a cross-site
+  `Origin` → **403**. The 403 is real and is **not** the browser's shape. Rows two and three are
+  what make row one mean anything — a lone 302 is equally compatible with `checkOrigin` being off.
+- **The plan said "click Wyloguj" and no page RENDERS that button in the state the run has to
+  reach** — recorded as a finding rather than worked around silently. With GoTrue unreachable
+  `locals.user` is `null`, so `/auth/signin` carries **0** occurrences of `Wyloguj`. The `curl` run
+  therefore issues the POST directly, which is byte-equivalent to the submit: all three triggers
+  are `<form method="POST" action="/api/auth/signout">` carrying **no fields**. **The browser run
+  then performed the literal click anyway**, using the fact the failure class itself supplies: a
+  page rendered while the stack was healthy still holds the button, which is also the realistic
+  user scenario (the app worked, the backend went away, then they clicked). Its strongest single
+  observation is one DOM read carrying both halves at once — the banner saying the sign-out failed,
+  and `sb-127-auth-token` still in `document.cookie` beside it.
+- **The browser run also corrected a false mechanism in this change's OWN Phase 2 record**, in the
+  reassuring direction, which is the class this ledger keeps naming. That note explained its scoped
+  banner oracle by claiming the OpenRouter config entry is `requiresSession: false` and so renders
+  signed-out; it is `requiresSession: **true**` (`config-status.ts:46`), and a signed-out
+  `/auth/signin` carries **zero** alerts. The Phase 2 reading was taken straight after a sign-up,
+  which leaves a session. The scoped oracle stands and the trap is real — it bites on `/decks` and
+  on the unconfigured landing, where the SUPABASE entry appears beside the error because that one
+  genuinely is ungated, by the deliberate design its own doc comment argues for.
+- **One §7 negative-space item was observed for the first time, without changing what §7 says.**
+  "Nothing observes the URL cleanup automatically" is still true of the suite; the island's
+  `history.replaceState` strip was watched directly in the browser run (`?error=dowolny+tekst` in,
+  `/auth/signin` and **no banner** after mount). Manual observation, not coverage.
+- **Phase 4's three breakage criteria were RE-EXECUTED rather than cited**, because that phase
+  shipped with its rows checked and its observed strings recorded nowhere. Same discipline, and the
+  same label, as C10X-46's eight backfilled criteria: the runs prove the guard can go red **today**,
+  not what was seen when Phase 4 landed. Deleting the capture → **1 of 17 red** naming the target
+  describe; a raw-cause first argument → **1 of 17** naming file and line, **with the delegation
+  assertion green** (the C10X-50 B4 pair reproduced one route over); a capture planted in
+  `src/middleware.ts` → **1 of 17** on the catch-all, naming it. Criterion 4.6's own number was
+  superseded by the re-measurement, exactly as the plan told the implementer to expect: the
+  rewritten guard runs **17**, of which **6** are `generate.ts`'s preserved claims, 6 the new
+  sign-out row, 3 detector controls and 2 the catch-all — not the plan's predicted seven.
+- **TWO full-suite runs went red across 14, neither reproduced, and only ONE is characterised.**
+  Recorded as a live harness finding rather than as a one-off — the first draft of this bullet said
+  "one red" and a second red in the same phase falsified it. The characterised one is a deck-name
+  collision in `tests/study/study.test.ts` (`expected "/decks"`, received
+  `/decks?error=Talia o tej nazwie już istnieje&open=create`), i.e. the duplicate-write seam C10X-39
+  records as LOUD-by-`deck_user_name_unique` firing as a red; the other is known only as
+  `1 failed | 39 passed (40)`, because the command that ran it filtered its own output to the
+  summary. Twelve green runs surround them (501/501). The obvious cause is **ruled out by
+  measurement**: Kong's `.kong_env` reads `upstream_keepalive_pool_size = 0`, so the C10X-39 fix
+  **is** applied on this machine. Cause unattributed, and nothing in C10X-51 touches `tests/study/`
+  or the deck endpoints. **The procedural mistake, made twice: the seed lives in the banner that
+  output-filtering removes**, so §6.2's replay (`npx vitest run --sequence.seed=<n>`) was
+  unavailable both times. Treat "2 in 14 on one machine on one day" as noise rather than a
+  baseline, per C10X-39's own warning about single-session rates.
+- **Doc-sync split live declarations from dated snapshots, per site, and the count is enumerated
+  rather than totalled.** Three LIVE code comments pointing at the renamed guard were repointed
+  (`src/worker.ts`, `src/pages/api/generate.ts`, `tests/lib/audit-failure-report.test.ts`) — the
+  first two also carried a `context/changes/…` path for `sentry-delivery.md` that stopped resolving
+  when C10X-50 was archived. **Five** occurrences inside dated entries of this file were
+  deliberately **not** rewritten (the header's now-"Previously" C10X-50 block, §6.6's claims table
+  and suite-count breakdown, §7's note, §8's C10X-50 bullet): the old name was true on their dates
+  and the figures beside it were measured under it. One dated correction in §6.6's new entry, plus
+  one in §7, records the rename once instead. The four sign-out carve-out sites were each resolved
+  **by heading**, not by line number — and every one of them had already gone stale on the number,
+  because this change's own comments move the call site well past `:7`.
+- **A restore that read correct and hashed wrong, recorded because it is the reason this project
+  proves restores instead of remembering them.** Putting `SUPABASE_URL` back with a regex produced
+  a file whose line read exactly right and whose MD5 did not match: .NET's `.` consumes the `\r`,
+  so that one line came back LF in a CRLF file. Redone from a byte copy; final `.env` hash
+  identical to the pristine one, no marker left in it, and a tree-wide grep for the run's two probe
+  markers returns nothing.
+- **The roadmap Status flip in the plan's Phase 5 §4 was NOT performed, by decision** — recorded
+  here so nobody hunts for a missing edit. `lessons.md` reserves the `Status → done` flip and the
+  `## Done` entry for `/10x-archive` ("if a plan instructs the flip, treat it as a defect and defer
+  to archive"), `roadmap.md:79-87` says the same, and Phase 1 had already behaved that way by
+  adding H-19's summary row and detail block without a Done bullet. **H-19 stays `in progress`**
+  and `/10x-archive` closes it with the archive path it will then know.
+- **Still open after this entry, deliberately**: **C10X-52**, the read-side twin — `middleware.ts`
+  reading `getUser()`'s error as "not signed in", so "unconfigured" and "signed out" still look
+  alike on the READ path; it was never a prerequisite once the landing page moved to
+  `/auth/signin`, which removed the dependence rather than the defect. `signin.ts` and `signup.ts`
+  stay outside the `?error=` membership sweep, a written gap with its measured evidence attached
+  (`follow-ups/error-param-guard-auth-routes.md`) rather than an unstated one. **No Sentry DSN has
+  still ever been pointed at a real sink** — this change adds a second capture site and changes
+  nothing about that boundary, whose owner remains
+  `context/archive/2026-08-13-bug-generation-failed-audit-swallowed/follow-ups/sentry-delivery.md`.
+  The route **detects and does not clear**: a failed sign-out leaves the session alive by design
+  (the C10X-49 shape), and the three triggers' inconsistent accessible names ("Wyloguj" ×1, "Sign
+  out" ×2) are untouched. And `customfield_10041` on **C10X-51** is `/jira-finish-work`'s to fill.
 
 Refresh (`/10x-test-plan --refresh`) when:
 

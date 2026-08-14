@@ -848,32 +848,32 @@ No migration, no schema change, nothing pushed to the cloud. The C10X-29 drift g
 
 #### Automated
 
-- [x] 4.1 Type gate passes: `npm run typecheck`
-- [x] 4.2 Full suite green: `npm test`
-- [x] 4.3 Breakage: deleting the `signout.ts` capture turns the guard red by name
-- [x] 4.4 Breakage: a raw-cause first argument reddens only the synthetic-first-argument assertion
-- [x] 4.5 Breakage: a capture planted in an unregistered `src/` file turns the catch-all red
+- [x] 4.1 Type gate passes: `npm run typecheck` — 54cb368
+- [x] 4.2 Full suite green: `npm test` — 54cb368
+- [x] 4.3 Breakage: deleting the `signout.ts` capture turns the guard red by name — 54cb368
+- [x] 4.4 Breakage: a raw-cause first argument reddens only the synthetic-first-argument assertion — 54cb368
+- [x] 4.5 Breakage: a capture planted in an unregistered `src/` file turns the catch-all red — 54cb368
 - [x] 4.6 `generate.ts`'s existing claims all still pass — seven `it()`s, six about `generate.ts`
-      plus the detector control; count re-measured, not carried over
+      plus the detector control; count re-measured, not carried over — 54cb368
 
 #### Manual
 
-- [x] 4.7 The rewritten header states what the guard does not prove (no delivery claim)
+- [x] 4.7 The rewritten header states what the guard does not prove (no delivery claim) — 54cb368
 
 ### Phase 5: Evidence and doc-sync
 
 #### Automated
 
-- [ ] 5.1 Type gate passes: `npm run typecheck`
-- [ ] 5.2 Lint passes: `npm run lint`
-- [ ] 5.3 Build passes: `npm run build`
-- [ ] 5.4 Full suite green: `npm test`
-- [ ] 5.5 `git diff -- src/` empty after every breakage restore, verified by hash
+- [x] 5.1 Type gate passes: `npm run typecheck`
+- [x] 5.2 Lint passes: `npm run lint`
+- [x] 5.3 Build passes: `npm run build`
+- [x] 5.4 Full suite green: `npm test`
+- [x] 5.5 `git diff -- src/` empty after every breakage restore, verified by hash
 
 #### Manual
 
-- [ ] 5.6 The failure branch reached in a running app, banner observed on `/auth/signin`, with its
+- [x] 5.6 The failure branch reached in a running app, banner observed on `/auth/signin`, with its
       one-variable control
-- [ ] 5.7 The session proved still alive after the failed sign-out — port restored first, no re-sign-in
-- [ ] 5.8 Every env change restored and the restore proved
-- [ ] 5.9 All four carve-out sites resolved by heading and classified live-edit vs dated-correction
+- [x] 5.7 The session proved still alive after the failed sign-out — port restored first, no re-sign-in
+- [x] 5.8 Every env change restored and the restore proved
+- [x] 5.9 All four carve-out sites resolved by heading and classified live-edit vs dated-correction
