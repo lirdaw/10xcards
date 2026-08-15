@@ -57,7 +57,9 @@
 > **a deliberately-deferred finding needs a ticket or an entry in a live document**.
 >
 > Suite **527 → 563, 41 → 43 files**, each delta measured by running the file alone (**4** and
-> **32**); the two hardened assertions create no `it()`, also measured. Read §6.6's C10X-47 entry
+> **32**); the two hardened assertions create no `it()`, also measured. **That is the
+> pre-impl-review figure — the branch reads 565/565 at 43 files, because the review's triage added
+> one case per new guard; §8 carries the correction and the six fixes.** Read §6.6's C10X-47 entry
 > before citing any of this — its does-NOT-prove list is longer than its claims table, and its
 > first item is that `db:clean` is developer-invoked and nothing watches a counter: 7 → 172 decks
 > inside one hour of this change's own verification. Evidence:
@@ -4184,6 +4186,11 @@ string>)` answers **`414 URI too long`** — PostgREST carries filters in the qu
   **44** both before and after the edit. `npm run typecheck` **160 → 163 files**, the three new
   `.ts` files entering the gate silently through `tsconfig.json`'s `include: ["**/*"]`.
 
+  > **Corrected 2026-08-15 by this change's own impl-review: the suite is `565/565`, still 43
+  > files** — its triage added two cases to `tests/lib/db-cleanup.test.ts` (32 → 34), one per new
+  > guard. The figures above were true when they were measured and are not rewritten; §8 carries
+  > the correction and what the six fixes were.
+
   **The repayment, in one line.** `delete from auth.users where email like 'harness-%'` —
   `DELETE 1559`, **78,795 rows** removed by the cascade, `deck` 22,026 → **8**. Local-only by
   construction: the script reaches Postgres solely through `docker exec` on a container name
@@ -6653,6 +6660,25 @@ generated_count 3 | keyed | 0 cards`. The response is Phase 2's distinct copy ca
   also measured rather than assumed: `study.test.ts` + `candidates.test.ts` report **44** both
   before the edit and after it. `527 + 4 + 32 = 563` closes as a check on the measurements, never
   as their source.
+
+  > **The `563` is the PRE-IMPL-REVIEW figure and the branch reads `565/565, 43 files`; corrected
+  > 2026-08-15 by running the suite, not by arithmetic.** This entry was written before
+  > `/10x-impl-review`, whose triage then applied all six findings and added **two** cases to
+  > `tests/lib/db-cleanup.test.ts` (**32 → 34**) — one per new guard, because a review that closes
+  > "a prose rule nothing enforces is not a rule" by adding another unenforced rule would be the
+  > finding wearing the costume of a fix. **This is the fourth time this ledger has caught itself
+  > on exactly this shape** — C10X-40, C10X-46 and C10X-48 each recorded a §8 entry written at the
+  > figure its own impl-review then moved — so it is corrected rather than rewritten, and file
+  > count, typecheck (**163**), lint (**0 errors, 3 warnings**) and `npm run e2e` (**12 passed**)
+  > are all unmoved. The six fixes: a validator on the two SQL builders' `pattern` argument and a
+  > backslash refusal in the JS `LIKE` mirror (both proved falsifiable by a neuter reddening
+  > exactly their own case, restored and `md5sum`-verified); an enumerated ORACLE-1 message and a
+  > `timeout` on `execFileSync` in the runner; `disable-kong-keepalive.ts` importing the tested
+  > `readProjectId` instead of its own byte-identical copy; and the construction argument for both
+  > hardened assertions' reference sets, which the comments had defended by shuffle measurement
+  > where the code guarantees a floor of 1. Full record:
+  > `context/changes/dev-db-test-data-debt/reviews/impl-review.md`.
+
 - **The perishable half was taken first, deliberately, and it is the entry's centre.** §6.6 had
   recorded since 2026-07-26 that the four-policy neuter passes while the guard is disabled, and
   every artifact since carried that as an **inference** — this change's own research states the
