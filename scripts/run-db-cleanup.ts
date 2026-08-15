@@ -98,7 +98,12 @@ function psql(container: string, sql: string): string {
       "-c",
       sql,
     ],
-    { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 },
+    // `timeout` added by impl-review F4 (2026-08-15). The sibling scripts carry none, and for them
+    // that is fine — a wedged Docker daemon there is merely a hang. Here one of the three calls
+    // runs AFTER the irreversible delete, so a hang at that point leaves the operator staring at
+    // `db:clean: deleting harness accounts…` with no way to tell whether it landed. A named
+    // failure the `catch` block below can explain is strictly better than an ambiguous one.
+    { encoding: "utf8", maxBuffer: 32 * 1024 * 1024, timeout: 120_000 },
   ).trim();
 }
 
@@ -161,9 +166,22 @@ function main(): number {
 
   // ORACLE 1 — the delete landed. A `delete` that matched nothing exits 0 and prints `DELETE 0`,
   // so the statement's own success says nothing about whether the pattern reached anything.
+  //
+  // The message ENUMERATES rather than asserts, for the reason the `catch` block below states and
+  // this branch originally ignored (impl-review F3): the census, the delete and the re-census are
+  // three separate `docker exec` invocations with no snapshot between them, so the likeliest cause
+  // of a remnant is not a failed delete at all — it is a `vitest` run in another terminal minting
+  // fresh harness accounts between them. Asserting "the delete did not do what it reported" there
+  // is a wrapper being right about the exit code and wrong about the diagnosis, which is exactly
+  // the class this project has already paid for once (C10X-43's `readTscFailure`).
   const remnants = harnessRemnants(after);
   if (remnants.length > 0) {
-    console.error(`db:clean: harness rows SURVIVE in ${remnants.join(", ")} — the delete did not do what it reported.`);
+    console.error(`db:clean: harness rows SURVIVE in ${remnants.join(", ")}. Nothing further was deleted.`);
+    console.error("  Likely causes, in the order worth checking:");
+    console.error("    - a `vitest` run in flight — each invocation mints ~2 harness accounts and");
+    console.error("      ~68 decks, and one landing after the delete looks exactly like this");
+    console.error("    - the delete genuinely did not do what it reported — re-run to distinguish:");
+    console.error("      a concurrent run leaves a SMALL remnant that a second pass clears");
     return 1;
   }
 
