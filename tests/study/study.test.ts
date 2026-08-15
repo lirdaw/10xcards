@@ -61,6 +61,30 @@ const SOURCE_MANUAL = 1;
 // reached for new Date() would miss every oracle assertion below by months.
 const FIXED_NOW = new Date("2026-06-01T12:00:00.000Z");
 
+/**
+ * Every deck this file has created for account A — the reference set the cross-account
+ * denial in "listDueCounts backs the deck picker" bounds B's result against (C10X-47).
+ *
+ * TEST-LOCAL BY CONSTRUCTION, and that is the entire point rather than a convenience: these
+ * public_ids are values this file already holds, so no RLS policy the deliberate-breakage
+ * procedure disables can feed the oracle. Both alternatives were considered and both fail,
+ * in opposite directions. Asserting `foreign.data` is EMPTY is order-dependent — B owns
+ * 0-4 decks created in other files while `sequence.shuffle` is permanently on, and
+ * `study_due_counts` LEFT JOINs, so every deck B can see is a key even at 0 (`:397` pins
+ * exactly that). Reading the reference set through `listDecks(b)` is worse: src/lib/decks.ts
+ * carries no `user_id` predicate — RLS is the only lock (§6.4) — so under
+ * `deck_select using (true)` B's reference set becomes the whole database, every key is then
+ * "owned", and the assertion passes under a FULL neuter. That is this ticket's own defect,
+ * inverted and made permanent.
+ *
+ * Append-only, and read only inside an `it()`, so a sibling can strengthen this set but
+ * never move a value out from under it (§6.2's "assert what you re-read inside the `it()`").
+ * Under shuffle the case may run early and see few decks or late and see many; every deck in
+ * it belongs to A in every order, so the claim holds regardless — order changes only how
+ * much falsifiability it buys, never whether it is true.
+ */
+const aDeckPublicIds: string[] = [];
+
 function deckForm(name: string): FormData {
   const body = new FormData();
   body.set("name", name);
@@ -84,6 +108,7 @@ async function createDeck(as: typeof a, name: string): Promise<string> {
   expect(error).toBeNull();
   const created = data?.find((deck) => deck.name === name);
   if (!created) throw new Error(`Setup failed: deck "${name}" was never written.`);
+  if (as === a) aDeckPublicIds.push(created.public_id);
   return created.public_id;
 }
 
@@ -405,6 +430,40 @@ describe("listDueCounts backs the deck picker", () => {
     expect(foreign.error).toBeNull();
     // Absence, not a raised denial — the same shape as a deck that does not exist.
     expect(foreign.data?.[deckPublicId]).toBeUndefined();
+
+    // …and B's result is BOUNDED to B's own decks, not merely missing this one. The line
+    // above passes when A's deck merely fell OUTSIDE PostgREST's `max_rows = 1000` window,
+    // which is not a hypothesis: measured 2026-08-14 at 21,345 decks with all four guarding
+    // policies set `using (true)`, `study_due_counts` handed B **21,378** rows — the entire
+    // database — truncated to 1,000, and this deck was not among them. The line above was
+    // GREEN in that run while the guard was fully disabled; only the positive control below
+    // reddened. That is the false pass test-plan §6.6 recorded on 2026-07-26 and could only
+    // infer thereafter, and this assertion is what removes it.
+    //
+    // `study_due_counts` neither orders nor bounds (`group by`, no ORDER BY, no LIMIT), so
+    // the window is hash-aggregate order and a freshly created deck lands inside it about
+    // 2 times in 10 — which is why the single-deck absence decays with the row count while
+    // this one does not: it asks about every deck this file has given A SO FAR, so a neuter
+    // that leaks any of them reddens here. "So far" is not a hedge: `sequence.shuffle` decides
+    // when this case runs, and the reference set was measured across four permutations at
+    // **3, 4, 16 and 17** of the file's 20 A-decks — i.e. how much falsifiability it buys is
+    // per-run, while what it CLAIMS is true in every order.
+    //
+    // THE SET IS NEVER EMPTY BY CONSTRUCTION, not by that measurement, and the distinction is
+    // what a future reader needs (impl-review F6): this case's OWN `createDeck(a, …)` runs
+    // above, and `createDeck` pushes whenever `as === a`, so the floor is 1 in every
+    // permutation and this assertion strictly SUBSUMES the single-deck absence above it. The
+    // 3-17 range is the bonus, never the guarantee. Move the deck creation into a shared
+    // `beforeAll` and the guarantee goes with it while the measured range still reads as
+    // reassuring — which is the failure mode this note exists to make visible.
+    //
+    // Falsifiable deterministically, proved rather than argued: pushing a deck B genuinely
+    // owns into the set reddens this line naming that deck, before the control below
+    // (C10X-47 verification.md §3.6). Under a neuter it is probabilistic on a fat database
+    // and deterministic on the repaid one `npm run db:clean` maintains — a property of the
+    // database, not of this file (§6.6's C10X-47 entry).
+    const leakedToB = aDeckPublicIds.filter((publicId) => foreign.data?.[publicId] !== undefined);
+    expect(leakedToB).toEqual([]);
 
     // Positive control: a wholesale-broken policy would also read as "B sees nothing".
     const owner = await listDueCounts(clientFor(a.cookieHeader), new Date());
