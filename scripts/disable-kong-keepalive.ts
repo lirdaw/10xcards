@@ -36,6 +36,7 @@
 
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { readProjectId as readConfigProjectId } from "./db-cleanup.ts";
 import {
   KONG_KEEPALIVE_ENV,
   KONG_KEEPALIVE_STOCK,
@@ -61,17 +62,22 @@ const HEALTH_TIMEOUT_MS = 60_000;
 const HEALTH_POLL_MS = 1_000;
 
 /**
- * `project_id` out of supabase/config.toml, by regex.
+ * `project_id` out of supabase/config.toml.
  *
- * No TOML parser, deliberately: the zero-runtime-dependency property above is what keeps this
- * script invokable by bare `node --experimental-strip-types`, and one quoted scalar at the top
- * of a file does not justify giving that up.
+ * The extraction itself now lives in ./db-cleanup.ts and is IMPORTED rather than restated
+ * (impl-review F5, 2026-08-15). It was written here first and then copied there byte-identically,
+ * which is the two-spellings-of-one-rule drift both files argue against in their own docblocks.
+ * The other copy is the better one to keep: it is pure, takes the text as an argument, and is
+ * covered by `tests/lib/db-cleanup.test.ts` against real `config.toml` text INCLUDING the
+ * commented-out second `project_id` under `[auth.third_party.firebase]` — a decoy a last-wins or
+ * `matchAll` read resolves to a container that does not exist. This copy had none of that.
+ *
+ * No TOML parser, still and deliberately: the zero-runtime-dependency property above is what
+ * keeps this script invokable by bare `node --experimental-strip-types`, and the imported half
+ * preserves it (`node:fs` only, no dependency of its own).
  */
 function readProjectId(): string {
-  const toml = readFileSync(CONFIG_TOML, "utf8");
-  const projectId = /^\s*project_id\s*=\s*"([^"]+)"/m.exec(toml)?.[1];
-  if (projectId === undefined) throw new Error(`no \`project_id\` found in ${CONFIG_TOML.pathname}`);
-  return projectId;
+  return readConfigProjectId(readFileSync(CONFIG_TOML, "utf8"));
 }
 
 /** `docker …`, with stderr surfaced on failure rather than swallowed. */
