@@ -446,9 +446,16 @@ describe("listDueCounts backs the deck picker", () => {
     // this one does not: it asks about every deck this file has given A SO FAR, so a neuter
     // that leaks any of them reddens here. "So far" is not a hedge: `sequence.shuffle` decides
     // when this case runs, and the reference set was measured across four permutations at
-    // **3, 4, 16 and 17** of the file's 20 A-decks. So the set is never empty — the failure
-    // mode where this assertion would be vacuous forever — and how much falsifiability it
-    // buys is per-run, while what it CLAIMS is true in every order.
+    // **3, 4, 16 and 17** of the file's 20 A-decks — i.e. how much falsifiability it buys is
+    // per-run, while what it CLAIMS is true in every order.
+    //
+    // THE SET IS NEVER EMPTY BY CONSTRUCTION, not by that measurement, and the distinction is
+    // what a future reader needs (impl-review F6): this case's OWN `createDeck(a, …)` runs
+    // above, and `createDeck` pushes whenever `as === a`, so the floor is 1 in every
+    // permutation and this assertion strictly SUBSUMES the single-deck absence above it. The
+    // 3-17 range is the bonus, never the guarantee. Move the deck creation into a shared
+    // `beforeAll` and the guarantee goes with it while the measured range still reads as
+    // reassuring — which is the failure mode this note exists to make visible.
     //
     // Falsifiable deterministically, proved rather than argued: pushing a deck B genuinely
     // owns into the set reddens this line naming that deck, before the control below

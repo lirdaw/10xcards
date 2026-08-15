@@ -656,6 +656,16 @@ describe("countCandidatesByDeck backs the deck-list review chip", () => {
     // reddens this line naming that deck (C10X-47 verification.md §3.6). The set was measured
     // non-empty in every permutation tried (2, 2, 10, 12 decks), which is the failure mode
     // this kind of assertion dies of — a reference set that is silently always empty.
+    //
+    // But the durable argument is CONSTRUCTION, not that measurement (impl-review F6): this
+    // case seeds `withCandidates` with its own generated candidates above, and `seedCard`
+    // registers whenever `as === a && stateId === STATE_GENERATED`, so at least one
+    // genuinely-eligible member is present in every permutation and this assertion strictly
+    // SUBSUMES the single-deck absence above it. The 2-12 range is how much extra
+    // falsifiability shuffle happens to buy. One nuance in the safe direction: the set holds
+    // decks A was EVER given a candidate in, not decks that still carry one, so a deck whose
+    // candidates were later transitioned away stays in and simply cannot leak — that dilutes
+    // falsifiability slightly and cannot produce a false red.
     const leakedToB = aCandidateDeckPublicIds.filter((publicId) => foreign.data?.[publicId] !== undefined);
     expect(leakedToB).toEqual([]);
 
