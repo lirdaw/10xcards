@@ -1,10 +1,10 @@
 ---
 change_id: dev-db-test-data-debt
 title: Pay down the local dev-DB test-data debt and attribute the decks.test.ts flake
-status: impl_reviewed
+status: archived
 created: 2026-08-14
 updated: 2026-08-15
-archived_at: null
+archived_at: 2026-08-15T15:49:29Z
 ---
 
 ## Notes
