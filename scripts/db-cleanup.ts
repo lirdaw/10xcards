@@ -45,10 +45,13 @@
  * `harness-${label}-${runId}@example.com` (tests/fixtures/accounts.ts), so the anchor is exact.
  *
  * The value is a module constant interpolated into SQL by {@link censusStatement} and
- * {@link deleteStatement}. That is safe because it is a literal in this file and never reaches
- * either function from a caller's input — the parameterisation exists so a TEST can prove the
- * statements are built from their argument rather than from hardcoded text, not so a runtime
- * caller can supply one.
+ * {@link deleteStatement}. The parameterisation exists so a TEST can prove the statements are
+ * built from their argument rather than from hardcoded text, not so a runtime caller can supply
+ * one — and as of impl-review F1 (2026-08-15) that is ENFORCED by {@link assertPatternIsSafe}
+ * rather than asserted here. The paragraph this replaces defended the interpolation on the
+ * grounds that no caller supplies an argument, which is true of today's callers and is exactly
+ * the shape `tests/lib/no-env-access.test.ts` opens by rejecting: a prose rule nothing enforces
+ * is not a rule. The parameter is exported and already exercised with a caller-supplied value.
  */
 export const HARNESS_EMAIL_PATTERN = "harness-%";
 
@@ -67,11 +70,26 @@ export const HARNESS_EMAIL_PATTERN = "harness-%";
  * at once). One value, two consumers.
  *
  * SCOPE, stated because a translator invites over-reading: `%` (any run, including empty) and
- * `_` (any single character) only. No `ESCAPE` clause, and case-SENSITIVE, which is Postgres's
- * `LIKE` (`ILIKE` is the case-insensitive one). Both properties match the one pattern this module
- * ships; a pattern needing more would need this function revisited, not merely reused.
+ * `_` (any single character) only, and case-SENSITIVE, which is Postgres's `LIKE` (`ILIKE` is the
+ * case-insensitive one). Both properties match the one pattern this module ships; a pattern
+ * needing more would need this function revisited, not merely reused.
+ *
+ * **Backslash is NOT modelled, and it is refused rather than mistranslated** (impl-review F2,
+ * 2026-08-15). An earlier draft of this paragraph said "No `ESCAPE` clause" as though that made
+ * backslash inert; it is the opposite. Postgres `LIKE` has a **default escape character of
+ * backslash** — `LIKE 'a\%'` matches a literal `a%` with no `ESCAPE` clause anywhere — while this
+ * translator escapes `\` as a regex literal and then translates `%` unconditionally, so the two
+ * would disagree about which rows match. No live defect: {@link HARNESS_EMAIL_PATTERN} carries no
+ * backslash. It is refused anyway because this function is the ONLY assertable proxy for the
+ * delete's predicate: the whole-set positive control is evidence about the delete only while the
+ * mirror is faithful, and a pattern change is exactly when someone would lean on it hardest.
  */
 export function matchesLikePattern(pattern: string, value: string): boolean {
+  if (pattern.includes("\\")) {
+    throw new Error(
+      "matchesLikePattern: backslash is LIKE's default escape character and this mirror does not model it",
+    );
+  }
   // Escape every regex metacharacter first. `%` and `_` are deliberately absent from the class,
   // so they survive to be translated below — the order is load-bearing.
   const body = pattern
@@ -80,6 +98,30 @@ export function matchesLikePattern(pattern: string, value: string): boolean {
     .replace(/_/g, ".");
   // `s` so `.` spans a newline, matching `LIKE`'s treatment of an embedded newline.
   return new RegExp(`^${body}$`, "s").test(value);
+}
+
+/**
+ * Characters a LIKE pattern may carry before it is interpolated into SQL. Deliberately narrow:
+ * everything an e-mail-shaped pattern needs, plus LIKE's two wildcards, and nothing that can end
+ * a string literal or start a second statement.
+ */
+const SAFE_PATTERN = /^[A-Za-z0-9%_@.-]+$/;
+
+/**
+ * Refuse a pattern that must not reach a SQL string literal (impl-review F1, 2026-08-15).
+ *
+ * {@link censusStatement} and {@link deleteStatement} interpolate their argument with no escaping,
+ * and `psql -c` executes multiple statements, so `deleteStatement("'; delete from public.deck; --")`
+ * would build a valid statement-splitting payload against `auth.users`. No runtime caller passes an
+ * argument today — both call sites in ./run-db-cleanup.ts call bare — so this closes a LATENT hole
+ * rather than a live one. It is closed anyway because the parameter is exported, is already
+ * exercised with a caller-supplied value by the tests, and sits on the one irreversible path in
+ * this tooling; a comment saying "no caller does this" is not a mechanism that stops one.
+ */
+function assertPatternIsSafe(pattern: string): void {
+  if (!SAFE_PATTERN.test(pattern)) {
+    throw new Error(`unsafe LIKE pattern for SQL interpolation: ${JSON.stringify(pattern)}`);
+  }
 }
 
 /** Is this a per-run harness account, i.e. a row the cleanup deletes? */
@@ -165,6 +207,8 @@ export type Census = Record<CensusTable, TableCensus>;
  * header, no alignment padding and no row count.
  */
 export function censusStatement(pattern: string = HARNESS_EMAIL_PATTERN): string {
+  assertPatternIsSafe(pattern);
+
   const split = (alias: string) =>
     `count(*) filter (where ${alias}.email like '${pattern}'), ` +
     `count(*) filter (where ${alias}.email is null or ${alias}.email not like '${pattern}')`;
@@ -197,6 +241,7 @@ export function censusStatement(pattern: string = HARNESS_EMAIL_PATTERN): string
  * deleted separately, as a recorded act (plan Phase 4 §2).
  */
 export function deleteStatement(pattern: string = HARNESS_EMAIL_PATTERN): string {
+  assertPatternIsSafe(pattern);
   return `delete from auth.users where email like '${pattern}';`;
 }
 

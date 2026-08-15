@@ -132,6 +132,17 @@ describe("matchesLikePattern", () => {
     expect(matchesLikePattern("harness-%", "Harness-a@example.com")).toBe(false);
   });
 
+  // impl-review F2. Backslash is LIKE's DEFAULT escape character — `LIKE 'a\%'` matches a literal
+  // `a%` in Postgres with no `ESCAPE` clause anywhere — and this translator does not model that.
+  // Refusing is what keeps the mirror's verdict admissible as evidence about the delete: a silent
+  // mistranslation would leave the whole-set positive control green while it described a predicate
+  // the database does not use.
+  it("refuses a pattern carrying a backslash rather than mistranslating it", () => {
+    expect(() => matchesLikePattern("a\\%", "a%")).toThrow(/backslash/i);
+    // …and the pattern this module actually ships is unaffected.
+    expect(() => matchesLikePattern(HARNESS_EMAIL_PATTERN, "harness-a@example.com")).not.toThrow();
+  });
+
   // A regex metacharacter inside the pattern is data, not syntax. `.` is the one that would bite:
   // untranslated it matches any character, so `a.c` would match `abc`.
   it("treats regex metacharacters in the pattern as literals", () => {
@@ -211,6 +222,27 @@ describe("censusStatement / deleteStatement", () => {
   it("defaults to the shipped harness pattern", () => {
     expect(deleteStatement()).toContain(HARNESS_EMAIL_PATTERN);
     expect(censusStatement()).toContain(HARNESS_EMAIL_PATTERN);
+  });
+
+  // impl-review F1. Both builders interpolate their argument into a SQL string literal with no
+  // escaping, and `psql -c` runs multiple statements — so a pattern carrying a quote is a
+  // statement-splitting payload aimed at `auth.users`, on the one irreversible path in this
+  // tooling. No runtime caller passes an argument today; the parameter is exported and the case
+  // above already drives it with a caller-supplied value, which is precisely why "no caller does
+  // this" is a comment rather than a mechanism.
+  //
+  // Both directions, as everywhere in this file: the refusal is worthless without the proof that
+  // the legitimate fabricated pattern still gets through, and a validator rejecting everything
+  // would satisfy the first half alone.
+  it("refuses a pattern that could break out of the SQL string literal", () => {
+    for (const hostile of ["'; delete from public.deck; --", "harness-%'", "a b", "harness-%;"]) {
+      expect(() => deleteStatement(hostile)).toThrow(/unsafe LIKE pattern/);
+      expect(() => censusStatement(hostile)).toThrow(/unsafe LIKE pattern/);
+    }
+
+    expect(() => deleteStatement("fabricated-prefix-%")).not.toThrow();
+    expect(() => censusStatement("fabricated-prefix-%")).not.toThrow();
+    expect(() => deleteStatement()).not.toThrow();
   });
 
   // The delete's scope is `auth.users` and nothing else — every other row goes by cascade. A
