@@ -1045,16 +1045,16 @@ bezużyteczna, ale nieszkodliwa i nie wchodzi na żadną istniejącą ścieżkę
 
 #### Automated
 
-- [ ] 1.1 `npm run typecheck` przechodzi
-- [ ] 1.2 `npm run lint` przechodzi
-- [ ] 1.3 Uruchomienie na fiksturze zwraca JSON na stdout i kod 0
-- [ ] 1.4 Bramka klucza pada kodem 1 przed jakimkolwiek wywołaniem sieciowym
+- [x] 1.1 `npm run typecheck` przechodzi
+- [x] 1.2 `npm run lint` przechodzi
+- [x] 1.3 Uruchomienie na fiksturze zwraca JSON na stdout i kod 0
+- [x] 1.4 Bramka klucza pada kodem 1 przed jakimkolwiek wywołaniem sieciowym
 
 #### Manual
 
-- [ ] 1.5 Kontrolka negatywna routingu daje komunikat o łączności, nie o structured output
-- [ ] 1.6 Linia metryk zawiera rozstrzygnięty identyfikator modelu
-- [ ] 1.7 Zapisany JSON parsuje się bez czyszczenia
+- [x] 1.5 Kontrolka negatywna routingu daje komunikat o łączności, nie o structured output
+- [x] 1.6 Linia metryk zawiera rozstrzygnięty identyfikator modelu
+- [x] 1.7 Zapisany JSON parsuje się bez czyszczenia
 
 ### Phase 2: Kontrakt oceny — dziewięć kryteriów, destylat, `criteria.json`
 
