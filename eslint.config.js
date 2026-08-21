@@ -125,7 +125,9 @@ const playwrightConfig = defineConfig({
 
 export default defineConfig(
   includeIgnoreFile(gitignorePath),
-  { ignores: ["src/db/database.types.ts"] },
+  // agents/** to niezależne paczki narzędziowe z własnym package.json,
+  // poza tsconfig aplikacji — nie podlegają lintowi webappa (M5L2).
+  { ignores: ["src/db/database.types.ts", "agents/**"] },
   baseConfig,
   reactConfig,
   eslintPluginAstro.configs["flat/recommended"],

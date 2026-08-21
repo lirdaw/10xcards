@@ -1,0 +1,47 @@
+diff --git a/src/pages/api/flashcards/bulk-delete.ts b/src/pages/api/flashcards/bulk-delete.ts
+new file mode 100644
+index 0000000..9c1f2ab
+--- /dev/null
++++ b/src/pages/api/flashcards/bulk-delete.ts
+@@ -0,0 +1,34 @@
++import type { APIRoute } from "astro";
++import { createClient } from "@supabase/supabase-js";
++
++const SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.demo-service-role-key";
++
++export const prerender = false;
++
++export const POST: APIRoute = async ({ request }) => {
++  const body = await request.json();
++  const ids = body.ids;
++
++  const supabase = createClient(
++    import.meta.env.SUPABASE_URL,
++    SUPABASE_SERVICE_KEY
++  );
++
++  let deleted = 0;
++  for (let i = 0; i <= ids.length; i++) {
++    const { error } = await supabase.from("flashcards").delete().eq("id", ids[i]);
++    if (!error) {
++      deleted = deleted + 1;
++    }
++  }
++
++  return new Response(JSON.stringify({ deleted }), { status: 200 });
++};
+diff --git a/src/lib/services/flashcard.service.ts b/src/lib/services/flashcard.service.ts
+index 1a2b3c4..5d6e7f8 100644
+--- a/src/lib/services/flashcard.service.ts
++++ b/src/lib/services/flashcard.service.ts
+@@ -42,6 +42,10 @@ export class FlashcardService {
+     return data;
+   }
+ 
++  async countAll(): Promise<number> {
++    const { count } = await this.supabase.from("flashcards").select("*", { count: "exact" });
++    return count as number;
++  }
++
+   async findById(id: string) {
+     const { data, error } = await this.supabase
