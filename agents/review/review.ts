@@ -1,5 +1,6 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { REVIEW_SCHEMA, REVIEW_JSON_SCHEMA, SYSTEM_PROMPT, type Review } from "./review-schema.ts";
+import { REVIEW_SCHEMA, REVIEW_JSON_SCHEMA, type Review } from "./review-schema.ts";
+import { SYSTEM_PROMPT } from "./prompt.ts";
 
 /**
  * Model PRZYPIĘTY jawnie, a nie wzięty z aliasu.

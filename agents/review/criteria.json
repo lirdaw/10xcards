@@ -1,0 +1,56 @@
+[
+  {
+    "key": "implementationCorrectness",
+    "noteKey": "implementationCorrectnessNote",
+    "label": "Poprawność implementacji",
+    "conditional": false
+  },
+  {
+    "key": "idiomaticity",
+    "noteKey": "idiomaticityNote",
+    "label": "Idiomatyczność",
+    "conditional": false
+  },
+  {
+    "key": "complexity",
+    "noteKey": "complexityNote",
+    "label": "Złożoność",
+    "conditional": false
+  },
+  {
+    "key": "testRiskCoverage",
+    "noteKey": "testRiskCoverageNote",
+    "label": "Pokrycie testami względem ryzyka",
+    "conditional": false
+  },
+  {
+    "key": "documentationRationale",
+    "noteKey": "documentationRationaleNote",
+    "label": "Dokumentacja i uzasadnienie",
+    "conditional": false
+  },
+  {
+    "key": "securitySafety",
+    "noteKey": "securitySafetyNote",
+    "label": "Bezpieczeństwo",
+    "conditional": false
+  },
+  {
+    "key": "swallowedError",
+    "noteKey": "swallowedErrorNote",
+    "label": "Połknięty błąd",
+    "conditional": true
+  },
+  {
+    "key": "gateIntegrity",
+    "noteKey": "gateIntegrityNote",
+    "label": "Integralność bramki",
+    "conditional": true
+  },
+  {
+    "key": "scopeDiscipline",
+    "noteKey": "scopeDisciplineNote",
+    "label": "Dyscyplina zakresu",
+    "conditional": false
+  }
+]

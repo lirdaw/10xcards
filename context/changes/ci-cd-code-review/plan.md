@@ -1045,31 +1045,31 @@ bezużyteczna, ale nieszkodliwa i nie wchodzi na żadną istniejącą ścieżkę
 
 #### Automated
 
-- [x] 1.1 `npm run typecheck` przechodzi
-- [x] 1.2 `npm run lint` przechodzi
-- [x] 1.3 Uruchomienie na fiksturze zwraca JSON na stdout i kod 0
-- [x] 1.4 Bramka klucza pada kodem 1 przed jakimkolwiek wywołaniem sieciowym
+- [x] 1.1 `npm run typecheck` przechodzi — dde452a
+- [x] 1.2 `npm run lint` przechodzi — dde452a
+- [x] 1.3 Uruchomienie na fiksturze zwraca JSON na stdout i kod 0 — dde452a
+- [x] 1.4 Bramka klucza pada kodem 1 przed jakimkolwiek wywołaniem sieciowym — dde452a
 
 #### Manual
 
-- [x] 1.5 Kontrolka negatywna routingu daje komunikat o łączności, nie o structured output
-- [x] 1.6 Linia metryk zawiera rozstrzygnięty identyfikator modelu
-- [x] 1.7 Zapisany JSON parsuje się bez czyszczenia
+- [x] 1.5 Kontrolka negatywna routingu daje komunikat o łączności, nie o structured output — dde452a
+- [x] 1.6 Linia metryk zawiera rozstrzygnięty identyfikator modelu — dde452a
+- [x] 1.7 Zapisany JSON parsuje się bez czyszczenia — dde452a
 
 ### Phase 2: Kontrakt oceny — dziewięć kryteriów, destylat, `criteria.json`
 
 #### Automated
 
-- [ ] 2.1 Generator `criteria.json` jest idempotentny (`git diff --exit-code`)
-- [ ] 2.2 `prettier --check` przechodzi na `criteria.json`
-- [ ] 2.3 `npm run typecheck` i `npm run lint` przechodzą
+- [x] 2.1 Generator `criteria.json` jest idempotentny (`git diff --exit-code`)
+- [x] 2.2 `prettier --check` przechodzi na `criteria.json`
+- [x] 2.3 `npm run typecheck` i `npm run lint` przechodzą
 
 #### Manual
 
-- [ ] 2.4 Fikstura daje komplet dziewięciu ocen z niskimi 6 i 7
-- [ ] 2.5 Diff bez ścieżek zapisu daje `null` w kryterium 7
-- [ ] 2.6 Uzasadnienia wskazują plik albo brakujący dowód, nie parafrazują opisu
-- [ ] 2.7 Liczba tokenów wejścia zapisana jako punkt odniesienia
+- [x] 2.4 Fikstura daje komplet dziewięciu ocen z niskimi 6 i 7
+- [x] 2.5 Diff bez ścieżek zapisu daje `null` w kryterium 7
+- [x] 2.6 Uzasadnienia wskazują plik albo brakujący dowód, nie parafrazują opisu
+- [x] 2.7 Liczba tokenów wejścia zapisana jako punkt odniesienia
 
 ### Phase 3: Werdykt i komentarz — czysta funkcja w `scripts/` plus testy
 
