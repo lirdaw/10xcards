@@ -1,3 +1,4 @@
+import { appendFileSync } from "node:fs";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { REVIEW_SCHEMA, REVIEW_JSON_SCHEMA, type Review } from "./review-schema.ts";
 import { SYSTEM_PROMPT } from "./prompt.ts";
@@ -16,6 +17,38 @@ import { SYSTEM_PROMPT } from "./prompt.ts";
  * temu szwowi możliwość cichej zmiany zachowania.
  */
 const REVIEW_MODEL = process.env.REVIEW_MODEL?.trim() || "anthropic/claude-sonnet-4.6";
+
+/**
+ * Rozstrzygnięty model wraca do harnessu przez `$GITHUB_OUTPUT` — i to jest jedyna droga,
+ * jaką wolno mu wrócić.
+ *
+ * Komentarz PR-a niesie identyfikator modelu, który realnie wyprodukował werdykt, a JSON wyniku
+ * wypełnia LLM: model NIE MA PRAWA raportować własnej tożsamości, bo mógłby ją zmyślić i nikt
+ * by tego nie sprawdził. To druga strona lekcji „wartość kontraktowa nigdy nie trafia do promptu
+ * LLM" (`lessons.md:215-221`) — nie wraca też Z niego. Wartość zna ten proces, bo sam ją przed
+ * chwilą rozstrzygnął, więc sam ją zapisuje.
+ *
+ * Mechanizm: `GITHUB_OUTPUT` wskazuje plik, który runner czyta PO zakończeniu kroku i przypisuje
+ * KROKOWI, który ten proces uruchomił — dziedziczenie zmiennej przez proces potomny wystarczy.
+ * Composite action wystawia tę wartość dalej jednym wpisem w `outputs:`. Alternatywy odpadły
+ * z powodów, które warto tu zostawić: duplikat domyślnego id w `action.yml` to druga kopia
+ * wartości kontraktowej (dokładnie to, czego ten projekt unika przy `criteria.json`), a `sed`
+ * po linii metryk to bramka na TREŚCI LOGU — klasa z `lessons.md:194-199`.
+ *
+ * Zapis idzie PRZED wywołaniem modelu, żeby ścieżka awarii (celowo nieistniejące id modelu
+ * z fazy 6) też niosła rozstrzygniętą wartość. Poza CI zmiennej nie ma i cały blok jest no-op.
+ */
+const githubOutput = process.env.GITHUB_OUTPUT;
+if (githubOutput) {
+  // Wartość pochodzi z inputu `workflow_dispatch`, czyli z tekstu wpisanego przez człowieka.
+  // Znak nowej linii w niej to nie literówka, tylko wstrzyknięcie DOWOLNEGO outputu do kroku —
+  // stąd odmowa, a nie ucieczka znaku ani ciche obcięcie.
+  if (/[\r\n]/.test(REVIEW_MODEL)) {
+    console.error(`Identyfikator modelu nie może zawierać znaku nowej linii: ${JSON.stringify(REVIEW_MODEL)}`);
+    process.exit(1);
+  }
+  appendFileSync(githubOutput, `model=${REVIEW_MODEL}\n`, "utf8");
+}
 
 /**
  * Bramka klucza PRZED czytaniem stdin i przed pierwszym wywołaniem sieciowym — umiejscowienie

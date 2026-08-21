@@ -1075,27 +1075,27 @@ bezużyteczna, ale nieszkodliwa i nie wchodzi na żadną istniejącą ścieżkę
 
 #### Automated
 
-- [x] 3.1 `npm test` przechodzi
-- [x] 3.2 `npm run typecheck` i `npm run lint` przechodzą
-- [x] 3.3 CLI zapisuje plik komentarza i wypisuje linię `verdict=…`
+- [x] 3.1 `npm test` przechodzi — da857db
+- [x] 3.2 `npm run typecheck` i `npm run lint` przechodzą — da857db
+- [x] 3.3 CLI zapisuje plik komentarza i wypisuje linię `verdict=…` — da857db
 
 #### Manual
 
-- [x] 3.4 Podmiana progu na 8 zmienia werdykt na fiksturze granicznej
-- [x] 3.5 Komentarz mówi w pierwszych trzech linijkach, czy jest `fail` i przez które kryterium
+- [x] 3.4 Podmiana progu na 8 zmienia werdykt na fiksturze granicznej — da857db
+- [x] 3.5 Komentarz mówi w pierwszych trzech linijkach, czy jest `fail` i przez które kryterium — da857db
 
 ### Phase 4: Composite action — pierwszy taki byt w tym repo
 
 #### Automated
 
-- [ ] 4.1 Pusty `api-key` kończy bramkę kodem 1 przed `npm ci`
-- [ ] 4.2 Zdryfowana `criteria.json` czerwieni bramkę dryfu
+- [x] 4.1 Pusty `api-key` kończy bramkę kodem 1 przed `npm ci`
+- [x] 4.2 Zdryfowana `criteria.json` czerwieni bramkę dryfu
 - [ ] 4.3 Wszystkie cztery outputy (w tym `model`) są niepuste na zielonym przebiegu
 
 #### Manual
 
-- [ ] 4.4 `npm ci` na `ubuntu-latest` wybiera `claude-agent-sdk-linux-x64` i kończy się sukcesem
-- [ ] 4.5 `stderr.log` nie zawiera klucza
+- [x] 4.4 `npm ci` na `ubuntu-latest` wybiera `claude-agent-sdk-linux-x64` i kończy się sukcesem
+- [x] 4.5 `stderr.log` nie zawiera klucza
 - [ ] 4.6 Główny plik czyta się jako pięć kroków bez zaglądania do `action.yml`
 
 ### Phase 5: Workflow — wyzwalacze, uprawnienia, cztery stany, efekty uboczne
