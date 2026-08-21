@@ -1060,29 +1060,29 @@ bezużyteczna, ale nieszkodliwa i nie wchodzi na żadną istniejącą ścieżkę
 
 #### Automated
 
-- [x] 2.1 Generator `criteria.json` jest idempotentny (`git diff --exit-code`)
-- [x] 2.2 `prettier --check` przechodzi na `criteria.json`
-- [x] 2.3 `npm run typecheck` i `npm run lint` przechodzą
+- [x] 2.1 Generator `criteria.json` jest idempotentny (`git diff --exit-code`) — 93ccdfd
+- [x] 2.2 `prettier --check` przechodzi na `criteria.json` — 93ccdfd
+- [x] 2.3 `npm run typecheck` i `npm run lint` przechodzą — 93ccdfd
 
 #### Manual
 
-- [x] 2.4 Fikstura daje komplet dziewięciu ocen z niskimi 6 i 7
-- [x] 2.5 Diff bez ścieżek zapisu daje `null` w kryterium 7
-- [x] 2.6 Uzasadnienia wskazują plik albo brakujący dowód, nie parafrazują opisu
-- [x] 2.7 Liczba tokenów wejścia zapisana jako punkt odniesienia
+- [x] 2.4 Fikstura daje komplet dziewięciu ocen z niskimi 6 i 7 — 93ccdfd
+- [x] 2.5 Diff bez ścieżek zapisu daje `null` w kryterium 7 — 93ccdfd
+- [x] 2.6 Uzasadnienia wskazują plik albo brakujący dowód, nie parafrazują opisu — 93ccdfd
+- [x] 2.7 Liczba tokenów wejścia zapisana jako punkt odniesienia — 93ccdfd
 
 ### Phase 3: Werdykt i komentarz — czysta funkcja w `scripts/` plus testy
 
 #### Automated
 
-- [ ] 3.1 `npm test` przechodzi
-- [ ] 3.2 `npm run typecheck` i `npm run lint` przechodzą
-- [ ] 3.3 CLI zapisuje plik komentarza i wypisuje linię `verdict=…`
+- [x] 3.1 `npm test` przechodzi
+- [x] 3.2 `npm run typecheck` i `npm run lint` przechodzą
+- [x] 3.3 CLI zapisuje plik komentarza i wypisuje linię `verdict=…`
 
 #### Manual
 
-- [ ] 3.4 Podmiana progu na 8 zmienia werdykt na fiksturze granicznej
-- [ ] 3.5 Komentarz mówi w pierwszych trzech linijkach, czy jest `fail` i przez które kryterium
+- [x] 3.4 Podmiana progu na 8 zmienia werdykt na fiksturze granicznej
+- [x] 3.5 Komentarz mówi w pierwszych trzech linijkach, czy jest `fail` i przez które kryterium
 
 ### Phase 4: Composite action — pierwszy taki byt w tym repo
 
