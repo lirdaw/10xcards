@@ -1,8 +1,11 @@
-# The AI code review, on every pull request to `main`. Five steps carry the spine — fetch the
-# pull request, collect the input, run the review, decide, publish — and everything that is
-# "how to run the agent" (the 335 MB install, the secret, the criteria-drift gate, the exit-code
-# capture) lives behind one named action in `.github/actions/review-agent`. Reading this file
-# top to bottom should answer "what happens and in what order" without opening that one.
+# The AI code review, on every pull request to `main`. Five banners carry the spine — fetch the
+# pull request, collect the input, run the review, decide, publish (comment, label, and the
+# run's own colour) — and everything that is "how to run the agent" (the 335 MB install, the
+# secret, the criteria-drift gate, the exit-code capture) lives behind one named action in
+# `.github/actions/review-agent`. Reading this file top to bottom should answer "what happens
+# and in what order" without opening that one. The banners are the reading order, not the step
+# count: the Actions UI shows more steps than five, because two of the five take a couple of
+# steps each and `checkout` plus `setup-node` sit between them.
 #
 # **A red run here means REVIEW DID NOT HAPPEN — never that review went badly.** A `fail`
 # verdict is a green run carrying the `ai-cr:failed` label and a comment saying why. That
@@ -51,11 +54,15 @@ on:
 # `cancel-in-progress: false`; here the problem is a pile-up of superseded runs on a branch
 # being pushed to, so the older one goes.
 #
-# The `inputs.pr_number` fallback is not decoration. `workflow_dispatch` has no pull request
-# context, so without it every manual run collapses into ONE group and the second dispatch
-# cancels the first — which is precisely the A/B pair phase 6 needs. With it they still share
-# a key per pull request, so those runs must be fired SEQUENTIALLY; that is recorded in the
-# phase-6 procedure rather than worked around here.
+# The `inputs.pr_number` fallback is not decoration, and it buys LESS than it looks like it
+# does — worth stating precisely, because the flattering reading is wrong. `workflow_dispatch`
+# has no pull request context, so without the fallback the group name is the same string for
+# EVERY manual run and a dispatch on one pull request cancels a running dispatch on another.
+# With it, manual runs are separated PER PULL REQUEST — and that is all. Two dispatches on the
+# SAME pull request still share one group, so with `cancel-in-progress: true` the second still
+# kills the first. Phase 6's A/B pair is two dispatches on one pull request, so it must be
+# fired SEQUENTIALLY; that constraint is recorded in the phase-6 procedure rather than worked
+# around here.
 concurrency:
   group: pr-review-${{ github.event.pull_request.number || inputs.pr_number }}
   cancel-in-progress: true
@@ -91,9 +98,10 @@ jobs:
     #     repository can dispatch a workflow. The dispatched pull request is re-checked against
     #     the fork rule in the first step, where its head repository is actually known.
     #
-    # (2) `labeled` runs only for `ai-cr:review`. For every other activity type
-    #     `github.event.label` is null, the right-hand side yields an empty string and the
-    #     expression does not throw — the ordering is what makes that safe.
+    # (2) `labeled` runs only for `ai-cr:review`. For every other activity type the left-hand
+    #     side is already true, so the whole disjunction is true whatever the right-hand side
+    #     does — and dereferencing the absent `github.event.label` would yield null rather
+    #     than raising anyway. There is nothing fragile here to be careful about.
     if: >-
       (github.event_name == 'workflow_dispatch'
         || github.event.pull_request.head.repo.full_name == github.repository)
@@ -255,12 +263,17 @@ jobs:
             ':(exclude)src/db/database.types.ts' \
             ':(exclude)agents/review/criteria.json' > "$DIFF_PATH"
 
-          # The four states of this workflow are decided HERE, by comparing the filtered diff
-          # with the unfiltered one — by logic, never by prose:
-          #   code    -> there is something to review; the verdict decides pass/fail
+          # THREE input states, decided here by comparing the filtered diff with the
+          # unfiltered one — by logic, never by prose:
+          #   code    -> there is something to review
           #   no-code -> the pull request changed things, all of them filtered out. GREEN, no
           #              label. Emptiness is EXPECTED here, not an input-collection failure.
           #   empty   -> nothing changed at all. That is a failure of this step's premise.
+          #
+          # They become the FOUR end states one step further down, where `code` splits on the
+          # agent's answer: `code` -> pass | fail, `no-code` -> no-code, `empty` -> failed-to-
+          # run. The split is there and not here on purpose — this step knows what it fed the
+          # agent and nothing about what came back.
           if [ -s "$DIFF_PATH" ]; then
             STATE=code
           elif [ -s "$RAW_PATH" ]; then
@@ -317,6 +330,10 @@ jobs:
           PREVIOUS_PATH="$RUNNER_TEMP/review-previous.md"
           : > "$PREVIOUS_PATH"
 
+          # `tail -n 1` picks the NEWEST match if more than one somehow exists — which can only
+          # happen if a run posted before this lookup was in place, or if someone copied the
+          # marker by hand. Taking the newest converges on one comment instead of resurrecting
+          # the oldest forever; the extra ones stay on the page as history and are never edited.
           COMMENT_ID=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
             --jq '.[] | select(.user.login == "github-actions[bot]")
                       | select(.body | contains("<!-- ai-code-review v1 -->"))
@@ -373,6 +390,11 @@ jobs:
             # The happy path, and the only one that reads the agent's JSON. If the result does
             # not hold up to the contract the script exits 1 and we fall through to the failure
             # variant below — a comment saying review did not happen, rather than no comment.
+            #
+            # That guarantee covers every failure from this step onwards and NOT the ones
+            # before it: if the very first step cannot resolve the pull request there is no
+            # number to comment on, so the run goes red with nothing posted. Stated rather
+            # than papered over — it is the one hole in "there is always a comment".
             if node --experimental-strip-types scripts/run-review-verdict.ts \
                  --result "$RESULT_PATH" --out "$BODY_PATH" --sha "$HEAD_SHA" \
                  --model "$MODEL" --run-url "$RUN_URL" >> "$GITHUB_OUTPUT"; then
@@ -380,7 +402,27 @@ jobs:
             fi
             REASON="wynik agenta nie przeszedł kontroli kontraktu — patrz log przebiegu"
           elif [ "$STATE" = "code" ]; then
-            REASON="agent zakończył się kodem ${AGENT_STATUS:-?}: $(tail -n 3 "$STDERR_PATH" 2>/dev/null | tr '\n' ' ')"
+            # The agent's own thrown message, NOT `tail`. Node prints it on a line of its own
+            # ABOVE the stack, so a tail lands INSIDE the trace — MEASURED on run
+            # 32534464639, whose comment read "at async <anonymous> … Node.js v22.23.2" and
+            # said nothing about the 402 that actually stopped it. That line is also the one
+            # carrying `subtype` / `is_error` / `terminal_reason`, i.e. the whole point of the
+            # routing fix in `agents/review/review.ts`: it is what tells a reader the failure
+            # was connectivity or the provider, and not a broken output contract.
+            REASON=$(grep -m1 -E '^[A-Za-z]*Error:' "$STDERR_PATH" 2>/dev/null || true)
+            if [ -z "$REASON" ]; then
+              # Nothing was thrown: a `timeout` kill (STATUS=124) or a plain non-zero exit.
+              # Take the last line that is not a stack frame, a caret or the version banner.
+              REASON=$(grep -vE '^[[:space:]]*(at |Node\.js v|\^[[:space:]]*$)' "$STDERR_PATH" 2>/dev/null \
+                         | grep -v '^[[:space:]]*$' | tail -n 1 || true)
+            fi
+            # URLs belong in the run log, never in a comment on a public pull request: they
+            # bury the sentence that matters, and a provider's error URL can be scoped to the
+            # account. Substring expansion rather than `cut -c`, which is byte-oriented in GNU
+            # coreutils and would happily slice a Polish character in half.
+            REASON=${REASON:-brak czytelnego komunikatu w logu agenta}
+            REASON=$(printf '%s' "$REASON" | sed -E 's#https?://[^ ]*#<adres w logu przebiegu>#g')
+            REASON="agent zakończył się kodem ${AGENT_STATUS:-?}: ${REASON:0:400}"
           elif [ "$STATE" = "empty" ]; then
             REASON="zebrany diff jest pusty — względem gałęzi bazowej nie zmienił się ani jeden plik"
           else
@@ -392,7 +434,7 @@ jobs:
             --previous "$PREVIOUS_PATH" --run-url "$RUN_URL" >> "$GITHUB_OUTPUT"
 
       # -------------------------------------------------------------------------------------
-      # 5. Publish
+      # 5. Publish — comment, label, and the run's own colour
       # -------------------------------------------------------------------------------------
 
       # `-F "body=@file"` because the body is multi-line Markdown: it does not fit in an
@@ -430,9 +472,13 @@ jobs:
       # set and would wipe labels that have nothing to do with review.
       #
       # On `no-code` and on `failed-to-run` NEITHER result label is applied — "no label" has to
-      # stay distinguishable from `ai-cr:passed`. A stale label from an earlier run is left
-      # alone on failure on purpose: the comment already carries a header saying the verdict
-      # below it is stale, and removing the label would destroy the last real result as well.
+      # stay distinguishable from `ai-cr:passed`. Neither is any EXISTING label removed, and
+      # the two cases have different reasons: on failure the comment already carries a header
+      # saying the verdict below it is stale, so dropping the label would destroy the last real
+      # result on top of the current one; on `no-code` there is simply nothing to say, and the
+      # only way a pull request reaches that state carrying an old result label is a force-push
+      # that took the code back out. Then, and only then, the label on the list is stale with
+      # nothing marking it as such — the known cost of not touching labels we did not earn.
       - name: Apply the result label
         if: ${{ !cancelled() }}
         env:
@@ -461,7 +507,14 @@ jobs:
               ;;
           esac
 
-      # The one place this run is allowed to go red, and it does so for one reason only.
+      # The one place this run goes red ON PURPOSE — not the only `exit 1` in the file, and the
+      # difference matters. The four guards above (a non-numeric `pr_number`, a fork reached by
+      # dispatch, anything other than a 404 while removing the trigger label, an empty comment
+      # body) all abort because the workflow itself could not proceed, and every one of them is
+      # a case of "review did not happen" too. So is any step that simply errors. This step is
+      # what makes that reading TOTAL rather than incidental: whatever else happens, a run that
+      # got this far and has no verdict ends red.
+      #
       # `fail` exits 0 here: a verdict is not an outage.
       - name: Fail the run only when review did not happen
         if: ${{ !cancelled() }}

@@ -1090,7 +1090,7 @@ bezużyteczna, ale nieszkodliwa i nie wchodzi na żadną istniejącą ścieżkę
 
 - [x] 4.1 Pusty `api-key` kończy bramkę kodem 1 przed `npm ci` — a1b62da
 - [x] 4.2 Zdryfowana `criteria.json` czerwieni bramkę dryfu — a1b62da
-- [ ] 4.3 Wszystkie cztery outputy (w tym `model`) są niepuste na zielonym przebiegu
+- [x] 4.3 Wszystkie cztery outputy (w tym `model`) są niepuste na zielonym przebiegu — a1b62da
 
 #### Manual
 
@@ -1102,17 +1102,17 @@ bezużyteczna, ale nieszkodliwa i nie wchodzi na żadną istniejącą ścieżkę
 
 #### Automated
 
-- [ ] 5.1 Workflow uruchamia się na PR-ze tej zmiany
-- [ ] 5.2 Diff po filtrze jest niepusty i nie zawiera `context/**` ani lockfile'a
-- [ ] 5.3 Trzy etykiety `ai-cr:*` istnieją po pierwszym przebiegu
-- [ ] 5.4 Drugi przebieg aktualizuje komentarz zamiast dodawać nowy
+- [x] 5.1 Workflow uruchamia się na PR-ze tej zmiany — fa6f503
+- [x] 5.2 Diff po filtrze jest niepusty i nie zawiera `context/**` ani lockfile'a — fa6f503
+- [x] 5.3 Trzy etykiety `ai-cr:*` istnieją po pierwszym przebiegu — fa6f503
+- [x] 5.4 Drugi przebieg aktualizuje komentarz zamiast dodawać nowy — fa6f503
 
 #### Manual
 
-- [ ] 5.5 `ai-cr:review` wyzwala przebieg i znika w pierwszych sekundach
-- [ ] 5.6 PR z samym `context/**` daje czwarty stan: zielono, bez etykiet
+- [x] 5.5 `ai-cr:review` wyzwala przebieg i znika w pierwszych sekundach — fa6f503
+- [x] 5.6 PR z samym `context/**` daje czwarty stan: zielono, bez etykiet — fa6f503
 - [ ] 5.7 Etykiety wyniku wzajemnie się wykluczają
-- [ ] 5.8 SHA w komentarzu zgadza się z ostatnim commitem z listy commitów PR-a
+- [x] 5.8 SHA w komentarzu zgadza się z ostatnim commitem z listy commitów PR-a — fa6f503
 - [ ] 5.9 Główny plik jest czytelny bez otwierania `action.yml`
 
 ### Phase 6: Próba czerwieni i pierwszy pomiar
