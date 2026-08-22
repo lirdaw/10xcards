@@ -11,7 +11,12 @@
  *
  * Długość docelowa: 2-4 tys. tokenów. Powyżej tego dziewięć kryteriów zaczyna się rozcieńczać —
  * a to jest wymiana, na którą nie chcemy wejść po cichu przy dokładaniu kolejnego akapitu.
- * Faza 7 dokłada zapadkę na dryf tych bloków względem ich źródeł.
+ *
+ * DRYF WZGLĘDEM ŹRÓDEŁ jest pilnowany: `agents/review/prompt-sources.json` trzyma hashe sekcji,
+ * z których wycięto `REPO_RULES` i `RISK_MAP`, a `tests/lib/review-prompt-sources.test.ts` świeci
+ * na czerwono, gdy któraś z nich się zmieni, a ten plik nie. Po zaktualizowaniu destylatu odśwież
+ * rekord: `node --experimental-strip-types scripts/run-prompt-sources.ts --write`. W odwrotnej
+ * kolejności zapadka zapisze zgodę na prompt, którego nikt nie przeczytał.
  */
 
 /**

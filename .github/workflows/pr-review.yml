@@ -220,11 +220,10 @@ jobs:
       # **The exclusion is a RULE, not a list of names: every GENERATED file comes out.** Left
       # in, the agent would be scoring a generator's output as if a person had written it —
       # handing out marks for idiomaticity, complexity and scope on decisions nobody took.
-      # That is why `package-lock.json`, `src/db/database.types.ts` and
-      # `agents/review/criteria.json` are all here, and it is why
-      # `agents/review/prompt-sources.json` is NOT: it does not exist yet, and a pathspec
-      # naming an absent path fails as a puzzle rather than as a message. Each new generated
-      # file joins this list in the phase that creates it.
+      # That is why `package-lock.json`, `src/db/database.types.ts`,
+      # `agents/review/criteria.json` and `agents/review/prompt-sources.json` are all here.
+      # Each new generated file joins this list in the phase that CREATES it — never earlier:
+      # a pathspec naming an absent path fails as a puzzle rather than as a message.
       #
       # **The price, stated rather than glossed:** cutting `context/**` costs criterion 5
       # ("is the WHY written down") most of its evidence, because in this repository the why
@@ -261,7 +260,8 @@ jobs:
             ':(exclude)context/**' \
             ':(exclude)**/package-lock.json' \
             ':(exclude)src/db/database.types.ts' \
-            ':(exclude)agents/review/criteria.json' > "$DIFF_PATH"
+            ':(exclude)agents/review/criteria.json' \
+            ':(exclude)agents/review/prompt-sources.json' > "$DIFF_PATH"
 
           # THREE input states, decided here by comparing the filtered diff with the
           # unfiltered one — by logic, never by prose:

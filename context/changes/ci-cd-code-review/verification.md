@@ -272,3 +272,82 @@ bierze definicję z gałęzi domyślnej, a tam tego pliku jeszcze nie ma).
 **Jedna pułapka przy odczycie**: `cache_read` w powtórzeniu nie będzie zerem, jeśli jakikolwiek
 przebieg poszedł w ciągu ostatnich minut — porównywalne między przebiegami są `czas`, `out`
 i SUMA wejścia, nie sam rozkład zapis/odczyt.
+
+## Faza 7 — próba zapadki na dryf destylatu
+
+Zapadka pilnuje trzech sekcji, z których wycięty jest destylat w `agents/review/prompt.ts`:
+`AGENTS.md` §Hard Rules, `AGENTS.md` §Conventions i `context/foundation/test-plan.md`
+§2. Risk Map (razem z podsekcją `### Risk Response Guidance`, bo to w niej stoi kolumna
+„What would prove protection", czyli dokładnie ta treść, o którą chodzi kryterium 4).
+
+Rekord: `agents/review/prompt-sources.json`, regenerowany przez
+`node --experimental-strip-types scripts/run-prompt-sources.ts --write`.
+
+### Para czerwono/zielono przy jednej zmiennej różnicy
+
+Sama regeneracja rekordu niczego nie dowodzi — rekord zgadza się ze sobą z definicji. Dowodem
+jest para przebiegów różniących się **wyłącznie** jedną linią w pilnowanej sekcji.
+
+| Przebieg | Zmiana                                                    | Wynik `tests/lib/review-prompt-sources.test.ts` |
+| -------- | --------------------------------------------------------- | ----------------------------------------------- |
+| czerwony | `AGENTS.md:7` — `do not use` → `do NOT use` (bez commita) | 1 failed / 12 passed                            |
+| zielony  | ta sama linia przywrócona                                 | 13 passed                                       |
+
+Czerwień zaświeciła **tylko** przypadek `still matches AGENTS.md §## Hard Rules`; §Conventions
+i §2. Risk Map zostały zielone. To jest osobny fakt od samej czerwieni: dowodzi, że hash jest
+zawężony do sekcji, a nie liczony z całego pliku — bez tego zawężenia zapadka na ~6,7 tys.
+linii `test-plan.md` czerwieniałaby przy każdej literówce i po tygodniu byłaby regenerowana
+bez czytania.
+
+Zmierzone hashe §Hard Rules: `ffffb7e3c103…` (stan zapisany) vs `bf668e60e08f…` (po zepsuciu
+jednej linii).
+
+Restytucja potwierdzona przez hash pliku, nie na oko: `sha256(AGENTS.md)` = `bd791f35027de1cc…`
+przed zepsuciem, `b2db54db5613ed2f…` po nim i znów `bd791f35027de1cc…` po przywróceniu.
+
+### Sonda na granicę sekcji — czy podsekcja naprawdę wchodzi
+
+Najbardziej ryzykowna decyzja tego ekstraktora to zasięg: `## 2. Risk Map` kończy się dopiero na
+następnym nagłówku tego samego lub wyższego poziomu, więc `### Risk Response Guidance` jest
+w środku. Gdyby było odwrotnie, zapadka pilnowałaby samej listy ryzyk i przestałaby widzieć
+kolumnę „What would prove protection" — czyli dokładnie to, po co ten blok jest w prompcie.
+Sprawdzone parą, nie założone:
+
+| Sonda | Zmieniona linia                                           | Wynik                |
+| ----- | --------------------------------------------------------- | -------------------- |
+| 1     | `test-plan.md:962`, wewnątrz `### Risk Response Guidance` | 1 failed / 12 passed |
+| 2     | `test-plan.md:975`, w `## 3. Phased Rollout` (poza)       | 13 passed            |
+
+### Próba na samej kontroli — czy kontrola potrafi zaświecić
+
+Kontrola pozytywna, która nie potrafi zaświecić, jest tą samą klasą co bramka zawsze zielona.
+Zmutowany ekstraktor (`return ""` zamiast wycięcia sekcji) daje **7 failed / 6 passed** — padają
+wszystkie trzy porównania z rekordem, „gives a different digest when a line INSIDE the section
+changes", „keeps the heading line", „owns its sub-sections" i „does not let a comment inside
+a fenced block end the section early". Po przywróceniu: 13 passed.
+
+Jeden przypadek pod tą mutacją **został zielony** — „gives the same digest when a line OUTSIDE
+the section changes" — i to jest cała odpowiedź na pytanie, po co ta kontrola jest dwustronna:
+sama połowa „poza sekcją nic się nie zmienia" przechodzi też dla ekstraktora, który nie czyta
+niczego.
+
+### Komunikat czerwieni
+
+Asercja niesie instrukcję, nie tylko dwa ciągi szesnastkowe — i niesie ją w kolejności, która
+jest całą treścią komunikatu: przeczytaj sekcję → zaktualizuj `prompt.ts` → **dopiero teraz**
+odśwież rekord → zacommituj oba razem. Ostatnie zdanie mówi wprost, że sam krok 3 zieleni test
+i nie naprawia niczego. Odwrotna kolejność jest jedynym ruchem, po którym zapadka jest gorsza
+niż jej brak: zapisuje zgodę na prompt, którego nikt nie przeczytał.
+
+### Kontrola pozytywna ekstraktora
+
+Test posiada własną fiksturę Markdown i mutuje ją u siebie (lekcja „a positive control must OWN
+the fixture it mutates"; `vitest.config.ts` ma stały `sequence: { shuffle: true }`, więc
+zależność od kolejności wypłynęłaby jako flake). Kontrola jest **dwustronna** i dopiero para
+coś znaczy: zmiana linii **wewnątrz** sekcji zmienia hash, zmiana linii **poza** nią — nie.
+Sama pierwsza połowa przeszłaby też dla ekstraktora hashującego cały plik.
+
+Do tego trzy odmowy zamiast cichego `""`: brakujący nagłówek, nagłówek występujący dwa razy
+i string, który nagłówkiem nie jest. Pusta sekcja ma doskonale stabilny hash, więc chybienie
+zostałoby zapisane raz i już nigdy nie zauważone — zapadka pilnowałaby niczego i raportowała
+to jako zgodę.

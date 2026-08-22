@@ -1119,28 +1119,28 @@ bezużyteczna, ale nieszkodliwa i nie wchodzi na żadną istniejącą ścieżkę
 
 #### Automated
 
-- [x] 6.1 Przebieg A (fikstura) kończy się zielono i nakłada `ai-cr:failed`
-- [x] 6.2 Przebieg B (realny diff) aktualizuje komentarz i zdejmuje poprzednią etykietę
-- [x] 6.3 Przebieg C (zły model) kończy się czerwono bez żadnej etykiety wyniku
-- [x] 6.4 `npm test` i `npm run typecheck` przechodzą po edycji `AGENTS.md`
+- [x] 6.1 Przebieg A (fikstura) kończy się zielono i nakłada `ai-cr:failed` — 8c5f799
+- [x] 6.2 Przebieg B (realny diff) aktualizuje komentarz i zdejmuje poprzednią etykietę — 8c5f799
+- [x] 6.3 Przebieg C (zły model) kończy się czerwono bez żadnej etykiety wyniku — 8c5f799
+- [x] 6.4 `npm test` i `npm run typecheck` przechodzą po edycji `AGENTS.md` — 8c5f799
 
 #### Manual
 
-- [x] 6.5 A i B różnią się wyłącznie `use_fixture` — sprawdzone w logach obu przebiegów
-- [x] 6.6 Komentarz po C niesie nagłówek awarii nad zachowanym werdyktem z B
-- [x] 6.7 Komunikat awarii w C mówi o modelu i łączności, nie o structured output
-- [x] 6.8 Pełny zapis pomiaru w `verification.md` wystarcza do porównania z przyszłym przebiegiem
+- [x] 6.5 A i B różnią się wyłącznie `use_fixture` — sprawdzone w logach obu przebiegów — 8c5f799
+- [x] 6.6 Komentarz po C niesie nagłówek awarii nad zachowanym werdyktem z B — 8c5f799
+- [x] 6.7 Komunikat awarii w C mówi o modelu i łączności, nie o structured output — 8c5f799
+- [x] 6.8 Pełny zapis pomiaru w `verification.md` wystarcza do porównania z przyszłym przebiegiem — 8c5f799
 
 ### Phase 7: Zapadka na dryf destylatu promptu — po pomiarze, nie przed
 
 #### Automated
 
-- [ ] 7.1 `scripts/run-prompt-sources.ts --write` jest idempotentne (`git diff --exit-code`)
-- [ ] 7.2 `prettier --check` przechodzi na `prompt-sources.json`
-- [ ] 7.3 `npm test`, `npm run typecheck` i `npm run lint` przechodzą
+- [x] 7.1 `scripts/run-prompt-sources.ts --write` jest idempotentne (`git diff --exit-code`)
+- [x] 7.2 `prettier --check` przechodzi na `prompt-sources.json`
+- [x] 7.3 `npm test`, `npm run typecheck` i `npm run lint` przechodzą
 
 #### Manual
 
-- [ ] 7.4 Zepsucie linii §Hard Rules czerwieni test, przywrócenie zieleni — para, nie pojedynczy przebieg
-- [ ] 7.5 Komunikat czerwieni mówi, co zrobić
-- [ ] 7.6 Kontrola pozytywna ekstraktora daje inny hash na zmutowanym tekście
+- [x] 7.4 Zepsucie linii §Hard Rules czerwieni test, przywrócenie zieleni — para, nie pojedynczy przebieg
+- [x] 7.5 Komunikat czerwieni mówi, co zrobić
+- [x] 7.6 Kontrola pozytywna ekstraktora daje inny hash na zmutowanym tekście
