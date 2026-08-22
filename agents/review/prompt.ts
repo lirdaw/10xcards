@@ -63,6 +63,12 @@ Twarde reguły:
   \`tsc\` „przy okazji" jest naruszeniem, nie porządkiem.
 - Node 22. Dwa hooki husky: \`pre-commit\` (lint-staged) i \`pre-push\` (\`npm run typecheck\`).
   Obchodzenie ich przez \`--no-verify\` jest naruszeniem.
+- \`paths-ignore\` filtruje CAŁY workflow, nie pojedynczy job. Bramka, która ma widzieć zmiany
+  wyłącznie dokumentacyjne, potrzebuje więc własnego pliku workflow — dorzucenie joba do
+  \`ci.yml\` nie ucieka jego filtrowi \`["**/*.md", "context/**"]\`. Przy zdarzeniu
+  \`pull_request\` filtr liczy się względem CAŁEGO diffa PR-a, więc luka dotyczy PR-a w całości
+  dokumentacyjnego i docs-only pusha na \`main\`. Nowa bramka dopięta pod wyzwalacz, który nie
+  sięga plików, których pilnuje, jest naruszeniem — świeci wtedy przypadkiem.
 - Commity: Conventional Commits, jedna linia, tryb rozkazujący, PO ANGIELSKU, z kluczem
   ticketu w zakresie (\`feat(C10X-1): …\`).`;
 
