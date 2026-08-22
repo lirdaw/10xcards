@@ -52,6 +52,13 @@ outputs:
   stderr-path:
     description: Absolute path to the agent's stderr log, with the key scrubbed out.
     value: ${{ steps.review.outputs.stderr-path }}
+  stderr-scrubbed:
+    description: >-
+      `true` only when the scrub of `stderr-path` could be VOUCHED for. Quote that file in a
+      comment on a public pull request ONLY on `true`; anything else — including a missing value
+      from a crashed scrubber — means say something generic instead. The default is silence
+      because a leak is irreversible and a missing sentence in a comment is not.
+    value: ${{ steps.review.outputs.stderr-scrubbed }}
   model:
     description: >-
       The model id that actually produced the review, as resolved and reported by the agent
@@ -164,11 +171,32 @@ runs:
         timeout 15m npm --prefix agents/review run --silent review \
           < "$DIFF_PATH" > "$RESULT_PATH" 2> "$STDERR_PATH" || STATUS=$?
 
-        # Scrub the key BEFORE anything reads, prints or uploads this file. GitHub's secret masking
-        # covers LOGS, not artifacts, and on a public repository any signed-in user can download an
-        # artifact — this is the one place that asymmetry can be repaired. `|| true` because `-e`
-        # must not abort before the outputs are written, and a missing file is not an error here.
-        sed -i "s|${API_KEY}|***|g" "$STDERR_PATH" 2>/dev/null || true
+        # Scrub the key BEFORE anything reads, prints or quotes this file — and say whether the
+        # scrub can be VOUCHED for, because the caller pastes a line of it into a comment on a
+        # public pull request and GitHub's masking does not cover a REST body.
+        #
+        # This was `sed -i "s|${API_KEY}|***|g" "$STDERR_PATH" 2>/dev/null || true`, which had
+        # three defects at once: the key went into the s-command UNESCAPED (a `|` in it closes
+        # the command, a `\` starts an escape), both channels of the failure were discarded, and
+        # nothing downstream could tell a successful scrub from one that never ran. The logic now
+        # lives in `scripts/scrub-secrets.ts` — literal replacement, so a metacharacter in the key
+        # is just a character — with `tests/lib/scrub-secrets.test.ts` covering the cases the sed
+        # could not even express. Shell in YAML is not testable; that is why it moved.
+        #
+        # The secret travels in the ENVIRONMENT, never in argv: a command line is readable through
+        # /proc and the runner echoes the command it runs into the log.
+        SCRUBBED=false
+        # Path relative to the workspace, the same way `pr-review.yml` invokes
+        # `scripts/run-review-verdict.ts`. This action is repository-local — it already reaches
+        # for `agents/review` — so reaching for `scripts/` is the existing coupling, not a new one.
+        if SCRUB_OUT=$(SCRUB_SECRET="$API_KEY" node --experimental-strip-types \
+                         scripts/run-scrub-secrets.ts --file "$STDERR_PATH"); then
+          case "$SCRUB_OUT" in *"scrubbed=true"*) SCRUBBED=true ;; esac
+        fi
+        # Fails CLOSED, deliberately and in both directions: a crashing scrubber prints no
+        # `scrubbed=` line and a refusing one prints `scrubbed=false`, and neither can be read as
+        # permission. The caller renders a generic reason unless this is literally `true`.
+        echo "stderr-scrubbed=$SCRUBBED" >> "$GITHUB_OUTPUT"
 
         # The metrics line (model, turns, duration, tokens, cache hit rate, terminal_reason) is the
         # measurement phase 6 records. Echoing it puts it in the run log, which outlives the file.
