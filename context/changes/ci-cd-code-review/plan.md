@@ -98,6 +98,15 @@ poprzednim werdyktem.
   Review nie wchodzi na listę wymaganych sprawdzeń i nie dostaje `needs:` od niczego.
 - **Nie kupujemy `ANTHROPIC_API_KEY`** — jedziemy przez OpenRoutera na istniejącym sekrecie
   `OPENROUTER_EVAL_KEY`.
+  > **Korekta z 2026-08-22 (impl-review, F5).** Zdanie wyżej zostaje jako zapis decyzji z chwili
+  > planowania i było wtedy prawdziwe. W implementacji review dostało **własny** sekret
+  > `OPENROUTER_REVIEW_KEY` (commit `0f81117`), bo współdzielenie klucza evala rozstrzygnęło się
+  > pomiarem, nie preferencją: review biega przy każdym pushu do każdego PR-a, więc to ono drenuje
+  > niski cap evala, a eval pada wtedy na kredycie, którego nie wydał — przebieg 32534464639,
+  > `402 This request requires more credits` po trzech przebiegach review jednego popołudnia. Do
+  > tego OpenRouter rozlicza się PER KLUCZ, więc jeden wspólny klucz czyni pytanie „ile kosztowało
+  > review, a ile eval" nieodpowiadalnym z dashboardu — a warunek wyjścia tej zmiany stoi na
+  > porównaniu kosztów. Teza „nie kupujemy `ANTHROPIC_API_KEY`" jest nadal aktualna.
 - **Nie używamy `pull_request_target`** — to wzorzec „pwn request": checkout kodu forka
   plus `npm ci` z postinstallem oznacza wykradziony sekret i token zapisu.
 - **Nie recenzujemy PR-ów z forków** — pominięcie bez sygnału dla autora, świadomie: token
@@ -1022,6 +1031,14 @@ Sekret `OPENROUTER_EVAL_KEY` **już istnieje** i nie wymaga zakładania — ale 
 z `eval-ci-dispatch` mówi, że kontrola po nazwie sekretu niczego nie dowodzi: tamten klucz miał
 w sobie BOM i pierwszy realny dispatch padł, mimo że kryterium „sekret istnieje" było zielone
 przez cały czas. Dowodem jest pierwszy zielony przebieg z fazy 6, nie obecność nazwy na liście.
+
+> **Korekta z 2026-08-22 (impl-review, F5).** Akapit wyżej zostaje w oryginale — jego teza
+> („kontrola po nazwie sekretu niczego nie dowodzi") okazała się trafna i obowiązuje dalej. Zmienił
+> się natomiast jeden fakt: review NIE jedzie na `OPENROUTER_EVAL_KEY`, tylko na własnym
+> `OPENROUTER_REVIEW_KEY` (commit `0f81117`, powód przy §What We're NOT Doing). Ten sekret trzeba
+> **założyć**, więc migracja ma o jedną pozycję więcej, niż mówi zdanie otwierające tę sekcję.
+> Wiersz opisowy dla niego mieszka od tej poprawki w `README.md` §Repository secrets — tam, gdzie
+> repo trzyma wszystkie pozostałe.
 
 Cofnięcie zmiany to usunięcie jednego pliku workflow — reszta (agent, `scripts/`, testy) jest
 bezużyteczna, ale nieszkodliwa i nie wchodzi na żadną istniejącą ścieżkę CI.

@@ -47,7 +47,19 @@ if (githubOutput) {
     console.error(`Identyfikator modelu nie może zawierać znaku nowej linii: ${JSON.stringify(REVIEW_MODEL)}`);
     process.exit(1);
   }
-  appendFileSync(githubOutput, `model=${REVIEW_MODEL}\n`, "utf8");
+  // Wrapped, and it is the only write on module scope that is. Everywhere else this file ends a
+  // failure with `console.error` + `process.exit(1)`; an unwrapped `appendFileSync` here would
+  // leave one path — an unwritable or vanished `$GITHUB_OUTPUT` — crashing during module load
+  // with a raw stack instead. Same shape of defect as the one phase 1 removed further down: not
+  // "it fails" but "it fails in a way that describes the wrong thing". Found by this
+  // repository's own review agent on run 32593019701.
+  try {
+    appendFileSync(githubOutput, `model=${REVIEW_MODEL}\n`, "utf8");
+  } catch (err) {
+    console.error(`Nie udało się zapisać outputu \`model\` do $GITHUB_OUTPUT: ${err instanceof Error ? err.message : String(err)}`);
+    console.error("Bez tej wartości komentarz PR-a nie zna modelu, który wyprodukował werdykt — przerywam.");
+    process.exit(1);
+  }
 }
 
 /**
@@ -65,7 +77,13 @@ if (githubOutput) {
 const AUTH_TOKEN = process.env.ANTHROPIC_AUTH_TOKEN?.trim() ?? "";
 if (!AUTH_TOKEN) {
   console.error("Brak klucza: ustaw ANTHROPIC_AUTH_TOKEN na klucz OpenRoutera.");
-  console.error("W CI to sekret repozytorium OPENROUTER_EVAL_KEY podawany NA KROK, nie na job.");
+  // `OPENROUTER_REVIEW_KEY`, and specifically NOT `OPENROUTER_EVAL_KEY`. This line used to name
+  // the eval key and was the ONLY thing an operator sees when the key is missing — so it sent
+  // them to set the one secret that `.github/actions/review-agent/action.yml` forbids here. The
+  // eval's low per-key cap is that eval's blast-radius limit; a second consumer drains it (run
+  // 32534464639, `402 This request requires more credits`) and makes either bill unreadable.
+  console.error("W CI to sekret repozytorium OPENROUTER_REVIEW_KEY podawany NA KROK, nie na job.");
+  console.error("To jest WŁASNY klucz review — nie kieruj go na OPENROUTER_EVAL_KEY, który należy do evala.");
   console.error("Lokalnie: $env:ANTHROPIC_AUTH_TOKEN = '<klucz>' na jedno wywołanie —");
   console.error("nie eksportuj go na stałe i nie używaj nazwy OPENROUTER_API_KEY (psuje npm test).");
   process.exit(1);
