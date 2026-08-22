@@ -12,6 +12,38 @@ Werdykt `REJECTED` wynika z jednego findingu (F1) i z reguły „any critical FA
 jakości całości: poza F1 ta zmiana jest wykonana wyraźnie powyżej poziomu repo, a poprawka F1 to
 kilka linii. Reszta findingów nie blokuje merge'a.
 
+## Status po triażu (2026-08-22)
+
+Werdykt `REJECTED` powyżej zostaje jako zapis stanu **w chwili review** i nie jest nadpisywany —
+tak samo, jak nie nadpisano zdań w `plan.md`. Poniżej stan po triażu.
+
+**Wszystkie 10 findingów: FIXED. Zero PENDING.**
+
+| Finding        | Rozstrzygnięcie                                                                                                                                             |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1 ❌ CRITICAL | osobny workflow `prompt-ratchet.yml` + runner `check-prompt-sources.ts`; para czerwono/zielono **na runnerze** (`466a206` ✅ / `e0a4e87` ❌ / `71b98c0` ✅) |
+| F2 ⚠️          | `defaults: run: shell: bash` + `steps.sticky.outcome == 'success'` na publikacji; komentarz na PR #45 nadal jeden, ten sam id                               |
+| F3 ⚠️          | skrub wyszedł do `scripts/` z 14 testami, domyślność odwrócona (ogólny powód domyślnie, konkret po poświadczeniu); mutant wywala 10/14                      |
+| F4 ⚠️          | rozpoznanie z **dwóch** pól (`outcome` + `status`); macierz sześciu stanów przesymulowana                                                                   |
+| F5 ⚠️          | README i `review.ts` poprawione wprost, `plan.md` datowaną korektą przy oryginale; plus obudowany `appendFileSync`                                          |
+| F6 🔵          | ogranicznik + neutralizacja podrobionego znacznika; fikstura `sample-injection.diff`, przypadek behawioralny **jawnie** nieautomatyczny                     |
+| F7 🔵          | cap 250 000 B i piąty stan `too-large` z własnym rendererem i werdyktem                                                                                     |
+| F8 🔵          | tabela ocen przebiegu A odzyskana z historii edycji komentarza (GraphQL), nie zrekonstruowana                                                               |
+| F9 🔵          | zakres 1-10 egzekwowany w `parseReview`; `<!--` neutralizowane w tekście od LLM-a; mutant wywala 4/4                                                        |
+| F10 🔵         | runner ujednolicony, komentarze o `always()` poprawione, sekcja odchyleń **z powodami** w `plan.md`                                                         |
+
+Znalezione **w trakcie** triażu, poza pierwotną dziesiątką, i też naprawione:
+
+- `appendFileSync` do `$GITHUB_OUTPUT` poza `try/catch` w `review.ts` — **znalazł to agent review
+  tego repo** (przebieg 32593019701), nie ten review ani jego sub-agenty.
+- `case … in *"scrubbed=true"*` — dopasowanie po podciągu w miejscu, które ma być fail-closed;
+  również z tego samego przebiegu agenta.
+- `[ … ] && VAR=true` jako samodzielna lista pod `-e` przerywa krok, gdy test nie przejdzie —
+  defekt w mojej własnej poprawce F3, złapany symulacją pod `bash -eo pipefail`.
+
+Bramki po całości: `typecheck` 176 plików · `npm test` **638** testów / 48 plików · `lint` 0 errors ·
+zapadka zielona · `prettier --check` czysty na obu generowanych JSON-ach.
+
 ## Verdicts
 
 | Dimension           | Verdict |
@@ -167,7 +199,10 @@ Stan gita: PR #45 OPEN, 14 commitów przed `origin/main` — review jest przedme
 - **Location**: `context/changes/ci-cd-code-review/verification.md:146-196`
 - **Detail**: Kontrakt fazy 6 pkt 1: „Zapisujemy id obu przebiegów, oba werdykty **i pełne tabele ocen**". Zapisane są id, werdykty, metryki, koszt z adnotacją o cenniku i próg jako wartość startowa. Nie ma natomiast tabeli dziewięciu ocen dla żadnego przebiegu — jest opis narracyjny (kryterium 6 = 1/10, 7 = 2/10, 8 = `null`), a dla B tylko zakres „oceny 7-9". To wystarcza do rozróżnienia A od B, ale nie do celu, który sekcja „Punkt odniesienia do porównania z przyszłym przebiegiem" sama sobie stawia: bez wartości per kryterium przyszłe porównanie po zmianie progu albo promptu stwierdzi tylko, że werdykt się zmienił, nie które kryterium go poruszyło.
 - **Fix**: Dokleić tabelę dziewięciu ocen dla przebiegu A (jedynego odtwarzalnego) — wartości są w logu przebiegu 32562627568 i w treści komentarza 5376117828.
-- **Decision**: PENDING
+- **Korekta do fixa**: obu wskazanych źródeł już nie ma. Log przebiegu NIE zawiera ocen (JSON wyniku idzie do pliku, do loga trafia tylko linia metryk ze stderr), a sticky komentarz `5376117828` był od tamtej pory nadpisany — dziś ma **17 edycji**. Dane odzyskane z historii edycji komentarza przez GraphQL (`userContentEdits`, rewizja `2026-08-22T08:35:26Z`), czyli z zapisu GitHuba, nie z rekonstrukcji.
+- **Wniosek uboczny, zapisany w `verification.md`**: **sticky komentarz nie jest archiwum.** Każdy pomiar, który ma przetrwać, musi zostać przepisany do `verification.md` w momencie powstania — inaczej znika przy pierwszym kolejnym przebiegu.
+- **Co tabela dopiero teraz czyni sprawdzalnym**: kryterium 8 wróciło jako `null` (a nie zero ani dziesiątka) na pełnym dziewięciopolowym schemacie; kryterium 9 dostało 7/10 mimo werdyktu `fail`, czyli skala działa per wymiar, a nie jako jedna sympatia; uzasadnienia wskazują konstrukcję i plik (`i <= ids.length`, `import.meta.env.SUPABASE_URL`, `countAll()` vs `findById`) — dowód kryterium sukcesu 2.6 w postaci nadającej się do porównania.
+- **Decision**: FIXED
 
 ### F9 — Konsument nie egzekwuje zakresu ocen 1-10 ani nie izoluje tekstu od LLM-a od markerów sterujących
 
@@ -177,7 +212,10 @@ Stan gita: PR #45 OPEN, 14 commitów przed `origin/main` — review jest przedme
 - **Location**: `scripts/review-verdict.ts:165-169`, `scripts/review-comment.ts:118`, `:229-243`
 - **Detail**: Dwie luki w kontrakcie po stronie konsumenta. (1) `review-schema.ts:212-218` świadomie rezygnuje z `minimum`/`maximum` (structured output ich nie przyjmuje) i wymusza zakres wyłącznie opisem pola — ale `parseReview` też go nie sprawdza, więc `42` przejdzie do komentarza jako `42/10`, a `-3` bezszelestnie wywoła `fail`. To jedyne miejsce, w którym zakres da się w ogóle wyegzekwować, i argument jest identyczny z tym, którym uzasadniono odmowę dla `null` na kryterium niewarunkowym. (2) `escapeCell()` chroni komórki tabeli, ale `summary` przechodzi tylko `.trim()`; jeśli model wpisze w podsumowanie literał `<!-- ai-code-review:failure -->` (albo autor PR-a wstrzyknie go przez diff — patrz F6), to `stripFailureBlock` przy następnym nieudanym przebiegu utnie resztę zachowanego werdyktu. Testy tego nie łapią, bo `review-comment.test.ts:220` używa czystej fikstury.
 - **Fix**: W `parseReview` odmówić dla `rawScore < 1 || rawScore > 10`; w `renderComment`/`renderFailureHeader` zneutralizować `<!--` w `summary` i `reason` przed złożeniem treści.
-- **Decision**: PENDING
+- **Zakres**: `SCORE_MIN`/`SCORE_MAX` jako eksporty obok `SCORE_THRESHOLD`, odmowa w `parseReview` z komunikatem nazywającym kryterium i skalę. Testy: oba końce skali przechodzą (kontrola pozytywna — bez niej implementacja rzucająca na każdą ocenę przeszłaby wszystkie przypadki odmowy), `42`, `-3` i `0` rzucają, a `null` na kryterium warunkowym **nadal** trafia do `skipped` — bo walidacja zakresu nie może połknąć tamtej ścieżki.
+- **Neutralizacja**: `neutraliseMarkers()` podmienia `<!--` na wizualnie identyczny `<!‑‑` w `summary`, w każdej komórce tabeli (`escapeCell`) i w `reason` nagłówka awarii. Czytelnik widzi to samo, parser nie da się już sterować. Cztery nowe testy, w tym ten, który mówi, o co naprawdę chodzi: nagłówek awarii doklejony nad wrogim podsumowaniem **nie ucina** zachowanego werdyktu.
+- **Dowód, że te testy umieją zaświecić**: mutant `neutraliseMarkers → tożsamość` wywala **4 z 4** nowych przypadków.
+- **Decision**: FIXED (oba)
 
 ### F10 — Drobne odchylenia od kontraktu planu i wzorca `scripts/`, plus dwa nieaktualne komentarze
 
@@ -187,7 +225,9 @@ Stan gita: PR #45 OPEN, 14 commitów przed `origin/main` — review jest przedme
 - **Location**: `scripts/run-prompt-sources.ts:31-46`; `scripts/run-review-verdict.ts:88-112`, `:187`; `scripts/review-comment.ts:59-60`, `:199`; `tests/lib/review-comment.test.ts:171`; `.github/actions/review-agent/action.yml:164`; `.github/workflows/pr-review.yml:339`, `:383`, `:457`, `:497`, `:534`; `agents/review/review.ts:41-51`; `agents/review/package.json:7`
 - **Detail**: (1) `run-prompt-sources.ts` jest **jedynym** runnerem w `scripts/`, który wypadł z wzorca `function main(): number` + `try/catch` — mają go `check-schema-drift.ts:259-267`, `run-db-cleanup.ts:204-224`, `run-typecheck.ts:181-204` i sam nowy `run-review-verdict.ts:230-237`. Skutek jest realny: `extractSection` starannie przygotował po polsku komunikat mówiący, co zrobić, a przy braku/duplikacie nagłówka użytkownik dostanie surowy stack trace. (2) Pięć odchyleń od literalnego kontraktu planu, każde uzasadnione komentarzem w kodzie i żadne nieprzeniesione do planu: szersze flagi CLI i czwarta wartość `verdict=no-code`; dodatkowe pole `threshold` w `renderComment`; `timeout 15m` zamiast `timeout-minutes` (kroki composite action go nie wspierają — odchylenie **mocniejsze** niż kontrakt); `!cancelled()` zamiast `always()`; output `model` pisany przez proces agenta przez odziedziczony `$GITHUB_OUTPUT`. (3) Dwa komentarze mówią „the publish step runs `if: always()`" (`review-comment.ts:199`, `review-comment.test.ts:171`), podczas gdy workflow ma `!cancelled()` — a rozróżnienie jest w tym pliku load-bearing (`pr-review.yml:378-380` tłumaczy, dlaczego nie `always()`). (4) `agents/review/package.json:7` trzyma `"test": "echo \"Error: no test specified\" && exit 1"` po `npm init`.
 - **Fix**: Ujednolicić `run-prompt-sources.ts` z resztą runnerów; poprawić dwa komentarze o `always()`; dopisać do `plan.md` krótką sekcję „Odchylenia od kontraktu przyjęte w trakcie" z pięcioma pozycjami i powodem każdej.
-- **Decision**: PENDING
+- **Wykonane**: `run-prompt-sources.ts` dostał `main(): number` + `try/catch` (sprawdzone: bez flagi → exit 1, zła flaga → exit 1, `--write` → exit 0 i idempotentny); dwa komentarze o `always()` poprawione na `!cancelled()`; martwy `"test": "echo Error: no test specified && exit 1"` **usunięty** z `agents/review/package.json`, a nie zamieniony na no-op kończący się zerem — to byłaby dokładnie ta klasa, którą repo ma zapisaną jako lekcję.
+- **Sekcja odchyleń podaje POWÓD, nie sam fakt** — i to jest w niej treść. Trzy z pięciu (`timeout-minutes` niedostępne w krokach composite action, output `model` pisany przez proces agenta, `!cancelled()` ≠ `always()` przy anulowanym przebiegu) to **odkrycia o platformie**, nie decyzje smakowe: plan opisywał mechanizm GitHub Actions z pamięci, a implementacja zderzyła się z jego rzeczywistym zachowaniem. Zapisane bez powodu wyglądałyby na niechlujstwo; zapisane z powodem są najtańszą lekcją tej zmiany.
+- **Decision**: FIXED (całość)
 
 ## Co jest zrobione wzorcowo (dla równowagi, nie jako findings)
 
