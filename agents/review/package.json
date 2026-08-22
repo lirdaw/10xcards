@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "review": "tsx review.ts"
+    "review": "tsx review.ts",
+    "criteria": "tsx generate-criteria.ts"
   },
   "keywords": [],
   "author": "",

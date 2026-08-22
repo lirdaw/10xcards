@@ -1,0 +1,62 @@
+name: Prompt ratchet
+
+# A SEPARATE workflow file, and that is the whole point of it rather than an organisational
+# preference. The ratchet's assertion already exists in `tests/lib/review-prompt-sources.test.ts`,
+# but `npm test` runs in exactly one place — the `ci` job of `ci.yml` — and that workflow's
+# triggers carry `paths-ignore: ["**/*.md", "context/**"]`. `paths-ignore` filters the WORKFLOW,
+# not a job, so no job added to `ci.yml` can escape it.
+#
+# Every section this ratchet guards lives in `AGENTS.md` or `context/foundation/test-plan.md`.
+# So a pull request that changes ONLY a guarded rule — which in this repository is what changing
+# a rule usually looks like — matched the ignore list, skipped `ci` entirely, and left the gate
+# silent on precisely the change it was built for. It went red only by accident, when the same
+# pull request happened to touch code too.
+#
+# Deliberately NO `paths` filter of its own either. Narrowing this to the guarded files would
+# reintroduce the same class one level down: `PROMPT_SOURCES` is a list in `scripts/`, and the
+# day someone adds a fourth source the filter would be stale and silent again. The job is
+# seconds long with no install, so there is nothing to buy by filtering.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Read-only. This job inspects files and reports; it has no business holding anything else.
+permissions:
+  contents: read
+
+concurrency:
+  group: prompt-ratchet-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ratchet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      # No `npm ci` and no npm cache, deliberately — the same shape as the `drift` job in
+      # `ci.yml` and for the same reason: `scripts/check-prompt-sources.ts` has zero runtime
+      # dependencies (`node:fs` + `node:crypto`), which is what keeps this at seconds. It cannot
+      # run through vitest, which is where the instinct points: `vitest.config.ts` declares
+      # `globalSetup: ["tests/setup/preflight.ts", "tests/setup/accounts.ts"]`, so any vitest
+      # invocation here would abort in preflight for want of a local Supabase stack. Keep the
+      # runner dependency-free.
+      - name: Check the prompt distillate against its sources
+        run: node --experimental-strip-types scripts/check-prompt-sources.ts
+
+      # The agent package's OWN tests, run by its own runner — `node:test` under bare
+      # `node --experimental-strip-types`, never vitest. `agents/**` is deliberately outside this
+      # project's tsconfig, ESLint and vitest (AGENTS.md §Hard Rules); a self-test inside that
+      # package respects the boundary, while dragging it into `npm test` would erase it.
+      #
+      # It lives in THIS workflow rather than in `ci.yml` for the same reason the ratchet does:
+      # what it guards is the prompt, and a change to `agents/review/prompt.ts` alone must not be
+      # able to slip past a path filter. Zero runtime dependencies, so still no `npm ci`.
+      - name: Check the prompt's own guarantees
+        run: node --experimental-strip-types --test agents/review/prompt.test.ts

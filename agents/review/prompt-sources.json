@@ -1,0 +1,17 @@
+[
+  {
+    "path": "AGENTS.md",
+    "heading": "## Hard Rules",
+    "sha256": "ffffb7e3c1039f637d6df6ecb5e41c65db0903958d5cae01bc2b77d7fbc56589"
+  },
+  {
+    "path": "AGENTS.md",
+    "heading": "## Conventions",
+    "sha256": "1dfbd54d25dc82b345deac62ad954d2b5fc2447f6621000ddd0a30dfbdddbbef"
+  },
+  {
+    "path": "context/foundation/test-plan.md",
+    "heading": "## 2. Risk Map",
+    "sha256": "a58e1962bb67112615bce13c2cbc665c8168ec57e0ef4dd1491d6e3d2b324eff"
+  }
+]
