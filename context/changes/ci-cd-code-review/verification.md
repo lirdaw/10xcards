@@ -669,3 +669,72 @@ Wartość wraca do harnessu tą samą drogą co `model`: proces agenta pisze `fa
 | mutant „`unknown` udaje `provider`"                               | **3 testy na czerwono**                                 |
 | typecheck agenta przeciw SDK 0.3.237                              | exit 0                                                  |
 | `npm test`                                                        | 645 testów / 48 plików                                  |
+
+## Post-review — para dowodowa dla `maxBudgetUsd` (ŚCIEŻKA, nie wartość progu)
+
+### Najpierw brakujący strażnik
+
+`REVIEW_MAX_BUDGET_USD` była gołą stałą, więc jedyną drogą do próby byłoby doprowadzenie realnego
+przebiegu do wydania dolara — bramka, której sprawdzenie kosztuje tyle, co jej brak. Doszedł więc
+szew nadpisania, w tym samym układzie co przy `REVIEW_MODEL`: zmienna środowiskowa
+`REVIEW_MAX_BUDGET_USD`, input `max_budget_usd` **tylko** przy `workflow_dispatch`, przekazywany
+przez `max-budget-usd` w composite action. Żaden automatyczny wyzwalacz go nie ustawia.
+
+Dwie decyzje przy tym szwie, obie o falsyfikowalności pary:
+
+1. **Wartość niepoprawna to ODMOWA, nie fallback.** Gdyby literówka zwijała się do 1,00, przebieg
+   dowodowy „budżet 0.01" pojechałby na limicie produkcyjnym i skończył zielono — para pokazałaby
+   zieleń w obu przebiegach i została odczytana jako „limit nie działa" zamiast „limitu nie podano".
+   Sprawdzone lokalnie: `abc`, `0`, `-1` → kod 1 z komunikatem; pusta wartość → limit domyślny.
+2. **Rozstrzygnięty budżet ląduje na stderr PRZED wywołaniem** (`[konfiguracja] …`), a nie w linii
+   metryk. Metryki drukują się wyłącznie na ścieżce sukcesu, a przebieg zatrzymany budżetem z
+   definicji tam nie dochodzi — bez tej linii para „ten sam diff, inny budżet" nie miałaby w logu
+   żadnego śladu, czym się różniła.
+
+### Para: jedna zmienna różnicy, wyłącznie wartość budżetu
+
+Oba przebiegi na fiksturze (`use_fixture: true`), ten sam model, ten sam commit. Fikstura, a nie
+diff PR-a, z tego samego powodu, dla którego punktem odniesienia jest przebieg A: jej wejście leży
+w gicie, więc para jest powtarzalna.
+
+| Pomiar            | Przebieg 1 — 32596173037                  | Przebieg 2 — 32596270682                 |
+| ----------------- | ----------------------------------------- | ---------------------------------------- |
+| `max_budget_usd`  | **`0.01`**                                | pusty (domyślne 1 USD)                   |
+| `[konfiguracja]`  | `budżet: 0.01 USD`                        | `budżet: 1 USD`                          |
+| Kolor przebiegu   | **czerwony**                              | zielony                                  |
+| `subtype`         | **`error_max_budget_usd`**                | `success`                                |
+| `terminal_reason` | **`budget_exhausted`**                    | `completed`                              |
+| Treść od SDK      | `Reached maximum budget ($0.01)`          | —                                        |
+| Klasyfikacja      | `[budget]` → `AGENT_FAILURE_KIND: budget` | — (brak awarii)                          |
+| Koszt             | ograniczony konstrukcyjnie do 0,01 USD\*  | 0,07276845 USD                           |
+| Werdykt           | `failed-to-run`                           | `fail` (fikstura jest pisana pod defekt) |
+| Etykieta wyniku   | **żadna nie nałożona**                    | `ai-cr:failed`                           |
+| Komentarz         | nagłówek „wyczerpany BUDŻET, nie awaria"  | pełna tabela dziewięciu ocen             |
+
+\* Koszt przebiegu 1 nie występuje w naszych metrykach i nie może — linia metryk drukuje się tylko
+na ścieżce sukcesu. Ograniczenie jest konstrukcyjne, nie zmierzone: SDK zatrzymał się na progu
+i sam to powiedział (`Reached maximum budget ($0.01)`). Zapisujemy to jako ograniczenie, nie jako
+pomiar.
+
+Komentarz po przebiegu 1, odczytany z historii edycji (rewizja `2026-08-22T20:17:17Z`), niósł oba
+fakty naraz — nazwany stan i strukturalną przyczynę:
+
+> **Review się NIE odbyło — wyczerpany BUDŻET, nie awaria.** … Przyczyna: … `[budget] … (subtype:
+error_max_budget_usd, is_error: true, terminal_reason: budget_exhausted): Reached maximum budget ($0.01)`
+
+### Co ta para dowodzi, a czego NIE
+
+**Dowodzi ŚCIEŻKI.** Limit realnie przerywa zapytanie; SDK raportuje to dwoma niezależnymi polami
+strukturalnymi; klasyfikacja czyta je i daje `budget`; komentarz nazywa stan tak, że nikt nie pójdzie
+szukać incydentu u dostawcy; etykieta wyniku nie zostaje nałożona. Ta ścieżka nie była wcześniej
+przejechana ani razu — przebieg z 402 dotykał tylko gałęzi rozpoznania po tekście, nie gałęzi
+`error_max_budget_usd`.
+
+**Nie dowodzi WARTOŚCI progu i nie miała.** `REVIEW_MAX_BUDGET_USD = 1.00` pozostaje uzasadnione
+**pomiarem** — 0,4426 USD na największym zaobserwowanym realnym diffie, czyli ponad dwukrotny
+zapas — a nie tą próbą. Próba na 0,01 mówi wyłącznie, że mechanizm działa; o tym, czy 1,00 jest
+właściwą liczbą, rozstrzygną dopiero przebiegi na realnych PR-ach tego repo.
+
+**Rozstrzygnęła przy okazji jedną rzecz operacyjną:** SDK zdążył wydać pieniądze, zanim uderzył
+w limit, więc klucz `OPENROUTER_REVIEW_KEY` ma kredyt. Wcześniejsze czerwienie z 402 były stanem
+konta, nie defektem — i to jest dokładnie to rozróżnienie, po które ta klasyfikacja powstała.
