@@ -315,3 +315,65 @@ describe("markers in model-authored text", () => {
     expect(body).not.toContain("<!-- ai-code-review:failure --> reszta");
   });
 });
+
+// "Budget exhausted" is NOT "the provider fell over", and the comment has to say which one — a
+// red run with no label looks identical either way. The misreading is not hypothetical: run
+// 32594772192 died on `402 This request requires more credits`, which reads like an API outage
+// and was our own key's cap. An operator told "the provider failed" goes looking for an incident
+// on someone else's status page and finds nothing, because nothing is broken there.
+describe("renderFailureHeader — named failure kinds", () => {
+  it("says the budget ran out, and says the provider is fine", () => {
+    const body = renderFailureHeader(null, {
+      reason: "API Error: 402 This request requires more credits",
+      kind: "budget",
+      runUrl: null,
+    });
+
+    expect(body).toContain("BUDŻET");
+    expect(body).toContain("nie awaria");
+    // The actionable half: what to actually do instead of investigating an outage.
+    expect(body).toMatch(/podnie|doładow/);
+  });
+
+  it("says the provider failed only when the provider actually failed", () => {
+    const body = renderFailureHeader(null, { reason: "ENOTFOUND openrouter.ai", kind: "provider", runUrl: null });
+
+    expect(body).toContain("DOSTAWCA");
+    expect(body).not.toContain("BUDŻET");
+  });
+
+  it("keeps a contract failure pointed at the schema, not at connectivity", () => {
+    const body = renderFailureHeader(null, { reason: "Niepoprawny structured output", kind: "contract", runUrl: null });
+
+    expect(body).toContain("WYJŚCIE");
+    expect(body).toContain("schemacie");
+    expect(body).not.toContain("DOSTAWCA");
+    expect(body).not.toContain("BUDŻET");
+  });
+
+  // The default matters more than the named cases. An unrecognised failure filed as a provider
+  // outage is exactly the misattribution this whole taxonomy exists to remove, so absence must
+  // render as "we do not know" — never as the most convenient guess.
+  it.each([
+    ["an explicit unknown", "unknown" as const],
+    ["no kind at all", undefined],
+    ["an explicit null", null],
+  ])("does not claim a provider outage for %s", (_label, kind) => {
+    const body = renderFailureHeader(null, { reason: "coś padło", kind, runUrl: null });
+
+    expect(body).not.toContain("DOSTAWCA");
+    expect(body).not.toContain("BUDŻET");
+    expect(body).toContain("nie rozpoznaliśmy");
+  });
+
+  it("still preserves the previous verdict under every kind", () => {
+    const verdictBody = renderComment(passingInput());
+
+    for (const kind of ["budget", "provider", "contract", "unknown"] as const) {
+      const body = renderFailureHeader(verdictBody, { reason: "x", kind, runUrl: null });
+
+      expect(body).toContain(TABLE_HEADER);
+      expect(body.split(COMMENT_MARKER)).toHaveLength(2);
+    }
+  });
+});

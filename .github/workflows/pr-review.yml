@@ -294,14 +294,20 @@ jobs:
           # agent's answer: `code` -> pass | fail, `too-large` -> too-large, `no-code` ->
           # no-code, `empty` -> failed-to-run. The split is there and not here on purpose —
           # this step knows what it fed the agent and nothing about what came back.
-          # A ceiling on what gets sent to a PAID model, so the bill is decided here and not by
-          # whoever opens the largest pull request. Derived from measurement rather than taste:
-          # run 32562732421 sent 141 395 bytes and cost $0.4426, against $0.0934 for the 1 486-byte
-          # fixture — and `verification.md` records that cost grows on BOTH sides at once, because
-          # nine rationales written about 2 711 lines are themselves longer. The limit sits at
-          # roughly 1.75x the largest run actually observed: high enough that no normal change in
-          # this repository meets it, low enough that a mass rename cannot quietly cost ten times
-          # the usual. Raise it deliberately, with a number from a run, never because one PR hit it.
+          # A COARSE PATHOLOGY FILTER, and deliberately nothing more. It is NOT spend control, and
+          # calling it that was the mistake this comment now corrects.
+          #
+          # Bytes of input are not the currency of the problem and do not convert into it — measured
+          # on run 32594772192: 222 051 bytes sailed under this 250 000 ceiling and the provider then
+          # refused anyway, because the 32 000 output tokens the query asked for did not fit in the
+          # 23 132 the key could still afford. No byte figure predicts that, because output length is
+          # not a function of input length.
+          #
+          # Spend is bounded on the axis that IS the currency: `REVIEW_MAX_BUDGET_USD` in
+          # `agents/review/review.ts`, passed to the SDK as `maxBudgetUsd`. That one can be argued
+          # from a number. This one cannot, so it is not tuned and not raised — it exists only to
+          # stop something pathological (a mass rename, a generated file that slipped the filter)
+          # from reaching a paid model at all.
           MAX_DIFF_BYTES=250000
           DIFF_BYTES=$(wc -c < "$DIFF_PATH")
 
@@ -437,6 +443,7 @@ jobs:
           RESULT_PATH: ${{ steps.review.outputs.result-path }}
           STDERR_PATH: ${{ steps.review.outputs.stderr-path }}
           STDERR_SCRUBBED: ${{ steps.review.outputs.stderr-scrubbed }}
+          AGENT_FAILURE_KIND: ${{ steps.review.outputs.failure-kind }}
           MODEL: ${{ steps.review.outputs.model }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
           PREVIOUS_PATH: ${{ steps.sticky.outputs.previous-path }}
@@ -536,8 +543,12 @@ jobs:
             REASON="zbieranie wejścia nie doszło do skutku (stan: ${STATE:-brak}) — patrz log przebiegu"
           fi
 
+          # `--failure-kind` carries the agent's own classification through: "budget exhausted" and
+          # "the provider fell over" both arrive as a red run with no label, and only this value
+          # tells the reader which one it was. Absent — the agent never got far enough to classify —
+          # it renders as `unknown`, deliberately, rather than defaulting to a provider outage.
           node --experimental-strip-types scripts/run-review-verdict.ts \
-            --failure "$REASON" --out "$BODY_PATH" \
+            --failure "$REASON" --failure-kind "${AGENT_FAILURE_KIND:-unknown}" --out "$BODY_PATH" \
             --previous "$PREVIOUS_PATH" --run-url "$RUN_URL" >> "$GITHUB_OUTPUT"
 
       # -------------------------------------------------------------------------------------

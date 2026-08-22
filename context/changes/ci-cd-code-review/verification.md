@@ -594,3 +594,78 @@ przelicza się na żadną liczbę bajtów wejścia. Cap bajtowy chroni przed jed
 absurdalnie dużym; nie chroni przed wyczerpaniem puli. Decyzja o progu zostaje więc otwarta,
 z zapisanym punktem odniesienia: 222 051 B nie zmieściło się w kluczu, którego stan na
 2026-08-22 pozwalał na 23 132 tokeny wyjścia.
+
+## Post-review — właściwa oś kosztu i nazwany trzeci stan awarii
+
+### Cap bajtowy zostaje, ale zdegradowany do tego, czym jest
+
+Nie jest kontrolą wydatku i nazywanie go tak było błędem. Bajty wejścia **nie przeliczają się**
+na rachunek — zmierzone na przebiegu 32594772192: 222 051 bajtów przeszło pod progiem 250 000,
+po czym dostawca i tak odmówił, bo żądane 32 000 tokenów wyjścia nie mieściło się w 23 132
+dostępnych. Żadna liczba bajtów tego nie przewiduje, bo długość wyjścia nie jest funkcją długości
+wejścia.
+
+Cap zostaje więc jako **gruby filtr patologii** — masowa zmiana nazw, plik generowany, który
+prześlizgnął się przez filtr — i **nie jest strojony ani podnoszony**. Nie da się go uzasadnić
+liczbą, więc nie ma czego stroić.
+
+### `maxBudgetUsd` — limit w tej samej walucie co problem
+
+`REVIEW_MAX_BUDGET_USD = 1.00` w `agents/review/review.ts`, przekazywane do SDK jako
+`maxBudgetUsd`. Wartość z pomiaru: zaobserwowane przebiegi to 0,0934 USD (fikstura) i 0,4426 USD
+(realny diff, 2 711 linii), więc 1,00 daje ponad dwukrotny zapas nad największym i zatrzymuje
+przebieg, zanim koszt stanie się niespodzianką.
+
+**Zastrzeżenie, bez którego ta liczba kłamie:** SDK liczy koszt z cennika **Anthropica**, a my
+jedziemy przez OpenRoutera — to jest PRZYBLIŻENIE, nie rachunek. Ale jest to przybliżenie
+**właściwej wielkości**, w odróżnieniu od bajtów, które nie przybliżają jej wcale. Ta sama
+adnotacja, co przy `total_cost_usd` w pomiarach wyżej, i z tego samego powodu.
+
+Sprawdzone przeciw przypiętej wersji SDK (`0.3.237`), nie założone — `agents/review` jest poza
+programem `tsc` repo, więc typecheck poszedł osobno:
+
+```
+npx tsc --noEmit --strict --module nodenext --moduleResolution nodenext \
+  --target es2023 --allowImportingTsExtensions review.ts   → exit 0
+```
+
+Kontrakt SDK, z `sdk.d.ts` przypiętej wersji: `maxBudgetUsd?: number` (`:1727-1730`, „The query
+will stop if this budget is exceeded, returning an `error_max_budget_usd` result"), podtyp wyniku
+`'error_max_budget_usd'` (`:4586`), `TerminalReason` zawiera `'budget_exhausted'` (`:7918`).
+
+### Trzeci stan ma nazwę: „budżet wyczerpany" ≠ „dostawca padł"
+
+Przed tą zmianą 402 z OpenRoutera czytało się jak awaria API, a jest **decyzją naszego limitu**:
+nikt nic nie zepsuł, skończył się kredyt na kluczu. Operator, który przeczyta „dostawca padł",
+pójdzie szukać incydentu na cudzej stronie statusu i nic tam nie znajdzie, bo nic tam nie jest
+zepsute.
+
+Cztery nazwane rodzaje, rozstrzygane **strukturalnie** wszędzie tam, gdzie SDK daje fakt:
+
+| Rodzaj     | Po czym rozpoznany                                                                                                                             | Co znaczy dla czytelnika                       |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `budget`   | `subtype === "error_max_budget_usd"` albo `terminal_reason === "budget_exhausted"`; dodatkowo 402 / „requires more credits" w tekście dostawcy | limit po NASZEJ stronie — podnieś albo doładuj |
+| `provider` | `terminal_reason === "api_error"`, `ENOTFOUND`, `ECONNREFUSED`, 5xx                                                                            | awaria po drugiej stronie                      |
+| `contract` | agent pojechał, `structured_output` nie przeszedł schematu                                                                                     | szukaj w schemacie, nie w łączności            |
+| `unknown`  | nic z powyższych                                                                                                                               | nie zgadujemy                                  |
+
+**`unknown` jest pełnoprawnym członkiem, nie zaślepką.** Domyślne wrzucanie nierozpoznanej awarii
+do `provider` jest dokładnie tym mylącym przypisaniem, które ta klasyfikacja likwiduje. Rozpoznanie
+po tekście występuje w **jednym** miejscu — cap kredytu OpenRoutera, którego SDK zna tylko jako
+`api_error` — i jest to zapisane przy tej linii.
+
+Wartość wraca do harnessu tą samą drogą co `model`: proces agenta pisze `failure-kind=` do
+`$GITHUB_OUTPUT`, akcja wystawia to jako output, workflow podaje do renderera jako
+`--failure-kind`. Nieznana wartość degraduje do `unknown`, nigdy do `provider`.
+
+### Zmierzone
+
+| Sprawdzenie                                                       | Wynik                                                   |
+| ----------------------------------------------------------------- | ------------------------------------------------------- |
+| `--failure-kind budget` → nagłówek                                | „wyczerpany BUDŻET, nie awaria" + co zrobić             |
+| `--failure-kind provider` → nagłówek                              | „zawiódł DOSTAWCA albo sieć", bez słowa BUDŻET          |
+| `--failure-kind unknown` / brak flagi / `--failure-kind zmyslony` | „rodzaju awarii nie rozpoznaliśmy" — **nigdy** DOSTAWCA |
+| zachowany werdykt pod każdym z czterech rodzajów                  | tabela obecna, dokładnie jeden marker komentarza        |
+| mutant „`unknown` udaje `provider`"                               | **3 testy na czerwono**                                 |
+| typecheck agenta przeciw SDK 0.3.237                              | exit 0                                                  |
+| `npm test`                                                        | 645 testów / 48 plików                                  |

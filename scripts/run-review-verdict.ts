@@ -24,6 +24,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { SCORE_THRESHOLD, decideVerdict, parseReview } from "./review-verdict.ts";
 import type { Criterion } from "./review-verdict.ts";
 import { renderComment, renderFailureHeader, renderNoCodeComment, renderTooLargeComment } from "./review-comment.ts";
+import type { FailureKind } from "./review-comment.ts";
 
 /**
  * The criteria list is read as DATA from the agent's package, resolved from this file's own
@@ -43,7 +44,8 @@ const USAGE = [
   "    --result <plik.json> --out <plik.md> --sha <sha> --model <id> [--run-url <url>]",
   "  … --no-code --out <plik.md> --sha <sha> [--run-url <url>]",
   "  … --too-large --out <plik.md> --sha <sha> --bytes <n> --limit <n> [--run-url <url>]",
-  "  … --failure <powód> --out <plik.md> [--previous <plik.md>] [--run-url <url>]",
+  "  … --failure <powód> [--failure-kind budget|provider|contract|unknown] --out <plik.md> \\",
+  "        [--previous <plik.md>] [--run-url <url>]",
 ].join("\n");
 
 interface Args {
@@ -51,6 +53,7 @@ interface Args {
   out: string | null;
   previous: string | null;
   failure: string | null;
+  failureKind: FailureKind | null;
   sha: string | null;
   model: string | null;
   runUrl: string | null;
@@ -70,6 +73,7 @@ function parseArgs(argv: readonly string[]): Args {
     out: null,
     previous: null,
     failure: null,
+    failureKind: null,
     sha: null,
     model: null,
     runUrl: null,
@@ -109,6 +113,18 @@ function parseArgs(argv: readonly string[]): Args {
       case "--failure":
         args.failure = value;
         break;
+      case "--failure-kind": {
+        // Validated rather than trusted: this value selects the sentence at the very top of a
+        // comment on a public pull request, and an unrecognised one must degrade to `unknown`
+        // — which says "we do not know" — never to `provider`, which asserts an outage.
+        const kinds = ["budget", "provider", "contract", "unknown"] as const;
+        const match = kinds.find((candidate) => candidate === value);
+        if (match === undefined) {
+          console.error(`[verdict] nieznany \`--failure-kind\` (${value}) — renderuję jako \`unknown\`.`);
+        }
+        args.failureKind = match ?? "unknown";
+        break;
+      }
       case "--sha":
         args.sha = value;
         break;
@@ -189,7 +205,11 @@ function main(argv: readonly string[]): number {
   if (args.failure !== null) {
     writeFileSync(
       args.out,
-      renderFailureHeader(readPrevious(args.previous), { reason: args.failure, runUrl: args.runUrl }),
+      renderFailureHeader(readPrevious(args.previous), {
+        reason: args.failure,
+        kind: args.failureKind,
+        runUrl: args.runUrl,
+      }),
       "utf8",
     );
     // Neither `pass` nor `fail`: the workflow keys label handling off this value, and review

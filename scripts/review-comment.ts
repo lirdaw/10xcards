@@ -60,11 +60,39 @@ export interface RenderCommentInput {
   readonly threshold: number;
 }
 
+/**
+ * WHY the run failed, as a named state rather than a sentence to be read carefully.
+ *
+ * The distinction this exists for: **"budget exhausted" is not "the provider fell over".** A 402
+ * from OpenRouter reads like an API outage and is nothing of the sort — it is our own key's cap
+ * saying no. An operator who reads "the provider failed" goes looking for an incident on someone
+ * else's status page instead of topping up a key, and finds nothing, because nothing is wrong
+ * there. The same holds for the SDK's `maxBudgetUsd` stop: a limit WE set, doing its job.
+ *
+ * `unknown` is a real member, not a placeholder: an unrecognised failure must not be filed as a
+ * provider outage by default, because that default is precisely the misattribution above.
+ */
+export type FailureKind = "budget" | "provider" | "contract" | "unknown";
+
 export interface FailureHeaderInput {
   /** What actually broke — the agent's stderr tail or the step that failed. */
   readonly reason: string;
+  /** Absent when the harness could not tell; rendered as `unknown`, never as `provider`. */
+  readonly kind?: FailureKind | null;
   readonly runUrl?: string | null;
 }
+
+/** One line naming the state, so the header says WHAT KIND of failure before saying which one. */
+const FAILURE_HEADLINE: Record<FailureKind, string> = {
+  budget:
+    "**Review się NIE odbyło — wyczerpany BUDŻET, nie awaria.** Zatrzymał to limit po naszej stronie (limit wydatku na przebieg albo cap kredytu na kluczu). U dostawcy nic się nie zepsuło i nie ma tam czego naprawiać — trzeba podnieść limit albo doładować klucz.",
+  provider:
+    "**Review się NIE odbyło — zawiódł DOSTAWCA albo sieć.** To jest awaria po drugiej stronie, nie decyzja naszego limitu.",
+  contract:
+    "**Review się NIE odbyło — agent pojechał, ale jego WYJŚCIE nie spełniło kontraktu.** Przyczyny szukaj w schemacie wyniku, nie w łączności.",
+  unknown:
+    "**Review się NIE odbyło**, a rodzaju awarii nie rozpoznaliśmy — świadomie nie zgadujemy, bo wpisanie tu „awaria dostawcy” na wszelki wypadek wysyła czytelnika w złą stronę.",
+};
 
 /**
  * Make a model-authored string safe inside a Markdown table cell.
@@ -257,15 +285,17 @@ export function renderNoCodeComment({ sha, runUrl }: { sha: string; runUrl?: str
  */
 export function renderFailureHeader(
   previousBody: string | null | undefined,
-  { reason, runUrl }: FailureHeaderInput,
+  { reason, kind, runUrl }: FailureHeaderInput,
 ): string {
   const previous = stripFailureBlock(previousBody ?? "");
 
   const header = [
     FAILURE_OPEN,
     "> [!WARNING]",
-    "> **Review się NIE odbyło** — poniższy werdykt (jeśli jest) pochodzi z wcześniejszego przebiegu",
-    "> i może być nieaktualny. Brak etykiety wyniku znaczy „review się nie odbyło”, nie „pass”.",
+    `> ${FAILURE_HEADLINE[kind ?? "unknown"]}`,
+    ">",
+    "> Poniższy werdykt (jeśli jest) pochodzi z wcześniejszego przebiegu i może być nieaktualny.",
+    "> Brak etykiety wyniku znaczy „review się nie odbyło”, nie „pass”.",
     ">",
     `> Przyczyna: ${neutraliseMarkers(reason.replace(/\r?\n/g, " ").trim())}${renderRunLink(runUrl)}`,
     FAILURE_CLOSE,

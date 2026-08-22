@@ -59,6 +59,14 @@ outputs:
       from a crashed scrubber — means say something generic instead. The default is silence
       because a leak is irreversible and a missing sentence in a comment is not.
     value: ${{ steps.review.outputs.stderr-scrubbed }}
+  failure-kind:
+    description: >-
+      How the run failed, when it did: `budget` (a limit WE set — the SDK's `maxBudgetUsd` or the
+      key's own credit cap, i.e. a decision rather than an outage), `provider` (the provider or the
+      network genuinely failed), `contract` (the agent ran but its output did not satisfy the
+      schema), `unknown` (not recognised). Empty on a successful run — and empty is NOT `provider`:
+      a consumer must treat an absent value as unknown rather than assume an outage.
+    value: ${{ steps.review.outputs.failure-kind }}
   model:
     description: >-
       The model id that actually produced the review, as resolved and reported by the agent

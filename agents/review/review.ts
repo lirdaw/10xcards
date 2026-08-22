@@ -38,6 +38,73 @@ const REVIEW_MODEL = process.env.REVIEW_MODEL?.trim() || "anthropic/claude-sonne
  * Zapis idzie PRZED wywołaniem modelu, żeby ścieżka awarii (celowo nieistniejące id modelu
  * z fazy 6) też niosła rozstrzygniętą wartość. Poza CI zmiennej nie ma i cały blok jest no-op.
  */
+/**
+ * Limit wydatku na JEDEN przebieg, wyrażony w tej samej walucie co problem.
+ *
+ * Cap na bajty diffa w `pr-review.yml` zostaje, ale jest tym, czym jest: grubym filtrem
+ * patologii. Nie da się nim uzasadnić żadnej kwoty, bo bajty wejścia nie przeliczają się na
+ * rachunek — zmierzone: przebieg 32594772192 miał 222 051 bajtów, przeszedł cap 250 000
+ * i dopiero dostawca odmówił, bo żądane 32 000 tokenów wyjścia nie mieściło się w 23 132
+ * dostępnych. Wejście i koszt to dwie różne wielkości.
+ *
+ * `maxBudgetUsd` jest właściwą osią: SDK zatrzymuje zapytanie po przekroczeniu i zwraca wynik
+ * o podtypie `error_max_budget_usd` (`sdk.d.ts:1727-1730`, `:4586`), czyli fakt strukturalny,
+ * a nie tekst do zgadywania.
+ *
+ * **Zastrzeżenie, bez którego ta liczba kłamie:** SDK liczy koszt z cennika ANTHROPICA, a my
+ * jedziemy przez OpenRoutera — więc to jest PRZYBLIŻENIE, nie rachunek. Ale jest to przybliżenie
+ * właściwej wielkości, w odróżnieniu od bajtów, które nie przybliżają jej wcale.
+ *
+ * Wartość: zmierzone przebiegi to 0,0934 USD (fikstura) i 0,4426 USD (realny diff 2 711 linii).
+ * 1,00 USD daje ponad dwukrotny zapas nad największym zaobserwowanym i zatrzymuje przebieg,
+ * zanim koszt stanie się niespodzianką. Podnoszenie ma iść za liczbą z przebiegu.
+ */
+const REVIEW_MAX_BUDGET_USD = 1.0;
+
+/**
+ * Trzy nazwane rodzaje awarii — bo „budżet wyczerpany" to NIE to samo co „dostawca padł".
+ *
+ * Bez tego rozróżnienia 402 z OpenRoutera czyta się jak awaria API, a jest DECYZJĄ naszego
+ * limitu: nikt nic nie zepsuł, skończył się kredyt na kluczu. Operator, który przeczyta
+ * „dostawca padł", pójdzie szukać incydentu u dostawcy zamiast doładować klucz.
+ *
+ * - `budget`   — zatrzymał nas WŁASNY limit: `maxBudgetUsd` SDK albo cap kredytu na kluczu (402).
+ * - `provider` — dostawca albo sieć naprawdę zawiodły (inne `api_error`, `ENOTFOUND`, 5xx).
+ * - `contract` — agent pojechał, ale wyjście nie spełniło kontraktu (structured output).
+ * - `unknown`  — nie rozpoznaliśmy. Świadomie osobna wartość, a nie „na pewno provider":
+ *                domyślne wrzucanie nieznanego do awarii dostawcy jest dokładnie tym
+ *                mylącym przypisaniem, które ta klasyfikacja ma zlikwidować.
+ */
+export type FailureKind = "budget" | "provider" | "contract" | "unknown";
+
+/** Rozpoznanie po faktach STRUKTURALNYCH tam, gdzie SDK je daje; po tekście tylko tam, gdzie nie daje. */
+function classifyFailure(subtype: string, terminalReason: string | null | undefined, detail: string): FailureKind {
+  // SDK mówi to wprost — dwa niezależne pola, oba wystarczają.
+  if (subtype === "error_max_budget_usd" || terminalReason === "budget_exhausted") return "budget";
+
+  // Cap kredytu na kluczu OpenRoutera. SDK zna to tylko jako `api_error`, więc TU rozpoznanie
+  // musi iść po tekście — i jest to jedyne miejsce w tym pliku, gdzie tak jest.
+  if (/\b402\b/.test(detail) || /requires more credits|insufficient credits/i.test(detail)) return "budget";
+
+  if (terminalReason === "api_error" || /ENOTFOUND|ECONNREFUSED|ETIMEDOUT|\b5\d\d\b/.test(detail)) return "provider";
+
+  return "unknown";
+}
+
+/** Rodzaj awarii wraca do harnessu tą samą drogą co model — patrz komentarz niżej. */
+function reportFailureKind(kind: FailureKind): void {
+  const target = process.env.GITHUB_OUTPUT;
+  if (!target) return;
+  try {
+    appendFileSync(target, `failure-kind=${kind}
+`, "utf8");
+  } catch {
+    // Świadomie połknięte i to jedyny taki przypadek w tym pliku: jesteśmy już na ścieżce
+    // awarii, a przewrócenie się TUTAJ zastąpiłoby prawdziwą przyczynę awarią raportowania
+    // o niej. Konsument traktuje brak wartości jak `unknown`, czyli fail-closed.
+  }
+}
+
 const githubOutput = process.env.GITHUB_OUTPUT;
 if (githubOutput) {
   // Wartość pochodzi z inputu `workflow_dispatch`, czyli z tekstu wpisanego przez człowieka.
@@ -117,6 +184,9 @@ async function review(diff: string): Promise<Review> {
       model: REVIEW_MODEL, // pin, nie alias — patrz komentarz przy REVIEW_MODEL
       tools: [], // ODCINAMY narzędzia: recenzja ma być wąska i przewidywalna
       maxTurns: 2, // tura 1: model czyta i ocenia | tura 2: emituje JSON wg schematu
+      // Limit wydatku na przebieg — patrz REVIEW_MAX_BUDGET_USD. Przekroczenie daje wynik
+      // o podtypie `error_max_budget_usd`, więc zatrzymanie jest odróżnialne od awarii dostawcy.
+      maxBudgetUsd: REVIEW_MAX_BUDGET_USD,
       outputFormat: { type: "json_schema", schema: REVIEW_JSON_SCHEMA },
     },
   });
@@ -134,7 +204,8 @@ async function review(diff: string): Promise<Review> {
       // żeby mieć gwarancję typu Review, a nie samą obietnicę SDK.
       const parsed = REVIEW_SCHEMA.safeParse(message.structured_output);
       if (!parsed.success) {
-        throw new Error(`Niepoprawny structured output: ${parsed.error.message}`);
+        reportFailureKind("contract");
+        throw new Error(`[contract] Niepoprawny structured output: ${parsed.error.message}`);
       }
 
       // Metryki operacyjne — na stderr, żeby nie brudzić JSON-a na stdout.
@@ -161,8 +232,10 @@ async function review(diff: string): Promise<Review> {
     // (np. `api_error` / `ENOTFOUND`), której połknięcie wysyłało operatora w złą stronę.
     // `result` żyje na wariancie success, `errors` na wariancie error — stąd dwa odczyty.
     const detail = "result" in message ? message.result : message.errors.join("; ");
+    const kind = classifyFailure(message.subtype, message.terminal_reason, detail);
+    reportFailureKind(kind);
     throw new Error(
-      `Review nie powiodło się (subtype: ${message.subtype}, is_error: ${message.is_error}, ` +
+      `[${kind}] Review nie powiodło się (subtype: ${message.subtype}, is_error: ${message.is_error}, ` +
         `terminal_reason: ${message.terminal_reason ?? "n/d"}): ${detail || "brak szczegółów"}`,
     );
   }
