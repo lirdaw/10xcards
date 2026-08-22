@@ -1,0 +1,227 @@
+name: Review agent
+description: >-
+  Runs this repository's own code-review agent (agents/review) over one diff and hands back the
+  agent's exit status, its JSON result, a key-scrubbed stderr log and the resolved model id.
+
+# The first composite action in this repository, and the split it draws is a READER'S criterion,
+# not a packaging one: everything that is "how to run the agent" lives here — the 335 MB install,
+# the secret handling, the criteria-drift gate, the redirect-not-pipe capture, the exit-code
+# handling — so that the caller (.github/workflows/pr-review.yml) stays five readable steps:
+# fetch -> collect input -> run review -> decide -> publish. Someone reading the workflow for the
+# first time should not have to open this file to learn what happens and in what order.
+
+inputs:
+  api-key:
+    description: >-
+      OpenRouter key. It arrives as an INPUT because the `secrets` context does not exist inside a
+      composite action, and it reaches every step through `env:` — never interpolated into a `run:`
+      body, where it would be spliced into the shell before bash ever sees a quote.
+    required: true
+  diff-path:
+    description: Path to the file holding the diff to review. Its contents go to the agent's stdin.
+    required: true
+  model:
+    description: >-
+      OpenRouter model id. Empty means "whatever the agent pins", and the resolved value comes back
+      on the `model` output — written by the agent itself, which is the only party that knows it
+      without a second copy of the id living in this file.
+    required: false
+    default: ""
+  result-path:
+    description: >-
+      Where the agent's JSON result is written. Empty resolves to `$RUNNER_TEMP/review-result.json`
+      inside the run step, because action metadata cannot see the `runner` context.
+    required: false
+    default: ""
+
+# An output needs THREE things at once: the step carries an `id:`, the step writes to
+# `$GITHUB_OUTPUT`, and the name is declared here. Writing to `$GITHUB_OUTPUT` alone does NOT
+# expose anything outside a composite action — the failure mode is a silent empty string in the
+# caller, which reads exactly like "the value was not produced".
+outputs:
+  status:
+    description: >-
+      The agent's exit code, NOT the step's. 0 means the agent produced a result (including a
+      `fail` verdict); anything else means review did not happen. Telling those two apart is the
+      caller's whole job, which is why `continue-on-error` is not used anywhere here: it would
+      collapse both into one `outcome: failure`.
+    value: ${{ steps.review.outputs.status }}
+  result-path:
+    description: Absolute path to the agent's JSON result (present, possibly empty, whatever the status).
+    value: ${{ steps.review.outputs.result-path }}
+  stderr-path:
+    description: Absolute path to the agent's stderr log, with the key scrubbed out.
+    value: ${{ steps.review.outputs.stderr-path }}
+  stderr-scrubbed:
+    description: >-
+      `true` only when the scrub of `stderr-path` could be VOUCHED for. Quote that file in a
+      comment on a public pull request ONLY on `true`; anything else — including a missing value
+      from a crashed scrubber — means say something generic instead. The default is silence
+      because a leak is irreversible and a missing sentence in a comment is not.
+    value: ${{ steps.review.outputs.stderr-scrubbed }}
+  model:
+    description: >-
+      The model id that actually produced the review, as resolved and reported by the agent
+      process. The LLM never reports its own identity — see the comment on the run step.
+    value: ${{ steps.review.outputs.model }}
+
+runs:
+  using: composite
+  steps:
+    # Placement is this gate's entire value, exactly as in `.github/workflows/eval.yml:109-118`:
+    # the agent refuses to run without a key and says so better than anything here, but it says it
+    # AFTER a ~60 s `npm ci`. Here a missing or unset secret is obvious in seconds.
+    #
+    # A non-empty check is not proof the key WORKS, and this repository has the receipt: in
+    # `eval-ci-dispatch` a secret with a BOM passed every "is it set?" check and failed on the
+    # first real call. The proof of a working key is a green run, never this step.
+    - name: Require the OpenRouter key
+      shell: bash
+      env:
+        API_KEY: ${{ inputs.api-key }}
+      run: |
+        test -n "$API_KEY" || {
+          echo "::error title=Missing review key::The review agent needs an OpenRouter key."
+          echo "The caller passes it as the \`api-key\` input, from the OPENROUTER_REVIEW_KEY secret,"
+          echo "declared ON THE STEP that uses this action — never at job level."
+          echo "It is review's OWN key. Do NOT point this at OPENROUTER_EVAL_KEY: that one belongs"
+          echo "to the generation-quality eval, its low cap is that eval's damage limit, and a"
+          echo "second consumer on it makes the two starve each other and their spend impossible"
+          echo "to tell apart on the dashboard."
+          exit 1
+        }
+
+    # `cache-dependency-path` points at the AGENT's lockfile, not the root one: this action never
+    # installs the application's dependencies, and keying the cache on the root lockfile would make
+    # every unrelated root-dependency bump evict a cache this action alone pays to rebuild.
+    - uses: actions/setup-node@v6
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: agents/review/package-lock.json
+
+    # `agents/review` is its own npm package with its own lockfile, deliberately outside this
+    # project's tsconfig, ESLint and vitest (`tsconfig.json:4`, `eslint.config.js:126-131`). That
+    # boundary is why the install happens here and nowhere else — and it is also the reason the
+    # criteria list crosses to `scripts/` as generated DATA rather than as an import.
+    #
+    # This is the slowest and most platform-sensitive step in the whole change: ~335 MB unpacked,
+    # with a postinstall, resolving `claude-agent-sdk-linux-x64` from the lockfile.
+    - name: Install the review agent
+      shell: bash
+      working-directory: agents/review
+      run: npm ci
+
+    # Generate-and-compare, the same shape `ci.yml` already uses for `src/db/database.types.ts`.
+    # It sits directly after the install because that is the first moment it CAN run, and it sits
+    # before the agent runs because a stale list means a comment rendered with wrong labels — a
+    # wrong answer costs more than a run that never started.
+    #
+    # `.gitattributes` is `* text=auto eol=lf`, so a Linux runner cannot produce a diff from line
+    # endings alone: red here means the schema and the committed list genuinely disagree.
+    - name: Check the committed criteria list against the schema
+      shell: bash
+      run: |
+        npm --prefix agents/review run --silent criteria
+        git diff --exit-code -- agents/review/criteria.json || {
+          echo "::error title=Stale criteria.json::agents/review/criteria.json does not match the CRITERIA array."
+          echo "Run \`npm --prefix agents/review run criteria\` and commit the result."
+          exit 1
+        }
+
+    # The step that produces every output. It ALWAYS ends `exit 0` — the agent's exit code travels
+    # on the `status` output instead, because "the agent says fail" and "the agent fell over" are
+    # different events and only the caller can decide what each one means.
+    #
+    # `$GITHUB_OUTPUT` is written from TWO processes here, and that is the design rather than an
+    # accident. The shell writes what the shell knows (status and the two paths); the agent writes
+    # `model=` itself, because the resolved id is a HARNESS fact and the JSON result is authored by
+    # an LLM, which has no business reporting its own identity. A child process inherits
+    # `GITHUB_OUTPUT` and the runner attributes its writes to the step that spawned it — so the
+    # value gets out with no second copy of the model id in this file and no gate parsing a log line.
+    - name: Run the review agent
+      id: review
+      shell: bash
+      env:
+        ANTHROPIC_AUTH_TOKEN: ${{ inputs.api-key }}
+        API_KEY: ${{ inputs.api-key }}
+        REVIEW_MODEL: ${{ inputs.model }}
+        DIFF_PATH: ${{ inputs.diff-path }}
+        INPUT_RESULT_PATH: ${{ inputs.result-path }}
+      run: |
+        RESULT_PATH="${INPUT_RESULT_PATH:-$RUNNER_TEMP/review-result.json}"
+        STDERR_PATH="$RUNNER_TEMP/review-stderr.log"
+        STATUS=0
+
+        # REDIRECTS, never a pipe. `npm run eval | tee …` was MEASURED in this repository to exit
+        # 0 on a red run: the default `run:` shell on Linux is `bash -e {0}` with no `pipefail`, so
+        # the pipeline reports tee's status. (`shell: bash` — mandatory in a composite step anyway —
+        # resolves to `bash --noprofile --norc -eo pipefail {0}`, so `pipefail` IS on here; the rule
+        # stands regardless, because the agent's contract is "stdout is exclusively JSON" and a pipe
+        # is how something else ends up in it.)
+        #
+        # `--silent` is part of that same contract: without it npm prints its `> review@1.0.0 review`
+        # banner to STDOUT, straight into the result file, and `JSON.parse` fails on line 1.
+        #
+        # `timeout` rather than `timeout-minutes`: composite action steps do not support that key
+        # (docs list run/shell/if/name/id/env/working-directory/uses/with/continue-on-error and
+        # nothing else), so writing it here would look like a limit and be none. This form is also
+        # the better one — a kill shows up as STATUS=124 travelling the normal path to the caller,
+        # instead of a killed step that produces no outputs at all.
+        timeout 15m npm --prefix agents/review run --silent review \
+          < "$DIFF_PATH" > "$RESULT_PATH" 2> "$STDERR_PATH" || STATUS=$?
+
+        # Scrub the key BEFORE anything reads, prints or quotes this file — and say whether the
+        # scrub can be VOUCHED for, because the caller pastes a line of it into a comment on a
+        # public pull request and GitHub's masking does not cover a REST body.
+        #
+        # This was `sed -i "s|${API_KEY}|***|g" "$STDERR_PATH" 2>/dev/null || true`, which had
+        # three defects at once: the key went into the s-command UNESCAPED (a `|` in it closes
+        # the command, a `\` starts an escape), both channels of the failure were discarded, and
+        # nothing downstream could tell a successful scrub from one that never ran. The logic now
+        # lives in `scripts/scrub-secrets.ts` — literal replacement, so a metacharacter in the key
+        # is just a character — with `tests/lib/scrub-secrets.test.ts` covering the cases the sed
+        # could not even express. Shell in YAML is not testable; that is why it moved.
+        #
+        # The secret travels in the ENVIRONMENT, never in argv: a command line is readable through
+        # /proc and the runner echoes the command it runs into the log.
+        SCRUBBED=false
+        # Path relative to the workspace, the same way `pr-review.yml` invokes
+        # `scripts/run-review-verdict.ts`. This action is repository-local — it already reaches
+        # for `agents/review` — so reaching for `scripts/` is the existing coupling, not a new one.
+        if SCRUB_OUT=$(SCRUB_SECRET="$API_KEY" node --experimental-strip-types \
+                         scripts/run-scrub-secrets.ts --file "$STDERR_PATH"); then
+          # EQUALITY, not a substring match. The runner's contract is one line on stdout, so
+          # `*"scrubbed=true"*` would be right today — and would silently start accepting any
+          # future line that merely CONTAINS the token. A gate whose whole job is to fail closed
+          # must not widen by accident; caught by this repository's own review agent on run
+          # 32593019701, reviewing this very commit.
+          #
+          # A full `if`, not `[ … ] && SCRUBBED=true`: this step runs under `shell: bash`, so
+          # `-e` is on, and a bare AND-list whose test FAILS returns non-zero as a standalone
+          # statement — aborting the step on exactly the `scrubbed=false` path that most needs
+          # to reach the `stderr-scrubbed` write below.
+          if [ "$SCRUB_OUT" = "scrubbed=true" ]; then
+            SCRUBBED=true
+          fi
+        fi
+        # Fails CLOSED, deliberately and in both directions: a crashing scrubber prints no
+        # `scrubbed=` line and a refusing one prints `scrubbed=false`, and neither can be read as
+        # permission. The caller renders a generic reason unless this is literally `true`.
+        echo "stderr-scrubbed=$SCRUBBED" >> "$GITHUB_OUTPUT"
+
+        # The metrics line (model, turns, duration, tokens, cache hit rate, terminal_reason) is the
+        # measurement phase 6 records. Echoing it puts it in the run log, which outlives the file.
+        echo "--- agent stderr ---"
+        cat "$STDERR_PATH" || true
+        echo "--- end agent stderr ---"
+
+        {
+          echo "status=$STATUS"
+          echo "result-path=$RESULT_PATH"
+          echo "stderr-path=$STDERR_PATH"
+        } >> "$GITHUB_OUTPUT"
+
+        # Explicit, and not the same thing as falling off the end: the caller reads `status`, so
+        # this step failing would hide the very distinction it exists to preserve.
+        exit 0
