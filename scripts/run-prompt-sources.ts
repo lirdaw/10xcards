@@ -6,9 +6,21 @@
 // ./prompt-sources.ts as pure functions with fixtures; this file reads argv, writes the
 // record and owns the exit code.
 //
-// Regenerating only — the GATE is tests/lib/review-prompt-sources.test.ts, which runs in
-// `npm test` on every change. Putting a second check mode here would give the same fact two
-// homes and let them disagree; the one this repo would trust is the one CI already runs.
+// Regenerating only. The GATE is ./check-prompt-sources.ts, run by
+// .github/workflows/prompt-ratchet.yml, plus tests/lib/review-prompt-sources.test.ts inside
+// `npm test`.
+//
+// This comment used to say the test alone was the gate, "which runs in `npm test` on every
+// change" — and that was FALSE in the only way that mattered. `npm test` runs in one place,
+// the `ci` job of ci.yml, whose triggers carry `paths-ignore: ["**/*.md", "context/**"]`;
+// every section this ratchet guards lives in AGENTS.md or test-plan.md, so a docs-only change
+// skipped the workflow and the gate never ran. Hence the separate runner and workflow.
+//
+// The old warning against "a second check mode here" still stands, and this is why the check
+// went NEXT DOOR rather than behind a `--check` flag on this file: the DECISION (which
+// sections, how they are cut, how they are hashed, what the remedy says) has one home in
+// ./prompt-sources.ts, and all three callers share it. Same shape as ./schema-drift.ts, read
+// by both ./check-schema-drift.ts and tests/lib/schema-drift.test.ts.
 //
 // Zero runtime dependencies — `node:fs` and `node:crypto` only — matching
 // ./check-schema-drift.ts and ./run-review-verdict.ts, which is what lets it run under bare
