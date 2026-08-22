@@ -27,6 +27,14 @@ inputs:
       without a second copy of the id living in this file.
     required: false
     default: ""
+  max-budget-usd:
+    description: >-
+      Per-run spend ceiling handed to the SDK as `maxBudgetUsd`. Empty means the agent's own
+      default. It exists so the limit can be PROVEN to work on a cheap run — without it the only
+      way to test the gate is to let a real run spend the whole budget, which costs as much as
+      not having the gate. Manual runs only; no automatic trigger sets it.
+    required: false
+    default: ""
   result-path:
     description: >-
       Where the agent's JSON result is written. Empty resolves to `$RUNNER_TEMP/review-result.json`
@@ -152,6 +160,7 @@ runs:
       shell: bash
       env:
         ANTHROPIC_AUTH_TOKEN: ${{ inputs.api-key }}
+        REVIEW_MAX_BUDGET_USD: ${{ inputs.max-budget-usd }}
         API_KEY: ${{ inputs.api-key }}
         REVIEW_MODEL: ${{ inputs.model }}
         DIFF_PATH: ${{ inputs.diff-path }}

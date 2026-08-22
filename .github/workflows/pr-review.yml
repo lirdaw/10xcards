@@ -48,6 +48,10 @@ on:
         description: "OpenRouter model id override (blank = the agent's pin). Manual runs only, so automatic ones stay reproducible."
         required: false
         default: ""
+      max_budget_usd:
+        description: "Per-run spend ceiling in USD (blank = the agent's default). Manual runs only. Set it low to PROVE the limit fires without paying for the proof."
+        required: false
+        default: ""
 
 # An EXPLICIT key, unlike `eval.yml` one file over, and for the opposite reason: there the
 # problem is two runs colliding on one shared OpenRouter account, so it serialises with
@@ -365,6 +369,9 @@ jobs:
           api-key: ${{ secrets.OPENROUTER_REVIEW_KEY }}
           diff-path: ${{ steps.input.outputs.diff-path }}
           model: ${{ github.event_name == 'workflow_dispatch' && inputs.model || '' }}
+          # Same shape and same reason as `model`: a manual seam only, so every automatic run
+          # stays reproducible on the agent's own default.
+          max-budget-usd: ${{ github.event_name == 'workflow_dispatch' && inputs.max_budget_usd || '' }}
 
       # -------------------------------------------------------------------------------------
       # 4. Decide

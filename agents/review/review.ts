@@ -59,7 +59,36 @@ const REVIEW_MODEL = process.env.REVIEW_MODEL?.trim() || "anthropic/claude-sonne
  * 1,00 USD daje ponad dwukrotny zapas nad największym zaobserwowanym i zatrzymuje przebieg,
  * zanim koszt stanie się niespodzianką. Podnoszenie ma iść za liczbą z przebiegu.
  */
-const REVIEW_MAX_BUDGET_USD = 1.0;
+const DEFAULT_MAX_BUDGET_USD = 1.0;
+
+/**
+ * Nadpisanie istnieje WYŁĄCZNIE po to, żeby dało się dowieść, że ten limit działa.
+ *
+ * Bez tego szwu jedyną drogą do próby byłoby doprowadzenie realnego przebiegu do wydania
+ * dolara — czyli bramka, której sprawdzenie kosztuje tyle, co jej brak. Ten sam układ, co przy
+ * `REVIEW_MODEL`: nadpisanie podaje się ręcznie przy `workflow_dispatch`, żaden automatyczny
+ * wyzwalacz go nie ustawia, a rozstrzygnięta wartość ląduje w logu — i to jest to, co odbiera
+ * temu szwowi możliwość cichej zmiany zachowania.
+ *
+ * Odmowa zamiast cichego fallbacku na wartość domyślną: gdyby literówka w inpucie zwijała się
+ * do 1.00, przebieg dowodowy „budżet 0.01" pojechałby na produkcyjnym limicie i skończył się
+ * zielono — czyli para dowodowa pokazałaby zieleń w obu przebiegach i została odczytana jako
+ * „limit nie działa", zamiast jako „limitu nie podano".
+ */
+function resolveMaxBudgetUsd(raw: string | undefined): number {
+  const text = raw?.trim();
+  if (!text) return DEFAULT_MAX_BUDGET_USD;
+
+  const value = Number(text);
+  if (!Number.isFinite(value) || value <= 0) {
+    console.error(`REVIEW_MAX_BUDGET_USD musi być liczbą dodatnią (otrzymano: ${JSON.stringify(raw)}).`);
+    console.error("Zostawienie pustej wartości bierze limit domyślny; wartość niepoprawna to błąd, nie fallback.");
+    process.exit(1);
+  }
+  return value;
+}
+
+const REVIEW_MAX_BUDGET_USD = resolveMaxBudgetUsd(process.env.REVIEW_MAX_BUDGET_USD);
 
 /**
  * Trzy nazwane rodzaje awarii — bo „budżet wyczerpany" to NIE to samo co „dostawca padł".
@@ -170,6 +199,14 @@ async function readDiff(): Promise<string> {
   for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
   return Buffer.concat(chunks).toString("utf8");
 }
+
+// Zapisane PRZED wywołaniem, nie w linii metryk: metryki drukują się tylko na ścieżce sukcesu,
+// a przebieg zatrzymany przez budżet z definicji tam nie dochodzi. Bez tej linii para dowodowa
+// „ten sam diff, inny budżet" nie miałaby w logu żadnego śladu, czym się różniła.
+console.error(
+  `[konfiguracja] model: ${REVIEW_MODEL} | budżet: ${REVIEW_MAX_BUDGET_USD} USD ` +
+    "(limit SDK, liczony z cennika Anthropica — przybliżenie, nie rachunek OpenRoutera)",
+);
 
 async function review(diff: string): Promise<Review> {
   const result = query({
