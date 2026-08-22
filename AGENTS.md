@@ -27,6 +27,7 @@
 - `npm run build` — production build; `npx wrangler deploy` — ship to Cloudflare.
 - `npx supabase db push` — apply migrations to the **cloud** before merging; CI's `drift` job compares versions against the cloud and blocks `deploy` otherwise (`.github/workflows/ci.yml`).
 - `npm test` — Vitest integration suite against the local Supabase stack; start it first with `npm run db:start`. A preflight aborts the run if `SUPABASE_URL` is not local or `OPENROUTER_API_KEY` is set (the suite asserts card counts that only mock generation guarantees). How to add a test: `context/foundation/test-plan.md` §6.
+- `npm --prefix agents/review run criteria` — regenerates `agents/review/criteria.json` from the `CRITERIA` array in `agents/review/review-schema.ts`; run it after touching that array and commit the result. The file is generated DATA read by `scripts/run-review-verdict.ts`, which cannot import across the `agents/**` boundary — and the review action reds on drift (`git diff --exit-code` in `.github/actions/review-agent/action.yml`), so a stale copy stops the review rather than skewing it.
 
 ## Conventions
 

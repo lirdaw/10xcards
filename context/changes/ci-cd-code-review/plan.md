@@ -1119,17 +1119,17 @@ bezużyteczna, ale nieszkodliwa i nie wchodzi na żadną istniejącą ścieżkę
 
 #### Automated
 
-- [ ] 6.1 Przebieg A (fikstura) kończy się zielono i nakłada `ai-cr:failed`
-- [ ] 6.2 Przebieg B (realny diff) aktualizuje komentarz i zdejmuje poprzednią etykietę
-- [ ] 6.3 Przebieg C (zły model) kończy się czerwono bez żadnej etykiety wyniku
-- [ ] 6.4 `npm test` i `npm run typecheck` przechodzą po edycji `AGENTS.md`
+- [x] 6.1 Przebieg A (fikstura) kończy się zielono i nakłada `ai-cr:failed`
+- [x] 6.2 Przebieg B (realny diff) aktualizuje komentarz i zdejmuje poprzednią etykietę
+- [x] 6.3 Przebieg C (zły model) kończy się czerwono bez żadnej etykiety wyniku
+- [x] 6.4 `npm test` i `npm run typecheck` przechodzą po edycji `AGENTS.md`
 
 #### Manual
 
-- [ ] 6.5 A i B różnią się wyłącznie `use_fixture` — sprawdzone w logach obu przebiegów
-- [ ] 6.6 Komentarz po C niesie nagłówek awarii nad zachowanym werdyktem z B
-- [ ] 6.7 Komunikat awarii w C mówi o modelu i łączności, nie o structured output
-- [ ] 6.8 Pełny zapis pomiaru w `verification.md` wystarcza do porównania z przyszłym przebiegiem
+- [x] 6.5 A i B różnią się wyłącznie `use_fixture` — sprawdzone w logach obu przebiegów
+- [x] 6.6 Komentarz po C niesie nagłówek awarii nad zachowanym werdyktem z B
+- [x] 6.7 Komunikat awarii w C mówi o modelu i łączności, nie o structured output
+- [x] 6.8 Pełny zapis pomiaru w `verification.md` wystarcza do porównania z przyszłym przebiegiem
 
 ### Phase 7: Zapadka na dryf destylatu promptu — po pomiarze, nie przed
 

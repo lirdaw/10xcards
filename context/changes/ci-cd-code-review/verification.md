@@ -99,6 +99,12 @@ Dwa wnioski, które z tego wychodzą, i oba są przeciwintuicyjne:
   `tools: []`. Gdyby koszt kiedykolwiek stał się problemem, dźwignia jest tam, nie w naszym
   tekście.
 
+> **Korekta z 2026-08-22 (faza 6), bez nadpisywania powyższych liczb.** Ten sam prompt, ten sam
+> schemat i ta sama fikstura zmierzone NA RUNNERZE dały 10 946 tokenów wejścia zamiast 34 728 —
+> czyli narzut SDK ~33%, nie ~79%. Powyższa tabela pozostaje wiernym zapisem tego, co zmierzono
+> lokalnie; drugi z dwóch wniosków pod nią **nie przenosi się na CI**. Szczegóły i liczby:
+> sekcja fazy 6, punkt 3.
+
 **3. Kontrakt dziewięciopolowy przeszedł przez structured output bez naciągania.** Wszystkie
 20 pól jest `required` w wygenerowanym schemacie (model nie może pominąć kryterium), oba pola
 warunkowe emitują `anyOf: [{"type":"number"},{"type":"null"}]`, a `null` wrócił z modelu
@@ -126,3 +132,143 @@ deklaracji nie było. To jest zachowanie zaprojektowane, nie awaria. Ale zapisuj
 ono dotyka: **wymagania dają agentowi trzy rzeczy (tytuł, opis, diff), a kontrakt composite
 action z fazy 4 wymienia wyłącznie `diff-path`.** Dopóki tytuł i opis nie zostaną przekazane,
 kryterium 9 pracuje na węższym wejściu, niż zakładają wymagania. Do rozstrzygnięcia w fazie 4.
+
+---
+
+## Faza 6 — próba czerwieni w CI i pierwszy pomiar na runnerze
+
+Trzy przebiegi `workflow_dispatch` na PR #45, **jeden po drugim** (dzielą klucz `concurrency`,
+więc równoległe odpalenie skasowałoby parę dowodową). Wszystkie trzy na tym samym HEAD-zie
+`c786027ed33b4742eda651dbb41b204d8a728009` i tej samej bazie `main`. Data: 2026-08-22.
+
+| Pomiar                          | A — fikstura                           | B — realny diff                                          | C — nieistniejący model                           |
+| ------------------------------- | -------------------------------------- | -------------------------------------------------------- | ------------------------------------------------- |
+| Id przebiegu                    | 32562627568                            | 32562732421                                              | 32562910222                                       |
+| `use_fixture`                   | `true`                                 | `false`                                                  | `false`                                           |
+| `model` (input)                 | pusty                                  | pusty                                                    | `anthropic/claude-sonnet-4.6-nie-istnieje`        |
+| Kolor przebiegu                 | zielony                                | zielony                                                  | **czerwony**                                      |
+| Wall clock przebiegu            | 1 min 32 s                             | 3 min 15 s                                               | 30 s                                              |
+| Wejście                         | `sample.diff`: 1 486 znaków / 47 linii | 141 395 znaków / 2 711 linii po filtrze (5 570 surowych) | jak B                                             |
+| Model rozstrzygnięty            | `anthropic/claude-sonnet-4.6`          | `anthropic/claude-sonnet-4.6`                            | — (odrzucony przez providera)                     |
+| Tury                            | 2                                      | 2                                                        | —                                                 |
+| Czas agenta wg SDK              | 58 766 ms                              | 166 728 ms                                               | ~11 s do błędu                                    |
+| Tokeny wejścia (poza cache)     | 9                                      | 9                                                        | —                                                 |
+| `cache_creation` / `cache_read` | 10 937 / 0                             | 47 206 / 8 298                                           | —                                                 |
+| Tokeny wyjścia                  | 3 201                                  | 8 342                                                    | —                                                 |
+| `total_cost_usd`\*              | 0,0934                                 | 0,4426                                                   | 0                                                 |
+| `terminal_reason`               | `completed`                            | `completed`                                              | `api_error`                                       |
+| Werdykt                         | `fail`                                 | `pass`                                                   | `failed-to-run`                                   |
+| Etykieta po przebiegu           | `ai-cr:failed` (zdjęta `ai-cr:passed`) | `ai-cr:passed` (zdjęta `ai-cr:failed`)                   | **żadna nie nałożona ani nie zdjęta**             |
+| Komentarz                       | nowy, id 5376117828                    | **ten sam id**, zaktualizowany                           | **ten sam id**, nagłówek awarii nad werdyktem z B |
+
+\* `total_cost_usd` to **przelicznik z cennika Anthropica, nie rachunek OpenRoutera** — ta sama
+adnotacja co przy pomiarze z fazy 2 i z tego samego powodu.
+
+### Dlaczego to jest para dowodowa, a nie dwa przebiegi obok siebie
+
+Wartości odczytane z logów obu przebiegów, nie założone:
+
+- **A vs B różnią się dokładnie jedną rzeczą.** Oba: `Reviewing PR #45, head c786027…, base main`,
+  `BASE_REF: main`, `REVIEW_MODEL:` (pusty, czyli pin agenta), `MODEL: anthropic/claude-sonnet-4.6`.
+  Jedyna różnica w logu: `USE_FIXTURE: true` wobec `USE_FIXTURE: false`.
+- **B vs C różnią się dokładnie jedną rzeczą.** Oba `USE_FIXTURE: false`, ten sam HEAD, ten sam
+  wynik filtra diffa (`state=code (2711 filtered lines, 5570 raw)` w obu). Jedyna różnica:
+  `REVIEW_MODEL: anthropic/claude-sonnet-4.6-nie-istnieje`.
+
+To jest dokładnie to, czego lekcja o bramce zawsze-zielonej wymaga od próby zepsucia: przebieg
+czerwony **z kontrolą pozytywną**, różniące się jedną zmienną. Sam czerwony przebieg C nie
+dowodziłby, że to bramka go wywołała.
+
+### Co pokazał każdy z trzech
+
+**A — bramka potrafi zaświecić na czerwono.** Werdykt `fail`, siedem kryteriów poniżej progu,
+w tym oba, pod które fikstura jest pisana: kryterium 6 (bezpieczeństwo) **1/10** za hardkodowany
+service-role JWT i brak sprawdzenia sesji, kryterium 7 (połknięty błąd) **2/10** za zignorowane
+pole `error` w `countAll()`. Kryterium 8 (integralność bramki) wróciło jako `null` — „nie
+dotyczy", bo fikstura nie rusza żadnego testu ani hooka. Uzasadnienia wskazują plik i konstrukcję
+(`i <= ids.length`, `import.meta.env.SUPABASE_URL`), nie parafrazują opisu kryterium.
+
+**B — na realnym diffie tej zmiany werdykt jest inny i rozróżnialny.** `pass`, oceny 7–9,
+z dwoma konkretnymi zastrzeżeniami, które warto zapisać, bo agent trafił nimi w rzeczy realne:
+(1) `gh pr edit --remove-label` przy nieobecnej etykiecie nie ma jawnej obsługi, jaką ma krok
+zdejmujący etykietę-trigger — zachowania nie da się rozstrzygnąć z samego diffa;
+(2) `sed "s|${API_KEY}|***|g"` zepsułby się, gdyby klucz zawierał metaznak sedu. Żadne z nich
+nie jest halucynacją i oba są sprawdzalne. To jest pierwszy dowód TRAFNOŚCI na realnym kodzie —
+słaby, bo jednopunktowy, ale nie zerowy.
+
+**C — stan „review się nie odbyło" renderuje się i nie udaje wyniku.** Przebieg czerwony,
+`verdict=failed-to-run`, w logu `Verdict 'failed-to-run' carries no result label — that is the
+point of it.` Komentarz (ten sam id) dostał nagłówek **nad** zachowanym werdyktem z B; stopka
+pod tabelą nadal wskazuje przebieg 32562732421 i model `anthropic/claude-sonnet-4.6`, więc oba
+fakty stoją naraz. Treść przyczyny, dosłownie:
+
+> agent zakończył się kodem 1: Error: Review nie powiodło się (subtype: success, is_error: true,
+> terminal_reason: api_error): API Error: 400 anthropic/claude-sonnet-4.6-nie-istnieje is not
+> a valid model ID
+
+**To jest dowód naprawy z fazy 1 wykonany w CI, nie lokalnie**: komunikat mówi o modelu
+i o providerze (`api_error`), a nie „Niepoprawny structured output". Bez tej naprawy ten sam
+przebieg raportowałby diagnozę kontraktu wyjścia — i defektu szukałoby się w schemacie zamiast
+w routingu.
+
+**Precyzyjnie o etykietach w C.** Kryterium sukcesu 6.3 brzmi „bez żadnej etykiety wyniku"
+i jest spełnione w znaczeniu, w jakim workflow je definiuje: **żadna etykieta nie została
+nałożona ani zdjęta**. Etykieta `ai-cr:passed` z przebiegu B została na PR-ze — to jest
+zachowanie zaprojektowane i udokumentowane w `pr-review.yml` (na awarii nie zdejmujemy
+poprzedniego wyniku, bo komentarz już niesie nagłówek mówiący, że jest nieaktualny). Zapisujemy
+to wprost, żeby przyszły czytelnik nie odczytał zielonej etykiety obok czerwonego przebiegu jako
+defektu.
+
+### Pomiar — co z niego wynika dla kosztu i progu
+
+**1. Realny diff kosztuje 4,7× tyle co fikstura, a najszybciej rośnie wyjście, nie wejście.**
+Wejście B jest ~5× większe niż A (47 206 + 8 298 wobec 10 937), wyjście urosło 2,6× (8 342 wobec
+3 201) przy tej samej liczbie tur. Dziewięć uzasadnień pisanych do 2 700 linii diffa jest po
+prostu dłuższe. Wniosek na przyszłość: koszt review skaluje się z ROZMIAREM PR-a po obu stronach,
+więc typowy PR z tego repo (dziesiątki linii, nie tysiące) będzie bliżej A niż B.
+
+**2. Cache działa MIĘDZY przebiegami na runnerze — zmierzone, nie założone.** B odczytał
+8 298 tokenów z cache zapisanego przez A cztery minuty wcześniej, na innym runnerze. To jest
+prefiks (prompt systemowy plus schemat kryteriów), czyli dokładnie ta część, która jest wspólna
+dla wszystkich przebiegów. Reszta wejścia B (47 206) to jego własny diff — nie ma powodu, żeby ją
+współdzielił, i nie współdzieli.
+
+**3. Narzut SDK w CI jest RADYKALNIE mniejszy niż zmierzony lokalnie w fazie 2 — i to unieważnia
+tamten wniosek nr 2.** Przebieg A i lokalny B2 miały ten sam prompt systemowy, ten sam schemat
+i tę samą fiksturę. Lokalnie wejście wyniosło 34 728 tokenów, w CI **10 946** — 3,2× mniej.
+Nasze własne części to ~7 330 tokenów (pomiar z fazy 2), więc narzut samego SDK w CI to
+~3 600 tokenów (**~33%** wejścia), a nie ~27 390 (~79%), jak wyszło lokalnie. Zdanie z fazy 2
+„cztery piąte wejścia to narzut samego SDK" jest więc **artefaktem środowiska lokalnego
+i nie przenosi się na CI** — punktem odniesienia dla przyszłych porównań jest liczba z CI.
+Czego NIE ustaliliśmy: co dokładnie dokłada te ~24 tys. tokenów przy uruchomieniu lokalnym.
+Ta sama wersja SDK z lockfile'a szła w obu przypadkach, więc różnica jest po stronie środowiska,
+nie zależności. Zapisane jako otwarte pytanie, nie jako diagnoza.
+
+**4. Próg 5 nadal jest wartością startową, nie wynikiem pomiaru.** Te trzy przebiegi go nie
+kalibrują i nie miały. Dają jeden punkt na każdej skrajności: fikstura pisana pod defekt schodzi
+do 1–3, realna zmiana infrastrukturalna trzyma 7–9. Między nimi jest cała przestrzeń, której nie
+zmierzyliśmy. Żeby zrewidować próg, potrzeba kilkunastu realnych PR-ów z tego repo — w tym tych,
+które faktycznie wwiozły defekty udokumentowane w `context/archive/` — i odpowiedzi na pytanie
+o poziom fałszywych alarmów. Do tego czasu decyzja „review nie blokuje merge'a" stoi.
+
+### Punkt odniesienia do porównania z przyszłym przebiegiem
+
+Żeby porównanie po zmianie progu, promptu albo modelu było możliwe, przyszły przebieg trzeba
+zestawić z **A**, nie z B: A ma wejście stałe (fikstura leży w gicie), więc jest jedynym z tych
+trzech, który się powtarza. Wartości do porównania, wszystkie z linii metryk przebiegu
+32562627568:
+
+```
+model: anthropic/claude-sonnet-4.6 | tury: 2 | czas: 58766 ms |
+koszt (wg cennika Anthropica, nie OpenRoutera): 0.09335774999999999 USD |
+tokeny: 9 in (bez cache) | cache: 10937 zapis / 0 odczyt | out: 3201 |
+terminal_reason: completed
+```
+
+Werdykt do porównania: `fail`, kryteria 6 i 7 na 1 i 2, kryterium 8 równe `null`.
+Sposób powtórzenia: `gh workflow run pr-review.yml -f pr_number=<N> -f use_fixture=true`
+(dopóki ta zmiana nie jest na `main`, dochodzi `--ref ci-cd-code-review` — `workflow_dispatch`
+bierze definicję z gałęzi domyślnej, a tam tego pliku jeszcze nie ma).
+**Jedna pułapka przy odczycie**: `cache_read` w powtórzeniu nie będzie zerem, jeśli jakikolwiek
+przebieg poszedł w ciągu ostatnich minut — porównywalne między przebiegami są `czas`, `out`
+i SUMA wejścia, nie sam rozkład zapis/odczyt.
