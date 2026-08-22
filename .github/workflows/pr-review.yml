@@ -402,6 +402,13 @@ jobs:
         env:
           STATE: ${{ steps.input.outputs.state }}
           AGENT_STATUS: ${{ steps.review.outputs.status }}
+          # Read TOGETHER with `status`, never instead of it. `status` is the agent's own exit
+          # code and exists only if the agent actually ran; `outcome` is set by the runner for
+          # every step, always, so it is the field that distinguishes "the action fell over
+          # before the agent" from "the agent ran and failed". The composite action ends its run
+          # step `exit 0` by design, so `outcome != success` means one of ITS steps failed — the
+          # key gate, `npm ci`, or the criteria-drift gate.
+          AGENT_OUTCOME: ${{ steps.review.outcome }}
           RESULT_PATH: ${{ steps.review.outputs.result-path }}
           STDERR_PATH: ${{ steps.review.outputs.stderr-path }}
           STDERR_SCRUBBED: ${{ steps.review.outputs.stderr-scrubbed }}
@@ -434,6 +441,19 @@ jobs:
               exit 0
             fi
             REASON="wynik agenta nie przeszedł kontroli kontraktu — patrz log przebiegu"
+          elif [ "$STATE" = "code" ] && { [ "$AGENT_OUTCOME" != "success" ] || [ -z "$AGENT_STATUS" ]; }; then
+            # The agent never got to run, so nothing about it may be reported as its failure.
+            # Three steps inside the composite action can end here — the empty-key gate, `npm ci`,
+            # and the `criteria.json` drift gate — and for the drift gate especially, a comment
+            # reading "the agent exited with code ?" sends the author to look at the agent for a
+            # defect that is in the committed criteria list.
+            #
+            # This is the SAME correction as phase 1 made inside the agent, one layer up. There we
+            # read `subtype` alone while the truth was in `is_error`; here we read `status` alone
+            # while the truth is in `outcome`. Both are one field read where the state takes two —
+            # and both produce a message about the wrong thing rather than no message at all,
+            # which is why they cost more than a plain crash would.
+            REASON="krok uruchomienia agenta nie doszedł do skutku (outcome: ${AGENT_OUTCOME:-brak}, kod agenta: ${AGENT_STATUS:-brak}) — bramka klucza, instalacja zależności albo dryf criteria.json; przyczyna jest w adnotacjach błędów tego przebiegu"
           elif [ "$STATE" = "code" ]; then
             # The agent's own thrown message, NOT `tail`. Node prints it on a line of its own
             # ABOVE the stack, so a tail lands INSIDE the trace — MEASURED on run
