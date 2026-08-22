@@ -107,6 +107,24 @@ jobs:
         || github.event.pull_request.head.repo.full_name == github.repository)
       && (github.event.action != 'labeled' || github.event.label.name == 'ai-cr:review')
     runs-on: ubuntu-latest
+
+    # The runner's default for `run:` is `bash -e {0}` — **without `pipefail`** — so a pipeline
+    # reports the exit code of its LAST member and a failing first member reads as success. This
+    # file had the defect it exists to catch: `COMMENT_ID=$(gh api … | tail -n 1)` below took its
+    # status from `tail`, so a `gh api` that 403'd or rate-limited produced an EMPTY id, a green
+    # step, and a second sticky comment posted instead of the first one edited — silently, and
+    # once more on every later run. `action.yml:149-154` already quotes the measured lesson
+    # (`npm run eval | tee …` exited 0 on a red run) and even notes that composite actions get
+    # `pipefail` for free because `shell:` is mandatory there; the conclusion was not carried
+    # over to this file.
+    #
+    # Declared once here rather than as `shell: bash` on each step, and that is the point: the
+    # per-step form asks the author to remember `pipefail` at the moment they write a pipe, which
+    # is exactly the moment this file proves nobody does.
+    defaults:
+      run:
+        shell: bash
+
     steps:
       # -------------------------------------------------------------------------------------
       # 1. Fetch the pull request
@@ -453,8 +471,17 @@ jobs:
 
       # `-F "body=@file"` because the body is multi-line Markdown: it does not fit in an
       # argument and it does not fit in an output.
+      # `steps.sticky.outcome == 'success'` is load-bearing and is the second half of the
+      # `pipefail` fix at the top of this job. With `pipefail` a `gh api` that 403s or
+      # rate-limits now fails the lookup step instead of yielding an empty id — but this step
+      # runs on `!cancelled()`, so on its own it would still fire, still see an empty
+      # `COMMENT_ID`, and still POST the duplicate the fix exists to prevent. A failed lookup
+      # means we do not KNOW whether a comment is already there; posting would risk a second
+      # one and editing is impossible, so the correct move is to publish nothing and let the
+      # red lookup carry the signal. This narrows "there is always a comment" by one more case,
+      # alongside the one named further down.
       - name: Publish the sticky comment
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.sticky.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
