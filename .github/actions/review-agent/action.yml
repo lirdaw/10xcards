@@ -75,8 +75,12 @@ runs:
       run: |
         test -n "$API_KEY" || {
           echo "::error title=Missing review key::The review agent needs an OpenRouter key."
-          echo "The caller passes it as the \`api-key\` input, from the OPENROUTER_EVAL_KEY secret,"
+          echo "The caller passes it as the \`api-key\` input, from the OPENROUTER_REVIEW_KEY secret,"
           echo "declared ON THE STEP that uses this action — never at job level."
+          echo "It is review's OWN key. Do NOT point this at OPENROUTER_EVAL_KEY: that one belongs"
+          echo "to the generation-quality eval, its low cap is that eval's damage limit, and a"
+          echo "second consumer on it makes the two starve each other and their spend impossible"
+          echo "to tell apart on the dashboard."
           exit 1
         }
 

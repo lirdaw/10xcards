@@ -298,12 +298,26 @@ jobs:
       # The step's own success says nothing about the review: the agent's exit code comes back
       # on the `status` output precisely so that "the agent said fail" and "the agent fell
       # over" stay two different events. Deciding what each one means is this file's job below.
+      #
+      # **`OPENROUTER_REVIEW_KEY`, and specifically NOT `OPENROUTER_EVAL_KEY`.** The eval key is
+      # DEDICATED to the generation-quality eval (`eval.yml`, M3), and its low per-key credit
+      # limit is that eval's blast-radius cap — the limit is doing real work there, not sitting
+      # decoratively. Putting a second consumer on the same key breaks it in two ways at once.
+      # First, the two starve each other: review runs on every push to every pull request, so it
+      # is the one that drains the cap, and the eval then fails on a limit it did not spend —
+      # which is exactly what happened before this key existed (run 32534464639, `API Error: 402
+      # This request requires more credits`, after three review runs on one afternoon). Second,
+      # OpenRouter accounts spend PER KEY, so one shared key makes "what did review cost us?"
+      # and "what did the eval cost us?" unanswerable from the dashboard — and this change's
+      # whole exit condition is a cost comparison. One key, one purpose, one cap, one line on
+      # the bill. Note what a separate key does NOT buy: rate limits are governed per ACCOUNT,
+      # so this is spend isolation only.
       - name: Run the review agent
         id: review
         if: steps.input.outputs.state == 'code'
         uses: ./.github/actions/review-agent
         with:
-          api-key: ${{ secrets.OPENROUTER_EVAL_KEY }}
+          api-key: ${{ secrets.OPENROUTER_REVIEW_KEY }}
           diff-path: ${{ steps.input.outputs.diff-path }}
           model: ${{ github.event_name == 'workflow_dispatch' && inputs.model || '' }}
 
