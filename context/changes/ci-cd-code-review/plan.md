@@ -1111,7 +1111,7 @@ bezużyteczna, ale nieszkodliwa i nie wchodzi na żadną istniejącą ścieżkę
 
 - [x] 5.5 `ai-cr:review` wyzwala przebieg i znika w pierwszych sekundach — fa6f503
 - [x] 5.6 PR z samym `context/**` daje czwarty stan: zielono, bez etykiet — fa6f503
-- [ ] 5.7 Etykiety wyniku wzajemnie się wykluczają
+- [x] 5.7 Etykiety wyniku wzajemnie się wykluczają — 0f81117
 - [x] 5.8 SHA w komentarzu zgadza się z ostatnim commitem z listy commitów PR-a — fa6f503
 - [x] 5.9 Główny plik jest czytelny bez otwierania `action.yml` — d7dfc8b
 
