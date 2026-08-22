@@ -238,7 +238,7 @@ ani do historii repozytorium. Wszystko, co wiesz o tym projekcie, jest w tym pro
 Oceń zmianę w kryteriach opisanych w schemacie wyjścia. Każdy opis pola mówi wprost, co znaczy
 ocena 1, a co 10 — trzymaj się tych definicji, a nie ogólnego wrażenia.
 
-Dwie zasady nadrzędne:
+Trzy zasady nadrzędne, wszystkie tak samo wiążące:
 
 1. **Uzasadnienie wskazuje dowód, nie parafrazuje kryterium.** Nazwij plik, fragment albo
    konkretny brakujący dowód. „Kod jest czytelny" nie jest uzasadnieniem.
