@@ -1135,12 +1135,12 @@ bezużyteczna, ale nieszkodliwa i nie wchodzi na żadną istniejącą ścieżkę
 
 #### Automated
 
-- [x] 7.1 `scripts/run-prompt-sources.ts --write` jest idempotentne (`git diff --exit-code`)
-- [x] 7.2 `prettier --check` przechodzi na `prompt-sources.json`
-- [x] 7.3 `npm test`, `npm run typecheck` i `npm run lint` przechodzą
+- [x] 7.1 `scripts/run-prompt-sources.ts --write` jest idempotentne (`git diff --exit-code`) — 630b955
+- [x] 7.2 `prettier --check` przechodzi na `prompt-sources.json` — 630b955
+- [x] 7.3 `npm test`, `npm run typecheck` i `npm run lint` przechodzą — 630b955
 
 #### Manual
 
-- [x] 7.4 Zepsucie linii §Hard Rules czerwieni test, przywrócenie zieleni — para, nie pojedynczy przebieg
-- [x] 7.5 Komunikat czerwieni mówi, co zrobić
-- [x] 7.6 Kontrola pozytywna ekstraktora daje inny hash na zmutowanym tekście
+- [x] 7.4 Zepsucie linii §Hard Rules czerwieni test, przywrócenie zieleni — para, nie pojedynczy przebieg — 630b955
+- [x] 7.5 Komunikat czerwieni mówi, co zrobić — 630b955
+- [x] 7.6 Kontrola pozytywna ekstraktora daje inny hash na zmutowanym tekście — 630b955
