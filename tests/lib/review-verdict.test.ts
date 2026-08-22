@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 // `@/*` maps to `src/*` only, and the subject here is CI tooling under `scripts/` — the
 // scripts/schema-drift.ts precedent (test-plan §6.1): its deterministic unit test still sits
 // in tests/lib/ beside the suite's other pure-function files, imported relatively.
-import { SCORE_THRESHOLD, decideVerdict, parseReview } from "../../scripts/review-verdict.ts";
+import { SCORE_MAX, SCORE_MIN, SCORE_THRESHOLD, decideVerdict, parseReview } from "../../scripts/review-verdict.ts";
 import type { Criterion } from "../../scripts/review-verdict.ts";
 
 // The gate's entire decision. Its cost of being wrong is asymmetric in BOTH directions: a
@@ -194,5 +194,46 @@ describe("parseReview", () => {
     const rows = parseReview(cleanReview(), CRITERIA).scores;
 
     expect(rows.map((row) => row.key)).toEqual(["alpha", "beta", "gamma"]);
+  });
+});
+
+// The scale is the one contract `review-schema.ts` CANNOT enforce: structured output rejects
+// `minimum`/`maximum` on an integer type, so the field description is the only thing steering
+// the model, and a description is guidance rather than a gate. These cases are what turns it
+// back into a gate — the same argument that already refuses `null` on a non-conditional
+// criterion, applied to the other way a score can be outside the contract.
+describe("score range", () => {
+  it("accepts both ends of the declared scale", () => {
+    const low = cleanReview();
+    low.alpha = SCORE_MIN;
+    const high = cleanReview();
+    high.alpha = SCORE_MAX;
+
+    // A positive control for this block: without it, an implementation that threw on every
+    // score would pass every rejection case below.
+    expect(() => decideVerdict({ review: low, criteria: CRITERIA, threshold: 5 })).not.toThrow();
+    expect(() => decideVerdict({ review: high, criteria: CRITERIA, threshold: 5 })).not.toThrow();
+  });
+
+  it.each([
+    ["above the scale", 42],
+    ["below the scale", -3],
+    ["zero, which is not on a 1-10 scale", 0],
+  ])("throws on a score %s", (_label, score) => {
+    const review = cleanReview();
+    review.alpha = score;
+
+    // Named in the message, because a bare "invalid score" would send the reader looking at the
+    // verdict rule rather than at the agent's output.
+    expect(() => decideVerdict({ review, criteria: CRITERIA, threshold: 5 })).toThrow(/skala to 1-10/);
+  });
+
+  it("still allows null on a conditional criterion — the range check must not swallow that path", () => {
+    const review = cleanReview();
+    review.gamma = null;
+
+    const decision = decideVerdict({ review, criteria: CRITERIA, threshold: 5 });
+
+    expect(decision.skipped.map((row) => row.key)).toContain("gamma");
   });
 });

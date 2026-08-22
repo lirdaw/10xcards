@@ -40,11 +40,12 @@ const USAGE = [
 
 // `--write` is required rather than defaulted, and an unknown flag is a refusal rather than a
 // shrug: a run that rewrites a committed gate file is not the thing to do on a typo.
-const argv = process.argv.slice(2);
-if (argv.length !== 1 || argv[0] !== "--write") {
-  console.error(USAGE);
-  process.exitCode = 1;
-} else {
+function main(argv: readonly string[]): number {
+  if (argv.length !== 1 || argv[0] !== "--write") {
+    console.error(USAGE);
+    return 1;
+  }
+
   const records = hashSections(PROMPT_SOURCES);
   writeFileSync(RECORD_PATH, serializeRecord(records), "utf8");
 
@@ -55,4 +56,18 @@ if (argv.length !== 1 || argv[0] !== "--write") {
   console.error(
     "[prompt-sources] przypomnienie: rekord ma sens tylko wtedy, gdy destylat w prompt.ts jest już zaktualizowany.",
   );
+
+  return 0;
+}
+
+// `main()` + `try/catch`, matching ./check-schema-drift.ts, ./run-db-cleanup.ts,
+// ./run-typecheck.ts and ./run-review-verdict.ts. This file was the one runner in `scripts/`
+// without it, and the omission had a cost rather than being untidy: `extractSection` refuses on
+// a missing heading, a duplicated heading and a non-heading string, each with a Polish message
+// naming what to do — and an unguarded throw printed a raw stack instead of any of them.
+try {
+  process.exitCode = main(process.argv.slice(2));
+} catch (err) {
+  console.error(`[prompt-sources] AWARIA: ${err instanceof Error ? err.message : String(err)}`);
+  process.exitCode = 1;
 }

@@ -507,3 +507,50 @@ tylko przy szybkiej serii pushów — rozłożone w czasie płacą osobno. To by
 
 Tryb fikstury (`use_fixture`) świadomie **omija** cap: fikstury są zacommitowane i mają znany
 rozmiar, a ten tryb jest instrumentem pomiarowym, nie ścieżką produkcyjną.
+
+## Post-review — pełna tabela ocen przebiegu A (F8 z impl-review)
+
+Kontrakt fazy 6 pkt 1 żądał zapisania „id obu przebiegów, obu werdyktów **i pełnych tabel ocen**".
+Id, werdykty, metryki i koszt były; tabel nie było — został opis narracyjny. Dla rozróżnienia
+A od B to wystarczało, ale nie dla celu, który stawia sobie sekcja „Punkt odniesienia do
+porównania z przyszłym przebiegiem": bez wartości per kryterium przyszłe porównanie po zmianie
+progu albo promptu stwierdzi tylko, że werdykt się zmienił, nie **które** kryterium go poruszyło.
+
+**Proweniencja, bo ma znaczenie.** Sticky komentarz jest z definicji nadpisywany — do dziś
+zebrał 17 edycji, więc treść przebiegu A dawno w nim nie stoi, a log przebiegu jej nie zawiera
+(JSON wyniku idzie do pliku, do loga trafia tylko linia metryk ze stderr). Poniższe wartości są
+odczytane z **historii edycji komentarza** przez GraphQL
+(`userContentEdits`, rewizja z 2026-08-22T08:35:26Z, przebieg 32562627568) — to zapis GitHuba,
+nie rekonstrukcja z pamięci. Warto to odnotować jako osobny wniosek: **sticky komentarz nie jest
+archiwum**, więc każdy przyszły pomiar, który ma przetrwać, trzeba przepisać tutaj w momencie
+powstania.
+
+Przebieg A, `use_fixture: true`, wejście `agents/review/sample.diff`, werdykt **`fail`**,
+siedem kryteriów poniżej progu 5:
+
+| #   | Kryterium                     | Ocena           | Sedno uzasadnienia                                                                                                  |
+| --- | ----------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------- |
+| 1   | Poprawność implementacji      | **1/10**        | `i <= ids.length` — off-by-one; brak walidacji `body.ids`; `count` rzutowany na `number`, choć Supabase da `null`   |
+| 2   | Idiomatyczność                | **1/10**        | `import.meta.env.SUPABASE_URL` zamiast `astro:env/server`; `createClient` z pominięciem helpera; klucz jako literal |
+| 3   | Złożoność                     | **3/10**        | pętla N wywołań zamiast jednego `.in("id", ids)` — i to z niej bierze się off-by-one                                |
+| 4   | Pokrycie testami wzgl. ryzyka | **1/10**        | dotyka ryzyk #1 i #6, zero testów — ani kontroli pozytywnej, ani negatywnej                                         |
+| 5   | Dokumentacja i uzasadnienie   | **1/10**        | brak jakiegokolwiek uzasadnienia użycia service-role key pomijającego RLS                                           |
+| 6   | Bezpieczeństwo                | **1/10**        | zahardkodowany service-role JWT omija RLS; brak sprawdzenia sesji → anonim usuwa dowolne fiszki                     |
+| 7   | Połknięty błąd                | **2/10**        | `error` zignorowane w `countAll()`, choć `findById` siedem linii niżej rozgałęzia się poprawnie                     |
+| 8   | Integralność bramki           | **nie dotyczy** | diff nie dodaje ani nie zmienia żadnego testu, hooka ani asercji                                                    |
+| 9   | Dyscyplina zakresu            | 7/10            | oba pliki wywodzą się z jednej intencji; brak deklaracji PR odnotowany, spójność wewnętrzna zachowana               |
+
+Trzy rzeczy, które ta tabela dopiero teraz czyni sprawdzalnymi, a wcześniej były twierdzeniem:
+
+1. **Kryterium 8 wróciło jako `null`, a nie jako zero ani dziesiątka** — czyli „nie dotyczy"
+   przeszło przez structured output na pełnym, dziewięciopolowym schemacie, dokładnie tak, jak
+   zakładała faza 2.
+2. **Kryterium 9 dostało 7/10, mimo werdyktu `fail`** — model nie zsunął wszystkich ocen w dół za
+   ogólnie złą zmianę, czyli skala działa per wymiar, a nie jako jedna sympatia.
+3. **Uzasadnienia wskazują konstrukcję i plik** (`i <= ids.length`, `import.meta.env.SUPABASE_URL`,
+   `countAll()` vs `findById`), nie parafrazują opisu kryterium — to było kryterium sukcesu 2.6
+   i tu jest jego dowód w postaci nadającej się do porównania.
+
+**Do porównania z przyszłym przebiegiem** bierze się tę tabelę, a nie tabelę przebiegu B: A ma
+wejście stałe, bo fikstura leży w gicie. Powtórzenie:
+`gh workflow run pr-review.yml -f pr_number=<N> -f use_fixture=true`.

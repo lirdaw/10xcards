@@ -1054,6 +1054,51 @@ bezużyteczna, ale nieszkodliwa i nie wchodzi na żadną istniejącą ścieżkę
 - Lekcje: `context/foundation/lessons.md:5-11` (nazwy gałęzi), `:194-199` (komenda zawsze zero), `:243-248` (zapis kompensujący)
 - Mapa ryzyk: `context/foundation/test-plan.md` §2 i §2.1
 
+## Odchylenia od kontraktu przyjęte w trakcie
+
+Dopisane 2026-08-22 przy impl-review (F10). Plan zostaje w oryginale — to jest datowany zapis
+decyzji, nie żywa dokumentacja — a poniżej stoi lista miejsc, w których implementacja rozeszła
+się z jego literalnym kontraktem, **każde z powodem**. Powód jest tu treścią, nie ozdobą: trzy
+z pięciu to odkrycia o platformie, a nie zmiany gustu, i zapisane bez uzasadnienia wyglądałyby
+na niechlujstwo zamiast na to, czego ta faza nauczyła.
+
+1. **`timeout 15m` w `run:` zamiast `timeout-minutes` na kroku** (faza 4 pkt 2).
+   _Powód — odkrycie o platformie:_ kroki composite action **nie wspierają** `timeout-minutes`
+   (dokumentacja wymienia dla nich `run`/`shell`/`if`/`name`/`id`/`env`/`working-directory`/
+   `uses`/`with`/`continue-on-error` i nic więcej), więc wpis wyglądałby na limit i nim nie był.
+   Forma z coreutils jest przy tym mocniejsza: zabicie wraca jako `STATUS=124` normalną drogą do
+   wywołującego, zamiast zostawić krok bez żadnych outputów.
+
+2. **Output `model` zapisuje PROCES AGENTA, nie shell w `action.yml`** (faza 4 pkt 1).
+   _Powód — odkrycie o platformie:_ `$GITHUB_OUTPUT` wskazuje plik, który runner czyta po
+   zakończeniu kroku i przypisuje krokowi, który proces uruchomił — dziedziczenie zmiennej przez
+   proces potomny wystarcza. Alternatywy były gorsze, a nie równoważne: duplikat domyślnego id
+   w `action.yml` to druga kopia wartości kontraktowej (dokładnie to, co ta zmiana likwiduje przy
+   `criteria.json`), a `sed` po linii metryk to bramka na TREŚCI LOGU (`lessons.md:194-199`).
+   Zasada „LLM nie raportuje własnej tożsamości" jest zachowana: wartość rozstrzyga kod, nie model.
+
+3. **`if: ${{ !cancelled() }}` zamiast `if: always()`** (faza 5 pkt 6).
+   _Powód — odkrycie o platformie:_ to nie są synonimy przy `cancel-in-progress: true`.
+   `always()` biegnie także w przebiegu **anulowanym**, więc przebieg zastępowany ścigałby się
+   z tym, który go zastąpił, o zapis tego samego sticky komentarza.
+
+4. **CLI `run-review-verdict.ts` ma więcej flag i PIĄTĄ wartość werdyktu** niż kontrakt fazy 3
+   pkt 3 (`--sha`, `--model`, `--run-url`, `--no-code`, `--too-large`, `--bytes`, `--limit`;
+   `verdict=no-code` i `verdict=too-large` obok `pass`/`fail`/`failed-to-run`).
+   _Powód — wymuszone przez inne części kontraktu:_ `renderComment` z tej samej fazy wymaga SHA
+   i modelu, więc bez tych flag runner nie umiałby wyrenderować tego, co plan każe mu wyrenderować.
+   `no-code` doszło z czwartym stanem fazy 5, `too-large` z impl-review (F7) — a każdy z nich musi
+   być odróżnialny od `pass` i od `failed-to-run`, bo znaczy co innego dla czytelnika i dla etykiet.
+
+5. **`renderComment` przyjmuje dodatkowe pole `threshold`** (faza 3 pkt 2).
+   _Powód — konsekwencja reguły z tej samej fazy:_ nagłówek ma nazwać próg, a próg wolno trzymać
+   w jednym miejscu (`SCORE_THRESHOLD`). Wstrzyknięcie go przez parametr jest jedyną formą, która
+   nie tworzy drugiej kopii tej liczby ani nie wpuszcza jej do promptu.
+
+Odchylenia 1-3 warto czytać razem: wszystkie trzy to przypadki, w których plan opisywał mechanizm
+GitHub Actions z pamięci, a implementacja zderzyła się z jego rzeczywistym zachowaniem. To jest
+najtańsza lekcja tej zmiany i dlatego stoi tu wypisana, a nie rozproszona po komentarzach w kodzie.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.

@@ -24,6 +24,14 @@
  * the same moment as what we do with the answer — and that invalidates the before/after
  * comparison this change's exit condition stands on.
  */
+/**
+ * The ends of the scale every criterion is scored on. Exported so the test can pin them rather
+ * than restate them: they are a CONTRACT with `review-schema.ts`'s field descriptions, which is
+ * the only other place the range is expressed — and that place cannot enforce it.
+ */
+export const SCORE_MIN = 1;
+export const SCORE_MAX = 10;
+
 export const SCORE_THRESHOLD = 5;
 
 /**
@@ -164,6 +172,20 @@ export function parseReview(review: unknown, criteria: readonly Criterion[]): Ag
 
     if (typeof rawScore !== "number" || !Number.isFinite(rawScore)) {
       throw new Error(`Ocena \`${criterion.key}\` nie jest liczbą (otrzymano: ${JSON.stringify(rawScore)}).`);
+    }
+
+    // The range is enforced HERE because there is nowhere else it can be. `review-schema.ts`
+    // deliberately omits `minimum`/`maximum` — structured output rejects them on an integer
+    // type — so the 1-10 scale is steered by the field DESCRIPTION alone, which is guidance to
+    // a model, not a contract. Unchecked, a 42 renders as "42/10" in a comment on a public pull
+    // request and a -3 quietly forces `fail`. The argument is the same one already used to
+    // refuse `null` on a non-conditional criterion: a value outside the contract is a broken
+    // output contract, not an unusual opinion.
+    if (rawScore < SCORE_MIN || rawScore > SCORE_MAX) {
+      throw new Error(
+        `Ocena \`${criterion.key}\` („${criterion.label}”) wynosi ${rawScore}, a skala to ${SCORE_MIN}-${SCORE_MAX}. ` +
+          "Schemat nie egzekwuje zakresu (structured output odrzuca minimum/maximum), więc pilnuje go ta walidacja.",
+      );
     }
 
     return { key: criterion.key, label: criterion.label, score: rawScore, note: rawNote };

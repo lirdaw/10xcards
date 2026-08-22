@@ -73,7 +73,25 @@ export interface FailureHeaderInput {
  * newline ends the row outright. Both would corrupt the table without any error anywhere.
  */
 function escapeCell(text: string): string {
-  return text.replace(/\r?\n/g, " ").replace(/\|/g, "\\|").trim();
+  return neutraliseMarkers(text.replace(/\r?\n/g, " ").replace(/\|/g, "\\|").trim());
+}
+
+/**
+ * Defang HTML comment openers in model-authored text.
+ *
+ * This file's control plane IS an HTML comment: `COMMENT_MARKER` is how the workflow finds the
+ * comment to edit, and `FAILURE_OPEN`/`FAILURE_CLOSE` are how a failure header is stripped
+ * before the next one is pasted on. All three live in text we write — but the summary and the
+ * per-criterion notes are written by an LLM, and the diff that LLM read is written by the author
+ * of the pull request being judged.
+ *
+ * So a change carrying `<!-- ai-code-review:failure -->` in a comment could have it echoed into
+ * the summary, and `stripFailureBlock` would then cut the surviving verdict off at that point on
+ * the next failing run. Replacing the opener with a look-alike keeps the text readable while
+ * making it inert: what a reader sees is unchanged, what the parser sees can no longer be steered.
+ */
+function neutraliseMarkers(text: string): string {
+  return text.replace(/<!--/g, "<!\u2011\u2011");
 }
 
 function renderScore(score: number | null): string {
@@ -115,7 +133,7 @@ export function renderComment({
   const headline =
     verdict === "fail" ? `## Code review agenta: ❌ \`fail\` — ${reason}` : "## Code review agenta: ✅ `pass`";
 
-  const summarySection = `**Podsumowanie agenta**\n\n${summary.trim()}`;
+  const summarySection = `**Podsumowanie agenta**\n\n${neutraliseMarkers(summary.trim())}`;
   // On that same branch the summary is the ONLY statement of why, so it moves above the table
   // rather than sitting below it. Everywhere else the per-criterion reasons carry the signal
   // and the summary stays where a reader expects it, after the detail.
@@ -234,7 +252,7 @@ export function renderNoCodeComment({ sha, runUrl }: { sha: string; runUrl?: str
  *
  * **Idempotent by construction**: an existing failure block is stripped before the new one is
  * prepended, so two consecutive failures leave one header rather than two. That matters
- * because the workflow's publish step runs `if: always()`, i.e. every failing run walks this
+ * because the workflow's publish step runs `if: !cancelled()`, i.e. every failing run walks this
  * path again over its own previous output.
  */
 export function renderFailureHeader(
@@ -249,7 +267,7 @@ export function renderFailureHeader(
     "> **Review się NIE odbyło** — poniższy werdykt (jeśli jest) pochodzi z wcześniejszego przebiegu",
     "> i może być nieaktualny. Brak etykiety wyniku znaczy „review się nie odbyło”, nie „pass”.",
     ">",
-    `> Przyczyna: ${reason.replace(/\r?\n/g, " ").trim()}${renderRunLink(runUrl)}`,
+    `> Przyczyna: ${neutraliseMarkers(reason.replace(/\r?\n/g, " ").trim())}${renderRunLink(runUrl)}`,
     FAILURE_CLOSE,
   ].join("\n");
 
