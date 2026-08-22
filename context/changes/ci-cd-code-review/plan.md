@@ -1096,7 +1096,7 @@ bezużyteczna, ale nieszkodliwa i nie wchodzi na żadną istniejącą ścieżkę
 
 - [x] 4.4 `npm ci` na `ubuntu-latest` wybiera `claude-agent-sdk-linux-x64` i kończy się sukcesem — a1b62da
 - [x] 4.5 `stderr.log` nie zawiera klucza — a1b62da
-- [ ] 4.6 Główny plik czyta się jako pięć kroków bez zaglądania do `action.yml`
+- [x] 4.6 Główny plik czyta się jako pięć kroków bez zaglądania do `action.yml` — d7dfc8b
 
 ### Phase 5: Workflow — wyzwalacze, uprawnienia, cztery stany, efekty uboczne
 
@@ -1113,7 +1113,7 @@ bezużyteczna, ale nieszkodliwa i nie wchodzi na żadną istniejącą ścieżkę
 - [x] 5.6 PR z samym `context/**` daje czwarty stan: zielono, bez etykiet — fa6f503
 - [ ] 5.7 Etykiety wyniku wzajemnie się wykluczają
 - [x] 5.8 SHA w komentarzu zgadza się z ostatnim commitem z listy commitów PR-a — fa6f503
-- [ ] 5.9 Główny plik jest czytelny bez otwierania `action.yml`
+- [x] 5.9 Główny plik jest czytelny bez otwierania `action.yml` — d7dfc8b
 
 ### Phase 6: Próba czerwieni i pierwszy pomiar
 
