@@ -1,7 +1,7 @@
 import { appendFileSync } from "node:fs";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { REVIEW_SCHEMA, REVIEW_JSON_SCHEMA, type Review } from "./review-schema.ts";
-import { SYSTEM_PROMPT } from "./prompt.ts";
+import { SYSTEM_PROMPT, wrapDiff } from "./prompt.ts";
 
 /**
  * Model PRZYPIĘTY jawnie, a nie wzięty z aliasu.
@@ -106,7 +106,12 @@ async function readDiff(): Promise<string> {
 
 async function review(diff: string): Promise<Review> {
   const result = query({
-    prompt: `Zrecenzuj ten diff:\n\n${diff}`,
+    // `wrapDiff`, never raw interpolation: the diff is authored by the person whose change is
+    // being judged, so it is UNTRUSTED text, and pasting it straight after our sentence leaves
+    // the model no boundary between our instructions and theirs. See `prompt.ts` — it wraps the
+    // material in named delimiters AND neutralises any copy of those delimiters inside it, so
+    // the fence cannot be closed early from within.
+    prompt: wrapDiff(diff),
     options: {
       systemPrompt: SYSTEM_PROMPT, // własna rola zamiast presetu claude_code
       model: REVIEW_MODEL, // pin, nie alias — patrz komentarz przy REVIEW_MODEL

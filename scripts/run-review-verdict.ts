@@ -23,7 +23,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { SCORE_THRESHOLD, decideVerdict, parseReview } from "./review-verdict.ts";
 import type { Criterion } from "./review-verdict.ts";
-import { renderComment, renderFailureHeader, renderNoCodeComment } from "./review-comment.ts";
+import { renderComment, renderFailureHeader, renderNoCodeComment, renderTooLargeComment } from "./review-comment.ts";
 
 /**
  * The criteria list is read as DATA from the agent's package, resolved from this file's own
@@ -42,6 +42,7 @@ const USAGE = [
   "  node --experimental-strip-types scripts/run-review-verdict.ts \\",
   "    --result <plik.json> --out <plik.md> --sha <sha> --model <id> [--run-url <url>]",
   "  … --no-code --out <plik.md> --sha <sha> [--run-url <url>]",
+  "  … --too-large --out <plik.md> --sha <sha> --bytes <n> --limit <n> [--run-url <url>]",
   "  … --failure <powód> --out <plik.md> [--previous <plik.md>] [--run-url <url>]",
 ].join("\n");
 
@@ -54,6 +55,9 @@ interface Args {
   model: string | null;
   runUrl: string | null;
   noCode: boolean;
+  tooLarge: boolean;
+  bytes: number | null;
+  limit: number | null;
 }
 
 /**
@@ -70,12 +74,19 @@ function parseArgs(argv: readonly string[]): Args {
     model: null,
     runUrl: null,
     noCode: false,
+    tooLarge: false,
+    bytes: null,
+    limit: null,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
     if (flag === "--no-code") {
       args.noCode = true;
+      continue;
+    }
+    if (flag === "--too-large") {
+      args.tooLarge = true;
       continue;
     }
 
@@ -107,6 +118,18 @@ function parseArgs(argv: readonly string[]): Args {
       case "--run-url":
         args.runUrl = value;
         break;
+      case "--bytes":
+      case "--limit": {
+        // Parsed rather than passed through: these two land in the comment body, and a
+        // non-numeric value would render as "NaN bajtów" on a public pull request.
+        const parsed = Number(value);
+        if (!Number.isInteger(parsed) || parsed < 0) {
+          throw new Error(`Flaga \`${flag}\` wymaga nieujemnej liczby całkowitej (otrzymano: ${value}).`);
+        }
+        if (flag === "--bytes") args.bytes = parsed;
+        else args.limit = parsed;
+        break;
+      }
       default:
         throw new Error(`Nieznana flaga \`${String(flag)}\`.`);
     }
@@ -172,6 +195,24 @@ function main(argv: readonly string[]): number {
     // Neither `pass` nor `fail`: the workflow keys label handling off this value, and review
     // that did not happen must stay distinguishable from review that went badly.
     console.log("verdict=failed-to-run");
+    return 0;
+  }
+
+  if (args.tooLarge) {
+    if (args.sha === null || args.bytes === null || args.limit === null) {
+      console.error(USAGE);
+      throw new Error("Tryb `--too-large` wymaga `--sha`, `--bytes` i `--limit`.");
+    }
+    writeFileSync(
+      args.out,
+      renderTooLargeComment({ sha: args.sha, bytes: args.bytes, limit: args.limit, runUrl: args.runUrl }),
+      "utf8",
+    );
+    // A FIFTH value, and it earns its own name for the same reason `no-code` did: the run is
+    // green and no result label is applied, but the meaning is the opposite of "nothing to
+    // review" — a human has to decide whether to split the change or run review by hand.
+    // Collapsing it into `no-code` would tell that author their change was empty.
+    console.log("verdict=too-large");
     return 0;
   }
 

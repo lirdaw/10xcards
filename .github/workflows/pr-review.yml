@@ -281,27 +281,48 @@ jobs:
             ':(exclude)agents/review/criteria.json' \
             ':(exclude)agents/review/prompt-sources.json' > "$DIFF_PATH"
 
-          # THREE input states, decided here by comparing the filtered diff with the
-          # unfiltered one — by logic, never by prose:
-          #   code    -> there is something to review
-          #   no-code -> the pull request changed things, all of them filtered out. GREEN, no
-          #              label. Emptiness is EXPECTED here, not an input-collection failure.
-          #   empty   -> nothing changed at all. That is a failure of this step's premise.
+          # FOUR input states, decided here by logic — by comparing the filtered diff with the
+          # unfiltered one and by measuring it — never by prose:
+          #   code      -> there is something to review, and it fits
+          #   too-large -> there is something to review and it is over the ceiling below. GREEN,
+          #                no label, its own comment. Added post-review; see verification.md.
+          #   no-code   -> the pull request changed things, all of them filtered out. GREEN, no
+          #                label. Emptiness is EXPECTED here, not an input-collection failure.
+          #   empty     -> nothing changed at all. That is a failure of this step's premise.
           #
-          # They become the FOUR end states one step further down, where `code` splits on the
-          # agent's answer: `code` -> pass | fail, `no-code` -> no-code, `empty` -> failed-to-
-          # run. The split is there and not here on purpose — this step knows what it fed the
-          # agent and nothing about what came back.
-          if [ -s "$DIFF_PATH" ]; then
-            STATE=code
-          elif [ -s "$RAW_PATH" ]; then
-            STATE=no-code
+          # They become FIVE end states one step further down, where `code` splits on the
+          # agent's answer: `code` -> pass | fail, `too-large` -> too-large, `no-code` ->
+          # no-code, `empty` -> failed-to-run. The split is there and not here on purpose —
+          # this step knows what it fed the agent and nothing about what came back.
+          # A ceiling on what gets sent to a PAID model, so the bill is decided here and not by
+          # whoever opens the largest pull request. Derived from measurement rather than taste:
+          # run 32562732421 sent 141 395 bytes and cost $0.4426, against $0.0934 for the 1 486-byte
+          # fixture — and `verification.md` records that cost grows on BOTH sides at once, because
+          # nine rationales written about 2 711 lines are themselves longer. The limit sits at
+          # roughly 1.75x the largest run actually observed: high enough that no normal change in
+          # this repository meets it, low enough that a mass rename cannot quietly cost ten times
+          # the usual. Raise it deliberately, with a number from a run, never because one PR hit it.
+          MAX_DIFF_BYTES=250000
+          DIFF_BYTES=$(wc -c < "$DIFF_PATH")
+
+          if [ ! -s "$DIFF_PATH" ]; then
+            if [ -s "$RAW_PATH" ]; then STATE=no-code; else STATE=empty; fi
+          elif [ "$DIFF_BYTES" -gt "$MAX_DIFF_BYTES" ]; then
+            # The FIFTH state. Green and unlabelled like `no-code`, and the opposite of it in
+            # meaning — which is why it gets its own comment rather than reusing that one. Telling
+            # the author of a 400 kB change that there was "no code to review" would be a lie the
+            # green tick makes convincing.
+            STATE=too-large
           else
-            STATE=empty
+            STATE=code
           fi
 
-          echo "state=$STATE ($(wc -l < "$DIFF_PATH") filtered lines, $(wc -l < "$RAW_PATH") raw)"
-          echo "state=$STATE" >> "$GITHUB_OUTPUT"
+          echo "state=$STATE ($DIFF_BYTES bytes / $(wc -l < "$DIFF_PATH") filtered lines, $(wc -l < "$RAW_PATH") raw, limit $MAX_DIFF_BYTES)"
+          {
+            echo "state=$STATE"
+            echo "diff-bytes=$DIFF_BYTES"
+            echo "diff-limit=$MAX_DIFF_BYTES"
+          } >> "$GITHUB_OUTPUT"
 
       # -------------------------------------------------------------------------------------
       # 3. Run the review
@@ -389,9 +410,11 @@ jobs:
       # multi-line Markdown carrying arbitrary model-authored text and neither an output nor an
       # argument survives that.
       #
-      # `verdict=` has four values, not three: `pass`, `fail`, `no-code` (green, no label) and
-      # `failed-to-run` (red, no label). Collapsing the last two into either of the first two
-      # is the exact confusion this workflow exists to avoid.
+      # `verdict=` has FIVE values: `pass`, `fail`, `no-code` (green, no label), `too-large`
+      # (green, no label) and `failed-to-run` (red, no label). Collapsing any of the last three
+      # into either of the first two is the exact confusion this workflow exists to avoid — and
+      # `no-code` and `too-large` must not collapse into EACH OTHER either: both are green and
+      # unlabelled, and they mean opposite things to the person reading the comment.
       #
       # `!cancelled()` rather than `always()`, here and below: `cancel-in-progress: true` means
       # a superseded run is cancelled mid-flight, and `always()` would have it race the run
@@ -401,6 +424,8 @@ jobs:
         if: ${{ !cancelled() }}
         env:
           STATE: ${{ steps.input.outputs.state }}
+          DIFF_BYTES: ${{ steps.input.outputs.diff-bytes }}
+          DIFF_LIMIT: ${{ steps.input.outputs.diff-limit }}
           AGENT_STATUS: ${{ steps.review.outputs.status }}
           # Read TOGETHER with `status`, never instead of it. `status` is the agent's own exit
           # code and exists only if the agent actually ran; `outcome` is set by the runner for
@@ -419,6 +444,13 @@ jobs:
         run: |
           BODY_PATH="$RUNNER_TEMP/review-comment.md"
           echo "body-path=$BODY_PATH" >> "$GITHUB_OUTPUT"
+
+          if [ "$STATE" = "too-large" ]; then
+            node --experimental-strip-types scripts/run-review-verdict.ts \
+              --too-large --out "$BODY_PATH" --sha "$HEAD_SHA" \
+              --bytes "$DIFF_BYTES" --limit "$DIFF_LIMIT" --run-url "$RUN_URL" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           if [ "$STATE" = "no-code" ]; then
             node --experimental-strip-types scripts/run-review-verdict.ts \
@@ -606,7 +638,7 @@ jobs:
           VERDICT: ${{ steps.verdict.outputs.verdict }}
         run: |
           case "$VERDICT" in
-            pass|fail|no-code)
+            pass|fail|no-code|too-large)
               echo "Review happened (verdict=$VERDICT). Advisory by design — this check blocks nothing."
               ;;
             *)

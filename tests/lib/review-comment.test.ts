@@ -6,6 +6,7 @@ import {
   renderComment,
   renderFailureHeader,
   renderNoCodeComment,
+  renderTooLargeComment,
 } from "../../scripts/review-comment.ts";
 import type { RenderCommentInput } from "../../scripts/review-comment.ts";
 
@@ -14,7 +15,7 @@ import type { RenderCommentInput } from "../../scripts/review-comment.ts";
 // testable-and-load-bearing rather than cosmetic — the reasons sit above the table, and a
 // skipped criterion says "nie dotyczy" in words.
 //
-// The third property is stickiness: all three bodies must open with the same hidden marker,
+// The third property is stickiness: all four bodies must open with the same hidden marker,
 // because that marker is how the workflow finds its own comment to PATCH. The variant that
 // makes this easy to get wrong is the no-code one — it walks a path no "comment count stays
 // 1" criterion is measured on.
@@ -203,10 +204,11 @@ describe("renderFailureHeader", () => {
 // next run appends a SECOND comment — and no "comment count stays 1" criterion is measured on
 // the path that produces it.
 describe("comment marker", () => {
-  it("opens all three variants", () => {
+  it("opens all four variants", () => {
     const bodies = [
       renderComment(passingInput()),
       renderNoCodeComment({ sha: "0123456", runUrl: null }),
+      renderTooLargeComment({ sha: "0123456", bytes: 400000, limit: 250000, runUrl: null }),
       renderFailureHeader(renderComment(passingInput()), { reason: "cokolwiek", runUrl: null }),
     ];
 
@@ -232,5 +234,32 @@ describe("renderNoCodeComment", () => {
     expect(body).toContain("abcdef1");
     // No verdict and no table: the agent never ran, so there is nothing to score.
     expect(body).not.toContain(TABLE_HEADER);
+  });
+});
+
+describe("renderTooLargeComment", () => {
+  it("names both numbers and says no label was applied", () => {
+    const body = renderTooLargeComment({ sha: "abcdef1", bytes: 412_345, limit: 250_000, runUrl: null });
+
+    // Both figures, because "too large" without them is unactionable — the author cannot tell
+    // whether they are over by a line or by a factor of ten.
+    expect(body).toContain("412");
+    expect(body).toContain("250");
+    expect(body).toContain("abcdef1");
+    // The sentence that stops a green tick from reading as approval.
+    expect(body).toContain("brak oceny to nie jest ocena pozytywna");
+    // No verdict and no table: the agent never ran, so there is nothing to score.
+    expect(body).not.toContain(TABLE_HEADER);
+  });
+
+  // "Nothing to review" and "too much to review" both render green and unlabelled, so the ONLY
+  // thing telling those two authors apart is this text. Reusing one body for both would tell
+  // whoever opened a 400 kB pull request that their change was empty.
+  it("does not read as the no-code variant", () => {
+    const tooLarge = renderTooLargeComment({ sha: "abcdef1", bytes: 412_345, limit: 250_000, runUrl: null });
+    const noCode = renderNoCodeComment({ sha: "abcdef1", runUrl: null });
+
+    expect(tooLarge).not.toContain("brak kodu do oceny");
+    expect(tooLarge).not.toBe(noCode);
   });
 });

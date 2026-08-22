@@ -173,6 +173,44 @@ export function renderComment({
  * cannot catch, because that criterion is measured on a PR with code, which never walks this
  * path.
  */
+/**
+ * The FIFTH state: there is code to review and deliberately none of it was sent.
+ *
+ * Kept distinct from `renderNoCodeComment` on purpose — "nothing to review" and "too much to
+ * review" look the same on the pull request list (green, no label) and mean opposite things to
+ * the author. One needs no action; this one needs a human to decide whether to split the change
+ * or run review by hand.
+ *
+ * Carries the SAME marker as every other variant, which is what keeps the sticky comment sticky:
+ * a body the phase-5 lookup cannot find gets a SECOND comment appended instead of an edit.
+ */
+export function renderTooLargeComment({
+  sha,
+  bytes,
+  limit,
+  runUrl,
+}: {
+  sha: string;
+  bytes: number;
+  limit: number;
+  runUrl?: string | null;
+}): string {
+  return (
+    [
+      COMMENT_MARKER,
+      "## Code review agenta: zmiana za duża na automatyczne review",
+      `Diff po odfiltrowaniu ma **${bytes.toLocaleString("pl-PL")} bajtów**, a próg automatycznego ` +
+        `review wynosi **${limit.toLocaleString("pl-PL")}**. Agent nie został uruchomiony i ` +
+        "**żadna etykieta wyniku nie została nałożona** — brak oceny to nie jest ocena pozytywna.",
+      "Próg istnieje po to, żeby o rachunku nie decydował rozmiar pull requesta: koszt przebiegu " +
+        "rośnie z rozmiarem diffa po obu stronach naraz (wejście i wypisane uzasadnienia). " +
+        "Zwykle właściwą odpowiedzią jest podzielenie zmiany; jeśli ma zostać w całości, " +
+        "uruchom review ręcznie przez `workflow_dispatch`.",
+      `Commit \`${sha}\`${renderRunLink(runUrl)}`,
+    ].join("\n\n") + "\n"
+  );
+}
+
 export function renderNoCodeComment({ sha, runUrl }: { sha: string; runUrl?: string | null }): string {
   return (
     [
