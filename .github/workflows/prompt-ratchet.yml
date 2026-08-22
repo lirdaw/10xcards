@@ -49,3 +49,14 @@ jobs:
       # runner dependency-free.
       - name: Check the prompt distillate against its sources
         run: node --experimental-strip-types scripts/check-prompt-sources.ts
+
+      # The agent package's OWN tests, run by its own runner — `node:test` under bare
+      # `node --experimental-strip-types`, never vitest. `agents/**` is deliberately outside this
+      # project's tsconfig, ESLint and vitest (AGENTS.md §Hard Rules); a self-test inside that
+      # package respects the boundary, while dragging it into `npm test` would erase it.
+      #
+      # It lives in THIS workflow rather than in `ci.yml` for the same reason the ratchet does:
+      # what it guards is the prompt, and a change to `agents/review/prompt.ts` alone must not be
+      # able to slip past a path filter. Zero runtime dependencies, so still no `npm ci`.
+      - name: Check the prompt's own guarantees
+        run: node --experimental-strip-types --test agents/review/prompt.test.ts

@@ -738,3 +738,67 @@ właściwą liczbą, rozstrzygną dopiero przebiegi na realnych PR-ach tego repo
 **Rozstrzygnęła przy okazji jedną rzecz operacyjną:** SDK zdążył wydać pieniądze, zanim uderzył
 w limit, więc klucz `OPENROUTER_REVIEW_KEY` ma kredyt. Wcześniejsze czerwienie z 402 były stanem
 konta, nie defektem — i to jest dokładnie to rozróżnienie, po które ta klasyfikacja powstała.
+
+## Post-review — KOREKTA: stały ogranicznik był defektem, nie decyzją
+
+Sekcja „obrona przed prompt injection" wyżej zostaje w oryginale jako zapis tego, co wtedy
+uznaliśmy — łącznie ze zdaniem, że ogranicznik jest „STAŁY, nie losowy, i to jest decyzja".
+**To zdanie było błędne i poniżej stoi, co je obaliło.**
+
+### Jak to wyszło
+
+Przebieg 32596615686 recenzował ten właśnie kod i zgłosił: `wrapDiff` jest no-opem, bo
+`DIFF_OPEN === DIFF_CLOSE === "[ogranicznik-zneutralizowany]"`. Sprawdzone: stałe **były różne**,
+a `wrapDiff` działał. Ale zarzut nie był halucynacją — był artefaktem, i to takim, który ujawnia
+defekt poważniejszy niż zgłoszony:
+
+Diff pod review zawierał źródło `prompt.ts`, czyli literalne `<<<POCZATEK-…>>>` i `<<<KONIEC-…>>>`.
+Neutralizacja podmieniła **oba** tym **samym** placeholderem, zanim model cokolwiek zobaczył.
+Model dostał więc `DIFF_OPEN = "[ogranicznik-zneutralizowany]"` i
+`DIFF_CLOSE = "[ogranicznik-zneutralizowany]"`, wyciągnął z tego poprawny wniosek — z fałszywego
+wejścia — i zgłosił defekt, którego nie ma.
+
+**Klasa jest szersza niż ten jeden objaw.** Obrona po cichu PRZEPISYWAŁA recenzowany kod. Każdy
+plik zawierający ogranicznik trafiał do modelu ze zmienioną treścią, bez żadnego sygnału, że coś
+zniknęło. Tu podmiana wyprodukowała fałszywy alarm; równie dobrze mogła **ukryć defekt prawdziwy**.
+Ciche przepisanie dowodu jest gorsze niż brak obrony, bo znika razem z informacją, że coś zniknęło.
+
+### Poprawka: nonce, czyli skasowanie klasy zamiast filtrowania objawu
+
+Rozróżnialne placeholdery leczyłyby objaw (dwa różne stringi zlewające się w jeden) i zostawiały
+klasę. Ogranicznik ma więc teraz **jednorazowy nonce** (`randomBytes(9)`, base64url, ~72 bity)
+generowany per wywołanie: treść diffa nie może z nim kolidować z konstrukcji, więc neutralizacja
+przestaje być potrzebna i **diff jedzie do modelu co do znaku**. Kolizja (zepsuty generator, nonce
+podany ręcznie) to **głośna odmowa**, nie cicha podmiana.
+
+**Argument o cache'u, który wcześniej przemawiał za stałym ogranicznikiem, obalam tylko
+częściowo — i to jest ta część, która ma znaczenie:** nonce siedzi WYŁĄCZNIE w wiadomości
+użytkownika, nigdy w `SYSTEM_PROMPT`. Cachowany prefiks zostaje bajt w bajt taki sam, więc cache
+promptu działa dalej, a różnica między przebiegami to kilkanaście znaków w niecachowanej części
+wejścia — nie zmienia ani semantyki, ani rzędu wielkości, więc porównywalność pomiarów stoi.
+
+### Test — na tym właśnie przypadku, który to ujawnił
+
+`agents/review/prompt.test.ts`, uruchamiany **własnym runnerem paczki** (`node:test` pod gołym
+`node --experimental-strip-types`), nie vitestem. Granica z `AGENTS.md` §Hard Rules zostaje: własny
+test paczki jej nie narusza, wciągnięcie `agents/**` do `npm test` — owszem. Biegnie w
+`.github/workflows/prompt-ratchet.yml`, bez `npm ci`.
+
+Sześć przypadków; nośny jest pierwszy: **źródło `prompt.ts` przepuszczone przez `wrapDiff` musi
+wyjść co do znaku takie samo**, łącznie z liniami, które budują ogranicznik — bo to na nich
+recenzent ocenia, czy obrona działa.
+
+| Sprawdzenie                                                                               | Wynik |
+| ----------------------------------------------------------------------------------------- | ----- |
+| źródło `prompt.ts` zachowane w całości, zero placeholderów                                | ✔     |
+| nonce różny między wywołaniami                                                            | ✔     |
+| materiał niemożliwy do opuszczenia mimo STAREGO ogranicznika w treści; `body === wejście` | ✔     |
+| kolizja z nonce'em → wyjątek, nie podmiana                                                | ✔     |
+| nonce NIE występuje w `SYSTEM_PROMPT` (warunek stabilności cache'u)                       | ✔     |
+| pierwsza linia ogłasza obie strony ogranicznika                                           | ✔     |
+
+**Dowód, że te testy umieją zaświecić — i uczciwie o pierwszym podejściu.** Pierwszy mutant
+(neutralizacja znacznika nonce'owego) przeszedł **6/6**, bo na tych fiksturach był no-opem —
+mutant był źle dobrany, nie testy słabe. Mutant, który realnie przepisuje materiał
+(`diff.split("<<<").join("[x]")`), wywala **2 z 6**: właśnie test na źródle `prompt.ts` i test na
+zachowaniu wrogiej treści. To są te dwa, które strzegą niezmiennika.
