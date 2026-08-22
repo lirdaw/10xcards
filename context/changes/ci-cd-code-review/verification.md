@@ -351,3 +351,61 @@ Do tego trzy odmowy zamiast cichego `""`: brakujący nagłówek, nagłówek wyst
 i string, który nagłówkiem nie jest. Pusta sekcja ma doskonale stabilny hash, więc chybienie
 zostałoby zapisane raz i już nigdy nie zauważone — zapadka pilnowałaby niczego i raportowała
 to jako zgodę.
+
+## Post-review — zapadka miała dowód, ale nie miała ścieżki (F1 z impl-review)
+
+Cała próba zapadki opisana wyżej biegła **lokalnie**, przez `npm test`. Była prawdziwa i nic
+z niej nie unieważniamy — ale nie mogła zobaczyć tego, co znalazł impl-review: `npm test`
+uruchamia się w repo w **jednym** miejscu, w jobie `ci` z `.github/workflows/ci.yml`, którego
+wyzwalacze niosą `paths-ignore: ["**/*.md", "context/**"]`. Wszystkie trzy pilnowane sekcje
+leżą w `AGENTS.md` albo `test-plan.md`, więc zmiana wyłącznie dokumentacyjna wypadała spod
+bramki. `pre-push` odpala tylko `typecheck`, więc drugiej ścieżki nie było.
+
+To jest dokładnie ta klasa, którą ta zmiana zwalcza — bramka świecąca **przypadkiem**, przy
+okazji commitów dotykających też kodu — tyle że popełniona w niej samej. I jest to zarazem
+lekcja o dowodzie: weryfikacja 7.4 nie kłamała, tylko mierzyła nie tę ścieżkę, na której
+bramka miała żyć.
+
+**Zakres luki, zmierzony a nie założony.** Przy zdarzeniu `pull_request` GitHub liczy
+`paths-ignore` względem **całego diffa PR-a**, nie pojedynczego pusha — commit `e0a4e87`
+zmieniał wyłącznie `AGENTS.md`, a mimo to `CI` na nim wystartował, bo PR #45 zawiera kod.
+Luka dotyczy więc PR-a **w całości** dokumentacyjnego (czyli typowej zmiany reguły wnoszonej
+osobnym PR-em) oraz docs-only pusha na `main` — nie każdego docs-only commita.
+
+### Poprawka
+
+`scripts/check-prompt-sources.ts` (runner CI, wzorzec `check-schema-drift.ts`) plus
+`.github/workflows/prompt-ratchet.yml` — **osobny plik** workflow, bo `paths-ignore` filtruje
+workflow, a nie job, więc żaden job dorzucony do `ci.yml` z pod niego nie ucieka. Runner nie
+może iść przez vitesta: `vitest.config.ts` deklaruje
+`globalSetup: ["tests/setup/preflight.ts", "tests/setup/accounts.ts"]`, więc każde wywołanie
+vitesta przerwałoby się w preflighcie bez lokalnego stacka Supabase. Decyzja ma dalej jeden dom
+w `scripts/prompt-sources.ts`; różni się tylko powierzchnia raportowania.
+
+### Para czerwono/zielono — tym razem NA RUNNERZE, nie lokalnie
+
+Trzy przebiegi workflow `Prompt ratchet` na PR #45, każdy różniący się od poprzedniego
+dokładnie jedną rzeczą:
+
+| Przebieg    | Commit    | Co się zmieniło                                                 | Wynik         |
+| ----------- | --------- | --------------------------------------------------------------- | ------------- |
+| 32591341509 | `466a206` | bramka wprowadzona, rekord zgodny z destylatem                  | zielony (8 s) |
+| 32591415154 | `e0a4e87` | **wyłącznie** `AGENTS.md` §Conventions, bez regeneracji rekordu | **czerwony**  |
+| 32591539397 | `71b98c0` | destylat w `prompt.ts` uzupełniony + `--write` na rekordzie     | zielony       |
+
+Czerwień przebiegu 32591415154 nazwała sekcję i podała instrukcję, dosłownie:
+
+> `##[error]AGENTS.md §## Conventions zmieniło się, a destylat promptu w agents/review/prompt.ts — nie.`
+
+po czym cztery kroki w kolejności „przeczytaj → zaktualizuj destylat → **dopiero teraz** odśwież
+rekord → zacommituj oba razem" i zdanie, że sam krok 3 zieleni bramkę i nie naprawia niczego.
+
+**Zawężenie do sekcji potwierdzone po raz drugi, teraz w CI**: między `e0a4e87` a `71b98c0`
+hash §Conventions przeszedł z `14fae424be43…` na `1dfbd54d25dc…`, a §Hard Rules
+(`ffffb7e3c103…`) i §2. Risk Map (`a58e1962bb67…`) zostały bez zmian. Gdyby hash liczył się
+z całego pliku, ruszyłyby wszystkie trzy.
+
+**Czego ta para NIE dowodzi.** Nie dowodzi, że `ci` faktycznie się pomija na PR-ze w całości
+dokumentacyjnym — PR #45 zawiera kod, więc `CI` biegł na wszystkich trzech commitach.
+Dowodem tamtej połowy byłby osobny PR bez ani jednego pliku kodu; do tego czasu zakres luki
+opisany wyżej jest wyprowadzony z zaobserwowanej semantyki `paths-ignore`, nie z próby.
