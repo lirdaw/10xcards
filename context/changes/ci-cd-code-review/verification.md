@@ -554,3 +554,43 @@ Trzy rzeczy, które ta tabela dopiero teraz czyni sprawdzalnymi, a wcześniej by
 **Do porównania z przyszłym przebiegiem** bierze się tę tabelę, a nie tabelę przebiegu B: A ma
 wejście stałe, bo fikstura leży w gicie. Powtórzenie:
 `gh workflow run pr-review.yml -f pr_number=<N> -f use_fixture=true`.
+
+## Post-review — nieplanowana awaria, która potwierdziła ścieżkę awarii (przebieg 32594772192)
+
+Nie była zaaranżowana i tym jest cenniejsza od przebiegu C: tam nieistniejące id modelu podaliśmy
+sami, tu awaria przyszła sama.
+
+Po triażu impl-review diff PR-a urósł do **222 051 bajtów** (4 188 linii po filtrze). Przeszedł
+próg 250 000 z fazy post-review F7, po czym agent dostał od OpenRoutera:
+
+> `API Error: 402 This request requires more credits, or fewer max_tokens. You requested up to
+32000 tokens, but can only afford 23132.`
+
+Czyli **klucz `OPENROUTER_REVIEW_KEY` wyczerpał limit**, a nie: cokolwiek w kodzie się zepsuło.
+
+### Co ten przebieg potwierdził — cztery rzeczy naraz, na żywym zdarzeniu
+
+1. **Czerwień znaczy „review się nie odbyło", nie „kod jest zły".** Przebieg czerwony,
+   `verdict=failed-to-run`, **żadna etykieta wyniku nie została nałożona ani zdjęta**.
+2. **Komunikat mówi o dostawcy, nie o kontrakcie wyjścia** — `subtype: success, is_error: true,
+terminal_reason: api_error` plus dosłowna treść 402. To jest naprawa z fazy 1 działająca
+   w warunkach, których nikt nie ustawił.
+3. **Nagłówek awarii stoi NAD zachowanym werdyktem** z poprzedniego przebiegu (`✅ pass`), oba
+   fakty naraz, dokładnie jeden marker komentarza, blok awarii domknięty.
+4. **Wycinanie URL-i zadziałało tam, gdzie było naprawdę potrzebne.** Treść 402 zawierała
+   `https://openrouter.ai/workspaces/default/keys/1fd10143…` — adres z identyfikatorem klucza.
+   W publicznym komentarzu stoi `<adres w logu przebiegu>`. Ta obrona nie była dotąd sprawdzona na
+   niczym poza fiksturą; teraz jest, na URL-u, którego naprawdę nie chcieliśmy tam mieć.
+   Skrub potwierdził się przy tym niezależnie: `[scrub] klucz wycięty, brak pozostałości
+o kształcie klucza.` → `stderr-scrubbed=true`, więc konkret wrócił do komentarza legalnie.
+
+### Czego ten przebieg dowodzi PRZECIWKO poprawce F7
+
+Cap na bajty **nie zapobiegł** tej awarii i nie mógł: 222 051 < 250 000, więc bramka przepuściła
+wejście, a zatrzymał je dopiero limit kredytu po stronie dostawcy. Wniosek jest ostrzejszy niż
+„podnieś albo obniż próg": **wiążącym ograniczeniem jest budżet klucza, a nie rozmiar diffa**,
+a te dwie wielkości nie są tą samą walutą — 32 000 tokenów wyjścia przy 23 132 dostępnych nie
+przelicza się na żadną liczbę bajtów wejścia. Cap bajtowy chroni przed jednym rachunkiem
+absurdalnie dużym; nie chroni przed wyczerpaniem puli. Decyzja o progu zostaje więc otwarta,
+z zapisanym punktem odniesienia: 222 051 B nie zmieściło się w kluczu, którego stan na
+2026-08-22 pozwalał na 23 132 tokeny wyjścia.
