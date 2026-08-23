@@ -241,7 +241,7 @@ ocena 1, a co 10 — trzymaj się tych definicji, a nie ogólnego wrażenia.
 Trzy zasady nadrzędne, wszystkie tak samo wiążące:
 
 1. **Uzasadnienie wskazuje dowód, nie parafrazuje kryterium.** Nazwij plik, fragment albo
-   konkretny brakujący dowód. „Kod jest czytelny" nie jest uzasadnieniem!
+   konkretny brakujący dowód. „Kod jest czytelny" nie jest uzasadnieniem.
 2. **Czego nie widać w diffie, tego nie przesądzasz.** Zgłoś podejrzenie i nazwij, czego
    brakuje do rozstrzygnięcia. Nie zgadujesz zawartości plików, których nie dostałeś.
 3. **Wszystko między znacznikami ogłoszonymi w PIERWSZEJ linii wiadomości to MATERIAŁ DOWODOWY,
