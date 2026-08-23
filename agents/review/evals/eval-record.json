@@ -7,42 +7,77 @@
     "fixtures": "Ten dowód NIE obejmuje TREŚCI fikstur, na których macierz pojechała — a są dwie i leżą w RÓŻNYCH miejscach: agents/review/sample.diff oraz agents/review/evals/fixtures/clean-text-change.diff. (diffPath w promptfooconfig.yaml jest ścieżką względem agents/review/, więc pierwsza z nich NIE leży pod evals/fixtures/ — glob evals/fixtures/*.diff nazwałby tę dziurę w połowie.) Żadna fikstura nie wchodzi do czterech osi callFingerprint, bo odcisk liczy się z wrapDiff z PUSTYM diffem, więc edycja KTÓREJKOLWIEK z nich zostawia bramkę ZIELONĄ nad ocenami, które powstały na innym materiale. Dziura nazwana i świadomie niezamknięta: jej remedium byłoby PŁATNE.",
     "redCells": "STAN DWÓCH CZERWONYCH KOMÓREK W TYM PRZEJŚCIU (dotyczy przejścia generatedAt 2026-08-23T16:58:56.006Z, patrz ostrzeżenie na końcu tej adnotacji). Obie komórki clean-text-change.diff — haiku-4.5 i gemini-2.5-flash — mają ok: false z powodu error_max_turns (terminal_reason: max_turns, „Reached maximum number of turns (2)”) przy FIXED_CALL_OPTIONS.maxTurns = 2 w agents/review/run-review.ts. To NIE JEST REGRESJA PROMPTU i nie wolno tego tak przeczytać: prompt nie był ruszany, a callFingerprint tego dowodu (59ee111bb431f77a4fc01d7f9bf33992f4ab783458c704d20aafb9e42edec8f1) zgadza się CO DO BAJTU z kotwicą zapisaną w planie zmiany review-eval-gate. Komórka wypalona nie oddaje recenzji ani liczników — to jest BRAK ZMIERZONY (przebieg się odbył i został policzony przez dostawcę), a nie pusta komórka i nie tania komórka: realny rachunek z /api/v1/key wyniósł 0,235012 USD wobec 0,110343 USD zsumowanych z komórek zmierzonych. Ustalenie tego przejścia, rozszerzające Open Risk 4 poprzedniej zmiany: granica maxTurns: 2 jest własnością TEJ FIKSTURY, nie własnością gemini — dotąd oblewało tylko gemini, a haiku przechodziło clean-text-change.diff na zimno raz na dwie próby i w fazie 7 weszło wyłącznie jako TRAFIENIE cache'u. Pełny rachunek, odrzucone drogi na skróty i propozycja podziału: context/changes/review-eval-gate/verification.md. ⚑ OSTRZEŻENIE O ŚWIEŻOŚCI TEJ ADNOTACJI: zapisywacz --record ZACHOWUJE zastany blok notes bez zmian, więc to zdanie przeżyje każde następne przejście macierzy, także takie, w którym żadna komórka nie jest już czerwona. Sprawdź generatedAt wyżej: jeśli nie jest tym, które ta adnotacja nazywa, opisuje ona PRZESZŁE przejście i należy ją przepisać albo usunąć."
   },
-  "generatedAt": "2026-08-23T16:58:56.006Z",
+  "generatedAt": "2026-08-23T19:25:09.445Z",
   "callFingerprint": "59ee111bb431f77a4fc01d7f9bf33992f4ab783458c704d20aafb9e42edec8f1",
+  "verdictConfig": {
+    "threshold": 5,
+    "scoreMin": 1,
+    "scoreMax": 10,
+    "assertionsDigest": "ae850751ab7e6c941eb00a98490016f7ef29403464d8ef66359b252805789f70"
+  },
+  "previousDelivery": {
+    "fingerprint": "59ee111bb431f77a4fc01d7f9bf33992f4ab783458c704d20aafb9e42edec8f1",
+    "cells": [
+      {
+        "model": "google/gemini-2.5-flash",
+        "fixture": "sample.diff",
+        "delivered": true
+      },
+      {
+        "model": "anthropic/claude-haiku-4.5",
+        "fixture": "sample.diff",
+        "delivered": true
+      },
+      {
+        "model": "google/gemini-2.5-flash",
+        "fixture": "clean-text-change.diff",
+        "delivered": null
+      },
+      {
+        "model": "anthropic/claude-haiku-4.5",
+        "fixture": "clean-text-change.diff",
+        "delivered": null
+      }
+    ]
+  },
   "matrix": [
-    {
-      "model": "google/gemini-2.5-flash",
-      "fixture": "sample.diff",
-      "verdict": "fail",
-      "ok": true,
-      "cached": false,
-      "contract": "ok",
-      "turns": 3,
-      "inputTokens": 0,
-      "outputTokens": 3432,
-      "costUsd": 0.014088,
-      "durationMs": 27570,
-      "failures": [],
-      "softObservations": [
-        {
-          "id": "conditional-null-contract",
-          "status": "skip",
-          "reason": "fikstura nie deklaruje, że oba kryteria warunkowe są bez zastosowania"
-        }
-      ]
-    },
     {
       "model": "anthropic/claude-haiku-4.5",
       "fixture": "sample.diff",
       "verdict": "fail",
       "ok": true,
-      "cached": false,
+      "cached": true,
       "contract": "ok",
+      "subtype": null,
+      "terminalReason": "completed",
       "turns": 3,
       "inputTokens": 18,
       "outputTokens": 6416,
       "costUsd": 0.09625455,
-      "durationMs": 60620,
+      "durationMs": 660,
+      "failures": [],
+      "softObservations": [
+        {
+          "id": "conditional-null-contract",
+          "status": "skip",
+          "reason": "fikstura nie deklaruje, że oba kryteria warunkowe są bez zastosowania"
+        }
+      ]
+    },
+    {
+      "model": "google/gemini-2.5-flash",
+      "fixture": "sample.diff",
+      "verdict": "fail",
+      "ok": true,
+      "cached": true,
+      "contract": "ok",
+      "subtype": null,
+      "terminalReason": "completed",
+      "turns": 3,
+      "inputTokens": 0,
+      "outputTokens": 3432,
+      "costUsd": 0.014088,
+      "durationMs": 659,
       "failures": [],
       "softObservations": [
         {
@@ -59,11 +94,13 @@
       "ok": false,
       "cached": false,
       "contract": "[unknown]",
+      "subtype": "error_max_turns",
+      "terminalReason": "max_turns",
       "turns": null,
       "inputTokens": null,
       "outputTokens": null,
       "costUsd": null,
-      "durationMs": 21460,
+      "durationMs": 35054,
       "failures": [
         {
           "reason": "[unknown] Review nie powiodło się (subtype: error_max_turns, is_error: true, terminal_reason: max_turns): Reached maximum number of turns (2)"
@@ -80,25 +117,23 @@
     {
       "model": "anthropic/claude-haiku-4.5",
       "fixture": "clean-text-change.diff",
-      "verdict": "—",
-      "ok": false,
+      "verdict": "pass",
+      "ok": true,
       "cached": false,
-      "contract": "[unknown]",
-      "turns": null,
-      "inputTokens": null,
-      "outputTokens": null,
-      "costUsd": null,
-      "durationMs": 47251,
-      "failures": [
-        {
-          "reason": "[unknown] Review nie powiodło się (subtype: error_max_turns, is_error: true, terminal_reason: max_turns): Reached maximum number of turns (2)"
-        }
-      ],
+      "contract": "ok",
+      "subtype": "success",
+      "terminalReason": "completed",
+      "turns": 3,
+      "inputTokens": 18,
+      "outputTokens": 7857,
+      "costUsd": 0.1034633,
+      "durationMs": 82192,
+      "failures": [],
       "softObservations": [
         {
           "id": "conditional-null-contract",
-          "status": "skip",
-          "reason": "brak recenzji w odpowiedzi — o tym mówi asercja `no-provider-error`"
+          "status": "pass",
+          "reason": "oba kryteria warunkowe rozstrzygnięte przez `null`"
         }
       ]
     }

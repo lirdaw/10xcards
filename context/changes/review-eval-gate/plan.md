@@ -1252,27 +1252,35 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 
 ### Phase 3: Przejście macierzy — PŁATNE
 
-> ⚑ **FAZA ZATRZYMANA na własnym kryterium 3.6 (2026-08-23), Progress CELOWO otwarty.** Przejście
-> się odbyło i kosztowało 0,235012 USD; 3.1, 3.3 i 3.4 są spełnione, ale dwie z czterech komórek
-> mają `ok: false` (`error_max_turns` przy `maxTurns: 2`, obie na `clean-text-change.diff`).
-> Prompt nietknięty — `callFingerprint` zgadza się z kotwicą — więc sygnał jest o MACIERZY, nie
-> o zapadce. Żaden wiersz nie zostaje odhaczony: odhaczenie 3.1/3.3/3.4 nad niedomkniętą fazą
-> czytałoby się jako postęp tam, gdzie jest zatrzymanie. Rachunek, odrzucone drogi na skróty
-> i propozycja podziału: `verification.md`. Fazy 4 i 5 nie zaczynane.
+> ⚑ **ZATRZYMANIE ZDJĘTE 2026-08-23 — faza domknięta w DRUGIM podejściu.** Zapis pierwszego
+> podejścia zostaje niżej, nietknięty: plan, z którego znika zatrzymanie, czyta się jak plan,
+> który nigdy się nie zatrzymał.
+>
+> Rozwiązaniem nie było podniesienie `maxTurns`, tylko poprawka **D-6 + D-9**: kryterium 3.6
+> w brzmieniu „wszystkie cztery komórki `ok: true`" jest **zastąpione** przez „żadna komórka
+> w klasie (B)". Drugie przejście dało trzy komórki dowiezione i jeden brak klasy (A)
+> (gemini / `clean-text-change.diff`, `error_max_turns`) — raportowany, nieblokujący.
+> Rachunek: **0,139255 USD**, łącznie na zmianę 0,772407 z 1,50. Odstępstwo od planu: dwie
+> komórki `sample.diff` weszły z **cache'u**, nie na zimno — nazwane w `verification.md`.
+>
+> ⚑ **ZAPIS PIERWSZEGO PODEJŚCIA (2026-08-23, przed poprawą D-6):** przejście się odbyło
+> i kosztowało 0,235012 USD; dwie z czterech komórek miały `ok: false` (`error_max_turns` przy
+> `maxTurns: 2`, obie na `clean-text-change.diff`), prompt nietknięty. Zatrzymanie było SŁUSZNE:
+> doprowadziło do pomiaru 3a.1 i do rozdzielenia przyczyn.
 
 #### Automated
 
 - [x] 3.0 BRAMKA D-10: sfabrykowany rekord o docelowym kształcie (komplet pól + `previousDelivery`) przechodzi przez PRAWDZIWY zapisywacz i PRAWDZIWY checker — warunek wydania pierwszego centa
-- [ ] 3.1 `prettier --check` na dowodzie prawdziwym → kod 0
+- [x] 3.1 `prettier --check` na dowodzie prawdziwym → kod 0
 - [ ] 3.2 `lint-staged` nie przeformatował dowodu przy `git add`
-- [ ] 3.3 Dowód niesie 4 wiersze, 2 modele, 2 fikstury
-- [ ] 3.4 `callFingerprint` = `59ee111b…` (kotwica niezmieniona — przekotwiczenie cofnięte po 3a.1)
+- [x] 3.3 Dowód niesie 4 wiersze, 2 modele, 2 fikstury
+- [x] 3.4 `callFingerprint` = `59ee111b…` (kotwica niezmieniona — przekotwiczenie cofnięte po 3a.1)
 
 #### Manual
 
-- [ ] 3.5 Odczyt `/api/v1/key` opóźniony wykonany; różnica w budżecie ~~0,50~~ **1,50 USD** (D-8)
-- [ ] 3.6 Wszystkie cztery komórki `ok: true`
-- [ ] 3.7 Obserwacje miękkie zapisane bez awansowania do twardych
+- [x] 3.5 Odczyt `/api/v1/key` opóźniony wykonany; różnica w budżecie ~~0,50~~ **1,50 USD** (D-8)
+- [x] 3.6 ~~Wszystkie cztery komórki `ok: true`~~ → **żadna komórka w klasie (B)** (poprawka D-6; komórki klasy (A) dopuszczalne i raportowane)
+- [x] 3.7 Obserwacje miękkie zapisane bez awansowania do twardych
 
 ### Phase 4: Zapadka
 
@@ -1280,7 +1288,7 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 
 - [x] 4.1 Testy pakietu agenta i vitest zielone
 - [x] 4.2 Typecheck (root + agent) i lint
-- [ ] 4.3 Oba checkery na czystym drzewie → kod 0 — **CZEKA NA PŁATNE PRZEJŚCIE.** Dzisiejszy
+- [x] 4.3 Oba checkery na czystym drzewie → kod 0 — **DOMKNIĘTE na rekordzie z fazy 3** (drugie przejście, 19:23Z). Rekord, który to kryterium blokował,
       `eval-record.json` powstał PRZED polami `subtype`/`terminalReason`, więc checker agencki
       odrzuca go jako `malformed` z nazwanym powodem. To jest zamierzone, nie usterka; kryterium
       domknie się na rekordzie z fazy 3. Na rekordzie SFABRYKOWANYM o docelowym kształcie oba

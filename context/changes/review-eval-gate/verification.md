@@ -626,3 +626,205 @@ brakującą zależność.
 
 Adnotacje klasy (A) wychodzą jako `::notice` i **nie blokują** — to jest D-6 w działaniu na
 prawdziwym runnerze, nie tylko w teście.
+
+---
+
+## Faza 3 (podejście DRUGIE) — przejście macierzy. DOMKNIĘTA
+
+**Data**: 2026-08-23
+**Gałąź**: `review-eval-gate`, HEAD `6eb9bb4`
+**Klucz**: `ANTHROPIC_AUTH_TOKEN` zmapowany z `OPENROUTER_REVIEW_KEY` na JEDNO wywołanie
+(nigdy `OPENROUTER_EVAL_KEY`, nigdy eksport na stałe)
+**Komendy**: `npm --prefix agents/review run eval -- --record`, potem
+`node --experimental-strip-types scripts/run-verdict-config.ts --write`
+**Warunek wejścia**: kryterium 3.0 (bramka D-10) spełnione PRZED przejściem — kształt rekordu
+zamknięty na rekordzie SFABRYKOWANYM, więc płatny przebieg dostarczył wyłącznie DANE.
+
+### Rachunek — odczyty `/api/v1/key`
+
+| moment                              | UTC                    | `usage`         |
+| ----------------------------------- | ---------------------- | --------------- |
+| kotwica dolna, PRZED przejściem     | `2026-08-23T19:20:57Z` | **4,248652133** |
+| odczyt natychmiastowy, po przejściu | `2026-08-23T19:25:22Z` | **4,284443686** |
+| odczyt OPÓŹNIONY (+3 min 47 s)      | `2026-08-23T19:28:56Z` | **4,387906986** |
+| potwierdzenie stabilności (+23 s)   | `2026-08-23T19:29:19Z` | **4,387906986** |
+| odczyt PÓŹNY (+7 min 53 s)          | `2026-08-23T19:33:02Z` | **4,387906986** |
+
+**Realny wydatek: 0,139254853 USD.** Odczyt opóźniony dołożył **0,103463** ponad natychmiastowy —
+czyli opóźnione księgowanie zadziałało i to mocno: odczyt zaraz po przebiegu pokazywał ledwie
+0,0358, czyli **jedną czwartą** prawdziwego rachunku. Zastrzeżenie z
+`measurement-negative-control.md:154-157` zostaje w mocy: rachunek domyka odczyt otwierający
+NASTĘPNE okno pomiarowe, więc 0,139255 jest oszacowaniem DOLNYM, potwierdzonym dwoma odczytami.
+
+**Suma z raportu obok: 0,103463 USD zapłacone.** Różnica wobec klucza — **0,035792 USD** — to
+komórka wypalona (gemini / `clean-text-change.diff`): przebieg się odbył, dostawca go policzył,
+SDK nie oddało liczników, więc nie ma jej w żadnej sumie raportu. Ten sam kształt co Fakt 2
+z poprzedniego podejścia, tym razem z jedną wypaloną komórką zamiast dwóch.
+
+### Budżet — i rozjazd, który złapało dopiero rozliczenie całościowe
+
+| pozycja                                      | USD              |
+| -------------------------------------------- | ---------------- |
+| faza 3, przejście zatrzymane                 | 0,235012205      |
+| faza 3a.1, sześć przebiegów pomiarowych      | 0,381737000      |
+| faza 3, przejście drugie                     | 0,139254853      |
+| **suma pozycji**                             | **0,756004058**  |
+| **delta klucza** (4,387906986 − 3,615500098) | **0,772406888**  |
+| **ROZJAZD**                                  | **+0,016402830** |
+
+**Wiąże delta klucza: 0,772407 USD z 1,50. Zostaje ~0,728 USD.**
+
+⚑ **Rozjazd nie jest błędem rachunkowym — jest ZMIERZONYM potwierdzeniem reguły, którą ten plik
+cytuje trzy razy i która dotąd nie miała świadka.** „Odczyt opóźniony" fazy 3a.1
+(`2026-08-23T17:41Z`, 4,232249153) został zapisany jako domknięcie tamtego rachunku. Kotwica dolna
+TEGO przejścia, wzięta 1 h 40 min później, pokazuje **4,248652133** — czyli po tamtym „domknięciu"
+doszło jeszcze **0,016403 USD**. Dokładnie to mówi
+`measurement-negative-control.md:154-157`: rachunek zamyka odczyt otwierający NASTĘPNE okno
+pomiarowe, a nie odczyt po przebiegu — więc każda kwota per faza jest oszacowaniem **DOLNYM**,
+także 0,139255 z tego przejścia.
+
+**Konsekwencja, którą zapisuję wprost: budżetu nie wolno rozliczać sumą pozycji per faza.**
+Sumowanie dolnych oszacowań daje liczbę systematycznie ZANIŻONĄ, i to o tyle, o ile każda faza
+kończyła się przed doknięciem się księgowania. Wiąże różnica dwóch odczytów: kotwicy sprzed
+PIERWSZEGO wydatku zmiany i najpóźniejszego dostępnego. Pierwsza wersja tego akapitu podawała
+0,772407 jako sumę trzech pozycji — **nieprawda, one sumują się do 0,756004** — i błąd wyszedł
+dopiero przy ręcznym wykonaniu kryterium 3.5.
+
+### Tabela przejścia
+
+```
+| model                      | fikstura               | werdykt | kontrakt  | tury | in   | out  | koszt USD | cache     | asercje |
+| -------------------------- | ---------------------- | ------- | --------- | ---- | ---- | ---- | --------- | --------- | ------- |
+| anthropic/claude-haiku-4.5 | sample.diff            | fail    | ok        | 3    | 18   | 6416 | 0.096255  | TRAFIENIE | 6/6     |
+| google/gemini-2.5-flash    | sample.diff            | fail    | ok        | 3    | 0    | 3432 | 0.014088  | TRAFIENIE | 6/6     |
+| google/gemini-2.5-flash    | clean-text-change.diff | BRAK    | [unknown] | BRAK | BRAK | BRAK | BRAK      | BRAK      | BRAK    |
+| anthropic/claude-haiku-4.5 | clean-text-change.diff | pass    | ok        | 3    | 18   | 7857 | 0.103463  | zimna     | 5/5     |
+
+Koszt komórek: 0.213806 USD z 3/3 komórek ZMIERZONYCH; trafienia cache'u: 2/3.
+ZAPŁACONE w tym przejściu: 0.103463 USD (trafienia cache'u nie kosztują).
+Komórek uruchomionych: 4; z tego ZMIERZONYCH 3, BRAKÓW ZMIERZONYCH 1.
+```
+
+Komunikat jedynego braku, co do znaku:
+
+```
+[unknown] Review nie powiodło się (subtype: error_max_turns, is_error: true,
+terminal_reason: max_turns): Reached maximum number of turns (2)
+```
+
+### ⚑ Przejście NIE było zimne we wszystkich czterech komórkach — odstępstwo od planu, nazwane
+
+`research.md` §3.1 przewidywał przejście zimne we wszystkich czterech komórkach i plan powtarzał to
+w Changes Required. **Przewidywanie było prawdziwe w swojej dacie i unieważniło je zatrzymane
+przejście**: pass z `f8a9e80` (16:57Z) zapisał obie udane komórki `sample.diff` do
+`~/.promptfoo/cache` pod DZISIEJSZYM kluczem (`v1` + model + fikstura + `59ee111b…`), a od tamtej
+pory nie ruszył się ani prompt, ani `FIXED_CALL_OPTIONS`. Dziś obie wróciły jako **TRAFIENIE**.
+
+**Co to znaczy dla dowodu:** rekord niesie pomiary z DWÓCH momentów — `sample.diff` z 16:57Z,
+`clean-text-change.diff` z 19:23Z — pod JEDNYM odciskiem. To jest dokładnie to, po co ten cache
+istnieje (kluczem jest odcisk, więc trafienie znaczy „to samo wywołanie"), ale komórka
+`cached: true` **nie jest pomiarem z chwili zapisu**, a pole `cached` jest jedynym miejscem, po
+którym to widać. Nie awansowałem tego do usterki i nie wymuszałem `--no-cache`: zimne przejście
+kupowałoby ~0,11 USD za dane, o których cache twierdzi — sprawdzalnie, kluczem — że są te same.
+
+### ⚑ Fakt 1 z poprzedniego podejścia WYMAGA KOREKTY: granica nie jest własnością fikstury
+
+Poprzednie podejście zapisało: „granica `maxTurns: 2` jest własnością FIKSTURY, nie gemini — dziś,
+na zimno, oblewają OBA tanie modele". **Dziś, na zimno, na tej samej fiksturze i przy tym samym
+`maxTurns: 2`, haiku DOWIOZŁO**: recenzja `pass`, 5/5 asercji twardych, `numTurns: 3`, a obserwacja
+miękka `conditional-null-contract` po raz pierwszy w stanie `pass`, a nie `skip`.
+
+Poprawny zapis brzmi więc: **`clean-text-change.diff` leży NA GRANICY `maxTurns: 2`, a wynik
+komórki jest losem przebiegu — nie własnością modelu i nie własnością fikstury.** Bilans zimnych
+prób na tej fiksturze przy `maxTurns: 2`: haiku oblało (zatrzymane przejście) i dowiozło (dziś),
+gemini oblało dwa razy; wejście z fazy 7 poprzedniej zmiany było TRAFIENIEM cache'u, więc nie jest
+próbą. Próbek jest tyle, że **nie wolno z nich czytać częstości** — wolno czytać wyłącznie to, że
+oba wyniki są osiągalne przy niezmienionym wywołaniu.
+
+To jest zarazem potwierdzenie decyzji D-6 na ŻYWYCH danych, a nie w teście: gdyby zapadka dalej
+czerwieniła na `ok: false`, ten sam, nietknięty prompt zieleniałby albo czerwieniał **zależnie od
+przebiegu**, a człowiek płaciłby za powtórzenia do skutku. Ostrzeżenie z sekcji „Dlaczego to NIE
+jest poluzowanie pod presją" zostaje w mocy i nic tu go nie unieważnia — ale przewidywana cena
+starej reguły właśnie się zmaterializowała w drugą stronę.
+
+### Klasyfikacja przyczyn — D-6 na prawdziwym rekordzie
+
+| komórka                           | `contract`  | `subtype`         | `terminalReason` | klasa | zapadka                 |
+| --------------------------------- | ----------- | ----------------- | ---------------- | ----- | ----------------------- |
+| haiku / `sample.diff`             | `ok`        | `null`            | `completed`      | —     | zielona                 |
+| gemini / `sample.diff`            | `ok`        | `null`            | `completed`      | —     | zielona                 |
+| haiku / `clean-text-change.diff`  | `ok`        | `success`         | `completed`      | —     | zielona                 |
+| gemini / `clean-text-change.diff` | `[unknown]` | `error_max_turns` | `max_turns`      | (A)   | `::notice`, NIE blokuje |
+
+Pola `subtype` / `terminalReason` są w rekordzie **jako pola**, nie w prozie — czyli krok 1 po
+decyzji D-6 zadziałał na całej drodze, na której miał: SDK → `ReviewFailure` → provider →
+`ReportRow` → `EvalRecordCell`. Dwie komórki z trafieniem cache'u mają `subtype: null`, bo wpis
+cache'u powstał przed dołożeniem tych pól — `null` znaczy tu „SDK go nie podało" i dokładnie tak
+jest udokumentowane w kształcie. Na klasyfikację to nie wpływa: `contract: "ok"` rozstrzyga
+`delivered` bez pomocy `subtype`.
+
+### `previousDelivery` — pierwszy raz z żywych danych
+
+Blok powstał, tak jak przewidywała D-9, dopiero przy tym zapisie: niesie odcisk poprzedniego
+rekordu (`59ee111b…`, ten sam) i klasyfikację jego czterech komórek — w tym `delivered: null` dla
+obu dawnych `[unknown]`, **bo tamten rekord powstał przed polami `subtype` i klasyfikator nie ma
+ich jak nazwać.** `null` jest tu wartością, nie brakiem; to ta sama uczciwość, którą w zapadce
+wymusza fail-closed.
+
+Reguła D-9 **nie miała dziś czego złapać**: odcisk się nie zmienił, więc warunek „pod ZMIENIONYM
+wywołaniem" nie jest spełniony i przejście gemini `null → false` przechodzi bez czerwieni — zgodnie
+z zamysłem, bo to jest niestabilność modelu, nie regresja promptu. Cena 1 z D-9 („reguła jest
+BEZCZYNNA do następnego przejścia") obowiązuje nadal: pierwszym przejściem, na którym ta reguła
+cokolwiek powie, będzie to po zmianie promptu.
+
+### Kod wyjścia ręcznego runnera ≠ werdykt zapadki
+
+`npm --prefix agents/review run eval -- --record` wyszło z **kodem 100** (kod promptfoo, przeniesiony
+przez `report.ts:510`), a zapadka na tym samym rekordzie daje **0**. To nie jest sprzeczność ani
+usterka: rozdzielenie przyczyn z D-6 dotyczy ZAPADKI, a ręczny runner dalej czerwieni na każdej
+czerwonej komórce promptfoo. Zapisuję to, bo następna osoba zobaczy „exit 100" i może odczytać je
+jako „bramka by zaczerwieniła" — nie zaczerwieni, i to jest sprawdzone uruchomieniem obu checkerów
+niżej. Rekord zapisał się mimo kodu 100 świadomie (`report.ts:661-663`: „dowód ma opisywać
+przejście, które się odbyło; dowód »poprawiony« przez pominięcie czerwonej komórki byłby dowodem
+czegoś, czego nie zmierzono").
+
+### Kryteria automatyczne
+
+```
+3.1  npx prettier --check agents/review/evals/eval-record.json   -> exit 0
+3.3  4 wiersze, 2 różne modele, 2 różne fikstury                 -> OK
+3.4  callFingerprint = 59ee111bb431f77a4fc01d7f9bf33992f4ab783458c704d20aafb9e42edec8f1
+     == kotwica z planu (przekotwiczenie rozważone i cofnięte)   -> OK
+
+4.3  node agents/review/evals/check-eval-record.ts   -> exit 0 (+ 1 adnotacja ::notice, klasa (A))
+     node scripts/check-verdict-config.ts            -> exit 0
+```
+
+Kryterium **4.3 domyka się właśnie tu** — było jedynym wierszem fazy 4 czekającym na płatne
+przejście, bo poprzedni rekord powstał przed polami `subtype`/`terminalReason` i checker odrzucał
+go jako `malformed` z nazwanym powodem. Nowy rekord przechodzi bez tego zastrzeżenia.
+
+Krok 3 fazy (zapis `verdictConfig`) sprawdzony na swój kontrakt „blok `matrix` i `callFingerprint`
+przetrwają co do bajtu": porównanie rekordu przed i po `run-verdict-config.ts --write` daje
+`notes`, `generatedAt`, `callFingerprint`, `previousDelivery` i `matrix` **identyczne**, a plik
+rośnie wyłącznie o cudzy blok. To jest trzeci, niezależny dowód round-tripu dwóch zapisywaczy — po
+dwóch pinach literałowych z obu stron granicy kierunkowej, i pierwszy na pliku PRAWDZIWYM.
+
+Zestaw pozostały: testy pakietu agenta **101/101**, `tests/lib/verdict-config.test.ts`
+
+- `tests/lib/review-prompt-sources.test.ts` **38/38**, `npm run typecheck` 180 plików / 0 błędów,
+  `npm run lint` 0 błędów (3 ostrzeżenia `no-console` w `evals/generation-quality.eval.ts` — zastane,
+  spoza tej zmiany).
+
+### Obserwacje miękkie — zapisane, NIE awansowane (kryterium 3.7)
+
+`conditional-null-contract` po raz pierwszy w stanie **`pass`** (haiku / `clean-text-change.diff`:
+„oba kryteria warunkowe rozstrzygnięte przez `null`"). W pozostałych trzech komórkach `skip`, przy
+czym z dwóch RÓŻNYCH powodów i ta różnica jest informacją: obie komórki `sample.diff` — „fikstura
+nie deklaruje, że oba kryteria warunkowe są bez zastosowania"; gemini / `clean-text-change.diff` —
+„brak recenzji w odpowiedzi".
+
+**Nie awansuję jej do asercji twardej** — ta sama decyzja co poprzednio, teraz z mocniejszym
+powodem: jedyna komórka, która tę obserwację w ogóle rozstrzygnęła, to ta sama komórka, o której
+akapit „Fakt 1 wymaga korekty" mówi, że jej wynik jest losem przebiegu. Twarda asercja postawiona
+na niej byłaby asercją na rzucie monetą.
