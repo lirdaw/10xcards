@@ -1,0 +1,26 @@
+diff --git a/src/components/Welcome.astro b/src/components/Welcome.astro
+index 7c1d4e2..b93a0f5 100644
+--- a/src/components/Welcome.astro
++++ b/src/components/Welcome.astro
+@@ -35,6 +35,6 @@
+       </h1>
+       <p class="mb-10 max-w-2xl text-lg text-blue-100/70 sm:text-xl">
+-        Zamień notatki w fiszki i ucz się skuteczniej dzięki powtórkom rozłożonym w czasie.
++        Wklej notatki, a 10xCards ułoży z nich fiszki. Powtarzasz wtedy, kiedy zaczynasz zapominać.
+       </p>
+       <div class="flex flex-col gap-4 sm:flex-row">
+         <a
+diff --git a/README.md b/README.md
+index 4a8b2c1..d5e6f70 100644
+--- a/README.md
++++ b/README.md
+@@ -18,5 +18,9 @@ Aplikacja zamienia wklejony tekst źródłowy w zestaw fiszek.
+ 
+ ## Jak to działa
+ 
++Fiszki powstają z materiału, który wklejasz — nie z pytań wymyślonych od zera. Dzięki temu
++odpowiedź zawsze da się wskazać w Twoim własnym tekście, a nie tylko rozpoznać jako znajomą.
++Język fiszek idzie za językiem materiału; interfejs pozostaje polski.
++
+ Wklej notatki, wybierz zakres i zapisz to, co chcesz zapamiętać.
+ 

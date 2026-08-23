@@ -8,7 +8,7 @@
     "criteria": "tsx generate-criteria.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --experimental-strip-types --test",
-    "eval": "promptfoo eval --config evals/promptfooconfig.yaml"
+    "eval": "tsx evals/report.ts"
   },
   "keywords": [],
   "author": "",

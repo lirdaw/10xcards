@@ -895,6 +895,50 @@ Odwracalność: fazy 1-2 są odwracalne czystym `git revert` (composite action i
 dokłada plik workflow — usunięcie go przywraca stan sprzed. Fazy 4-7 żyją w nowym katalogu
 `agents/review/evals/` i w devDeps.
 
+## Open Risks
+
+Ryzyka OTWARTE, nazwane, z warunkiem zamknięcia. Nie są to „rzeczy do rozważenia": każde ma
+zapisane, co dokładnie musi się wydarzyć, żeby przestało być ryzykiem — bo komentarz w kodzie bez
+takiego warunku starzeje się cicho, a to jest dokładnie ta klasa, o którą rozbił się destylat
+promptu w poprzedniej zmianie.
+
+### 1. `SCORE_MIN`/`SCORE_MAX` istnieją w DWÓCH miejscach i nic nie pilnuje ich zgodności
+
+Skala ocen jest zadeklarowana niezależnie w `agents/review/review-schema.ts` (dla asercji zestawu)
+i w `scripts/review-verdict.ts:32-33` (dla werdyktu na PR-ze). Powód jest twardy: granica
+`agents/**` zakazuje importu W OBIE STRONY — `scripts/` czyta z agenta DANE (`criteria.json`),
+nigdy kodu, a import przez tę granicę odebrałby agentowi przenośność, która jest powodem, dla
+którego w ogóle budujemy własnego agenta.
+
+**Czym to grozi:** rozjazd jest CICHY w obie strony. Podniesienie skali po stronie agenta bez
+poprawki w `scripts/` daje eval przepuszczający ocenę, którą renderer werdyktu odrzuci jako „poza
+skalą" — i odwrotnie: obniżenie po stronie `scripts/` zwęża bramkę PR-a, o czym zestaw evali nigdy
+się nie dowie. Żaden test tego dziś nie łapie.
+
+**Warunek zamknięcia:** przeniesienie skali do `criteria.json` (jedno źródło, kierunek agent →
+`scripts/` jako DANE, ten sam wzorzec co lista kryteriów), OSOBNĄ zmianą, z regeneracją przez
+`npm --prefix agents/review run criteria`.
+
+**Dlaczego nie tutaj:** kształt `criteria.json` jest bramkowany przez `git diff --exit-code`
+w composite action, czyli leży na PRODUKCYJNEJ ścieżce CI. Ruszenie go w zmianie o zupełnie innym
+celu to kryterium 9 (dyscyplina zakresu) użyte przeciwko nam.
+
+### 2. Cache promptfoo to JEDEN plik i dwa równoległe przebiegi kasują sobie wpisy
+
+Zmierzone przy pisaniu fazy 5, nie założone: `getCacheInstance` w promptfoo trzyma cały cache
+w pojedynczym `cache.json` przez `KeyvFile`, który wczytuje mapę do pamięci i zapisuje ją w
+CAŁOŚCI. Dwa procesy piszące równolegle nadpisują sobie wpisy — przypadek (B) w
+`evals/report.test.ts` był zielony uruchomiony sam i czerwony (cztery PUDŁA) w komplecie
+`npm run test`, gdzie `node --test` biegnie równolegle z `cache.test.ts`.
+
+**Czym to grozi:** wyścig objawia się jako PUDŁO cache'u, czyli jako WYDATEK — dwa przebiegi evali
+odpalone naraz zapłacą za komórki, które miały być darmowe. Nie objawia się jako awaria, więc nikt
+go nie zauważy poza rachunkiem.
+
+**Warunek zamknięcia:** odłożony workflow evali (patrz faza 7 §3) musi mieć `concurrency` na samym
+workflow ALBO nadawać każdemu przebiegowi własny `PROMPTFOO_CACHE_PATH`. Do tego czasu obowiązuje
+zasada operacyjna: przebiegi evali idą SEKWENCYJNIE.
+
 ## References
 
 - Wymagania: `context/changes/code-review-evals/requirements.md`
@@ -975,15 +1019,15 @@ dokłada plik workflow — usunięcie go przywraca stan sprzed. Fazy 4-7 żyją 
 
 #### Automated
 
-- [ ] 5.1 `typecheck` i `test` zielone
-- [ ] 5.2 Przejście na zaseedowanym cache'u renderuje pełną tabelę bez wywołania modelu
-- [ ] 5.3 Asercje twarde przechodzą na trzech zapisanych zestawach ocen z Pomiaru II
-- [ ] 5.4 `assertions.test.ts` zielony: każda mutacja czerwieni dokładnie swoją asercję i tylko ją
+- [x] 5.1 `typecheck` i `test` zielone
+- [x] 5.2 Przejście na zaseedowanym cache'u renderuje pełną tabelę bez wywołania modelu
+- [x] 5.3 Asercje twarde przechodzą na trzech zapisanych zestawach ocen z Pomiaru II
+- [x] 5.4 `assertions.test.ts` zielony: każda mutacja czerwieni dokładnie swoją asercję i tylko ją
 
 #### Manual
 
-- [ ] 5.5 Kontrola negatywna przeczytana jako diff — wyłącznie tekst, zero konstrukcji
-- [ ] 5.6 Zużycie klucza nadal niezmienione
+- [x] 5.5 Kontrola negatywna przeczytana jako diff — wyłącznie tekst, zero konstrukcji
+- [x] 5.6 Zużycie klucza nadal niezmienione
 
 ### Phase 6: Pomiar kontroli negatywnej
 

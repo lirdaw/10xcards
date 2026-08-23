@@ -27,6 +27,26 @@ type Criterion = {
 };
 
 /**
+ * Skala ocen — granice, których schemat NIE JEST W STANIE wymusić.
+ *
+ * Structured output Anthropica odrzuca `minimum`/`maximum` na typie liczbowym (patrz komentarz
+ * przy `criteriaShape`), więc w `REVIEW_SCHEMA` oceny są gołym `z.number()`, a zakres 1-10 trzyma
+ * wyłącznie OPIS pola. Te dwie stałe istnieją po to, żeby jedyne miejsce, w którym zakres da się
+ * realnie egzekwować — asercje zestawu evali (`evals/assertions.ts`) — nie robiło tego literałami.
+ *
+ * ⚑ DRUGA KOPIA TYCH WARTOŚCI ISTNIEJE i nic nie pilnuje ich zgodności: `scripts/review-verdict.ts`
+ * deklaruje własne `SCORE_MIN`/`SCORE_MAX` (`:32-33`). Nie jest to przeoczenie — `agents/**` jest
+ * świadomie poza tsconfigiem, ESLintem i vitestem aplikacji, a import przez tę granicę w KTÓRĄKOLWIEK
+ * stronę odebrałby agentowi przenośność, która jest powodem, dla którego w ogóle budujemy własnego
+ * agenta. `scripts/` czyta z agenta DANE (`criteria.json`), nigdy kodu. Dług jest nazwany w planie
+ * (`context/changes/code-review-evals/plan.md`, sekcja „Open Risks”) razem z warunkiem zamknięcia:
+ * przeniesienie skali do `criteria.json`, OSOBNĄ zmianą — bo kształt tego pliku jest bramkowany
+ * przez `git diff --exit-code` w composite action, czyli leży na produkcyjnej ścieżce CI.
+ */
+export const SCORE_MIN = 1;
+export const SCORE_MAX = 10;
+
+/**
  * Kryteria zostają PŁASKIE (osobne pole oceny, osobne pole uzasadnienia), a nie zagnieżdżone
  * w obiekt `{ score, note }`. Powód jest pomiarowy, nie estetyczny: `z.number().nullable()`
  * zostało przez structured output ZMIERZONE (schemat emituje `anyOf: [{number},{null}]`,

@@ -400,3 +400,190 @@ osobna zmiana ma odciążyć przez `--omit=dev`.
 Anulowane w fazie 4: **32630687986** (`1b311ce`, po 34 s), **32630858713** (`84c3257`, po 27 s),
 **32630995454** (`04313e6`). Wszystkie przed instalacją pakietu, więc przed jakimkolwiek
 wywołaniem modelu — co potwierdza odczyt klucza na końcu fazy.
+
+---
+
+## Phase 5 — Fikstury, macierz i asercje
+
+**Data**: 2026-08-23
+**Wydatek fazy**: **0,00 USD**. Ani jednego wywołania modelu — dowód niżej.
+
+### Zużycie klucza: NADAL NIEZMIENIONE (kryterium 5.6)
+
+| moment     | `usage`         |
+| ---------- | --------------- |
+| po fazie 4 | **0,856216627** |
+| po fazie 5 | **0,856216627** |
+
+Odczyt `/api/v1/key` po zamknięciu fazy, co do dziewiątego miejsca po przecinku. Delta wynosi
+dokładnie zero.
+
+Dowód jest przy tym MOCNIEJSZY niż sam odczyt, bo nie stoi na czujności autora.
+`ANTHROPIC_AUTH_TOKEN` nie był ustawiony w środowisku ani razu w całej fazie (sprawdzone przed
+przebiegiem: zmienna nieustawiona), a bramka klucza w `runCell` stoi PO odczycie cache'u — więc
+każde pudło cache'u kończyło się odmową `[config]`, nigdy próbą wywołania. „Zero wywołań" jest tu
+własnością konstrukcji, nie deklaracją.
+
+> ⚑ **Rozbieżność budżetowa otwarta w fazie 4 NADAL JEST OTWARTA i blokuje fazę 6.** Licznik
+> klucza stoi na 0,8562 USD z 1 USD budżetu zadania, a fazy 6-7 potrzebują ~0,23 USD. Faza 5 nie
+> zmieniła tu niczego (bo nic nie wydała) i nie miała jak: to jest decyzja do podjęcia
+> z człowiekiem, zgodnie z wymaganiem 1. **Nie zaczynać fazy 6 przed jej rozstrzygnięciem.**
+
+### Bramki lokalne
+
+```
+npm --prefix agents/review run typecheck   → zielone (zero błędów)
+npm --prefix agents/review run test        → 45/45
+```
+
+45 przypadków wobec 25 po fazie 4: +12 z `evals/assertions.test.ts`, +8 z `evals/report.test.ts`.
+Discovery wbudowanego runnera sięga podkatalogu `evals/` bez dopisywania czegokolwiek —
+potwierdzone już przy kryterium 4.4, tu tylko odnotowane, że nadal obowiązuje.
+
+### Kontrola pozytywna asercji — każda mutacja czerwieni SWOJĄ asercję i tylko ją (kryterium 5.4)
+
+Sześć asercji twardych, osiem mutacji, każda zmieniająca DOKŁADNIE JEDNO pole zamrożonego obiektu
+`Review`. Orakl nie brzmi „coś jest czerwone", tylko „czerwona jest dokładnie ta jedna, a wszystkie
+pozostałe są zielone" — bo mutacja wywalająca dwie asercje znaczyłaby, że jedna z nich pilnuje
+czegoś innego, niż deklaruje.
+
+| mutacja                                            | czerwona asercja          | pozostałe |
+| -------------------------------------------------- | ------------------------- | --------- |
+| `verdict` odwrócony (`fail` → `pass`)              | `verdict`                 | zielone   |
+| `complexity = 42`                                  | `score-range`             | zielone   |
+| `complexity = 0`                                   | `score-range`             | zielone   |
+| `scopeDiscipline = null`                           | `scope-discipline-scored` | zielone   |
+| `implementationCorrectnessNote = "   "`            | `notes-non-empty`         | zielone   |
+| `gateIntegrity = 7` (przy `swallowedError` liczbą) | `swallowed-error-pair`    | zielone   |
+| `swallowedError = null`                            | `swallowed-error-pair`    | zielone   |
+| odpowiedź z `error` zamiast obiektu                | `no-provider-error`       | POMINIĘTE |
+
+**Ostatni wiersz jest ustaleniem, nie wyjątkiem.** Gdy komórka wraca z błędem, pozostałe pięć
+asercji NIE MA CZEGO sprawdzić — i dostaje trzeci status `skip`, wypisywany jawnie, zamiast cichej
+zieleni. Odwzorowuje to RZECZYWISTE zachowanie promptfoo, odczytane w źródle ewaluatora
+(`applyRunEvalResponseOutcome`): przy `response.error` ustawia `success: false` i **wraca przed
+`runAssertions`**. Gdyby te pięć zwracało `pass`, test przechodziłby także wtedy, gdyby asercja po
+cichu przestała cokolwiek widzieć.
+
+**Zmierzona granica asercji `no-provider-error`, zapisana zamiast przemilczana:** skoro promptfoo
+wraca przed `runAssertions`, ta asercja w PRAWDZIWYM przebiegu nigdy się nie wykona — komórka jest
+czerwona tak czy inaczej, bramkę trzyma sam ewaluator. Asercja dokłada NAZWĘ w raporcie i jest
+jedynym miejscem, gdzie warunek „`safeParse` przeszedł" jest zapisany jako sprawdzenie. Czerwień
+potrafi pokazać (wiersz ostatni), więc nie jest niefalsyfikowalna — ale nie udajemy, że jest
+bramką, którą nie jest.
+
+### Dwie asercje ŚWIADOMIE POMINIĘTE jako tautologie
+
+„Komplet 20 pól kontraktu" i „kryteria warunkowe typu `number | null`" nie trafiły do zestawu.
+`runReview` oddaje wynik WYŁĄCZNIE po udanym `REVIEW_SCHEMA.safeParse`, a schemat wymaga
+wszystkich 20 pól (zero `.optional()`, zero `.passthrough()`), więc żadna wartość, jaką provider
+jest w stanie zwrócić, nie zaświeciłaby ich na czerwono. To ta sama pułapka co `is-json` na wyjściu
+obiektowym. Bramka, która nie potrafi zaświecić na czerwono, jest gorsza niż jej brak.
+
+### Przejście macierzy bez ani jednego wywołania modelu (kryterium 5.2)
+
+Cztery komórki zaseedowane w teście, `promptfoo eval` uruchomione end-to-end przez `report.ts`,
+`ANTHROPIC_AUTH_TOKEN` USUNIĘTY na czas przebiegu:
+
+```
+Results:
+  ✓ 4 passed (100%)
+Duration: 1s (concurrency: 4)
+```
+
+Cztery komórki, cztery TRAFIENIA, `[config]` nie pada ani razu — a padłoby przy każdym pudle, bo
+klucza nie było. To jest dowód „zero wywołań" przez konstrukcję, nie przez odczyt licznika.
+
+### Ta sama tabela na ścieżce AWARII — przebieg bez klucza
+
+Uruchomienie `npm --prefix agents/review run eval` bez poświadczeń, zimny cache:
+
+```
+| model                      | fikstura               | werdykt | kontrakt | tury | ... | koszt USD | cache | asercje |
+| anthropic/claude-haiku-4.5 | sample.diff            | —       | [config] | —    | ... | —         | zimna | —       |
+| google/gemini-2.5-flash    | sample.diff            | —       | [config] | —    | ... | —         | zimna | —       |
+| anthropic/claude-haiku-4.5 | clean-text-change.diff | —       | [config] | —    | ... | —         | zimna | —       |
+| google/gemini-2.5-flash    | clean-text-change.diff | —       | [config] | —    | ... | —         | zimna | —       |
+
+Suma przejścia: 0.000000 USD z 0/4 komórek; trafienia cache'u: 0/4.
+Cennik: 2026-08-23 (0 dni temu), źródło https://openrouter.ai/api/v1/models. Kwoty liczone z tokenów, NIE z total_cost_usd SDK.
+Bez kwoty (4): … — brak metryk
+Czerwone komórki (4/4): … kontrakt [config]
+    ✗ [config] Brak ANTHROPIC_AUTH_TOKEN — zestaw evali NIE wykonał wywołania.
+```
+
+Trzy rzeczy, dla których ten przebieg został zapisany:
+
+1. **Raport renderuje się przy KODZIE WYJŚCIA ≠ 0.** Dlatego przejście uruchamia `report.ts`, a nie
+   skrypt npm sklejony operatorem powłoki: `&&` dałby raport tylko przy zieleni, a `;` nie jest
+   separatorem w `cmd.exe`. Przebieg z czerwoną komórką potrzebuje raportu NAJBARDZIEJ.
+2. **Suma nie udaje kompletnej.** „0.000000 USD z **0/4** komórek" plus wiersz „Bez kwoty (4)" —
+   zero wpisane bez tego kontekstu czytałoby się jak „przejście było darmowe".
+3. **Kryterium 4.3 nadal obowiązuje** po przejściu z jednej komórki na cztery.
+
+### ⚑ Wyścig cache'u — ZMIERZONY, nie założony
+
+Przypadek (B) był **zielony uruchomiony sam** i **czerwony w komplecie `npm run test`** — cztery
+PUDŁA cache'u. Przyczyna odczytana w źródle promptfoo (`getCacheInstance`): cały cache to JEDEN
+plik `cache.json` obsługiwany przez `KeyvFile`, który wczytuje mapę do pamięci i zapisuje ją
+w CAŁOŚCI. `node --test` biegnie po plikach równolegle, więc `cache.test.ts` (piszący do
+PRAWDZIWEGO magazynu, i słusznie — to on dowodzi klucza produkcyjnego) kasował wpisy zaseedowane
+przez `report.test.ts`.
+
+Naprawa: przypadek (B) dostaje własny `PROMPTFOO_CACHE_PATH` w katalogu tymczasowym, sprzątany
+przez usunięcie katalogu — a nie przez `forgetCell`, który po przywróceniu zmiennej celowałby już
+w magazyn produkcyjny i kasował cudze wpisy.
+
+**Konsekwencja wykracza poza test i jest zapisana jako ryzyko otwarte nr 2 w planie:** dwa
+przebiegi evali odpalone naraz mogą sobie unieważnić cache, a objawi się to nie awarią, tylko
+RACHUNKIEM. Przebiegi faz 6-7 idą sekwencyjnie, więc ich to nie dotyczy.
+
+### Kontrola negatywna przeczytana jako diff (kryterium 5.5)
+
+`agents/review/evals/fixtures/clean-text-change.diff`, 26 linii, dwa pliki, **wyłącznie tekst**:
+
+- `src/components/Welcome.astro` — jedna linia copy w hero (`-`/`+`), nic poza treścią akapitu;
+- `README.md` — trzy linie nowego akapitu w sekcji „Jak to działa".
+
+Czego w tym diffie NIE MA, wyliczone wprost, bo to jest warunek poprawności fikstury, nie jej
+higiena: żadnego warunku, żadnej obsługi błędu, żadnego sprawdzenia, żadnego testu, żadnego kroku
+CI, żadnej zmiany w kodzie wykonywalnym. Tekstowość jest tym, co czyni `null` na kryteriach 7 i 8
+LEGALNYM, a nie ratunkiem — definicja „nie dotyczy" dla kryterium 7 wymienia wprost zmianę
+wyłącznie w treści UI lub dokumentacji.
+
+**Materiał z `verification.md` nie istniał jako plik** — przeniesiony został KONTRAKT (dwie zmiany
+tekstowe, oczekiwany `verdict: pass`, kryteria 7 i 8 równe `null`), nie treść.
+
+Odczyt nie skończył się na przeczytaniu. Skan MASZYNOWY po liniach ZMIENIANYCH (5 dodanych,
+1 usunięta; linie kontekstu z znacznikami HTML są kontekstem, nie zmianą) pod kątem pięciu klas
+konstrukcji — warunek, obsługa błędu, sprawdzenie, kod wykonywalny, krok CI — dał **0 trafień**:
+
+```
+PLIKI ZMIENIANE: 2
+   src/components/Welcome.astro
+   README.md
+LINII DODANYCH: 5 | USUNIĘTYCH: 1
+TRAFIENIA ZAKAZANYCH KONSTRUKCJI W LINIACH ZMIENIANYCH: 0
+```
+
+Kodowanie potwierdzone osobno (`cat -A`): plik jest UTF-8, polskie znaki jako sekwencje
+dwubajtowe, bez CRLF. To ma znaczenie, bo fikstura jedzie do modelu jako materiał — uszkodzone
+kodowanie zmieniłoby wejście przebiegu, nie tylko wygląd pliku.
+
+⚑ Asercji `swallowedError === null` i `gateIntegrity === null` w tej fazie **JESZCZE NIE MA**.
+Wchodzą po fazie 6, czyli po zmierzeniu, co modele na tej fiksturze naprawdę zwracają. Czerwień
+znacząca „zapisz to" i czerwień znacząca „regresja" nie mogą wyglądać tak samo.
+
+### Odstępstwo od planu, zapisane jako decyzja
+
+**Plan mówił: „wartości progowe brać z `SCORE_MIN`/`SCORE_MAX` (`scripts/review-verdict.ts:32-33`)".**
+Tego nie da się zrobić: granica `agents/**` zakazuje importu w obie strony (`scripts/` czyta
+z agenta DANE, nigdy kodu). Intencja — nazwana stała zamiast literału — została utrzymana przez
+umieszczenie skali po stronie KONTRAKTU (`agents/review/review-schema.ts`), bo tam jest jej
+miejsce: schemat nie potrafi jej wymusić (structured output Anthropica odrzuca `minimum`/`maximum`),
+więc zakres jest własnością kontraktu, którą trzyma opis pola i ta jedna asercja.
+
+Duplikacja wobec `scripts/` **nie została zostawiona jako komentarz** — jest zapisana jako ryzyko
+otwarte nr 1 w planie, z warunkiem zamknięcia (przeniesienie skali do `criteria.json`, osobną
+zmianą) i z powodem, dla którego nie robimy tego tutaj (kształt `criteria.json` jest bramkowany
+przez `git diff --exit-code` w composite action, czyli leży na produkcyjnej ścieżce CI).

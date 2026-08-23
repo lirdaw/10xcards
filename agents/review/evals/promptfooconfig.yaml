@@ -1,9 +1,9 @@
-# Zestaw evali agenta code review.
+# Zestaw evali agenta code review — macierz 2 modele × 2 fikstury.
 #
-# W TEJ FAZIE (4 — szkielet) konfiguracja jest MINIMALNA: jeden provider, jedna fikstura, zero
-# asercji. Istnieje po to, żeby `npm --prefix agents/review run eval` dało się w ogóle uruchomić —
-# a bez tego kryterium „uruchomienie zestawu bez klucza kończy się czytelną odmową" nie da się
-# sprawdzić na zestawie, tylko na atrapie. Macierz 2×2, druga fikstura i asercje wchodzą w fazie 5.
+# Odpowiada na dwa pytania z `requirements.md` i tylko na nie: (1) czy zmiana w agencie nie zepsuła
+# wykrywania klasy błędu, (2) czy tańszy model wystarcza. Iloczyn providerów i testów w JEDNYM
+# przebiegu z tabelą per komórka jest jedyną rzeczą, którą promptfoo daje nam realnie i której
+# harness vitestowy nie umie bez dwóch dispatchy i ręcznego diffowania logów.
 #
 # ⚑ Diff jedzie przez `vars`, NIE przez prompt. Prompt tej macierzy jest ZNACZNIKIEM fikstury i ma
 # nim zostać: materiał trafia do modelu dopiero przez `wrapDiff` wewnątrz `runReview`, czyli z tym
@@ -16,12 +16,19 @@
 # TEKST — sprawdzone na tej konfiguracji: do providera trafił string `"file://..\sample.diff"`
 # (21 znaków), czyli model recenzowałby ścieżkę i zwracał poprawny kontrakt nad niczym. Provider
 # odmawia teraz przy wartości zaczynającej się od `file://`, więc ta pomyłka nie może być cicha.
+#
+# ⚑ Uruchamiać przez `npm --prefix agents/review run eval`, a nie przez gołe `promptfoo eval`:
+# skrypt woła `evals/report.ts`, który dopiero uruchamia przejście i dokłada rachunek per komórka
+# (wymaganie 9). Gołe `promptfoo eval` pokaże zieleń i czerwień, ale nie powie, za ile.
 
 description: Code review agent — matrix over cheap models
 
 prompts:
   - "fikstura: {{fixture}}"
 
+# Ten SAM plik providera wpięty dwa razy, różny wyłącznie `label` i `config.model`. Sonneta tu nie
+# ma świadomie: +0,39 USD na przejście przy ~0,50 USD dostępnych, a liczba odniesienia jest już
+# zmierzona (0,1935 USD/komórka) i wystarcza do odpowiedzi na pytanie 2.
 providers:
   - id: file://provider.ts
     label: haiku-4.5
@@ -34,8 +41,61 @@ providers:
       # `pricing.ts` liczący tokeny × cennik OpenRoutera.
       maxBudgetUsd: 0.6
 
+  - id: file://provider.ts
+    label: gemini-2.5-flash
+    config:
+      model: google/gemini-2.5-flash
+      maxBudgetUsd: 0.6
+
+# Asercje WSPÓLNE dla obu fikstur. Wszystkie `javascript` nad `context.providerResponse`, czyli
+# deterministyczne i darmowe; każda wpięta OSOBNO, żeby czerwień była przypisana do konkretnej
+# asercji, a nie do jednej zbiorczej, w której nie widać, co pękło. Uzasadnienie każdej z nich —
+# i lista asercji ŚWIADOMIE POMINIĘTYCH jako tautologie po `safeParse` — siedzi w `assertions.ts`.
+defaultTest:
+  assert:
+    - type: javascript
+      value: file://assertions.ts:noProviderError
+      metric: no-provider-error
+    - type: javascript
+      value: file://assertions.ts:verdictMatchesFixture
+      metric: verdict
+    - type: javascript
+      value: file://assertions.ts:scoresWithinScale
+      metric: score-range
+    - type: javascript
+      value: file://assertions.ts:scopeDisciplineScored
+      metric: scope-discipline-scored
+    - type: javascript
+      value: file://assertions.ts:notesNonEmpty
+      metric: notes-non-empty
+
 tests:
+  # Slot 1. Czym ta komórka JEST, żeby nikt jej później nie przecenił: bramką regresji na „agent
+  # nadal widzi ten diff jako zły", a NIE testem wykrywania połkniętego błędu w ogólności. Wybrana,
+  # bo to JEDYNY materiał, na którym wszystkie trzy modele są już zmierzone po `0d3eba5` — asercje
+  # piszemy na zmierzonym, nie na przewidywanym.
   - description: sample.diff — agent nadal widzi ten diff jako zły
     vars:
       fixture: sample.diff
       diffPath: sample.diff
+      expectedVerdict: fail
+    assert:
+      # Asercja wyłącznie tego slotu: dokładnie ta para, którą naprawiał `0d3eba5`.
+      - type: javascript
+        value: file://assertions.ts:swallowedErrorPair
+        metric: swallowed-error-pair
+
+  # Slot 2 — KONTROLA NEGATYWNA. Bez niej agent odpowiadający zawsze „fail" zalicza cały zestaw,
+  # a zestaw mierzy skłonność do czerwieni, nie wykrywanie. Tekstowość materiału jest WARUNKIEM
+  # POPRAWNOŚCI, nie wygodą: definicja „nie dotyczy" dla kryterium 7 wymienia wprost zmianę
+  # wyłącznie w treści UI lub dokumentacji, więc tylko przy takim materiale `null` jest legalny.
+  #
+  # ⚑ Asercji `swallowedError === null` i `gateIntegrity === null` tu JESZCZE NIE MA. Wchodzą po
+  # fazie 6, czyli po ZMIERZENIU, co modele na tej fiksturze naprawdę zwracają. Kontrola negatywna
+  # najpierw MIERZY, a dopiero potem jej wynik staje się bramką — czerwień znacząca „zapisz to"
+  # i czerwień znacząca „regresja" nie mogą wyglądać tak samo.
+  - description: clean-text-change.diff — kontrola negatywna, sama treść UI i dokumentacji
+    vars:
+      fixture: clean-text-change.diff
+      diffPath: evals/fixtures/clean-text-change.diff
+      expectedVerdict: pass
