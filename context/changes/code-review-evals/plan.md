@@ -1019,15 +1019,15 @@ zasada operacyjna: przebiegi evali idą SEKWENCYJNIE.
 
 #### Automated
 
-- [x] 5.1 `typecheck` i `test` zielone
-- [x] 5.2 Przejście na zaseedowanym cache'u renderuje pełną tabelę bez wywołania modelu
-- [x] 5.3 Asercje twarde przechodzą na trzech zapisanych zestawach ocen z Pomiaru II
-- [x] 5.4 `assertions.test.ts` zielony: każda mutacja czerwieni dokładnie swoją asercję i tylko ją
+- [x] 5.1 `typecheck` i `test` zielone — 8b0f3fe
+- [x] 5.2 Przejście na zaseedowanym cache'u renderuje pełną tabelę bez wywołania modelu — 8b0f3fe
+- [x] 5.3 Asercje twarde przechodzą na trzech zapisanych zestawach ocen z Pomiaru II — 8b0f3fe
+- [x] 5.4 `assertions.test.ts` zielony: każda mutacja czerwieni dokładnie swoją asercję i tylko ją — 8b0f3fe
 
 #### Manual
 
-- [x] 5.5 Kontrola negatywna przeczytana jako diff — wyłącznie tekst, zero konstrukcji
-- [x] 5.6 Zużycie klucza nadal niezmienione
+- [x] 5.5 Kontrola negatywna przeczytana jako diff — wyłącznie tekst, zero konstrukcji — 8b0f3fe
+- [x] 5.6 Zużycie klucza nadal niezmienione — 8b0f3fe
 
 ### Phase 6: Pomiar kontroli negatywnej
 
