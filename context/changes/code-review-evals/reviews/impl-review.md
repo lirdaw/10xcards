@@ -141,7 +141,13 @@ a nie ukryte.
   `spawnSync`, `eval.yml:150` ma `timeout-minutes: 30`.
 - **Fix**: dodać `timeout` + `killSignal` do `spawnSync` w `runEval` i `timeout-minutes` do joba
   `gate`.
-- **Decision**: PENDING
+- **Decision**: **FIXED** — `runEval(extraArgs, timeoutMs = EVAL_TIMEOUT_MS)` z `timeout`
+  i `killSignal: "SIGKILL"` (SIGTERM potrafi przespać proces wiszący na I/O). Wymiar wzięty ze
+  ZMIERZONYCH przebiegów: 22-67 s na komórkę × 4 komórki ≈ 4,5 min, więc 20 min zostawia ~4×
+  zapasu. `report.test.ts` (B) podaje własne 240 s — mniej niż jego `node:test` 300 s, żeby limit
+  zadziałał w DZIECKU, zanim runner uzna przypadek za wiszący. `agents-gate.yml` dostał
+  `timeout-minutes: 15` na JOBIE (a nie na kroku jak `eval.yml:150`, bo nie ma tu żadnego kroku
+  `if: always()`, który limit krokowy miałby oszczędzić). `typecheck` zielony, **64/64**.
 
 ### F4 — `HARD_ASSERTIONS` i wpięcia w YAML-u zsynchronizowane ręcznie, nic tego nie pilnuje
 

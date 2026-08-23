@@ -226,7 +226,10 @@ test(
     const savedToken = process.env["ANTHROPIC_AUTH_TOKEN"];
     delete process.env["ANTHROPIC_AUTH_TOKEN"];
     try {
-      const { exitCode, rows } = runEval([]);
+      // Limit PROCESU, nie tylko `node:test`: `spawnSync` blokuje petle zdarzen, wiec deklaracja
+      // `{ timeout: 300_000 }` przy tym przypadku nie ma jak wystrzelic. Ta wartosc jest od niej
+      // mniejsza celowo — limit ma zadzialac w dziecku, zanim runner uzna przypadek za wiszacy.
+      const { exitCode, rows } = runEval([], 240_000);
       const report = renderReport(rows, new Date("2026-08-23T00:00:00Z"));
 
       assert.equal(rows.length, 4, `przejście zwróciło ${rows.length} komórek zamiast czterech:\n${report}`);

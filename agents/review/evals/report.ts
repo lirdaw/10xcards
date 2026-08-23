@@ -430,15 +430,30 @@ export function rowsFromFile(path: string): ReportRow[] {
   return rowsFromOutputFile(JSON.parse(readFileSync(path, "utf8")));
 }
 
+/**
+ * Sufit czasu na JEDNO przejście macierzy.
+ *
+ * `spawnSync` jest SYNCHRONICZNY, więc blokuje pętlę zdarzeń — deklarowany limit `node:test`
+ * w `report.test.ts` nie ma jak wystrzelić, dopóki dziecko nie wróci, i bez tej opcji zawieszony
+ * promptfoo (padnięta sieć na PUDLE cache'u, zablokowany zapis `cache.json`) wisi bez końca.
+ * Wzorzec istnieje w tym pakiecie: `review-cli.test.ts` daje swojemu `spawnSync` `timeout: 60_000`.
+ *
+ * Wymiar wzięty ze ZMIERZONYCH przebiegów, nie z wyczucia: 22-67 s na komórkę × 4 komórki to
+ * ~4,5 minuty w najgorszym zapisanym przypadku, więc 20 minut zostawia ~4× zapasu na zimną sieć
+ * i nie odcina przejścia, które po prostu jest wolne. `SIGKILL`, bo proces wiszący na I/O potrafi
+ * przespać `SIGTERM`, a wtedy limit byłby deklaracją.
+ */
+const EVAL_TIMEOUT_MS = 20 * 60_000;
+
 /** Uruchomienie przejścia + odczyt wyniku. Katalog tymczasowy, bo plik wyniku nie jest artefaktem repo. */
-export function runEval(extraArgs: readonly string[]): RunResult {
+export function runEval(extraArgs: readonly string[], timeoutMs: number = EVAL_TIMEOUT_MS): RunResult {
   const workDir = mkdtempSync(join(tmpdir(), "review-eval-"));
   const outputPath = join(workDir, "results.json");
   try {
     const child = spawnSync(
       process.execPath,
       [promptfooEntrypoint(), "eval", "--config", CONFIG_PATH, "--output", outputPath, ...extraArgs],
-      { stdio: "inherit", env: process.env },
+      { stdio: "inherit", env: process.env, timeout: timeoutMs, killSignal: "SIGKILL" },
     );
     // Kod ≠ 0 NIE przerywa raportu: to właśnie przebieg z czerwoną asercją najbardziej go potrzebuje.
     const exitCode = child.status ?? 1;

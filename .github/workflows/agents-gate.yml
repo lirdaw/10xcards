@@ -47,6 +47,11 @@ defaults:
 jobs:
   gate:
     runs-on: ubuntu-latest
+    # Sufit calego joba, bo nie ma tu ani jednego kroku `if: always()`, ktory limit krokowy
+    # musialby oszczedzic (tak jak w `eval.yml:150`, gdzie limit siedzi na kroku wlasnie po to,
+    # zeby upload artefaktu przezyl). Wymiar: zmierzona instalacja tego pakietu to ~38 s mediany,
+    # typecheck i testy id w sekundach — 15 minut to rzad wielkosci powyzej, a nie ocieranie sie.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
