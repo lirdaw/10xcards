@@ -863,18 +863,18 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 
 #### Automated
 
-- [ ] 1.1 Typecheck pakietu agenta
-- [ ] 1.2 Testy pakietu agenta bez regresji
-- [ ] 1.3 Rootowy type gate
-- [ ] 1.4 Lint
-- [ ] 1.5 `tests/lib/verdict-config.test.ts` przechodzi
-- [ ] 1.6 Odcisk liczy się po `npm ci --omit=dev`
-- [ ] 1.7 Odcisk niezmieniony (`59ee111b…`)
+- [x] 1.1 Typecheck pakietu agenta
+- [x] 1.2 Testy pakietu agenta bez regresji
+- [x] 1.3 Rootowy type gate
+- [x] 1.4 Lint
+- [x] 1.5 `tests/lib/verdict-config.test.ts` przechodzi
+- [x] 1.6 Odcisk liczy się po `npm ci --omit=dev`
+- [x] 1.7 Odcisk niezmieniony (`59ee111b…`)
 
 #### Manual
 
-- [ ] 1.8 `git diff` na `cache.ts`/`provider.ts` to wyłącznie przeniesienie i re-eksport
-- [ ] 1.9 Komentarz o czterech osiach nie został osierocony
+- [x] 1.8 `git diff` na `cache.ts`/`provider.ts` to wyłącznie przeniesienie i re-eksport
+- [x] 1.9 Komentarz o czterech osiach nie został osierocony
 
 ### Phase 2: Zapisywacze dowodu i pomiar prettiera
 

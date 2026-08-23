@@ -8,26 +8,10 @@ import type {
   ProviderResponse,
   TokenUsage,
 } from "promptfoo";
-import { REVIEW_JSON_SCHEMA, type Review } from "../review-schema.ts";
-import { SYSTEM_PROMPT, wrapDiff } from "../prompt.ts";
-import {
-  FIXED_CALL_OPTIONS,
-  isReviewFailure,
-  runReview,
-  type FailureKind,
-  type QueryFn,
-  type ReviewMetrics,
-} from "../run-review.ts";
-import {
-  cellCacheKey,
-  deleteCell,
-  FINGERPRINT_NONCE,
-  fingerprintPrompt,
-  isCacheEnabled,
-  readCell,
-  writeCell,
-  type CachedCell,
-} from "./cache.ts";
+import type { Review } from "../review-schema.ts";
+import { isReviewFailure, runReview, type FailureKind, type QueryFn, type ReviewMetrics } from "../run-review.ts";
+import { cellCacheKey, deleteCell, isCacheEnabled, readCell, writeCell, type CachedCell } from "./cache.ts";
+import { productionPromptFingerprint } from "./fingerprint.ts";
 import { cellCostUsd, PRICING_AS_OF, type CellCost } from "./pricing.ts";
 
 /**
@@ -158,22 +142,13 @@ export async function forgetCell(input: Pick<RunCellInput, "diff" | "model" | "p
 }
 
 /**
- * Odcisk PRODUKCYJNEGO wywołania — jedno miejsce, jeden egzemplarz, cztery osie.
+ * Odcisk produkcyjnego wywołania mieszka w `./fingerprint.ts` i jest stamtąd re-eksportowany.
  *
- * Wszystkie cztery wartości pochodzą stąd, skąd bierze je `runReview`, a nie z kopii: `SYSTEM_PROMPT`
- * i `REVIEW_JSON_SCHEMA` z modułów kontraktu, kształt wiadomości z tego samego `wrapDiff`
- * (z nonce'em ustalonym, bo losowy uczyniłby cache martwym kodem), a stałe wywołania z
- * `FIXED_CALL_OPTIONS`. Dzięki temu odcisk NIE MOŻE opisywać innego wywołania niż wysłane —
- * tak samo jak trzy zmienne `ANTHROPIC_*` nie mogą się rozjechać, bo mają jeden egzemplarz.
+ * Powód jest ten sam co przy `cache.ts`: ten plik importuje `promptfoo` (typy providera), a zapadka
+ * evali liczy odcisk w drzewie po `npm ci --omit=dev`, gdzie `promptfoo` nie istnieje także dla
+ * typów. Wywołujący — `callApi` niżej i `cache.test.ts` — dalej biorą tę nazwę stąd.
  */
-export function productionPromptFingerprint(): string {
-  return fingerprintPrompt({
-    systemPrompt: SYSTEM_PROMPT,
-    jsonSchema: REVIEW_JSON_SCHEMA,
-    userMessageShape: wrapDiff("", FINGERPRINT_NONCE),
-    callOptions: FIXED_CALL_OPTIONS,
-  });
-}
+export { productionPromptFingerprint };
 
 const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 
