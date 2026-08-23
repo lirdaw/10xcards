@@ -1139,7 +1139,7 @@ bo za miesiąc „plan zatrzymany na fazie 7" i „plan, któremu coś padło" w
 
 #### Manual
 
-- [x] 7.4 Tabela kosztów przeczytana, wiek cennika widoczny obok kwot
+- [x] 7.4 Tabela kosztów przeczytana, wiek cennika widoczny obok kwot — b83f8f7
 - [ ] 7.5 Suma wydatków całego zadania policzona i poniżej 1 USD
-- [x] 7.6 Dług workflow evali zapisany dosłownie, z warunkiem zamknięcia
-- [x] 7.7 `pr-review.yml` i composite action potwierdzone jako nietknięte
+- [x] 7.6 Dług workflow evali zapisany dosłownie, z warunkiem zamknięcia — b83f8f7
+- [x] 7.7 `pr-review.yml` i composite action potwierdzone jako nietknięte — b83f8f7
