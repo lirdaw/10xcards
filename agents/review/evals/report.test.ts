@@ -284,3 +284,70 @@ test("(A9) obserwacja miękka jest raportowana OSOBNO i mówi wprost, że nie br
   assert.ok(report.includes("NIE bramkują zieleni"), "raport nie mówi, że sekcja miękka nie bramkuje");
   assert.ok(report.includes("swallowedError = 10"), "obserwacja nie wypisała, co konkretnie zobaczyła");
 });
+
+// ---------------------------------------------------------------------------------------------
+// BRAK ZMIERZONY — komórka uruchomiona, wynik nie powstał. Trzy rodzaje pustki, trzy różne zdania.
+// ---------------------------------------------------------------------------------------------
+
+/** Kształt, który zwrócił gemini na kontroli negatywnej w fazie 6. */
+const ABSENT_ROW: ReportRow = {
+  ...ROW,
+  model: "google/gemini-2.5-flash",
+  fixture: "clean-text-change.diff",
+  verdict: "—",
+  contract: "[unknown]",
+  errorMessage: "[unknown] Review nie powiodło się (subtype: error_max_turns, terminal_reason: max_turns): Reached maximum number of turns (2)",
+  turns: undefined,
+  inputTokens: undefined,
+  outputTokens: undefined,
+  cacheWriteTokens: undefined,
+  cacheReadTokens: undefined,
+  costUsd: null,
+  costUnavailableReason: null,
+  cached: false,
+  assertionsPassed: 0,
+  assertionsFailed: 0,
+  failedAssertions: [],
+  ok: false,
+};
+
+test("(A10) brak zmierzony dostaje WŁASNĄ sekcję z klasą awarii i komunikatem", () => {
+  const report = renderReport([ROW, ABSENT_ROW], new Date("2026-08-23T00:00:00Z"));
+  assert.ok(report.includes("BRAKI ZMIERZONE"), "brak zmierzony nie dostał własnej sekcji");
+  assert.ok(report.includes("[unknown]"), "klasa awarii zniknęła z raportu");
+  assert.ok(report.includes("maximum number of turns"), "komunikat awarii zniknął z raportu");
+  assert.ok(report.includes("To NIE jest luka w pokryciu"), "raport nie mówi, czym ten brak NIE jest");
+  assert.ok(
+    report.includes("brak wyniku NIE oznacza braku rachunku"),
+    "raport pozwala przeczytać brak zmierzony jako komórkę darmową — a ta kosztowała ~0,031 USD",
+  );
+});
+
+test("(A11) brak zmierzony NIE miesza się z brakiem licznika ani z komórką nieuruchomioną", () => {
+  const noCounter: ReportRow = { ...ROW, costUsd: null, costUnavailableReason: "SDK nie podało liczników: outputTokens" };
+  const report = renderReport([noCounter, ABSENT_ROW], new Date("2026-08-23T00:00:00Z"));
+
+  // Dwa różne zdania o dwóch różnych dziurach — i oba muszą być w raporcie naraz.
+  assert.ok(report.includes("SDK nie podało liczników"), "brak licznika stracił swój powód");
+  assert.ok(report.includes("BRAKI ZMIERZONE"), "brak wyniku stracił swoją sekcję");
+  assert.ok(report.includes("nie uruchomiono jej wcale"), "raport nie nazywa trzeciego rodzaju pustki");
+  // Brak zmierzony NIE może trafić do wiersza „Bez kwoty" — tam mieszkają komórki, które DOJECHAŁY.
+  assert.ok(report.includes("Bez kwoty (1)"), `brak licznika policzony źle:
+${report}`);
+});
+
+test("(A12) brak zmierzony nie wchodzi do mianownika kwot ani do trafień cache'u", () => {
+  const report = renderReport([{ ...ROW, cached: true }, ABSENT_ROW], new Date("2026-08-23T00:00:00Z"));
+  assert.ok(report.includes("1/1 komórek ZMIERZONYCH"), `mianownik liczy komórkę, która nie dojechała:
+${report}`);
+  assert.ok(report.includes("trafienia cache'u: 1/1"), "trafienia liczone wobec komórek nieistniejących");
+  assert.ok(report.includes("BRAKÓW ZMIERZONYCH 1"), "raport nie mówi, ile komórek nie dojechało");
+});
+
+test("(A13) w tabeli wiersz bez wyniku ma `BRAK`, a nie ten sam znak co brakujący licznik", () => {
+  const report = renderReport([ABSENT_ROW], new Date("2026-08-23T00:00:00Z"));
+  const row = report.split("\n").find((line) => line.includes("gemini-2.5-flash"));
+  assert.ok(row, "wiersz zniknął z tabeli");
+  assert.ok(row.includes("BRAK"), `wiersz bez wyniku nie jest oznaczony jako BRAK: ${row}`);
+  assert.ok(!row.includes("—"), `wiersz bez wyniku używa znaku zarezerwowanego dla braku licznika: ${row}`);
+});

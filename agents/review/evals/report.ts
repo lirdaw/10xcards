@@ -123,7 +123,14 @@ export function rowsFromOutputFile(outputFile: unknown): ReportRow[] {
     const tokenUsage = asRecord(response["tokenUsage"]);
     const completionDetails = asRecord(tokenUsage?.["completionDetails"]);
     const vars = asRecord(result["vars"]) ?? {};
-    const error = asString(response["error"]) ?? asString(result["error"]) ?? undefined;
+    // ⚑ WYŁĄCZNIE `response.error`, NIGDY `result.error` — i to jest naprawa błędu złapanego na
+    // pierwszym pełnym przejściu fazy 7. `result.error` w promptfoo niesie powód, dla którego
+    // TEST nie przeszedł, więc przy pękniętej ASERCJI zawiera jej treść; wzięte jako sygnał
+    // awarii providera klasyfikowało komórkę, która DOJECHAŁA i została poprawnie oceniona jako
+    // zła, jako „brak zmierzony". To jest dokładnie to zlanie dwóch dziur, przed którym broni
+    // sekcja BRAKI ZMIERZONE — popełnione w kodzie, który miał przed nim bronić.
+    // `response.error` ustawia WYŁĄCZNIE nasz provider, gdy `runReview` rzuciło (faza 4 §2).
+    const error = asString(response["error"]) ?? undefined;
     const assertions = assertionsOf(asRecord(result["gradingResult"]));
 
     const costUsd = metadata?.["costUsd"];
@@ -177,24 +184,54 @@ const COLUMNS = [
   "asercje",
 ] as const;
 
+/**
+ * Komórka URUCHOMIONA, która NIE WYPRODUKOWAŁA wyniku — czyli BRAK ZMIERZONY.
+ *
+ * ⚑ To jest inny rodzaj dziury niż dwa pozostałe, jakie ta tabela potrafi pokazać, i czytelnik
+ * NIE MA tego zgadywać z kontekstu. Trzy rodzaje pustki, świadomie rozróżnione:
+ *
+ *   1. **BRAK ZMIERZONY** (`BRAK` w komórkach, sekcja „BRAKI ZMIERZONE") — komórka pojechała
+ *      i nie dojechała. Klasa awarii jest NAZWANA, powód zapisany. To jest WYNIK: wiemy, że tego
+ *      modelu na tym materiale nie da się dziś zmierzyć, i wiemy dlaczego.
+ *   2. **Brak licznika** (`—` w kolumnie liczbowej, sekcja „Bez kwoty") — komórka DOJECHAŁA,
+ *      recenzja jest, ale SDK nie podało któregoś licznika tokenów. Wynik jest, kwoty nie ma.
+ *   3. **Komórka nieobecna w tabeli** — nie została uruchomiona wcale (zawężenie przebiegu
+ *      filtrem). Nie ma o niej ANI wyniku, ANI informacji, że go nie ma.
+ *
+ * Zlanie (1) z (2) pod wspólnym `—` byłoby dokładnie tą klasą błędu, którą ten zestaw ma łapać:
+ * „nie zmierzono" wyglądałoby jak „zmierzono i wyszło pusto".
+ */
+const isMeasuredAbsence = (row: ReportRow): boolean => row.contract !== "ok";
+
+/** Pustka typu (2): licznika nie ma, ale wynik JEST. */
 const num = (value: number | undefined): string => (value === undefined ? "—" : String(value));
 const usd = (value: number | null): string => (value === null ? "—" : value.toFixed(6));
 
+/** Pustka typu (1): wyniku NIE MA i wiadomo dlaczego. Inny znak, bo inne znaczenie. */
+const ABSENT = "BRAK";
+
 function renderTable(rows: readonly ReportRow[]): string[] {
-  const body = rows.map((row) => [
-    row.model,
-    row.fixture,
-    row.verdict,
-    row.contract,
-    num(row.turns),
-    num(row.inputTokens),
-    num(row.outputTokens),
-    num(row.cacheWriteTokens),
-    num(row.cacheReadTokens),
-    usd(row.costUsd),
-    row.cached ? "TRAFIENIE" : "zimna",
-    row.assertionsPassed + row.assertionsFailed === 0 ? "—" : `${row.assertionsPassed}/${row.assertionsPassed + row.assertionsFailed}`,
-  ]);
+  const body = rows.map((row) => {
+    // Wiersz, który nie dojechał, dostaje `BRAK` we WSZYSTKICH kolumnach wynikowych — nie `—`.
+    // Kolumna `kontrakt` niesie przy tym klasę awarii, więc wiersz sam mówi, czym ten brak jest.
+    if (isMeasuredAbsence(row)) {
+      return [row.model, row.fixture, ABSENT, row.contract, ABSENT, ABSENT, ABSENT, ABSENT, ABSENT, ABSENT, ABSENT, ABSENT];
+    }
+    return [
+      row.model,
+      row.fixture,
+      row.verdict,
+      row.contract,
+      num(row.turns),
+      num(row.inputTokens),
+      num(row.outputTokens),
+      num(row.cacheWriteTokens),
+      num(row.cacheReadTokens),
+      usd(row.costUsd),
+      row.cached ? "TRAFIENIE" : "zimna",
+      row.assertionsPassed + row.assertionsFailed === 0 ? "—" : `${row.assertionsPassed}/${row.assertionsPassed + row.assertionsFailed}`,
+    ];
+  });
 
   const widths = COLUMNS.map((header, index) =>
     Math.max(header.length, ...body.map((cells) => cells[index]?.length ?? 0)),
@@ -210,10 +247,15 @@ function renderTable(rows: readonly ReportRow[]): string[] {
  * suma nigdy nie wyglądała na kompletną, kiedy nie jest.
  */
 function renderTotals(rows: readonly ReportRow[], now: Date): string[] {
-  const priced = rows.filter((row) => row.costUsd !== null);
-  const unpriced = rows.filter((row) => row.costUsd === null);
+  // Mianownik liczy komórki ZMIERZONE, nie wszystkie. Wrzucenie brakw zmierzonych do „Bez kwoty"
+  // postawiłoby obok siebie dwa zdania o zupełnie różnym znaczeniu — „wynik jest, kwoty nie ma"
+  // i „wyniku nie ma wcale" — pod jednym nagłówkiem.
+  const measured = rows.filter((row) => !isMeasuredAbsence(row));
+  const absent = rows.filter(isMeasuredAbsence);
+  const priced = measured.filter((row) => row.costUsd !== null);
+  const unpriced = measured.filter((row) => row.costUsd === null);
   const total = priced.reduce((sum, row) => sum + (row.costUsd ?? 0), 0);
-  const hits = rows.filter((row) => row.cached).length;
+  const hits = measured.filter((row) => row.cached).length;
   const longRuns = priced.filter((row) => (row.turns ?? 0) > 2);
 
   // DWIE kwoty, nie jedna, i to jest naprawa defektu zauważonego na żywym przebiegu: przy komplecie
@@ -223,13 +265,19 @@ function renderTotals(rows: readonly ReportRow[], now: Date): string[] {
   const paid = priced.filter((row) => !row.cached).reduce((sum, row) => sum + (row.costUsd ?? 0), 0);
 
   const lines = [
-    `Koszt komórek: ${usd(total)} USD z ${priced.length}/${rows.length} komórek; trafienia cache'u: ${hits}/${rows.length}.`,
+    `Koszt komórek: ${usd(total)} USD z ${priced.length}/${measured.length} komórek ZMIERZONYCH; trafienia cache'u: ${hits}/${measured.length}.`,
     `ZAPŁACONE w tym przejściu: ${usd(paid)} USD (trafienia cache'u nie kosztują).`,
     `Cennik: ${PRICING_AS_OF} (${pricingAgeDays(now)} dni temu), źródło ${PRICING_SOURCE}. Kwoty liczone z tokenów, NIE z total_cost_usd SDK.`,
   ];
+  if (absent.length > 0) {
+    lines.push(
+      `Komórek uruchomionych: ${rows.length}; z tego ZMIERZONYCH ${measured.length}, ` +
+        `BRAKÓW ZMIERZONYCH ${absent.length} (nie wchodzą do żadnej kwoty — patrz sekcja niżej).`,
+    );
+  }
   if (unpriced.length > 0) {
     lines.push(
-      `Bez kwoty (${unpriced.length}): ${unpriced
+      `Bez kwoty (${unpriced.length}) — komórka DOJECHAŁA, ale SDK nie podało licznika: ${unpriced
         .map((row) => `${row.model}/${row.fixture} — ${row.costUnavailableReason ?? "brak metryk"}`)
         .join("; ")}`,
     );
@@ -242,6 +290,38 @@ function renderTotals(rows: readonly ReportRow[], now: Date): string[] {
     );
   }
   return lines;
+}
+
+/**
+ * BRAKI ZMIERZONE — komórki URUCHOMIONE, które nie wyprodukowały wyniku.
+ *
+ * Sekcja istnieje, żeby taki brak był WYNIKIEM, a nie pustą kratką. Różnica jest praktyczna, nie
+ * retoryczna: pusta kratka mówi czytelnikowi „nie wiadomo", a brak zmierzony mówi „wiadomo, że
+ * się nie da, i wiadomo dlaczego" — a to drugie jest odpowiedzią na pytanie z `requirements.md`,
+ * nie luką w niej. Dlatego sekcja nazywa klasę awarii, cytuje komunikat i odsyła do ryzyka.
+ *
+ * Stoi NAD sumami, bo czytelnik ma zobaczyć, ilu komórek kwoty NIE dotyczą, zanim przeczyta kwoty.
+ */
+function renderMeasuredAbsences(rows: readonly ReportRow[]): string[] {
+  const absent = rows.filter(isMeasuredAbsence);
+  if (absent.length === 0) return [];
+  return [
+    "",
+    `BRAKI ZMIERZONE — komórka URUCHOMIONA, wynik NIE POWSTAŁ (${absent.length} z ${rows.length}):`,
+    ...absent.flatMap((row) => [
+      `  ✗ ${row.model} / ${row.fixture} — klasa awarii ${row.contract}`,
+      `      ${row.errorMessage ?? "(bez komunikatu)"}`,
+    ]),
+    "  ⚑ To NIE jest luka w pokryciu ani pusta komórka: przebieg się odbył i został POLICZONY",
+    "    przez dostawcę — brak wyniku NIE oznacza braku rachunku. Kwoty tej komórki nie da się",
+    "    policzyć (SDK nie oddało liczników), więc nie ma jej w sumach WYŻEJ; różnicę widać",
+    "    dopiero w odczycie `/api/v1/key`. Zmierzone: przejście fazy 7 policzyło 0,0819 USD,",
+    "    a klucz obciążono o 0,1185 USD — brakujące ~0,031 to właśnie ta komórka.",
+    "    Odróżnij od dwóch pozostałych rodzajów pustki w tym raporcie:",
+    "      • wiersz `Bez kwoty` w sumach — komórka DOJECHAŁA, recenzja jest, brakuje licznika tokenów.",
+    "      • komórka nieobecna w tabeli — nie uruchomiono jej wcale (zawężenie przebiegu filtrem);",
+    "        o niej raport nie mówi NIC, także tego, że jej nie ma.",
+  ];
 }
 
 function renderFailures(rows: readonly ReportRow[]): string[] {
@@ -300,6 +380,7 @@ export function renderReport(rows: readonly ReportRow[], now: Date): string {
     "=== Raport przejścia zestawu evali ===",
     "",
     ...renderTable(rows),
+    ...renderMeasuredAbsences(rows),
     "",
     ...renderTotals(rows, now),
     "",
@@ -338,6 +419,17 @@ export interface RunResult {
   readonly rows: ReportRow[];
 }
 
+/**
+ * Przerenderowanie raportu z ZAPISANEGO wyniku, bez uruchamiania przejścia.
+ *
+ * Powstało z konkretnego rachunku: poprawka w samym RAPORCIE nie ma prawa kosztować kolejnego
+ * przejścia macierzy. Plik bierze się z `--output` albo z `promptfoo export eval <evalId>`,
+ * więc każdy przebieg, który się kiedykolwiek odbył, daje się opisać na nowo za darmo.
+ */
+export function rowsFromFile(path: string): ReportRow[] {
+  return rowsFromOutputFile(JSON.parse(readFileSync(path, "utf8")));
+}
+
 /** Uruchomienie przejścia + odczyt wyniku. Katalog tymczasowy, bo plik wyniku nie jest artefaktem repo. */
 export function runEval(extraArgs: readonly string[]): RunResult {
   const workDir = mkdtempSync(join(tmpdir(), "review-eval-"));
@@ -366,10 +458,28 @@ export function runEval(extraArgs: readonly string[]): RunResult {
 
 // Porównanie po ZNORMALIZOWANEJ ścieżce, nie po surowym `argv[1]`: na Windowsie separatory
 // i wielkość liter potrafią się różnić, a wtedy raport po cichu nigdy by się nie uruchomił.
+/** `--from <plik>` renderuje z zapisanego wyniku; reszta argumentów leci do `promptfoo eval`. */
+function splitArgs(argv: readonly string[]): { from: string | undefined; rest: string[] } {
+  const index = argv.indexOf("--from");
+  if (index === -1) return { from: undefined, rest: [...argv] };
+  const from = argv[index + 1];
+  if (from === undefined) throw new Error("[raport] `--from` wymaga ścieżki do pliku wyniku.");
+  return { from, rest: [...argv.slice(0, index), ...argv.slice(index + 2)] };
+}
+
 const isEntrypoint =
   process.argv[1] !== undefined && resolve(fileURLToPath(import.meta.url)) === resolve(process.argv[1]);
 if (isEntrypoint) {
-  const { exitCode, rows } = runEval(process.argv.slice(2));
-  process.stdout.write(renderReport(rows, new Date()));
-  process.exitCode = exitCode;
+  const { from, rest } = splitArgs(process.argv.slice(2));
+  if (from === undefined) {
+    const { exitCode, rows } = runEval(rest);
+    process.stdout.write(renderReport(rows, new Date()));
+    process.exitCode = exitCode;
+  } else {
+    // Tryb odczytu: raport, ale ŻADNEGO wywołania modelu. Kod wyjścia bierze się z wierszy,
+    // bo nie ma procesu promptfoo, którego kodu można by nie zmienić.
+    const rows = rowsFromFile(from);
+    process.stdout.write(renderReport(rows, new Date()));
+    process.exitCode = rows.every((row) => row.ok) ? 0 : 1;
+  }
 }

@@ -685,11 +685,18 @@ komórka zimna, jedna z cache'u) na prawdziwych danych.
 
 ### Rachunek
 
-| moment                           | `usage`         |
-| -------------------------------- | --------------- |
-| przed fazą 6                     | **0,856216627** |
-| po przebiegu haiku               | **0,946898827** |
-| po obu nieudanych próbach gemini | **0,946898827** |
+| moment                           | `usage`           |
+| -------------------------------- | ----------------- |
+| przed fazą 6                     | **0,856216627**   |
+| po przebiegu haiku               | **0,946898827**   |
+| po obu nieudanych próbach gemini | **0,946898827**   |
+| odczyt otwierający fazę 7        | **0,978206026** ⚑ |
+
+> **⚑ SPROSTOWANIE z fazy 7.** Ostatni wiersz obala zapisane wyżej „obie próby gemini nic nie
+> kosztowały". Między zamknięciem fazy 6 a otwarciem fazy 7 nie uruchomiono niczego, a licznik
+> urósł o **0,031307 USD** — to opóźnione księgowanie tych dwóch prób. **Nieudany przebieg JEST
+> obciążany**, a natychmiastowy odczyt `/api/v1/key` jest dolnym oszacowaniem, nie rachunkiem.
+> Rzeczywisty koszt fazy 6: **0,121989 USD**.
 
 Nasz rachunek dla haiku (0,088646 USD) wobec realnej delty (0,090682 USD) — **iloraz 0,98**, mimo
 że przebieg był TRZYTUROWY. Zastrzeżenie z `pricing.ts` („przy `> 2` kwota jest dolnym
@@ -715,3 +722,139 @@ i „plan, któremu coś padło" wyglądają tak samo.
 npm --prefix agents/review run typecheck   → zielone
 npm --prefix agents/review run test        → 53/53 (było 45 po fazie 5: +6 miękkich, +2 raportu)
 ```
+
+---
+
+## Phase 7 — Pierwsze pełne przejście macierzy 2×2
+
+**Data**: 2026-08-23
+**Koszt fazy**: **0,118529 USD** (rachunek z `/api/v1/key`, nie z licznika SDK)
+**Wynik**: **3 komórki ZMIERZONE + 1 BRAK ZMIERZONY**, nie cztery wyniki
+
+### Decyzja budżetowa zapisana PRZED wydatkiem
+
+Commit `fb85f02` — podniesienie progu z 1,00 do 1,20 USD wylądowało w `requirements.md` obok
+oryginału, zanim padło pierwsze wywołanie tej fazy. Kolejność jest tu treścią, nie porządkiem:
+notatka napisana po przekroczeniu progu byłaby usprawiedliwieniem, nie decyzją.
+
+### Tabela przejścia
+
+```
+| model                      | fikstura               | werdykt | kontrakt  | tury | in   | out  | cache zapis | cache odczyt | koszt USD | cache     | asercje |
+| google/gemini-2.5-flash    | sample.diff            | fail    | ok        | 2    | 0    | 4299 | 23816       | 23816        | 0.013447  | zimna     | 5/6     |
+| anthropic/claude-haiku-4.5 | sample.diff            | fail    | ok        | 2    | 10   | 4094 | 38373       | 0            | 0.068446  | zimna     | 6/6     |
+| google/gemini-2.5-flash    | clean-text-change.diff | BRAK    | [unknown] | BRAK | BRAK | BRAK | BRAK        | BRAK         | BRAK      | BRAK      | BRAK    |
+| anthropic/claude-haiku-4.5 | clean-text-change.diff | pass    | ok        | 3    | 18   | 5376 | 46776       | 32778        | 0.088646  | TRAFIENIE | 5/5     |
+
+Koszt komórek: 0.170539 USD z 3/3 komórek ZMIERZONYCH; trafienia cache'u: 1/3.
+ZAPŁACONE w tym przejściu: 0.081893 USD (trafienia cache'u nie kosztują).
+Cennik: 2026-08-23 (0 dni temu), źródło https://openrouter.ai/api/v1/models.
+Komórek uruchomionych: 4; z tego ZMIERZONYCH 3, BRAKÓW ZMIERZONYCH 1.
+```
+
+### BRAK ZMIERZONY — nowa kategoria w raporcie, i dlaczego musiała powstać
+
+Plan przewidywał cztery wyniki. Open Risk 4 (`maxTurns: 2`) przewidywał, że gemini nie dojedzie
+na slocie 2 — i nie dojechało, po raz drugi, tym samym błędem (`error_max_turns`). Pusta kratka
+w tabeli byłaby najgorszą możliwą reprezentacją tego faktu: czytelnik nie odróżniłby jej od
+komórki, której nikt nie uruchomił.
+
+Raport rozróżnia teraz **trzy rodzaje pustki**, każdy innym znakiem i innym zdaniem:
+
+| rodzaj                 | znak w tabeli | gdzie opisany            | co znaczy                                                                     |
+| ---------------------- | ------------- | ------------------------ | ----------------------------------------------------------------------------- |
+| **BRAK ZMIERZONY**     | `BRAK`        | sekcja „BRAKI ZMIERZONE" | komórka pojechała i NIE dojechała; klasa awarii nazwana, komunikat zacytowany |
+| brak licznika          | `—`           | wiersz „Bez kwoty"       | komórka DOJECHAŁA, recenzja jest, SDK nie oddało licznika tokenów             |
+| komórka nieuruchomiona | brak wiersza  | nigdzie                  | nie odpalono jej wcale; raport nie mówi o niej NIC                            |
+
+⚑ **Brak zmierzony NIE jest darmowy, i raport to teraz mówi.** Przejście policzyło 0,081893 USD,
+a klucz obciążono o 0,118529 — brakujące **~0,0366 USD** to właśnie ta komórka: model przepalił
+tury, zanim uderzył w limit, i nie oddał liczników, więc kwoty nie da się policzyć. Bez tego
+zdania „nie wchodzą do żadnej kwoty" czytałoby się jak „nic nie kosztowały".
+
+### ⚑ Błąd we WŁASNEJ klasyfikacji, złapany na pierwszym przejściu
+
+Pierwsze uruchomienie pokazało **dwa** braki zmierzone. Drugi z nich —
+`gemini/sample.diff` — był **fałszywy**: komórka dojechała, `safeParse` przeszedł, recenzja
+wróciła, a pękła jej ASERCJA (`gateIntegrity = 1`). Przyczyna: `contractOf` czytał
+`result.error`, które w promptfoo niesie powód, dla którego TEST nie przeszedł — więc przy
+pękniętej asercji zawiera jej treść. Wzięte jako sygnał awarii providera klasyfikowało poprawnie
+ocenioną komórkę jako brak wyniku.
+
+**To jest dokładnie to zlanie dwóch dziur, przed którym ta sekcja miała bronić — popełnione
+w kodzie, który miał przed nim bronić.** Naprawa: kontrakt liczy się WYŁĄCZNIE z
+`response.error`, ustawianego tylko przez nasz provider, gdy `runReview` rzuciło.
+
+Poprawka **nie kosztowała ani centa**: `report.ts` dostał tryb `--from <plik>`, a wynik przebiegu
+odzyskano przez `promptfoo export eval eval-JIC-2026-08-23T10:32:09`. Poprawka w samym RAPORCIE
+nie ma prawa kosztować kolejnego przejścia macierzy — a bez tego trybu kosztowałaby.
+
+### Powtórzenie przejścia jest DARMOWE (dowód, nie deklaracja)
+
+```
+| google/gemini-2.5-flash    | sample.diff | fail | ok | 2 | 0  | 4299 | 23816 | 23816 | 0.013447 | TRAFIENIE | 5/6 |
+| anthropic/claude-haiku-4.5 | sample.diff | fail | ok | 2 | 10 | 4094 | 38373 | 0     | 0.068446 | TRAFIENIE | 6/6 |
+
+ZAPŁACONE w tym przejściu: 0.000000 USD (trafienia cache'u nie kosztują).
+```
+
+Odczyt `/api/v1/key` przed i po: **1,096735348 → 1,096735348**, delta **dokładnie 0**. Trzecia
+zmierzona komórka (haiku / kontrola negatywna) weszła jako `TRAFIENIE` już w samym przejściu, więc
+**wszystkie trzy komórki zmierzone są dowiedzione jako cacheowalne**. Czwarta nie ma czego
+cacheować — i to jest odpowiedź, nie luka.
+
+Powtórzenie zawężono do slotu 1 świadomie: pełne powtórzenie kosztowałoby ~0,031 USD za ponowną
+awarię gemini, czyli zapłatę za informację, którą już mamy dwukrotnie.
+
+### Odpowiedź na pytanie 2 z `requirements.md` — pierwsza oparta na macierzy
+
+| model                        | slot 1                                       | slot 2             | werdykt kwalifikacyjny                                              |
+| ---------------------------- | -------------------------------------------- | ------------------ | ------------------------------------------------------------------- |
+| `anthropic/claude-haiku-4.5` | **6/6**                                      | **5/5**            | przechodzi bramki twarde; łamie kontrakt `null` (obserwacja miękka) |
+| `google/gemini-2.5-flash`    | **5/6** — `gateIntegrity = 1` zamiast `null` | **BRAK ZMIERZONY** | **nie kwalifikuje się dziś**                                        |
+
+**Gemini oblało dokładnie tę parę, którą naprawiał `0d3eba5`** — i oblało ją na fiksturze, na
+której w Pomiarze II zwróciło poprawne `null`. Ten sam model, ten sam materiał, ten sam prompt,
+inny wynik: kontrakt `null` jest u gemini **niestabilny**, nie tylko odrzucany. To jest pierwszy
+przypadek, w którym ten zestaw złapał regresję, po którą powstał — i materiał do Open Risk 3
+(pytanie: własność promptu czy własność modelu).
+
+### Koszt komórki NIE JEST stały
+
+| model                        | Pomiar II | faza 7       | różnica | co się zmieniło                 |
+| ---------------------------- | --------- | ------------ | ------- | ------------------------------- |
+| `google/gemini-2.5-flash`    | 0,0323    | **0,013447** | −58%    | 3 tury → 2, `out` 4 721 → 4 299 |
+| `anthropic/claude-haiku-4.5` | 0,0846    | **0,068446** | −19%    | `out` 6 995 → 4 094             |
+
+Ta sama fikstura, ten sam prompt, ten sam pin modelu. Zmienił się wyłącznie przebieg. Wniosek dla
+budżetowania: koszt komórki ma rozrzut rzędu dziesiątek procent i budżetować należy dalej po
+liczbie WYŻSZEJ.
+
+### Pozycje `## Progress` zostawione NIEODHACZONE — i dlaczego
+
+| pozycja | treść                                              | dlaczego nie                                                                         |
+| ------- | -------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **7.1** | „Cztery komórki, wszystkie asercje twarde zielone" | trzy komórki zmierzone, jedna to brak zmierzony; do tego `gemini/sample.diff` ma 5/6 |
+| **7.2** | „Powtórzenie darmowe (cztery trafienia…)"          | trafienia są trzy z trzech ZMIERZONYCH; czwartej nie da się trafić, bo nie ma czego  |
+| **7.5** | „Suma wydatków… poniżej 1 USD"                     | suma POLICZONA (1,096735), ale klauzula „poniżej 1 USD" jest FAŁSZYWA                |
+
+**7.5 zostaje nieodhaczone celowo i jest to najważniejszy z tych trzech wpisów.** Próg podniesiono
+jawnie do 1,20 USD, więc wydatek mieści się w decyzji — ale wiersz mówi „poniżej 1 USD" i taki
+ma zostać. Odhaczenie go po podniesieniu progu byłoby wyprodukowaniem zieleni przez zmianę
+definicji zielonego. Nieodhaczony wiersz jest jedynym miejscem w `## Progress`, z którego widać,
+że PIERWOTNY próg został przekroczony, a nie przepisany — i to jest dokładnie to, przed czym broni
+zdanie z notatki budżetowej: _budżet podniesiony w momencie, w którym zaczyna wiązać, przestaje
+być budżetem_.
+
+### Bramki i nietykalność ścieżki produkcyjnej
+
+```
+npm --prefix agents/review run typecheck   → zielone
+npm --prefix agents/review run test        → 57/57 (53 po fazie 6: +4 na BRAKI ZMIERZONE)
+git diff <baza>..HEAD -- .github/actions/ .github/workflows/pr-review.yml   → PUSTO
+git diff <baza>..HEAD -- .github/                                          → tylko agents-gate.yml (+95)
+```
+
+Kryterium 7.7 spełnione i zmierzone, nie zadeklarowane: przez cały plan composite action
+i `pr-review.yml` nie zmieniły ani jednej linii. W `.github/` przybył wyłącznie nowy workflow
+bramki pakietu agenta.

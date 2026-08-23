@@ -114,6 +114,14 @@ budżetujemy po liczbie WYŻSZEJ**, bo pomyłka w tę stronę kosztuje ostrożno
    > w rząd wielkości. Gdyby przekroczenie szło w dziesiątki procent, właściwą odpowiedzią byłoby
    > zakwestionowanie oszacowania, nie podniesienie progu.
    >
+   > > **Korekta do tego akapitu, dopisana PO fazie 7:** „~7% (~1,064 USD)" było PRZEWIDYWANIEM
+   > > sprzed przejścia. Zmierzone wyszło **1,096735 USD**, czyli **~9,7%** ponad 1,00. Różnica
+   > > bierze się stąd, że faza 6 kosztowała 0,1220 USD, a nie 0,0907 — opóźnione księgowanie
+   > > OpenRoutera ujawniło rachunek za dwie nieudane próby gemini dopiero w odczycie
+   > > otwierającym fazę 7. Kierunek decyzji się nie zmienia (9,7% to nadal nie są dziesiątki
+   > > procent), ale liczba, którą ją uzasadniono, była o 3 punkty za niska — i tak ma tu zostać
+   > > zapisana, bo prognoza podmieniona po fakcie na pomiar przestaje być prognozą.
+   >
    > **Co budżet już kupił — bo to jest druga połowa tego rachunku.** Faza 6 kosztowała
    > **0,0907 USD** i przyniosła dwa znaleziska, które ZMIENIŁY plan, a nie tylko go potwierdziły:
    >
@@ -134,6 +142,52 @@ budżetujemy po liczbie WYŻSZEJ**, bo pomyłka w tę stronę kosztuje ostrożno
    > **Zdanie, które ma tu zostać na przyszłość:** budżet podniesiony w momencie, w którym
    > zaczyna wiązać, przestaje być budżetem. Dlatego to podniesienie jest **jednorazowe i jawne**,
    > a KOLEJNE wymaga rozmowy, nie kolejnej notatki.
+
+   > **⚑ KOREKTA PO PIERWSZYM PEŁNYM PRZEJŚCIU** (2026-08-23, faza 7). Dotąd zmierzone były
+   > KOMÓRKI; to jest pierwszy pomiar PRZEJŚCIA. Trzy liczby, o które prosi wymaganie 9:
+   >
+   > | pozycja                                                       | wartość                                                    |
+   > | ------------------------------------------------------------- | ---------------------------------------------------------- |
+   > | koszt przejścia (rachunek z `/api/v1/key`)                    | **0,118529 USD**                                           |
+   > | z tego policzone przez raport (komórki zmierzone)             | 0,081893 USD                                               |
+   > | różnica — komórka, która NIE dojechała, ale została obciążona | **~0,0366 USD**                                            |
+   > | udział trafień cache'u w przejściu                            | 1 z 3 komórek zmierzonych                                  |
+   > | powtórzenie przejścia (slot 1)                                | **0,000000 USD**, 2/2 trafienia, licznik klucza bez zmiany |
+   > | zużycie klucza `OPENROUTER_REVIEW_KEY` po zadaniu             | **1,096735 USD** z capu 5 USD                              |
+   > | **zostaje z podniesionego progu 1,20 USD**                    | **0,103265 USD**                                           |
+   >
+   > **Koszt komórki na `sample.diff` SPADŁ wobec Pomiaru II i nie jest stały:**
+   >
+   > | model                        | Pomiar II | faza 7       | różnica | co się zmieniło                 |
+   > | ---------------------------- | --------- | ------------ | ------- | ------------------------------- |
+   > | `google/gemini-2.5-flash`    | 0,0323    | **0,013447** | −58%    | 3 tury → 2, `out` 4 721 → 4 299 |
+   > | `anthropic/claude-haiku-4.5` | 0,0846    | **0,068446** | −19%    | `out` 6 995 → 4 094             |
+   >
+   > Ten sam model, ta sama fikstura, ten sam prompt (`0d3eba5`), zmienił się TYLKO przebieg.
+   > Wniosek dla budżetowania: koszt komórki jest zmienną losową o rozrzucie rzędu dziesiątek
+   > procent, a nie stałą — budżetować dalej po liczbie WYŻSZEJ, tak jak stanowi akapit „Kotwice
+   > zmierzone" wyżej.
+   >
+   > **⚑ Rachunek za komórkę, która nie dojechała, JEST.** Brak wyniku nie oznacza braku rachunku:
+   > komórka `gemini/clean-text-change.diff` skończyła się `error_max_turns` i nie oddała liczników,
+   > więc raport nie potrafi jej wycenić — ale klucz został obciążony. Widać to wyłącznie w różnicy
+   > odczytów `/api/v1/key`. To samo zjawisko unieważniło wcześniejszy zapis z fazy 6 („obie próby
+   > gemini nic nie kosztowały"): księgowanie OpenRoutera jest OPÓŹNIONE, a kwota pojawiła się
+   > dopiero w odczycie otwierającym fazę 7.
+   >
+   > **Odpowiedź na pytanie 2 („czy tańszy model wystarcza") — pierwsza oparta na macierzy, nie na
+   > pojedynczym przebiegu:**
+   >
+   > | model                        | slot 1 (`sample.diff`)                       | slot 2 (kontrola negatywna)            | werdykt kwalifikacyjny                                              |
+   > | ---------------------------- | -------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------- |
+   > | `anthropic/claude-haiku-4.5` | **6/6** asercji twardych                     | **5/5** asercji twardych               | przechodzi bramki twarde; łamie kontrakt `null` (obserwacja miękka) |
+   > | `google/gemini-2.5-flash`    | **5/6** — `gateIntegrity = 1` zamiast `null` | **BRAK ZMIERZONY** (`error_max_turns`) | **nie kwalifikuje się dziś**                                        |
+   >
+   > Gemini oblało dokładnie tę parę, którą naprawiał `0d3eba5` — i oblało ją na fiksturze, na
+   > której w Pomiarze II zwróciło poprawne `null`. Ten sam model, ten sam materiał, ten sam prompt,
+   > inny wynik: kontrakt `null` jest u gemini NIESTABILNY, nie tylko odrzucany. To jest materiał do
+   > Open Risk 3 (pytanie: własność promptu czy własność modelu) i pierwszy przypadek, w którym
+   > zestaw evali złapał regresję, po którą powstał.
 
 2. **Domyślne przejście zestawu jedzie WYŁĄCZNIE na modelach tanich.** Droga kolumna
    (sonnet-4.6) jest OPCJONALNA i włączana świadomie. Arytmetyka, która to czyni konkretem:

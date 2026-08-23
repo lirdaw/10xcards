@@ -136,22 +136,39 @@ innego niż `sample.diff`.
 `maxTurns: 2` i kończy `completed`, a gemini na tej samej wartości dostaje `error_max_turns`.
 Licznik `num_turns` w wyniku SDK i limit `maxTurns` najwyraźniej nie liczą tego samego.
 
-### Rachunek gemini: ZERO
+### Rachunek gemini: ZERO — **i to było FAŁSZ, sprostowane w fazie 7**
 
-Odczyt `/api/v1/key` po obu nieudanych próbach jest IDENTYCZNY z odczytem sprzed nich
-(0,946898827). Nieudane przebiegi gemini nie zostały obciążone — z zastrzeżeniem o opóźnionym
-księgowaniu OpenRoutera, znanym już z Pomiaru II.
+Odczyt `/api/v1/key` po obu nieudanych próbach był IDENTYCZNY z odczytem sprzed nich
+(0,946898827), więc zapisano tu „nieudane przebiegi gemini nie zostały obciążone" — z zastrzeżeniem
+o opóźnionym księgowaniu OpenRoutera, znanym już z Pomiaru II.
+
+> **⚑ SPROSTOWANIE (faza 7, ten sam dzień).** Zastrzeżenie okazało się właściwe, a wniosek — nie.
+> Odczyt otwierający fazę 7 pokazał **0,978206026**, czyli **+0,031307 USD** od zamknięcia fazy 6,
+> mimo że pomiędzy tymi odczytami NIE URUCHOMIONO NICZEGO. Jedyne wywołania w tym oknie to dwie
+> nieudane próby gemini. **Nieudany przebieg JEST obciążany** — model przepalił tury, zanim uderzył
+> w limit — a zerowa delta była wyłącznie opóźnieniem księgowania.
+>
+> **Rzeczywisty koszt fazy 6: 0,121989 USD**, nie 0,0907. Rozbicie: haiku 0,090682 (zaksięgowane
+> od razu) + dwie próby gemini ~0,031307 (zaksięgowane z opóźnieniem).
+>
+> **Reguła, którą to ustanawia dla każdego następnego pomiaru w tym repo:** odczyt `/api/v1/key`
+> wykonany BEZPOŚREDNIO po przebiegu nie jest rachunkiem, tylko dolnym oszacowaniem. Rachunek
+> zamyka się dopiero odczytem otwierającym NASTĘPNE okno. Zapis „nic nie kosztowało" wymaga
+> odczytu z opóźnieniem, a nie natychmiastowego.
 
 ## Rachunek fazy
 
-| moment                   | `usage`         |
-| ------------------------ | --------------- |
-| przed fazą 6             | **0,856216627** |
-| po przebiegu haiku       | **0,946898827** |
-| po obu nieudanych gemini | **0,946898827** |
+| moment                        | `usage`           |
+| ----------------------------- | ----------------- |
+| przed fazą 6                  | **0,856216627**   |
+| po przebiegu haiku            | **0,946898827**   |
+| po obu nieudanych gemini      | **0,946898827**   |
+| **odczyt otwierający fazę 7** | **0,978206026** ⚑ |
 
-**Faza 6 kosztowała 0,090682 USD.** Licznik klucza stoi na 0,9469 USD; do budżetu zadania
-(1,00 USD z `requirements.md`) zostaje **0,0531 USD**.
+**Faza 6 kosztowała 0,121989 USD** — nie 0,090682, jak zapisano tu pierwotnie. Ostatni wiersz
+tabeli jest tym, który to rozstrzyga: między zamknięciem fazy 6 a otwarciem fazy 7 nie uruchomiono
+NICZEGO, a licznik urósł o 0,031307. To rachunek za dwie nieudane próby gemini, zaksięgowany
+z opóźnieniem — patrz sprostowanie wyżej.
 
 Faza 7 potrzebuje dwóch zimnych komórek `sample.diff` (~0,117 USD). **Nie mieści się.**
 Zgodnie z wymaganiem 1 to jest zatrzymanie i rozmowa, nie dopłata.
