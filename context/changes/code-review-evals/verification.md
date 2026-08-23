@@ -42,14 +42,32 @@ odpala rootowy `npm run typecheck`, a rootowy `tsconfig.json` ma `exclude: […,
 (w logu pushu: `typecheck: OK — 176 files checked (floor 50)`). Ścieżka przez GitHub Contents
 API, przewidziana w planie jako awaryjna, nie była potrzebna.
 
-### Filtr `paths` — obie strony (kryterium 3.6)
+### Filtr `paths` — zmierzony, i pomiar poprawił założenie (kryterium 3.6)
 
-- **Strona pozytywna**: wszystkie trzy przebiegi wyżej wystartowały na commitach ruszających
-  `agents/**` (`agents/review/tsconfig.json`, `package.json`, `probe.ts`).
-- **Kontrola negatywna**: commit wprowadzający TEN plik rusza wyłącznie `context/**` — czyli
-  ani `agents/**`, ani `.github/workflows/agents-gate.yml`. `Agents gate` **nie wystartował**
-  na nim (obserwacja odnotowana przy tym commicie; `Prompt ratchet`, który filtra nie ma,
-  wystartował — i to jest różnica, która czyni tę kontrolę czymś więcej niż brakiem zdarzenia).
+**Strona pozytywna**: wszystkie przebiegi `Agents gate` wyżej wystartowały na commitach
+ruszających `agents/**`, a czerwień przyszła z kroku bramki i wskazała plik sondy — więc filtr
+przepuszcza to, co ma przepuszczać, i bramka za nim realnie działa.
+
+**Kontrola negatywna wyszła INACZEJ, niż ją zaprojektowałem, i to jest tu najważniejsza
+liczba.** Commit `070559a` rusza wyłącznie `context/**` — ani `agents/**`, ani samego pliku
+workflow. Mimo to `Agents gate` **wystartował** ([32628026797](https://github.com/lirdaw/10xcards/actions/runs/32628026797),
+success). Nie jest to defekt filtra: przy zdarzeniu `pull_request` GitHub liczy `paths`
+względem CAŁEGO diffa PR-a, a nie pojedynczego pushu — a diff PR-a #48 zawiera `agents/**` od
+commita `1bbbbe1`. To ta sama semantyka, którą repo ma już zapisaną w nagłówku `pr-review.yml`
+i w `lessons.md`; ja zaprojektowałem kontrolę tak, jakby liczyła się względem pushu.
+
+Korroboracja tego wyjaśnienia jest w tym samym przebiegu i nie wymaga wiary: na `070559a`
+wystartował też **`CI`** ([32628026758](https://github.com/lirdaw/10xcards/actions/runs/32628026758)),
+mimo `paths-ignore: ["**/*.md", "context/**"]` — czyli dwa workflowy o PRZECIWNYCH filtrach
+zachowały się tak samo, co jest do pogodzenia wyłącznie z „filtr patrzy na diff PR-a".
+
+**Czego więc ten PR NIE dowodzi i gdzie to domknąć.** Tłumiąca połowa filtra — „push nieruszający
+`agents/**` NIE odpala bramki" — jest z gałęzi funkcyjnej niedowodliwa **przez konstrukcję**:
+każdy PR z tej gałęzi niesie `agents/**` w diffie, a gałąź odbita od `main` nie miałaby jeszcze
+pliku `agents-gate.yml` (albo miałaby go w diffie, co znów trafia w filtr). Pierwszą okazją jest
+zdarzenie `push` na `main` po merdżu. **Do sprawdzenia przy `/ship`**: pierwszy commit na `main`
+po merdżu tego PR-a, który nie rusza `agents/**`, nie powinien odpalić `Agents gate` — a commit
+`/10x-archive` (same `context/**`) jest dokładnie takim commitem i przychodzi sam z siebie.
 
 ### Dwie rzeczy zmierzone, nie założone
 
@@ -76,7 +94,7 @@ działać.
 - Test położony w **podkatalogu** (`probe-dir/probe.test.ts`) został wykryty (`tests 18`)
   i zaczerwienił runner (`EXIT=1`) — ta sama gwarancja po stronie testów.
 
-### Koszt: `PR code review` anulowany na tym PR-ze, trzy razy
+### Koszt: `PR code review` anulowany na tym PR-ze, cztery razy
 
 `pr-review.yml` nie ma filtra ścieżek i odpala się na `opened` i każdym `synchronize`, a jest
 przypięty do `anthropic/claude-sonnet-4.6`. Przefiltrowany diff tej gałęzi to 1391 linii /
@@ -86,7 +104,8 @@ fazy 6–7 potrzebują ~0,23 USD.
 
 Decyzja: przebiegi recenzji anulowane ręcznie zaraz po starcie, ZANIM dojdzie do wywołania
 modelu (instalacja pakietu agenta to ~335 MB i 1–2 minuty, więc okno jest szerokie).
-Anulowane: **32627834180** (`1bbbbe1`), **32627895581** (`de97385`), **32627937670** (`c4b2901`).
+Anulowane: **32627834180** (`1bbbbe1`), **32627895581** (`de97385`), **32627937670** (`c4b2901`),
+**32628026747** (`070559a`) — cztery, po jednym na każdy push tej fazy.
 `pr-review.yml` i composite action pozostają NIETKNIĘTE — kryterium 7.7 nie jest tym naruszone.
 Recenzja tego PR-a jest doradcza (nagłówek `pr-review.yml`: nie jest w `needs:`, nie jest
 required check), więc anulowanie nie zdejmuje żadnej bramki.
