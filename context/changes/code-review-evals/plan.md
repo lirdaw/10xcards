@@ -1125,9 +1125,9 @@ bo za miesiąc „plan zatrzymany na fazie 7" i „plan, któremu coś padło" w
 
 #### Manual
 
-- [x] 6.3 Notatka pomiarowa zawiera realny rachunek z `/api/v1/key`, nie `total_cost_usd`
-- [x] 6.4 Decyzja o asercji `=== null` podjęta i uzasadniona
-- [x] 6.5 Wydatek zsumowany; przekroczenie rezerwy = zatrzymanie i rozmowa, nie dopłata
+- [x] 6.3 Notatka pomiarowa zawiera realny rachunek z `/api/v1/key`, nie `total_cost_usd` — ee894b7
+- [x] 6.4 Decyzja o asercji `=== null` podjęta i uzasadniona — ee894b7
+- [x] 6.5 Wydatek zsumowany; przekroczenie rezerwy = zatrzymanie i rozmowa, nie dopłata — ee894b7
 
 ### Phase 7: Pierwsze pełne przejście macierzy 2×2
 
