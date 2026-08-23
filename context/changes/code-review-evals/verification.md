@@ -908,3 +908,34 @@ Zmiana odcisku **unieważnia trzy istniejące wpisy cache'u** (dwie komórki `sa
 haiku/kontrola negatywna), więc następne przejście macierzy będzie ZIMNE i zapłaci ~0,08 USD.
 To jest cena za to, że klucz przestaje być węższy niż wywołanie — i jest to cena jednorazowa,
 w odróżnieniu od kosztu przebiegu, który po cichu mierzył stary prompt.
+
+---
+
+## Triage impl-review — F7: kryterium 7.3 domknięte POMIAREM, nie czynnością
+
+**Data**: 2026-08-23
+**Koszt**: **0,00 USD** (`PR code review` na tym PR-ze jest anulowany przy każdym pushu).
+
+Do tej chwili 7.3 było jedyną z sześciu otwartych pozycji, którą zamykała CZYNNOŚĆ, a nie pomiar:
+gałąź stała 9 commitów przed `origin`, ze zdalnym czubkiem na `b87f897` (koniec fazy 4), więc
+`agents-gate.yml` nie widział ani fazy 5, ani 6, ani 7 — ani żadnej z poprawek z tego triage'u.
+`lessons.md` („Gwarancja w workflow należy do konfiguracji PLIKU") mówi wprost: próbę robi się
+NA TEJ ŚCIEŻCE, na której bramka żyje, nie lokalnie.
+
+Gałąź wypchnięta ZWYKŁYM gitem (`b87f897..74346b0`), z przechodzącym hookiem `pre-push`
+(rootowy `typecheck`: 176 plików, 0 błędów). Bez `--no-verify`.
+
+| przebieg                    | id          | wynik                               |
+| --------------------------- | ----------- | ----------------------------------- |
+| **Agents gate** (`74346b0`) | 32637270773 | **success**                         |
+| Prompt ratchet              | 32637270771 | success                             |
+| PR code review              | 32637270763 | anulowany (jak zawsze na tym PR-ze) |
+
+**Zieleń NIE jest pusta — i to jest osobno sprawdzone.** Floor na wykrywanie, dołożony w fazie 3
+właśnie na tę okoliczność, wypisał w logu kroku „Test the agent package" plan TAP **`1..70`**
+oraz `# tests 70 / # pass 70 / # fail 0`. Czyli bramka uruchomiła komplet — łącznie z siedmioma
+przypadkami osi odcisku (F1), dwoma zapadkami rejestru asercji (F4) i czterema na diagnozę
+spawnu (F6). Bramka, która niczego nie uruchomiła, wyglądałaby dokładnie tak samo bez tej linii.
+
+Pozostałych pięć pozycji (6.1, 6.2, 7.1, 7.2, 7.5) zostaje otwartych — każda opisuje warunek,
+który NIE został spełniony, i żadnej z nich nie zamyka czynność.

@@ -240,7 +240,12 @@ a nie ukryte.
   otwartych słusznie i nie ma tu nic do naprawienia.
 - **Fix**: wypchnąć gałąź i potwierdzić zielony przebieg `agents-gate.yml` — wtedy 7.3 zamyka się
   pomiarem.
-- **Decision**: PENDING
+- **Decision**: **FIXED** — gałąź wypchnięta zwykłym gitem (`b87f897..74346b0`, hook `pre-push`
+  przeszedł, bez `--no-verify`). **`Agents gate` przebieg 32637270773 — success** na czubku
+  zawierającym fazy 5-7 ORAZ wszystkie poprawki z tego triage’u. Zieleń sprawdzona jako
+  NIEPUSTA: floor na wykrywanie wypisał w logu plan TAP **`1..70`** i `# pass 70 / # fail 0`.
+  `## Progress` 7.3 odhaczone — pomiarem, nie czynnością. Pozostałe pięć pozycji (6.1, 6.2,
+  7.1, 7.2, 7.5) zostaje otwartych i tak ma zostać.
 
 ### F8 — `runReview` przestawia globalny `process.env` wewnątrz procesu promptfoo
 

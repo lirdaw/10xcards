@@ -1151,7 +1151,7 @@ bo za miesiąc „plan zatrzymany na fazie 7" i „plan, któremu coś padło" w
 
 - [ ] 7.1 Cztery komórki, wszystkie asercje twarde zielone
 - [ ] 7.2 Powtórzenie przejścia darmowe (cztery trafienia, zużycie klucza niezmienione)
-- [ ] 7.3 `typecheck`, `test` i `agents-gate.yml` zielone
+- [x] 7.3 `typecheck`, `test` i `agents-gate.yml` zielone — 74346b0 (przebieg 32637270773, TAP `1..70`)
 
 #### Manual
 
