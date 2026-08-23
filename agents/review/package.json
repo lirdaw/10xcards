@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "review": "tsx review.ts",
-    "criteria": "tsx generate-criteria.ts"
+    "criteria": "tsx generate-criteria.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --experimental-strip-types --test",
+    "eval": "tsx evals/report.ts"
   },
   "keywords": [],
   "author": "",
@@ -17,6 +20,8 @@
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
-    "tsx": "^4.23.12"
+    "promptfoo": "^0.122.0",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.3"
   }
 }

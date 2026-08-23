@@ -1,0 +1,42 @@
+{
+  // Bramka typów nad pakietem agenta. Nie istniała wcale: rootowy `tsconfig.json` ma
+  // `exclude: ["dist", "context", "agents"]`, a `eslint.config.js` ignoruje `agents/**` — więc
+  // do tej pory NIC w repo nie sprawdzało tych plików. Ten plik zakłada bramkę, a nie rozszerza
+  // istniejącą; pomiar przed jej napisaniem dał ZERO błędów, czyli nie odsłania długu.
+  //
+  // Zasięg celowo szerszy niż dzisiejsza zawartość katalogu: `include: ["**/*.ts"]` obejmie
+  // `evals/`, który powstanie w fazie 4, bez dopisywania czegokolwiek tutaj. Bramka, której
+  // trzeba pilnować przy każdym nowym katalogu, jest bramką na czujność autora.
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+
+    // ESM zgodny z `"type": "module"` w `package.json` i z runtime'em, na którym ten pakiet
+    // NAPRAWDĘ jedzie: `node --experimental-strip-types` (testy) i `tsx` (skrypt `review`).
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "es2023",
+    "lib": ["es2023"],
+
+    // Importy w tym pakiecie niosą jawne `.ts` (`./review-schema.ts`) — bo tego wymaga
+    // type-stripping Node'a, który niczego nie rozwiązuje po rozszerzeniach. Bez tej flagi
+    // tsc czerwieni każdy taki import; przy `noEmit` nie ma to żadnego kosztu.
+    "allowImportingTsExtensions": true,
+
+    // Dwie flagi pilnujące tego, czego `strict` nie widzi, a co pada dopiero W RUNTIME pod
+    // type-strippingiem — czyli dokładnie tej klasy, dla której ta bramka powstaje:
+    //   * `erasableSyntaxOnly` — `enum`, `namespace`, parameter properties kompilują się pod
+    //     tsc bez słowa, a Node odmawia ich uruchomienia.
+    //   * `verbatimModuleSyntax` — `import { Options }` dla samego TYPU zostaje w wyjściu
+    //     strippera jako import WARTOŚCI, której w module nie ma. Wymuszenie `import type`
+    //     zamienia tę awarię runtime'u na czerwień tutaj.
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+
+    // Nie nasz kod i nie nasza bramka — SDK wnosi własne `.d.ts`, a ich diagnostyka nie mówi
+    // nic o tym pakiecie. Ta sama decyzja co w rootowym `astro/tsconfigs/strict`.
+    "skipLibCheck": true
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules"]
+}

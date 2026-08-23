@@ -1,0 +1,112 @@
+# Zestaw evali agenta code review — macierz 2 modele × 2 fikstury.
+#
+# Odpowiada na dwa pytania z `requirements.md` i tylko na nie: (1) czy zmiana w agencie nie zepsuła
+# wykrywania klasy błędu, (2) czy tańszy model wystarcza. Iloczyn providerów i testów w JEDNYM
+# przebiegu z tabelą per komórka jest jedyną rzeczą, którą promptfoo daje nam realnie i której
+# harness vitestowy nie umie bez dwóch dispatchy i ręcznego diffowania logów.
+#
+# ⚑ Diff jedzie przez `vars`, NIE przez prompt. Prompt tej macierzy jest ZNACZNIKIEM fikstury i ma
+# nim zostać: materiał trafia do modelu dopiero przez `wrapDiff` wewnątrz `runReview`, czyli z tym
+# samym noncem i tą samą obroną, co na PR-ze. Wklejenie `{{diff}}` do prompta niczego by nie
+# naprawiło, a zaśmieciłoby tabelę półtorakilobajtowym diffem w kolumnie prompta.
+#
+# ⚑ `diffPath` to ZWYKŁA ścieżka względem `agents/review/`, nigdy `file://` — i to jest pomiar,
+# nie preferencja. `loadFileReference` w promptfoo rozwija `file://` w `vars` dla `.json`, `.yaml`,
+# `.js`/`.ts`, `.py`, `.txt`, `.md` i plików bez rozszerzenia; dla `.diff` przepuszcza ścieżkę jako
+# TEKST — sprawdzone na tej konfiguracji: do providera trafił string `"file://..\sample.diff"`
+# (21 znaków), czyli model recenzowałby ścieżkę i zwracał poprawny kontrakt nad niczym. Provider
+# odmawia teraz przy wartości zaczynającej się od `file://`, więc ta pomyłka nie może być cicha.
+#
+# ⚑ Uruchamiać przez `npm --prefix agents/review run eval`, a nie przez gołe `promptfoo eval`:
+# skrypt woła `evals/report.ts`, który dopiero uruchamia przejście i dokłada rachunek per komórka
+# (wymaganie 9). Gołe `promptfoo eval` pokaże zieleń i czerwień, ale nie powie, za ile.
+
+description: Code review agent — matrix over cheap models
+
+prompts:
+  - "fikstura: {{fixture}}"
+
+# Ten SAM plik providera wpięty dwa razy, różny wyłącznie `label` i `config.model`. Sonneta tu nie
+# ma świadomie: +0,39 USD na przejście przy ~0,50 USD dostępnych, a liczba odniesienia jest już
+# zmierzona (0,1935 USD/komórka) i wystarcza do odpowiedzi na pytanie 2.
+providers:
+  - id: file://provider.ts
+    label: haiku-4.5
+    config:
+      model: anthropic/claude-haiku-4.5
+      # Bezpiecznik od patologii, NIE bramka kosztowa: SDK liczy go z cennika Anthropica, w którym
+      # identyfikatorów OpenRoutera nie ma. 0,60 leży POWYŻEJ najgorszego zimnego przebiegu (0,4530
+      # wg licznika SDK) — cap ustawiony niżej produkuje bramkę flaky, w której „model przestał
+      # łapać klasę błędu" jest nieodróżnialne od „cache był zimny". Bramką kosztową jest
+      # `pricing.ts` liczący tokeny × cennik OpenRoutera.
+      maxBudgetUsd: 0.6
+
+  - id: file://provider.ts
+    label: gemini-2.5-flash
+    config:
+      model: google/gemini-2.5-flash
+      maxBudgetUsd: 0.6
+
+# Asercje WSPÓLNE dla obu fikstur. Wszystkie `javascript` nad `context.providerResponse`, czyli
+# deterministyczne i darmowe; każda wpięta OSOBNO, żeby czerwień była przypisana do konkretnej
+# asercji, a nie do jednej zbiorczej, w której nie widać, co pękło. Uzasadnienie każdej z nich —
+# i lista asercji ŚWIADOMIE POMINIĘTYCH jako tautologie po `safeParse` — siedzi w `assertions.ts`.
+defaultTest:
+  assert:
+    - type: javascript
+      value: file://assertions.ts:noProviderError
+      metric: no-provider-error
+    - type: javascript
+      value: file://assertions.ts:verdictMatchesFixture
+      metric: verdict
+    - type: javascript
+      value: file://assertions.ts:scoresWithinScale
+      metric: score-range
+    - type: javascript
+      value: file://assertions.ts:scopeDisciplineScored
+      metric: scope-discipline-scored
+    - type: javascript
+      value: file://assertions.ts:notesNonEmpty
+      metric: notes-non-empty
+
+tests:
+  # Slot 1. Czym ta komórka JEST, żeby nikt jej później nie przecenił: bramką regresji na „agent
+  # nadal widzi ten diff jako zły", a NIE testem wykrywania połkniętego błędu w ogólności. Wybrana,
+  # bo to JEDYNY materiał, na którym wszystkie trzy modele są już zmierzone po `0d3eba5` — asercje
+  # piszemy na zmierzonym, nie na przewidywanym.
+  - description: sample.diff — agent nadal widzi ten diff jako zły
+    vars:
+      fixture: sample.diff
+      diffPath: sample.diff
+      expectedVerdict: fail
+    assert:
+      # Asercja wyłącznie tego slotu: dokładnie ta para, którą naprawiał `0d3eba5`.
+      - type: javascript
+        value: file://assertions.ts:swallowedErrorPair
+        metric: swallowed-error-pair
+
+  # Slot 2 — KONTROLA NEGATYWNA. Bez niej agent odpowiadający zawsze „fail" zalicza cały zestaw,
+  # a zestaw mierzy skłonność do czerwieni, nie wykrywanie. Tekstowość materiału jest WARUNKIEM
+  # POPRAWNOŚCI, nie wygodą: definicja „nie dotyczy" dla kryterium 7 wymienia wprost zmianę
+  # wyłącznie w treści UI lub dokumentacji, więc tylko przy takim materiale `null` jest legalny.
+  #
+  # ⚑ Asercja `swallowedError === null` / `gateIntegrity === null` NIE JEST TU TWARDA, i to jest
+  # decyzja podjęta PO pomiarze (faza 6), a nie odłożenie. Kontrola negatywna najpierw ZMIERZYŁA:
+  # haiku wystawiło na tej fiksturze 10 i 10 zamiast `null`, z notami mówiącymi wprost „kryterium
+  # nie dotyczy, ale ocena 10 oddaje fakt braku ryzyka" — czyli rozpoznało materiał poprawnie
+  # i odrzuciło samą regułę. Reguła wchodzi więc jako OBSERWACJA MIĘKKA (`expectConditionalNull`
+  # niżej): raportowana w każdym przejściu, nie bramkująca zieleni. Twarda czerwieniłaby każde
+  # przejście na stanie ZMIERZONYM i świadomie nienaprawionym, a wtedy przestałaby odróżniać nową
+  # regresję od znanego stanu. Warunek, po którym staje się bramką, jest zapisany w planie
+  # (Open Risks) jako PYTANIE DO POMIARU, nie jako zadanie do odhaczenia.
+  - description: clean-text-change.diff — kontrola negatywna, sama treść UI i dokumentacji
+    vars:
+      fixture: clean-text-change.diff
+      diffPath: evals/fixtures/clean-text-change.diff
+      expectedVerdict: pass
+      # Włącza OBSERWACJĘ MIĘKKĄ `conditional-null-contract` — raportowaną, NIE bramkującą.
+      # Zmierzone w fazie 6: haiku wystawia tu `swallowedError: 10` i `gateIntegrity: 10` zamiast
+      # `null`, z notą „kryterium nie dotyczy, ale ocena 10 oddaje fakt braku ryzyka". Twarda
+      # asercja czerwieniłaby każde przejście na defekcie ZMIERZONYM i świadomie nienaprawionym,
+      # a wtedy czerwień przestaje odróżniać nową regresję od znanego stanu.
+      expectConditionalNull: true
