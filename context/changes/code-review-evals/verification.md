@@ -939,3 +939,8 @@ spawnu (F6). Bramka, która niczego nie uruchomiła, wyglądałaby dokładnie ta
 
 Pozostałych pięć pozycji (6.1, 6.2, 7.1, 7.2, 7.5) zostaje otwartych — każda opisuje warunek,
 który NIE został spełniony, i żadnej z nich nie zamyka czynność.
+
+⛑ **Drugi przebieg, już na czubku domykającym cały triage** (`b22a5cd`, po naprawach F6 i F8):
+**Agents gate 32637631099 — success**, plan TAP `1..70`. To ten przebieg, a nie poprzedni, jest
+dowodem dla stanu końcowego. Commity dopisane PO nim dotykają wyłącznie `context/`, czego filtr
+`paths` tego workflow świadomie nie łapie — więc brak dla nich przebiegu nie jest luką.
