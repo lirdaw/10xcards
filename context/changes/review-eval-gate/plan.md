@@ -1304,26 +1304,26 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 
 #### Manual
 
-- [x] 4.7 `eval-ratchet.yml` bez sekretu — sprawdzone wzrokowo
-- [x] 4.8 Komunikaty czerwieni spełniają wymaganie 7
-- [x] 4.9 Nazwa i komunikaty nie sugerują „prompt sprawdzony" (D3)
+- [x] 4.7 `eval-ratchet.yml` bez sekretu — sprawdzone wzrokowo — 5d7c5ad
+- [x] 4.8 Komunikaty czerwieni spełniają wymaganie 7 — 5d7c5ad
+- [x] 4.9 Nazwa i komunikaty nie sugerują „prompt sprawdzony" (D3) — 5d7c5ad
 
 ### Phase 5: Dwustronna kontrola pozytywna na żywym CI
 
 #### Automated
 
-- [x] 5.1 `PR code review` wyłączony przed otwarciem PR-a (`disabled_manually`)
-- [x] 5.2 PR `review-eval-gate` → `main` otwarty, `Eval ratchet` na liście checków
-- [x] 5.3 `Eval ratchet` CZERWONY na sondzie P1
-- [x] 5.4 `Eval ratchet` CZERWONY na sondzie P2 z cytatem `5 → 8`
-- [x] 5.5 `Eval ratchet` ZIELONY po rewertach
-- [x] 5.6 Brak `--no-verify` w historii; sondy weszły zwykłym pushem
-- [ ] 5.7 `PR code review` WŁĄCZONY z powrotem (`active`) — warunek zamknięcia fazy
-- [x] 5.8 Pełny zestaw bramek zielony na finalnym stanie gałęzi
+- [x] 5.1 `PR code review` wyłączony przed otwarciem PR-a (`disabled_manually`) — 5d7c5ad
+- [x] 5.2 PR `review-eval-gate` → `main` otwarty, `Eval ratchet` na liście checków — 5d7c5ad
+- [x] 5.3 `Eval ratchet` CZERWONY na sondzie P1 — 5d7c5ad
+- [x] 5.4 `Eval ratchet` CZERWONY na sondzie P2 z cytatem `5 → 8` — 5d7c5ad
+- [x] 5.5 `Eval ratchet` ZIELONY po rewertach — 5d7c5ad
+- [x] 5.6 Brak `--no-verify` w historii; sondy weszły zwykłym pushem — 5d7c5ad
+- [x] 5.7 `PR code review` WŁĄCZONY z powrotem (`active`) — warunek zamknięcia fazy — 5d7c5ad
+- [x] 5.8 Pełny zestaw bramek zielony na finalnym stanie gałęzi — 5d7c5ad
 
 #### Manual
 
-- [x] 5.9 Komunikat P2 mówi wprost, że macierzy przejeżdżać nie trzeba
-- [x] 5.10 Komunikat P1 mówi wprost, że przejście kosztuje
-- [x] 5.11 `verification.md` niesie obie połowy i nazwaną zmienną różnicy
-- [x] 5.12 Rewerty czyste, odcisk z powrotem `59ee111b…` (kotwica niezmieniona — D-8 cofnięte)
+- [x] 5.9 Komunikat P2 mówi wprost, że macierzy przejeżdżać nie trzeba — 5d7c5ad
+- [x] 5.10 Komunikat P1 mówi wprost, że przejście kosztuje — 5d7c5ad
+- [x] 5.11 `verification.md` niesie obie połowy i nazwaną zmienną różnicy — 5d7c5ad
+- [x] 5.12 Rewerty czyste, odcisk z powrotem `59ee111b…` (kotwica niezmieniona — D-8 cofnięte) — 5d7c5ad

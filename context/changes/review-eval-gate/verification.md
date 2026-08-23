@@ -850,10 +850,15 @@ draftu to `opened` = jeden przebieg, a każdy z czterech pushy sondy to `synchro
 Kotwica: 0,6447345 USD za przebieg (PR #48, run `32637738782`, `sonnet-4.6`).
 
 **Dowód, że strażnik zadziałał, jest odczytem, nie deklaracją:** ostatni przebieg `pr-review.yml`
-w repo to `989b062` z **12:39Z**, a cała faza 5 biegła między **19:43Z i 19:56Z**. Pięć zdarzeń
-`pull_request` (1 × `opened`, 4 × `synchronize`) nie wywołało ANI JEDNEGO przebiegu review. Bez
-strażnika byłoby to ~3,22 USD — czterokrotność budżetu 1,50 USD całej tej zmiany, na bramce, która
-z nią nie ma nic wspólnego.
+w repo to `989b062` z **12:39Z** — i tak zostało po zamknięciu fazy, sprawdzone PO ponownym
+włączeniu bramki. Faza 5 wyprodukowała **sześć** zdarzeń `pull_request` (1 × `opened`, 5 ×
+`synchronize`: `3b905af`, `1b2c9ed`, `bef7696`, `ea93869`, `5d7c5ad`) i żadne z nich nie wywołało
+przebiegu review. Bez strażnika byłoby to **~3,87 USD** (6 × 0,6447345) — dwuipółkrotność budżetu
+1,50 USD całej tej zmiany, wydana na bramce, która z nią nie ma nic wspólnego.
+
+⚑ `concurrency` z `cancel-in-progress: true` część tego rachunku by odjęło (szybkie kolejne pushe
+kasują starsze przebiegi), więc 3,87 USD jest górnym oszacowaniem, nie kwotą pewną. Nie zmienia to
+wniosku: żaden z tych sześciu przebiegów nie był potrzebny do niczego w tej fazie.
 
 ### Otwarcie ścieżki (krok 0b)
 
@@ -1063,6 +1068,48 @@ WŁASNY warunek nieświeżości i pole, po którym się go sprawdza, dała się 
 zamiast zestarzeć się cicho i być czytana jako opis dzisiejszego stanu. Kosztem jest to, że ktoś
 musi ten warunek sprawdzić; tu zrobiła to weryfikacja ręczna kryterium 4.9 i to jest jedyny powód,
 dla którego ta usterka nie pojechała na `main`.
+
+### Wiersze ODWOŁANE fazy 3a — weryfikacja PRZESŁANEK, nie samych kroków
+
+Pięć wierszy Progress zostaje pustych (`3a.3`, `3a.4`, `3a.7`, `3a.8`, `3a.9`). Pusty checkbox
+z powodem jest uprawniony **tylko wtedy, gdy powód jest prawdziwy** — inaczej „ODWOŁANE" jest
+tańszą wersją „nie zrobiłem". Sprawdzone przed domknięciem planu, każdy z osobna.
+
+**3a.7 — „pomiar nie dał czego cytować".** PRAWDA, i to zapisana dosłownie: sekcja pomiaru 3a.1
+w tym pliku kończy się nagłówkiem „⚑ Odpowiedź na pytanie fazy: czy WIADOMO, co liczy `numTurns`?"
+i zdaniem **„NIE. Nadal nie wiadomo — i dlatego nie proponuję wartości `maxTurns`."** Krok żądał
+wartości wybranej z CYTOWANEGO odczytu; odczyt, z którego można by cytować, nie powstał. Krok jest
+więc niewykonalny, a nie pominięty — i to jest różnica, którą pusty wiersz ma nieść.
+
+**3a.8 — „produkcji nie ruszamy".** PRAWDA, sprawdzona DWOMA niezależnymi drogami, bo pierwsza
+sama z siebie nie wystarcza:
+
+1. _Diff całej zmiany_ (`git diff <merge-base z main> HEAD`) na plikach wywołania produkcyjnego:
+   `review.ts`, `prompt.ts`, `review-schema.ts` — **zero zmian**; `run-review.ts` — 39 linii, ale
+   **wyłącznie diagnostyka**: przeniesienie surowego `subtype` i `terminal_reason` z wyniku SDK
+   obok `kind`, plus opcjonalny parametr `reviewFailure`. `FIXED_CALL_OPTIONS.maxTurns` = **2**,
+   `tools` = `[]`, pin modelu `anthropic/claude-sonnet-4.6` — wszystkie nietknięte.
+2. _Odcisk POLICZONY na drzewie_ = `59ee111bb431…`, czyli kotwica sprzed zmiany, co do bajtu.
+   To jest niezależne potwierdzenie, a nie powtórzenie punktu 1: jedną z czterech osi tego odcisku
+   są **stałe wywołania SDK z `run-review.ts`**, więc gdyby te 39 linii dotknęły wywołania, odcisk
+   by się ruszył. Nie ruszył się.
+
+Wniosek: nie ma nowej wartości, na której miałoby się ćwiczyć recenzenta produkcyjnego, bo nie ma
+żadnej nowej wartości. Krok stracił przedmiot.
+
+**3a.9 — „koszt produkcyjny się nie zmienia, więc ~135 USD/mies. zostaje w mocy".** PRAWDA, i to
+WYNIKA z 3a.8, a nie jest osobnym twierdzeniem. Projekcja liczyła się z dwóch wielkości:
+**0,6447345 USD** za przebieg i **2 tury**. Podniesienie `maxTurns` było jedynym powodem, dla
+którego miałaby się przeliczać (plan: „podniesienie `maxTurns` skaluje rachunek produkcyjny, a nie
+tylko rachunek macierzy"). `maxTurns` = 2 stoi, więc obie wielkości stoją, a projekcja zostaje
+w mocy **nieprzeliczona** — nie „nieaktualna". Kotwica 0,6447345 USD została przy okazji użyta na
+świeżo w fazie 5, przy rachunku strażnika kosztu.
+
+**3a.3 / 3a.4 (automatyczne).** `3a.3` („po wyborze wartości: typecheck, testy, lint") ma tę samą
+przesłankę co 3a.7 — wyboru nie było. Dla porządku: te trzy bramki i tak biegły później, w fazach
+3–5, i są zielone. `3a.4` („nowy odcisk jako NOWA kotwica") jest odwołany w mocniejszy sposób niż
+pozostałe: kotwica została **sprawdzona i celowo utrzymana** na `59ee111b…`, przeliczeniem, nie
+odczytem z rekordu. Ten wiersz nie jest niewykonany — jest wykonany w drugą stronę.
 
 ### Krok 5 — przywrócenie bramki review
 
