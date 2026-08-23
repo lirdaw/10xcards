@@ -67,9 +67,13 @@ Pełny zapis: `verification.md` (dowody per faza), `plan.md` (sekcja „Open Ris
 - **Cztery ryzyka otwarte**, każde z warunkiem zamknięcia sformułowanym jako PYTANIE DO POMIARU:
   duplikacja `SCORE_MIN`/`SCORE_MAX`, wyścig cache'u promptfoo, kontrakt `null` odrzucany przez
   model, `maxTurns: 2` jako nienazwane założenie o wielkości wejścia.
-- **Sześć pozycji `## Progress` zostaje NIEODHACZONYCH** (6.1, 6.2, 7.1, 7.2, 7.3, 7.5) —
-  świadomie. Każda opisuje warunek, który NIE został spełniony, a odhaczenie z przypisem
-  zrównałoby „niezmierzone" ze „zmierzonym i w porządku". Powody per pozycja: `verification.md`,
-  faza 7. **7.3 różni się od pozostałych**: `typecheck` i `test` są zielone lokalnie, ale
-  `agents-gate.yml` wymaga przebiegu CI, a gałąź nie została wypchnięta — to jedyna z tych sześciu
-  pozycji, którą zamyka czynność, a nie pomiar.
+- **Pięć pozycji `## Progress` zostaje NIEODHACZONYCH** (6.1, 6.2, 7.1, 7.2, 7.5) — świadomie.
+  Każda opisuje warunek, który NIE został spełniony, a odhaczenie z przypisem zrównałoby
+  „niezmierzone" ze „zmierzonym i w porządku". Powody per pozycja: `verification.md`, faza 7.
+
+  > **Korekta po triage’u impl-review** (2026-08-23): było sześć, jest pięć. **7.3 różniło się
+  > od pozostałych** — `typecheck` i `test` były zielone lokalnie, ale `agents-gate.yml` wymaga
+  > przebiegu CI, a gałąź nie była wypchnięta — czyli jako jedyną zamykała ją CZYNNOŚĆ, nie pomiar.
+  > Czynność wykonana: gałąź wypchnięta (`b87f897..74346b0`), **`Agents gate` 32637270773 —
+  > success**, plan TAP `1..70` w logu (zieleń niepusta). Pozostałe pięć zamyka wyłącznie pomiar
+  > i tak ma zostać.
