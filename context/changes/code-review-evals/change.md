@@ -28,6 +28,35 @@ plik `cache.json`, więc dwa równoległe przebiegi kasują sobie wpisy. Albo `c
 workflow, albo własny `PROMPTFOO_CACHE_PATH` na przebieg — inaczej wyścig objawi się nie awarią,
 tylko rachunkiem.
 
+---
+
+**Drugi dług: promptfoo jedzie na PRODUKCYJNEJ ścieżce review, a fallback `--omit=dev` jest
+ZDECYDOWANY i NIEOTWARTY.** Faza 4 §1 postawiła próg (≥ 15 s mediany LUB ≥ 25%) i zobowiązała:
+przekroczenie → fallback otwarty OSOBNĄ zmianą przed zarchiwizowaniem tej. Próg przekroczony
+**dwudziestopięciokrotnie**, i to są liczby, nie ocena:
+
+| miara                                             | przed promptfoo | po promptfoo  | zmiana          |
+| ------------------------------------------------- | --------------- | ------------- | --------------- |
+| mediana `npm ci` (katalog izolowany, 3 przebiegi) | 5 758 ms        | **38 302 ms** | **+565%**       |
+| `node_modules` rozpakowane                        | 392 MB          | **2 099 MB**  | **5,4x**        |
+| wpisy `node_modules/` w `package-lock.json`       | 141             | **827**       | **+686 paczek** |
+
+Pełny zapis pomiaru: `verification.md`, faza 4, sekcja „`npm ci` przed i po dodaniu promptfoo".
+`.github/actions/review-agent/action.yml:126` robi gołe `npm ci` (bez `--omit=dev`), a `tsx` jest
+devDependency — więc KAŻDY przebieg review na KAŻDYM PR-ze w tym repo instaluje dziś promptfoo.
+Bez tych liczb „fallback: TAK" za miesiąc przeczyta się jak preferencja, a nie jak decyzja
+wymuszona pomiarem.
+
+**Warunek zamknięcia — CZYNNOŚĆ Z DOWODEM, nie zamiar:** osobna zmiana przenosząca `tsx` do
+`dependencies` i dokładająca `npm ci --omit=dev` w composite action, **plus PARA DOWODOWA na
+PR-ze** potwierdzająca, że review nadal działa (przebieg przed i po, oba numery zapisane).
+To jest zmiana na produkcyjnej ścieżce CI, więc **nie wolno jej domknąć samym commitem** —
+pierwszy dowód, że nie zepsuła review, nie może przyjść na cudzym PR-ze.
+
+Druga dźwignia do zmierzenia obok pierwszej, nie zamiast: ciężar siedzi w `optionalDependencies`
+promptfoo (42 opcjonalne zależności — `@playwright/browser-chromium`, `@huggingface/transformers`,
+`sharp`, `@swc/core`), więc `npm ci --omit=optional` należy zmierzyć w tej samej parze.
+
 ## Stan na zamknięcie fazy 7
 
 Pełny zapis: `verification.md` (dowody per faza), `plan.md` (sekcja „Open Risks"),

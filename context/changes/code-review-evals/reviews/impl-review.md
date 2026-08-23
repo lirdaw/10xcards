@@ -117,7 +117,14 @@ a nie ukryte.
   workflow evali, z tym samym kształtem: nazwa + warunek zamknięcia + liczba) i otworzyć zmianę
   przez `/10x-new` przed archiwizacją. Liczbę w `action.yml:124-126` poprawić przy tamtej zmianie,
   nie tutaj — to ścieżka produkcyjna.
-- **Decision**: PENDING
+- **Decision**: **FIXED (zapis)** — wariant „tylko change.md, bez zakładania folderu”, wybrany
+  w triage’u. Dług dopisany do sekcji „Dług zapisany jawnie” obok długu workflow evali, z trzema
+  LICZBAMI zamiast oceny (mediana `npm ci` 5 758 → 38 302 ms, `node_modules` 392 → 2 099 MB,
+  lock 141 → 827 paczek) i z warunkiem zamknięcia sformułowanym jako CZYNNOŚĆ Z DOWODEM:
+  `tsx` → `dependencies` + `npm ci --omit=dev` w composite action **plus para dowodowa na PR-ze**,
+  bo to ścieżka produkcyjna i nie wolno jej domknąć samym commitem. Założenie folderu zmiany
+  (`/10x-new`) zostaje po stronie użytkownika. Komentarz `action.yml:124-126` („~335 MB”) —
+  świadomie NIE ruszony tutaj: to plik na ścieżce produkcyjnej, poprawka należy do tamtej zmiany.
 
 ### F3 — `runEval` spawnuje promptfoo bez `timeout`, a job bramki nie ma `timeout-minutes`
 
