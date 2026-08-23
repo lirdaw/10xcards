@@ -2,6 +2,9 @@
 
 Rejestr pomiarów tej zmiany. Jedna sekcja na fazę, w kolejności chronologicznej.
 
+> Faza 3a jest chronologicznie PÓŹNIEJSZA niż faza 3 (dopisana po jej zatrzymaniu), ale stoi
+> niżej — sekcje idą w kolejności faz, nie zegara. Jej data i tak jest przy niej.
+
 ---
 
 ## Faza 3 — Przejście macierzy. ZATRZYMANA na kryterium 3.6
@@ -239,3 +242,121 @@ zapadkę) — czyli dokładnie ta decyzja, której nie wolno podjąć pod presj�
    nierozstrzygana przez nikogo, kogo jej wynik odblokowuje.
 4. **Fazy 4 i 5 wracają dopiero nad macierzą, która potrafi zzielenieć** — czyli po (2), a jeśli
    (3) rozstrzygnie się w drugą stronę, to w kształcie, który ta decyzja wyznaczy.
+
+> ⚑ **KOREKTA punktu 2 tej propozycji — 2026-08-23, decyzja D-8.** Człowiek rozstrzygnął inaczej:
+> „macierz, która potrafi dojechać" NIE staje się osobną zmianą, tylko wchodzi do TEJ jako
+> faza 3a, a budżet rośnie 0,50 → 1,50 USD. Powód (pełny zapis w `requirements.md`): obie połowy
+> dzielą oś 4 odcisku, więc rozdzielone musiałyby się nawzajem przekotwiczać. Punkty 1, 3 i 4
+> zostają w mocy — w szczególności punkt 3, czyli pytanie o D-6, dalej nie jest rozstrzygane tutaj.
+
+---
+
+## Faza 3a.1 — POMIAR licznika tur. Sześć przebiegów
+
+**Data**: 2026-08-23
+**Gałąź**: `review-eval-gate`, HEAD `317a720`
+**Fikstura**: `agents/review/evals/fixtures/clean-text-change.diff` (ta, która dziś nie dojeżdża)
+**Siatka**: 2 modele × `maxTurns` ∈ {3, 4, 5}, po JEDNYM przebiegu na komórkę
+**Klucz**: `ANTHROPIC_AUTH_TOKEN` zmapowany z `OPENROUTER_REVIEW_KEY` na czas komendy
+**Dane surowe**: `context/changes/review-eval-gate/measurement-turn-counter.json`
+
+### Jak mierzono — i czego NIE dotknięto
+
+`maxTurns` nadpisywany przez szew, który `runReview` już ma: wstrzykiwalne `query`. Wrapper
+podmienia `options.maxTurns` i podgląda strumień, żeby złapać wiadomość `result` TAKŻE wtedy, gdy
+`runReview` rzuci — bo `numTurns` na przebiegu NIEUDANYM jest tu całym przedmiotem pomiaru.
+**W drzewie nie zmieniła się ani jedna linia produkcyjna**: `agents/review/run-review.ts` ma dalej
+`maxTurns: 2` (kryterium 3a.2 sprawdzone przez `git status`). Skrypt pomiarowy żyje poza repo.
+
+**Cap budżetu SDK podniesiony na czas pomiaru do 2,0 USD** (macierz używa 0,6) i to jest decyzja,
+nie niechlujstwo: pytaniem jest licznik TUR, a przebieg ubity capem oddałby
+`error_max_budget_usd` zamiast odpowiedzi o turach. Realny wydatek ogranicza się i tak tokenami,
+a odczyt `/api/v1/key` między przebiegami widzi go od razu.
+
+### Wynik — sześć przebiegów
+
+| #   | model            | `maxTurns` | `numTurns` | `subtype`                             | `terminal_reason`                   | wynik |
+| --- | ---------------- | ---------- | ---------- | ------------------------------------- | ----------------------------------- | ----- |
+| 1   | haiku-4.5        | **3**      | **3**      | `success`                             | `completed`                         | ✅    |
+| 2   | gemini-2.5-flash | **3**      | **4**      | `error_max_turns`                     | `max_turns`                         | ❌    |
+| 3   | haiku-4.5        | **4**      | **3**      | `success`                             | `completed`                         | ✅    |
+| 4   | gemini-2.5-flash | **4**      | **3**      | `success`                             | `completed`                         | ✅    |
+| 5   | haiku-4.5        | **5**      | **3**      | `success`                             | `completed`                         | ✅    |
+| 6   | gemini-2.5-flash | **5**      | **6**      | `error_max_structured_output_retries` | `structured_output_retry_exhausted` | ❌    |
+
+Tokeny i czas (z SDK — sprawozdawczo, NIE do rachunku):
+
+| #   | out   | cache zapis | cache odczyt | czas [ms] | `total_cost_usd` SDK |
+| --- | ----- | ----------- | ------------ | --------- | -------------------- |
+| 1   | 8 313 | 54 776      | 32 778       | 88 360    | 0,574589             |
+| 2   | 2 989 | 53 873      | 53 873       | 197 024   | 0,725685             |
+| 3   | 5 364 | 20 440      | 65 556       | 49 680    | 0,302413             |
+| 4   | 3 918 | 53 830      | 53 830       | 25 794    | 0,468173             |
+| 5   | 4 803 | 20 388      | 65 556       | 48 806    | 0,288153             |
+| 6   | 7 308 | 110 017     | 110 017      | 52 304    | 0,932225             |
+
+### Rachunek
+
+| moment                                    | `usage`         |
+| ----------------------------------------- | --------------- |
+| przed przebiegiem 1                       | **3,850512303** |
+| po przebiegu 6 (odczyt natychmiastowy)    | **4,198824674** |
+| **odczyt OPÓŹNIONY, `2026-08-23T17:41Z`** | **4,232249153** |
+
+**Pomiar kosztował 0,381737 USD** (prognoza: ~0,35). Odczyt opóźniony dołożył **0,033424** ponad
+odczyt natychmiastowy — czyli opóźnione księgowanie zadziałało tym razem realnie, dokładnie tak,
+jak przewiduje reguła z `measurement-negative-control.md:154-157`.
+
+**Łącznie na tę zmianę: 0,235012 (faza 3) + 0,381737 (faza 3a.1) = 0,616749 USD z 1,50 USD.**
+
+> ⚑ **Kosztu POJEDYNCZEGO przebiegu ten pomiar NIE ustala i nie wolno go z tej tabeli czytać.**
+> Odczyty między przebiegami są rozjechane opóźnionym księgowaniem tak mocno, że kolumna „delta"
+> byłaby fikcją: przebieg 3 (haiku, udany, 5 364 tokeny wyjścia) pokazuje deltę **0,000000**,
+> a przebieg 2 (gemini, model kilkukrotnie tańszy) — **0,143496**, czyli oczywiście cudzy rachunek
+> zaksięgowany z poślizgiem. Wiarygodna jest wyłącznie **suma**, bo jest domknięta odczytem
+> opóźnionym z obu stron. Per-przebieg wymagałby okien izolowanych odczekaniem, czego ta siatka
+> nie robiła. Surowe `usageBefore`/`usageAfter` są w JSON-ie obok — jako dane, nie jako rachunek.
+
+> Uwaga porządkowa: `limit_remaining` klucza `OPENROUTER_REVIEW_KEY` w trakcie tej sesji wzrósł
+> (cap podniesiony poza tą zmianą). Budżetem tej zmiany jest kotwica 1,50 USD z `requirements.md`,
+> nie cap klucza — i to ona wiąże.
+
+### ⚑ Odpowiedź na pytanie fazy: czy WIADOMO, co liczy `numTurns`?
+
+**NIE. Nadal nie wiadomo — i dlatego nie proponuję wartości `maxTurns`.**
+
+Pomiar dołożył trzy fakty i ani jeden z nich nie jest odpowiedzią:
+
+1. **`numTurns` POTRAFI PRZEKROCZYĆ `maxTurns`** — przebieg 2 (4 > 3) i przebieg 6 (6 > 5). Więc
+   nie jest to licznik przycinany capem. To wyklucza najprostszą hipotezę („to ta sama wielkość"),
+   ale nie mówi, czym jest.
+2. **haiku jest STABILNY na `numTurns: 3`** przy capach 3, 4 i 5 — trzy przebiegi, trzy razy ta
+   sama liczba, za każdym razem `completed`.
+3. **Przy capie 5 gemini oddało NOWĄ klasę awarii** — `error_max_structured_output_retries`
+   (`structured_output_retry_exhausted`), która z turami nie ma wprost nic wspólnego. Czyli
+   podnoszenie capu **nie pomaga monotonicznie**: wyżej czeka inny licznik, którego ten pomiar
+   nie dotknął ani razu.
+
+**Czego to NIE wyjaśnia — czyli oryginalnej anomalii.** Zapisany przypadek brzmi: haiku,
+`maxTurns: 2`, `numTurns: 3`, `terminal_reason: completed`. Siatka miała 3/4/5, więc `maxTurns: 2`
+nie został powtórzony ani razu i anomalia stoi nietknięta. Co gorsza, nowe dane czynią ją
+**bardziej** dziwną, nie mniej: z przebiegów 1 i 2 układa się reguła „na sukcesie `numTurns` ≤ cap,
+na wywrotce `numTurns` = cap + 1" — a pod tą regułą haiku z `numTurns: 3` przy capie 2 wywrócić
+się MUSIAŁO. Raz się nie wywróciło. Przebieg 6 tę regułę i tak łamie z drugiej strony
+(`numTurns` 6 przy capie 5, ale `terminal_reason` NIE jest `max_turns`).
+
+**Druga, niezależna dziura: ta siatka nie potrafi przypisać różnic capowi.** Jeden przebieg na
+komórkę, a niestabilność gemini między identycznymi przebiegami jest w tym repo **zmierzona**
+(`verification.md` poprzedniej zmiany: ten sam model, materiał i prompt, dwa różne wyniki). Gemini
+dało tu trzy różne zakończenia przy trzech capach — i przy n = 1 **nie da się odróżnić „zrobił to
+cap" od „zrobił to przebieg"**. Do rozdzielenia trzeba powtórzeń na komórkę, których ten pomiar
+nie miał.
+
+**Pułapka, którą nazywam, żeby jej nie wdepnąć.** Z tabeli kusi wniosek „cap 4, bo to jedyna
+wartość, przy której oba modele przeszły". To jest dokładnie wybór z niezrozumianego licznika:
+gemini przeszło przy 4, a oblało przy 3 i przy 5 — pod modelem o zmierzonej niestabilności to nie
+jest sygnał monotoniczny, tylko jeden rzut monetą na komórkę. Wdrożenie tej wartości do wywołania
+PRODUKCYJNEGO (D-8) na takiej podstawie byłoby zgadywaniem, tyle że droższym i na każdym PR-ze.
+
+**Wobec tego 3a.2 się NIE odbywa.** Warunkiem wejścia w wybór wartości było, żeby 3a.1
+odpowiedziało na pytanie o licznik. Nie odpowiedziało. Wracamy do rozmowy.

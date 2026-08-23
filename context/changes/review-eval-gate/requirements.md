@@ -91,6 +91,37 @@ złapała na gemini regresję, której nikt by inaczej nie zobaczył. Ta zmiana 
    > Liczba 0,118529 USD zostaje w mocy; 0,000000 USD nie opisuje już żadnego stanu, który da się
    > dziś odtworzyć bez ponownego zapłacenia za te komórki.
 
+   > ⚑ **KOREKTA BUDŻETU — 2026-08-23, po zatrzymaniu fazy 3.**
+   > **Stara wartość: 0,50 USD** (zostaje wyżej NIETKNIĘTA — to jest liczba, wobec której
+   > podejmowano wszystkie decyzje aż do fazy 3, i podmieniona w miejscu skasowałaby ślad, że
+   > cokolwiek się przesunęło). **Nowa wartość: 1,50 USD.**
+   >
+   > Powód: faza 3 przejechała macierz i zatrzymała się na własnym kryterium 3.6 — dwie z czterech
+   > komórek oblały na `error_max_turns` przy `maxTurns: 2`, przy prompcie NIETKNIĘTYM. Wyjście
+   > z tego wymaga pomiaru liczników tur, a potem nowego pełnego przejścia macierzy. Ani jedno, ani
+   > drugie nie mieści się w resztce 0,265 USD.
+   >
+   > Rozpiska nowego budżetu:
+   >
+   > | pozycja                                         | kwota                        |
+   > | ----------------------------------------------- | ---------------------------- |
+   > | wydane dotąd (faza 3, rachunek z `/api/v1/key`) | **0,235012**                 |
+   > | pomiar liczników (faza 3a.1, sześć przebiegów)  | **~0,35**                    |
+   > | nowe pełne przejście macierzy (faza 3)          | **> 0,235012** — patrz niżej |
+   > | zapas na JEDNĄ pomyłkę                          | reszta                       |
+   >
+   > **Nie zakładamy, że nowe przejście kosztuje tyle co poprzednie.** Podniesiony `maxTurns` to
+   > więcej tur, a więcej tur to więcej tokenów — nowe przejście jest z definicji DROŻSZE niż
+   > 0,235012, a o ile, tego dziś nie wiadomo. Zapisujemy nierówność, nie liczbę, bo liczby nie
+   > mamy.
+   >
+   > **⚑ Budżet podniesiony w momencie, w którym zaczyna wiązać, przestaje być budżetem — kolejne
+   > podniesienie wymaga rozmowy, nie kolejnej notatki.** To zdanie jest tu przepisane z poprzedniej
+   > zmiany świadomie, bo to jest **DRUGIE podniesienie z rzędu, w dwóch kolejnych zmianach**.
+   > Rozmowa się odbyła: zatrzymanie fazy 3 wróciło do człowieka z liczbami i z trzema odrzuconymi
+   > drogami na skróty, a podniesienie jest jego decyzją podjętą nad tym rachunkiem — nie
+   > dopisaniem sobie miejsca przez agenta, któremu zabrakło.
+
 7. **Diagnostyka czerwieni ma być jednoznaczna.** Komunikat kroku musi rozróżniać „zmieniłeś
    prompt, brakuje dowodu" od „dowód jest, ale dla innego promptu" i mówić wprost, jaką komendą
    dowód się wytwarza. Bramka, po której trzeba czytać źródło skryptu, żeby wiedzieć, co zrobić,
@@ -169,3 +200,26 @@ albo obalić; żadna z nich nie jest tu decyzją.
 - Strojenie progu 5 i domykanie obserwacji miękkiej `conditional-null-contract` do twardej
   asercji — oba zapisane w archiwum jako pytania do pomiaru, oba niezależne od tej zmiany.
 - Uruchamianie macierzy w CI w jakiejkolwiek postaci — wykluczone decyzją 1.
+
+## ⚑ ROZSZERZENIE ZAKRESU — 2026-08-23, po zatrzymaniu fazy 3
+
+**Ta zmiana od teraz modyfikuje także wywołanie recenzenta PRODUKCYJNEGO**: wartość `maxTurns`
+w `FIXED_CALL_OPTIONS` (`agents/review/run-review.ts`), czyli parametr, z którym agent review jedzie
+na KAŻDYM PR-ze. Do tej pory zmiana dotykała wyłącznie warstwy bramki i dowodu.
+
+**Powód.** Rozdzielenie tego na dwie zmiany kosztowałoby dodatkowe przejście całego łańcucha skilli
+(`/10x-new` → `/10x-research` → `/10x-plan` → `/10x-plan-review` → `/10x-implement` → archiwizacja),
+a obie zmiany i tak dzielą **tę samą oś odcisku**: `maxTurns` jest osią 4 `callFingerprint`, więc
+zmiana „macierzowa" przesunęłaby kotwicę, wokół której napisana jest zmiana „bramkowa". Rozdzielone
+musiałyby się nawzajem przekotwiczać — druga otwierałaby się od przepisania liczby, którą zamknęła
+pierwsza, i żadna nie mogłaby być zweryfikowana samodzielnie.
+
+**Koszt tej decyzji, zapisany jawnie, bo jest realny.** Kryterium **„dyscyplina zakresu"** z naszego
+własnego zestawu review jest tutaj **NACIĄGNIĘTE**: zmiana o bramce dotyka konfiguracji produkcyjnej
+agenta. Recenzent — ludzki albo nasz własny — ma prawo to zauważyć i **chcemy, żeby zauważył to nad
+zapisanym uzasadnieniem, a nie nad milczeniem**. Zapis nie unieważnia zarzutu; sprawia tylko, że
+rozmowa zaczyna się od „czy ten powód wystarcza", a nie od „dlaczego nikt tego nie nazwał".
+
+Granica pozostaje wąska i wiążąca: w zakresie jest **jedna wartość** (`maxTurns`), wybrana
+Z POMIARU w fazie 3a. Nie wchodzą: `tools`, cap budżetu, wybór modelu produkcyjnego ani nic innego
+w `FIXED_CALL_OPTIONS`.

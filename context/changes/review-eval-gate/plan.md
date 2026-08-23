@@ -187,6 +187,27 @@ workflow instaluje `npm ci --omit=dev` (~335 MB wg `action.yml:124-125`) zamiast
 Na workflow bez filtra `paths`, biegającym na KAŻDYM PR-ze, to jest różnica warta jednego
 przeniesienia funkcji.
 
+**D-8. ⚑ DOPISANA 2026-08-23, po zatrzymaniu fazy 3: `maxTurns` wchodzi do zakresu, a budżet rośnie
+do 1,50 USD.**
+Faza 3 przejechała macierz i zatrzymała się na własnym kryterium 3.6: dwie z czterech komórek
+oblały na `error_max_turns` przy `maxTurns: 2`, przy prompcie NIETKNIĘTYM (`callFingerprint`
+zgodny z kotwicą). Rozstrzygnięcie tego wewnątrz tej zmiany pociąga trzy rzeczy, wszystkie
+zapisane w `requirements.md` i streszczone tu:
+
+- **Zakres rośnie o JEDNĄ wartość produkcyjną.** `maxTurns` w `FIXED_CALL_OPTIONS` jedzie na
+  każdym PR-ze, więc ta zmiana przestaje dotykać wyłącznie warstwy bramki. Powód: obie połowy
+  dzielą oś 4 odcisku, więc rozdzielone na dwie zmiany musiałyby się nawzajem przekotwiczać.
+  **Koszt zapisany jawnie: kryterium „dyscyplina zakresu" jest tu naciągnięte** i recenzent ma
+  prawo to zauważyć — nad zapisanym uzasadnieniem, nie nad milczeniem. `tools`, cap budżetu
+  i wybór modelu produkcyjnego pozostają POZA zakresem.
+- **Wartość bierze się z POMIARU, nie z Open Risk 4.** „Podnieś na 3" jest zgadywaniem, i to
+  zapisanym jako takie: nadal nie wiadomo, co liczy `numTurns`. Stąd faza 3a, której krok
+  pierwszy MIERZY, a krok drugi wybiera z odczytu. Kolejność 3a → 3 jest wiążąca.
+- **Budżet 0,50 → 1,50 USD.** Stara liczba zostaje w `requirements.md` nietknięta, korekta stoi
+  obok. ⚑ Budżet podniesiony w momencie, w którym zaczyna wiązać, przestaje być budżetem —
+  kolejne podniesienie wymaga rozmowy, nie kolejnej notatki. To DRUGIE podniesienie z rzędu
+  w dwóch kolejnych zmianach; rozmowa się odbyła nad rachunkiem zatrzymanej fazy 3.
+
 ### Wzorce, które kontynuujemy
 
 Od precedensu B (`prompt-sources`, `research.md` §6.1): pomiar zamiast `git diff --exit-code`;
@@ -222,6 +243,23 @@ się kupić za darmo.
 read-modify-write przez `JSON.parse` → podmiana swojego klucza → `JSON.stringify(x, null, 2) + "\n"`.
 Nie mogą dzielić modułu serializującego (granica kierunkowa), więc jedna linia jest zdublowana —
 i dlatego każda strona ma własny test round-tripu, a checker ma trzeci, na pliku zacommitowanym.
+
+### ⚑ Przekotwiczenie `callFingerprint` — jedno miejsce, dwie wartości
+
+Dopisane 2026-08-23 razem z D-8. `maxTurns` jest **osią 4 odcisku** (`FIXED_CALL_OPTIONS` wchodzi
+do `fingerprintPrompt`), więc podniesienie go **przesuwa `callFingerprint`**. Kryteria 3.4 i 5.12
+są napisane wokół konkretnej wartości, więc obie potrzebują tego wiersza.
+
+| kotwica                                                                | status                                                                         |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| ~~`59ee111bb431f77a4fc01d7f9bf33992f4ab783458c704d20aafb9e42edec8f1`~~ | **kotwica sprzed podniesienia `maxTurns` w fazie 3a** — nie obowiązuje po 3a.2 |
+| `<NOWA — do wypełnienia w fazie 3a.2>`                                 | obowiązująca od wdrożenia wybranej wartości `maxTurns`                         |
+
+**Starej wartości NIE podmieniamy w miejscu.** Historia ma pokazywać, że kotwica się przesunęła
+**i dlaczego** — odcisk podmieniony po cichu czyta się jak odcisk, który zawsze taki był, a to
+jest dokładnie ten kształt, po którym następna osoba przepisuje go odruchowo, bez czytania.
+Wystąpienia `59ee111b…` w sekcjach opisujących stan sprzed tej zmiany (Current State Analysis,
+kryteria i Progress fazy 1) zostają **nietknięte**: one są prawdziwe w swojej dacie.
 
 ## Phase 1: Rdzenie odcisków
 
@@ -471,7 +509,100 @@ pieniądze i jest nieodwracalna.
 
 ---
 
+## Phase 3a: Licznik tur — POMIAR, potem wybór, potem produkcja
+
+⚑ **Faza DOPISANA 2026-08-23** po zatrzymaniu fazy 3 na kryterium 3.6. Kolejność `3a → 3` jest
+WIĄŻĄCA: faza 3 nie startuje, dopóki 3a nie zamknie się wybraną i przećwiczoną wartością.
+
+### Overview
+
+Wyjście z zatrzymania fazy 3 przez POMIAR, nie przez zgadnięcie. Open Risk 4 poprzedniej zmiany
+zapisał wprost, że dopóki nie wiadomo, co liczą te liczniki, żadna nowa wartość `maxTurns` nie jest
+wyborem, tylko losowaniem — a losowanie za pieniądze jest gorsze od losowania za darmo. Ta faza
+najpierw mierzy, potem wybiera z odczytu, a na końcu sprawdza, co wybór robi z rachunkiem
+recenzenta PRODUKCYJNEGO, bo od D-8 to też jest w zakresie.
+
+### Changes Required:
+
+#### 1. (3a.1) POMIAR liczników — sześć przebiegów, zero wdrożenia
+
+**Intent**: Zmierzyć, jak zachowuje się licznik tur na fiksturze, która dziś nie dojeżdża.
+Siatka: `clean-text-change.diff` × {`anthropic/claude-haiku-4.5`, `google/gemini-2.5-flash`} ×
+`maxTurns` ∈ {3, 4, 5}. Sześć przebiegów.
+
+**Contract**: dla KAŻDEGO przebiegu zapisane, jako osobne pola: `maxTurns` (wartość zadana),
+`numTurns` (wartość zaraportowana przez SDK), `subtype`, `terminal_reason`, koszt.
+Koszt **wyłącznie z różnicy odczytów `/api/v1/key`**, nigdy z licznika SDK (zmierzone
+przeszacowanie: 5,0× dla haiku, 14,0× dla gemini) — a komórka wypalona PŁACI i nie oddaje
+licznika, więc odczyt z API jest jedyną liczbą, która ją widzi.
+
+**`FIXED_CALL_OPTIONS` nie zmienia się w tej fazie na stałe** — to jest pomiar, nie wdrożenie.
+Nadpisanie `maxTurns` idzie przez szew, który `runReview` już ma (wstrzykiwalne `query`), więc
+w drzewie nie zostaje ani jedna zmieniona linia produkcyjna. Klucz `OPENROUTER_REVIEW_KEY`
+mapowany na `ANTHROPIC_AUTH_TOKEN` NA CZAS KOMENDY, nigdy na stałe.
+
+**Ta faza kończy się STOP-em i rozmową, nie wyborem.** Jeśli po sześciu przebiegach nadal nie
+wiadomo, CO liczy `numTurns` — w szczególności dlaczego haiku raportuje `numTurns: 3` przy
+`maxTurns: 2` i kończy sukcesem, a gemini na tej samej wartości dostaje `error_max_turns` — to
+ma zostać powiedziane WPROST, bez zamiatania i bez proponowania wartości. Wybór z niezrozumianego
+licznika jest nadal zgadywaniem, tylko droższym.
+
+#### 2. (3a.2) Wybór wartości Z POMIARU
+
+**Intent**: Wybrać jedną wartość `maxTurns` i wdrożyć ją do `FIXED_CALL_OPTIONS`.
+
+**Contract**: uzasadnienie wyboru **cytuje konkretny odczyt z 3a.1** — który przebieg, jaki
+`numTurns`, jaki `terminal_reason`. Zdanie „bo 3 wygląda rozsądnie" jest odrzuceniem tej fazy.
+Warunek wejścia: 3a.1 odpowiedziało na pytanie o licznik. Bez tego ten krok się NIE odbywa.
+
+#### 3. (3a.3) Przećwiczenie recenzenta PRODUKCYJNEGO na nowej wartości
+
+**File**: `agents/review/run-review.ts` (`FIXED_CALL_OPTIONS.maxTurns`)
+
+**Intent**: Uruchomić recenzenta produkcyjnego na `sample.diff` z nową wartością i zapisać, co się
+zmieniło — bo od D-8 ta wartość jedzie na każdym PR-ze i nie wolno jej wdrożyć bez rachunku.
+
+**Contract**: odczyt `/api/v1/key` PRZED i PO; wynik recenzji porównany z zachowaniem sprzed
+zmiany; **NOWA PROJEKCJA MIESIĘCZNA dla repo w pracy**. Stara projekcja: **~135 USD/mies.** przy
+**0,6447345 USD** za przebieg i **2 turach** — nowa liczy się z tego samego wzoru i z nowym
+kosztem przebiegu. Projekcja jest tu wynikiem, a nie ozdobą: podniesienie `maxTurns` skaluje
+rachunek produkcyjny, a nie tylko rachunek macierzy.
+
+#### 4. (3a.4) Dopiero potem faza 3
+
+**Intent**: Bramka kolejności, nie robota. Faza 3 startuje wyłącznie nad wdrożoną i przećwiczoną
+wartością — i wtedy jej przejście jest DROŻSZE niż 0,235012 USD z przejścia zatrzymanego (więcej
+tur = więcej tokenów; nierówność jest zapisana, bo liczby nie ma).
+
+### Success Criteria:
+
+#### Automated Verification:
+
+- Sześć przebiegów wykonanych; `git status` po 3a.1 **czysty w `agents/review/run-review.ts`** —
+  pomiar nie zostawił w drzewie zmiany produkcyjnej
+- Po 3a.2: `npm --prefix agents/review run typecheck`, `npm --prefix agents/review test`,
+  `npm run typecheck`, `npm run lint`
+- Po 3a.2: nowy `productionPromptFingerprint()` wypisany i zapisany jako NOWA kotwica (patrz
+  „Przekotwiczenie" niżej) — stara wartość NIE jest podmieniana w miejscu
+
+#### Manual Verification:
+
+- Tabela sześciu przebiegów zapisana w `verification.md`, z kosztem z `/api/v1/key`, nie z SDK
+- **Odpowiedź WPROST na pytanie, co liczy `numTurns`** — albo rozstrzygnięcie, albo jawne „nadal
+  nie wiadomo". Trzeciej możliwości nie ma; wybór wartości nad niejasnym licznikiem jest
+  naruszeniem tej fazy, nie jej domknięciem
+- Wartość wybrana w 3a.2 cytuje odczyt, nie intuicję
+- Nowa projekcja miesięczna policzona i porównana ze starą (~135 USD/mies.)
+
+**Implementation Note**: Po 3a.1 zatrzymaj się i wróć z tabelą. To jest STOP zapisany w planie,
+nie sugestia.
+
+---
+
 ## Phase 3: Przejście macierzy — PŁATNE
+
+⚑ **Faza wymaga domkniętej fazy 3a** (D-8). Pierwsze podejście, 2026-08-23, zatrzymało się na
+własnym kryterium 3.6 — patrz nota nad Progressem fazy 3 i `verification.md`.
 
 ### Overview
 
@@ -492,8 +623,10 @@ której nie da się przewidzieć.
 na czas komendy. Przejście będzie ZIMNE we wszystkich czterech komórkach (`research.md` §3.1) —
 kotwica 0,118529 USD z poprzedniej zmiany, ale z rozrzutem dziesiątek procent.
 
-**Contract**: kotwica budżetowa zmiany to **0,50 USD**. Przekroczenie = zatrzymać się i wrócić
-z liczbami, nie dokładać przebiegów.
+**Contract**: ~~kotwica budżetowa zmiany to **0,50 USD**~~ → **1,50 USD** (korekta 2026-08-23,
+D-8; stara liczba zachowana przekreśleniem, rozpiska w `requirements.md`). Przekroczenie =
+zatrzymać się i wrócić z liczbami, nie dokładać przebiegów. Nowe przejście jest DROŻSZE niż
+0,235012 USD z przejścia zatrzymanego — więcej tur to więcej tokenów, a o ile, tego nie wiadomo.
 
 #### 3. Zapis połowy `verdictConfig`
 
@@ -520,11 +653,15 @@ Rozjazd między nimi jest informacją, nie błędem.
 - `git add agents/review/evals/eval-record.json && git status` po `pre-commit` — plik nie został
   przeformatowany przez `lint-staged`
 - `agents/review/evals/eval-record.json` niesie 4 wiersze, 2 różne modele, 2 różne fikstury
-- `callFingerprint` w pliku = `59ee111b…` (prompt nie był ruszany, więc musi się zgadzać)
+- `callFingerprint` w pliku zgadza się z kotwicą OBOWIĄZUJĄCĄ — patrz „Przekotwiczenie" niżej:
+  - ~~`59ee111bb431f77a4fc01d7f9bf33992f4ab783458c704d20aafb9e42edec8f1`~~ — **kotwica sprzed
+    podniesienia `maxTurns` w fazie 3a**, NIE obowiązuje od chwili wdrożenia nowej wartości
+  - `<NOWA KOTWICA — do wypełnienia w fazie 3a.2, po wdrożeniu wybranej wartości `maxTurns`>`
 
 #### Manual Verification:
 
-- Odczyt `/api/v1/key` opóźniony wykonany i zapisany; różnica mieści się w 0,50 USD
+- Odczyt `/api/v1/key` opóźniony wykonany i zapisany; różnica mieści się w budżecie 1,50 USD
+  (~~0,50~~ — korekta D-8), licząc RAZEM z 0,235012 wydanymi w przejściu zatrzymanym
 - Wszystkie cztery komórki `ok: true` — jeśli nie, ZATRZYMAJ SIĘ: czerwona komórka na
   niezmienionym prompcie jest sygnałem o macierzy, nie o zapadce, i wymaga rozstrzygnięcia
   przed fazą 4
@@ -780,7 +917,9 @@ wiersz w Progress, nie zdanie w prozie.
 - Komunikat czerwieni P2 przeczytany: czy mówi wprost, że macierzy przejeżdżać nie trzeba
 - Komunikat czerwieni P1 przeczytany: czy mówi wprost, że przejście KOSZTUJE
 - `verification.md` niesie obie połowy kontroli i nazwaną zmienną różnicy
-- Rewerty nie zostawiły nic w drzewie (`git status` czysty, odcisk z powrotem `59ee111b…`)
+- Rewerty nie zostawiły nic w drzewie (`git status` czysty, odcisk z powrotem na kotwicę
+  OBOWIĄZUJĄCĄ — ~~`59ee111b…`~~ kotwica sprzed podniesienia `maxTurns` w fazie 3a; nowa wartość
+  wpisana w „Przekotwiczenie")
 
 ---
 
@@ -892,6 +1031,26 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 - [x] 2.7 Adnotacja `notes` odpowiada na „co ten plik NIE dowodzi" — f8a9e80
 - [x] 2.8 Para (a)+(b): `git log` na `eval-record.json` pusty, na `cache.ts` niepusty — f8a9e80
 
+### Phase 3a: Licznik tur — POMIAR, potem wybór, potem produkcja
+
+> ⚑ **Faza dopisana 2026-08-23 (D-8).** Kolejność `3a → 3` wiążąca. 3a.1 kończy się STOP-em
+> i rozmową; 3a.2 nie odbywa się, jeśli 3a.1 nie odpowiedziało, co liczy `numTurns`.
+
+#### Automated
+
+- [ ] 3a.1 Sześć przebiegów (`clean-text-change.diff` × 2 modele × `maxTurns` 3/4/5) wykonanych
+- [ ] 3a.2 `git status` po pomiarze czysty w `agents/review/run-review.ts` — pomiar nie wdrożył
+- [ ] 3a.3 Po wyborze wartości: typecheck (root + agent), testy agenta, lint
+- [ ] 3a.4 Nowy `productionPromptFingerprint()` wypisany i wpisany jako NOWA kotwica
+
+#### Manual
+
+- [ ] 3a.5 Tabela sześciu przebiegów w `verification.md`, koszt z `/api/v1/key`, nie z SDK
+- [ ] 3a.6 Odpowiedź WPROST na pytanie, co liczy `numTurns` (rozstrzygnięcie albo jawne „nadal nie wiadomo")
+- [ ] 3a.7 Wartość `maxTurns` wybrana z CYTOWANEGO odczytu, nie z intuicji
+- [ ] 3a.8 Recenzent produkcyjny przećwiczony na `sample.diff`, koszt przed i po zapisany
+- [ ] 3a.9 Nowa projekcja miesięczna policzona i porównana ze starą (~135 USD/mies.)
+
 ### Phase 3: Przejście macierzy — PŁATNE
 
 > ⚑ **FAZA ZATRZYMANA na własnym kryterium 3.6 (2026-08-23), Progress CELOWO otwarty.** Przejście
@@ -907,11 +1066,11 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 - [ ] 3.1 `prettier --check` na dowodzie prawdziwym → kod 0
 - [ ] 3.2 `lint-staged` nie przeformatował dowodu przy `git add`
 - [ ] 3.3 Dowód niesie 4 wiersze, 2 modele, 2 fikstury
-- [ ] 3.4 `callFingerprint` = `59ee111b…`
+- [ ] 3.4 `callFingerprint` = kotwica OBOWIĄZUJĄCA (~~`59ee111b…`~~ sprzed podniesienia `maxTurns` w fazie 3a; nowa z 3a.4)
 
 #### Manual
 
-- [ ] 3.5 Odczyt `/api/v1/key` opóźniony wykonany; różnica w budżecie 0,50 USD
+- [ ] 3.5 Odczyt `/api/v1/key` opóźniony wykonany; różnica w budżecie ~~0,50~~ **1,50 USD** (D-8)
 - [ ] 3.6 Wszystkie cztery komórki `ok: true`
 - [ ] 3.7 Obserwacje miękkie zapisane bez awansowania do twardych
 
@@ -950,4 +1109,4 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 - [ ] 5.9 Komunikat P2 mówi wprost, że macierzy przejeżdżać nie trzeba
 - [ ] 5.10 Komunikat P1 mówi wprost, że przejście kosztuje
 - [ ] 5.11 `verification.md` niesie obie połowy i nazwaną zmienną różnicy
-- [ ] 5.12 Rewerty czyste, odcisk z powrotem `59ee111b…`
+- [ ] 5.12 Rewerty czyste, odcisk z powrotem na kotwicę OBOWIĄZUJĄCĄ (~~`59ee111b…`~~ → nowa z 3a.4)
