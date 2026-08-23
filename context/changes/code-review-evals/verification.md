@@ -352,3 +352,50 @@ Kontrola wykonana PRZED pushem poprawki, żeby drugie podejście nie było kolej
 Para dowodowa dla kryterium 4.4 jest więc mimowolna, ale pełna: **czerwień** (`1b311ce`, lock
 niespójny dla npm 10) → **poprawka** (regeneracja locka) → **zieleń**, przy zmianie dokładnie
 jednej rzeczy.
+
+Drugie podejście, po regeneracji locka:
+
+| Przebieg                                                                   | Commit    | Wynik       | Czas     |
+| -------------------------------------------------------------------------- | --------- | ----------- | -------- |
+| [32630858709](https://github.com/lirdaw/10xcards/actions/runs/32630858709) | `84c3257` | **success** | **69 s** |
+
+Krok testowy, dosłownie z loga — i to jest właściwy dowód na kryterium 4.4, mocniejszy niż sam
+zielony przebieg:
+
+```
+node: v22.23.2
+added 717 packages, and audited 718 packages in 46s
+1..25
+# tests 25
+# pass 25
+# fail 0
+```
+
+`1..25` na runnerze wobec 17 przed tą fazą oznacza, że **discovery wbudowanego runnera wykryło
+osiem nowych przypadków leżących w PODKATALOGU `evals/`** — czyli bramka założona w fazie 3 realnie
+sięga katalogu, którego wtedy jeszcze nie było. To domyka obietnicę zapisaną przy kryterium 3.4
+(„To, że bramka sięga także `evals/`, potwierdza kryterium 4.4 na PR-ze fazy 4"), i domyka ją
+liczbą z runnera, a nie rozumowaniem o `include` w tsconfigu.
+
+### Trzeci pomiar instalacji — ten z prawdziwej ścieżki CI
+
+Bramka daje liczbę, której żaden pomiar lokalny nie zastąpi, bo pochodzi z tego samego runnera,
+tej samej wersji npm i tego samego cache'u co CI:
+
+| przebieg `Agents gate`                                                     | commit    | promptfoo | `npm ci` | CAŁY przebieg |
+| -------------------------------------------------------------------------- | --------- | --------- | -------- | ------------- |
+| [32627834182](https://github.com/lirdaw/10xcards/actions/runs/32627834182) | `1bbbbe1` | nie       | —        | **20 s**      |
+| [32630858709](https://github.com/lirdaw/10xcards/actions/runs/32630858709) | `84c3257` | tak       | **46 s** | **69 s**      |
+
+Przebieg bramki rośnie 20 s → 69 s, czyli **3,4×**, a sama instalacja to 46 s z tych 69. Kierunek
+i rząd wielkości zgadzają się z pomiarami lokalnymi (+565% izolowanie, +644% w repo), więc decyzja
+o fallbacku stoi teraz na trzech niezależnych pomiarach, w tym jednym z produkcyjnego runnera.
+
+⚑ Ta liczba dotyczy `agents-gate.yml`, nie `action.yml`. **Composite action płaci to samo przy
+KAŻDYM przebiegu review na KAŻDYM PR-ze w repo** — i to jest ta ścieżka, którą otwarta wyżej
+osobna zmiana ma odciążyć przez `--omit=dev`.
+
+### Koszt: `PR code review` anulowany dalej, przy każdym pushu
+
+Anulowane w fazie 4: **32630687986** (`1b311ce`, po 34 s), **32630858713** (`84c3257`, po 27 s).
+Oba przed instalacją pakietu, więc przed jakimkolwiek wywołaniem modelu.
