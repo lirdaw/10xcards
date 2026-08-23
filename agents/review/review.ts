@@ -1,7 +1,26 @@
 import { appendFileSync } from "node:fs";
-import { query } from "@anthropic-ai/claude-agent-sdk";
-import { REVIEW_SCHEMA, REVIEW_JSON_SCHEMA, type Review } from "./review-schema.ts";
-import { SYSTEM_PROMPT, wrapDiff } from "./prompt.ts";
+import { resolveMaxBudgetUsd, runReview } from "./run-review.ts";
+
+/**
+ * CLI agenta — i WYŁĄCZNIE CLI. Recenzja mieszka w `run-review.ts`.
+ *
+ * Zostaje tu tylko to, czego nie da się przenieść bez zmiany zachowania PROCESU: odczyt env,
+ * odmowy z kodem wyjścia, zapis `model=` do `$GITHUB_OUTPUT`, bramka klucza (komunikat dla
+ * CZŁOWIEKA przy CLI), odczyt stdin, dwie linie diagnostyczne i jedyny `console.log`.
+ * Wszystkie te rzeczy są KONTRAKTAMI: `.github/actions/review-agent/action.yml:188-189` woła
+ * ten plik z przekierowaniami i czyta `model=`, a `pr-review.yml:529` grepuje stderr.
+ * `agents/review/review-cli.test.ts` zamraża je co do znaku.
+ *
+ * Trzech rzeczy tu NIE MA i to jest decyzja, nie przeoczenie: `reportFailureKind`,
+ * przestawienie zmiennych `ANTHROPIC_*` i jakikolwiek `try/catch` wokół `runReview`. Dwie
+ * pierwsze mieszkają w `run-review.ts` (patrz komentarze tam). Trzeciej nie ma dziś i nie może
+ * się pojawić: rzut z `runReview` ma zostać unhandled rejection, bo dopiero Node drukuje go
+ * OSOBNĄ LINIĄ `Error: [kind] …` nad stackiem — a to ta linia wpada w
+ * `grep -m1 -E '^[A-Za-z]*Error:'` z `pr-review.yml:529`. `console.error(err.message)` skasowałby
+ * prefiks `Error:`, ekstrakcja spadłaby do gałęzi „Nothing was thrown", a komentarz na publicznym
+ * PR-ze zmieniłby treść. Jeśli ten plik zaczyna rosnąć, to znak, że coś, co należy do
+ * `runReview`, zostało tutaj.
+ */
 
 /**
  * Model PRZYPIĘTY jawnie, a nie wzięty z aliasu.
@@ -17,6 +36,21 @@ import { SYSTEM_PROMPT, wrapDiff } from "./prompt.ts";
  * temu szwowi możliwość cichej zmiany zachowania.
  */
 const REVIEW_MODEL = process.env.REVIEW_MODEL?.trim() || "anthropic/claude-sonnet-4.6";
+
+/**
+ * Walidacja capa jest CZYSTA i mieszka w `run-review.ts`; tutaj zostaje wyłącznie jej skutek
+ * procesowy — druk linii odmowy i kod wyjścia 1.
+ *
+ * Miejsce tego bloku jest KONTRAKTEM, nie stylem: stoi PRZED blokiem `$GITHUB_OUTPUT` niżej,
+ * więc przebieg odrzucony na złym capie nie zapisuje `model=`. Gdyby te dwa efekty się
+ * zamieniły, komentarz PR-a dostałby model dla przebiegu, który nigdy nie ruszył.
+ */
+const budget = resolveMaxBudgetUsd(process.env.REVIEW_MAX_BUDGET_USD);
+if (!budget.ok) {
+  for (const line of budget.messages) console.error(line);
+  process.exit(1);
+}
+const REVIEW_MAX_BUDGET_USD = budget.value;
 
 /**
  * Rozstrzygnięty model wraca do harnessu przez `$GITHUB_OUTPUT` — i to jest jedyna droga,
@@ -38,102 +72,6 @@ const REVIEW_MODEL = process.env.REVIEW_MODEL?.trim() || "anthropic/claude-sonne
  * Zapis idzie PRZED wywołaniem modelu, żeby ścieżka awarii (celowo nieistniejące id modelu
  * z fazy 6) też niosła rozstrzygniętą wartość. Poza CI zmiennej nie ma i cały blok jest no-op.
  */
-/**
- * Limit wydatku na JEDEN przebieg, wyrażony w tej samej walucie co problem.
- *
- * Cap na bajty diffa w `pr-review.yml` zostaje, ale jest tym, czym jest: grubym filtrem
- * patologii. Nie da się nim uzasadnić żadnej kwoty, bo bajty wejścia nie przeliczają się na
- * rachunek — zmierzone: przebieg 32594772192 miał 222 051 bajtów, przeszedł cap 250 000
- * i dopiero dostawca odmówił, bo żądane 32 000 tokenów wyjścia nie mieściło się w 23 132
- * dostępnych. Wejście i koszt to dwie różne wielkości.
- *
- * `maxBudgetUsd` jest właściwą osią: SDK zatrzymuje zapytanie po przekroczeniu i zwraca wynik
- * o podtypie `error_max_budget_usd` (`sdk.d.ts:1727-1730`, `:4586`), czyli fakt strukturalny,
- * a nie tekst do zgadywania.
- *
- * **Zastrzeżenie, bez którego ta liczba kłamie:** SDK liczy koszt z cennika ANTHROPICA, a my
- * jedziemy przez OpenRoutera — więc to jest PRZYBLIŻENIE, nie rachunek. Ale jest to przybliżenie
- * właściwej wielkości, w odróżnieniu od bajtów, które nie przybliżają jej wcale.
- *
- * Wartość: zmierzone przebiegi to 0,0934 USD (fikstura) i 0,4426 USD (realny diff 2 711 linii).
- * 1,00 USD daje ponad dwukrotny zapas nad największym zaobserwowanym i zatrzymuje przebieg,
- * zanim koszt stanie się niespodzianką. Podnoszenie ma iść za liczbą z przebiegu.
- */
-const DEFAULT_MAX_BUDGET_USD = 1.0;
-
-/**
- * Nadpisanie istnieje WYŁĄCZNIE po to, żeby dało się dowieść, że ten limit działa.
- *
- * Bez tego szwu jedyną drogą do próby byłoby doprowadzenie realnego przebiegu do wydania
- * dolara — czyli bramka, której sprawdzenie kosztuje tyle, co jej brak. Ten sam układ, co przy
- * `REVIEW_MODEL`: nadpisanie podaje się ręcznie przy `workflow_dispatch`, żaden automatyczny
- * wyzwalacz go nie ustawia, a rozstrzygnięta wartość ląduje w logu — i to jest to, co odbiera
- * temu szwowi możliwość cichej zmiany zachowania.
- *
- * Odmowa zamiast cichego fallbacku na wartość domyślną: gdyby literówka w inpucie zwijała się
- * do 1.00, przebieg dowodowy „budżet 0.01" pojechałby na produkcyjnym limicie i skończył się
- * zielono — czyli para dowodowa pokazałaby zieleń w obu przebiegach i została odczytana jako
- * „limit nie działa", zamiast jako „limitu nie podano".
- */
-function resolveMaxBudgetUsd(raw: string | undefined): number {
-  const text = raw?.trim();
-  if (!text) return DEFAULT_MAX_BUDGET_USD;
-
-  const value = Number(text);
-  if (!Number.isFinite(value) || value <= 0) {
-    console.error(`REVIEW_MAX_BUDGET_USD musi być liczbą dodatnią (otrzymano: ${JSON.stringify(raw)}).`);
-    console.error("Zostawienie pustej wartości bierze limit domyślny; wartość niepoprawna to błąd, nie fallback.");
-    process.exit(1);
-  }
-  return value;
-}
-
-const REVIEW_MAX_BUDGET_USD = resolveMaxBudgetUsd(process.env.REVIEW_MAX_BUDGET_USD);
-
-/**
- * Trzy nazwane rodzaje awarii — bo „budżet wyczerpany" to NIE to samo co „dostawca padł".
- *
- * Bez tego rozróżnienia 402 z OpenRoutera czyta się jak awaria API, a jest DECYZJĄ naszego
- * limitu: nikt nic nie zepsuł, skończył się kredyt na kluczu. Operator, który przeczyta
- * „dostawca padł", pójdzie szukać incydentu u dostawcy zamiast doładować klucz.
- *
- * - `budget`   — zatrzymał nas WŁASNY limit: `maxBudgetUsd` SDK albo cap kredytu na kluczu (402).
- * - `provider` — dostawca albo sieć naprawdę zawiodły (inne `api_error`, `ENOTFOUND`, 5xx).
- * - `contract` — agent pojechał, ale wyjście nie spełniło kontraktu (structured output).
- * - `unknown`  — nie rozpoznaliśmy. Świadomie osobna wartość, a nie „na pewno provider":
- *                domyślne wrzucanie nieznanego do awarii dostawcy jest dokładnie tym
- *                mylącym przypisaniem, które ta klasyfikacja ma zlikwidować.
- */
-export type FailureKind = "budget" | "provider" | "contract" | "unknown";
-
-/** Rozpoznanie po faktach STRUKTURALNYCH tam, gdzie SDK je daje; po tekście tylko tam, gdzie nie daje. */
-function classifyFailure(subtype: string, terminalReason: string | null | undefined, detail: string): FailureKind {
-  // SDK mówi to wprost — dwa niezależne pola, oba wystarczają.
-  if (subtype === "error_max_budget_usd" || terminalReason === "budget_exhausted") return "budget";
-
-  // Cap kredytu na kluczu OpenRoutera. SDK zna to tylko jako `api_error`, więc TU rozpoznanie
-  // musi iść po tekście — i jest to jedyne miejsce w tym pliku, gdzie tak jest.
-  if (/\b402\b/.test(detail) || /requires more credits|insufficient credits/i.test(detail)) return "budget";
-
-  if (terminalReason === "api_error" || /ENOTFOUND|ECONNREFUSED|ETIMEDOUT|\b5\d\d\b/.test(detail)) return "provider";
-
-  return "unknown";
-}
-
-/** Rodzaj awarii wraca do harnessu tą samą drogą co model — patrz komentarz niżej. */
-function reportFailureKind(kind: FailureKind): void {
-  const target = process.env.GITHUB_OUTPUT;
-  if (!target) return;
-  try {
-    appendFileSync(target, `failure-kind=${kind}
-`, "utf8");
-  } catch {
-    // Świadomie połknięte i to jedyny taki przypadek w tym pliku: jesteśmy już na ścieżce
-    // awarii, a przewrócenie się TUTAJ zastąpiłoby prawdziwą przyczynę awarią raportowania
-    // o niej. Konsument traktuje brak wartości jak `unknown`, czyli fail-closed.
-  }
-}
-
 const githubOutput = process.env.GITHUB_OUTPUT;
 if (githubOutput) {
   // Wartość pochodzi z inputu `workflow_dispatch`, czyli z tekstu wpisanego przez człowieka.
@@ -163,6 +101,11 @@ if (githubOutput) {
  * jest tu całą wartością (wzorzec z `.github/workflows/eval.yml:109-118`). Bez niej brak klucza
  * objawia się serią retry SDK i komunikatem o API, a nie o tym, czego brakuje.
  *
+ * To jedyny fragment obsługi klucza, który ZOSTAJE w CLI, i zostaje z jednego powodu: jest
+ * komunikatem dla CZŁOWIEKA, a nie prekondycją wywołania. Prekondycja — trzy zmienne
+ * `ANTHROPIC_*` — mieszka w `runReview`, w jednym egzemplarzu, żeby CI i eval nie mogły
+ * pojechać do różnych endpointów tą samą funkcją.
+ *
  * Nazwa zmiennej to `ANTHROPIC_AUTH_TOKEN`, NIGDY `OPENROUTER_API_KEY`: ta druga przerywa
  * preflight `npm test` (suita asertuje liczby kart, które gwarantuje tylko generacja mockowa),
  * więc agent czytający ją wprost zmuszałby do wyboru między review a testami.
@@ -185,14 +128,6 @@ if (!AUTH_TOKEN) {
   process.exit(1);
 }
 
-// Routing przez OpenRoutera, ustawiany na module scope — czyli PRZED pierwszym `query(...)`.
-process.env.ANTHROPIC_BASE_URL = "https://openrouter.ai/api";
-process.env.ANTHROPIC_AUTH_TOKEN = AUTH_TOKEN;
-// Pusty ANTHROPIC_API_KEY jest OBOWIĄZKOWY, nie porządkowy: niepusty klucz WYGRYWA
-// z ANTHROPIC_AUTH_TOKEN, więc zostawiony w środowisku (np. z innego projektu) wysyła
-// wywołanie w złe miejsce ze złym kluczem — awaria wyglądająca na problem z uprawnieniami.
-process.env.ANTHROPIC_API_KEY = "";
-
 /** Diff wjeżdża przez stdin: `git diff | npx tsx review.ts` */
 async function readDiff(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -208,81 +143,33 @@ console.error(
     "(limit SDK, liczony z cennika Anthropica — przybliżenie, nie rachunek OpenRoutera)",
 );
 
-async function review(diff: string): Promise<Review> {
-  const result = query({
-    // `wrapDiff`, never raw interpolation: the diff is authored by the person whose change is
-    // being judged, so it is UNTRUSTED text, and pasting it straight after our sentence leaves
-    // the model no boundary between our instructions and theirs. See `prompt.ts` — it wraps the
-    // material in named delimiters AND neutralises any copy of those delimiters inside it, so
-    // the fence cannot be closed early from within.
-    prompt: wrapDiff(diff),
-    options: {
-      systemPrompt: SYSTEM_PROMPT, // własna rola zamiast presetu claude_code
-      model: REVIEW_MODEL, // pin, nie alias — patrz komentarz przy REVIEW_MODEL
-      tools: [], // ODCINAMY narzędzia: recenzja ma być wąska i przewidywalna
-      maxTurns: 2, // tura 1: model czyta i ocenia | tura 2: emituje JSON wg schematu
-      // Limit wydatku na przebieg — patrz REVIEW_MAX_BUDGET_USD. Przekroczenie daje wynik
-      // o podtypie `error_max_budget_usd`, więc zatrzymanie jest odróżnialne od awarii dostawcy.
-      maxBudgetUsd: REVIEW_MAX_BUDGET_USD,
-      outputFormat: { type: "json_schema", schema: REVIEW_JSON_SCHEMA },
-    },
-  });
-
-  for await (const message of result) {
-    if (message.type !== "result") continue;
-
-    // Sam `subtype === "success"` to FAŁSZYWY ORAKL: przy awarii łączności SDK zwraca
-    // `subtype: "success"` RAZEM z `is_error: true`, `terminal_reason: "api_error"`
-    // i `structured_output: undefined`. Taki wynik wchodził do walidacji zodem i agent
-    // raportował „Niepoprawny structured output" — diagnozę kontraktu wyjścia zamiast
-    // realnej przyczyny. Sukces rozstrzygamy więc na OBU polach naraz.
-    if (message.subtype === "success" && message.is_error !== true) {
-      // structured_output jest typowane jako unknown — parsujemy po swojemu,
-      // żeby mieć gwarancję typu Review, a nie samą obietnicę SDK.
-      const parsed = REVIEW_SCHEMA.safeParse(message.structured_output);
-      if (!parsed.success) {
-        reportFailureKind("contract");
-        throw new Error(`[contract] Niepoprawny structured output: ${parsed.error.message}`);
-      }
-
-      // Metryki operacyjne — na stderr, żeby nie brudzić JSON-a na stdout.
-      console.error(
-        [
-          `[metryki] model: ${REVIEW_MODEL}`,
-          `tury: ${message.num_turns}`,
-          `czas: ${message.duration_ms} ms`,
-          // total_cost_usd to PRZELICZNIK z cennika Anthropica, nie rachunek OpenRoutera —
-          // jedziemy przez OpenRoutera, więc ta liczba nie jest fakturą.
-          `koszt (wg cennika Anthropica, nie OpenRoutera): ${message.total_cost_usd ?? "n/d"} USD`,
-          `tokeny: ${message.usage?.input_tokens ?? "?"} in (bez cache)`,
-          `cache: ${message.usage?.cache_creation_input_tokens ?? "?"} zapis / ${message.usage?.cache_read_input_tokens ?? "?"} odczyt`,
-          `out: ${message.usage?.output_tokens ?? "?"}`,
-          `terminal_reason: ${message.terminal_reason ?? "n/d"}`,
-        ].join(" | "),
-      );
-
-      return parsed.data;
-    }
-
-    // Błąd łapiemy sami — inaczej SDK rzuci surowym wyjątkiem zamiast czytelnego komunikatu.
-    // Komunikat MUSI nieść `terminal_reason` i tekst z SDK: to jest realna przyczyna
-    // (np. `api_error` / `ENOTFOUND`), której połknięcie wysyłało operatora w złą stronę.
-    // `result` żyje na wariancie success, `errors` na wariancie error — stąd dwa odczyty.
-    const detail = "result" in message ? message.result : message.errors.join("; ");
-    const kind = classifyFailure(message.subtype, message.terminal_reason, detail);
-    reportFailureKind(kind);
-    throw new Error(
-      `[${kind}] Review nie powiodło się (subtype: ${message.subtype}, is_error: ${message.is_error}, ` +
-        `terminal_reason: ${message.terminal_reason ?? "n/d"}): ${detail || "brak szczegółów"}`,
-    );
-  }
-
-  throw new Error("Agent nie zwrócił wyniku");
-}
-
 const diff = await readDiff();
 if (!diff.trim()) {
   console.error("Pusty diff na wejściu. Użyj: git diff | npx tsx review.ts");
   process.exit(1);
 }
-console.log(JSON.stringify(await review(diff), null, 2));
+
+// BEZ `try/catch` — patrz komentarz na górze pliku. Rzut ma dojść do Node jako unhandled
+// rejection, bo tylko wtedy powstaje linia `Error: [kind] …`, którą czyta `pr-review.yml:529`.
+const { review, metrics } = await runReview(diff, {
+  model: REVIEW_MODEL,
+  maxBudgetUsd: REVIEW_MAX_BUDGET_USD,
+});
+
+// Metryki operacyjne — na stderr, żeby nie brudzić JSON-a na stdout.
+console.error(
+  [
+    `[metryki] model: ${metrics.model}`,
+    `tury: ${metrics.numTurns}`,
+    `czas: ${metrics.durationMs} ms`,
+    // total_cost_usd to PRZELICZNIK z cennika Anthropica, nie rachunek OpenRoutera —
+    // jedziemy przez OpenRoutera, więc ta liczba nie jest fakturą.
+    `koszt (wg cennika Anthropica, nie OpenRoutera): ${metrics.totalCostUsd ?? "n/d"} USD`,
+    `tokeny: ${metrics.inputTokens ?? "?"} in (bez cache)`,
+    `cache: ${metrics.cacheCreationInputTokens ?? "?"} zapis / ${metrics.cacheReadInputTokens ?? "?"} odczyt`,
+    `out: ${metrics.outputTokens ?? "?"}`,
+    `terminal_reason: ${metrics.terminalReason ?? "n/d"}`,
+  ].join(" | "),
+);
+
+console.log(JSON.stringify(review, null, 2));

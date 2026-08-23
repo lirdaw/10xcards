@@ -919,28 +919,28 @@ dokłada plik workflow — usunięcie go przywraca stan sprzed. Fazy 4-7 żyją 
 
 #### Automated
 
-- [x] 1.1 Nowy test przechodzi na niezmienionym `review.ts`
-- [x] 1.2 `prompt.test.ts` nadal 6/6
-- [x] 1.3 `git diff --stat` pokazuje wyłącznie nowy plik testu
+- [x] 1.1 Nowy test przechodzi na niezmienionym `review.ts` — 0e08a09
+- [x] 1.2 `prompt.test.ts` nadal 6/6 — 0e08a09
+- [x] 1.3 `git diff --stat` pokazuje wyłącznie nowy plik testu — 0e08a09
 
 #### Manual
 
-- [x] 1.4 Każda asercja przeczytana obok `review.ts:78-209` i potwierdzona wobec action/workflow
-- [x] 1.5 Kolejność efektów potwierdzona w pliku (cap → `model=` → klucz → env → stdin)
+- [x] 1.4 Każda asercja przeczytana obok `review.ts:78-209` i potwierdzona wobec action/workflow — 0e08a09
+- [x] 1.5 Kolejność efektów potwierdzona w pliku (cap → `model=` → klucz → env → stdin) — 0e08a09
 
 ### Phase 2: Ekstrakcja `runReview` i cienki wrapper CLI
 
 #### Automated
 
-- [ ] 2.1 `review-cli.test.ts` przechodzi bez zmiany ani jednej asercji
-- [ ] 2.2 `run-review.test.ts` przechodzi, z parą asercji (`[kind]` + `failure-kind=`) dla każdej z czterech klas awarii
-- [ ] 2.3 `prompt.test.ts` nadal 6/6
-- [ ] 2.4 `git diff` po stronie `.github/**` jest pusty
+- [x] 2.1 `review-cli.test.ts` przechodzi bez zmiany ani jednej asercji
+- [x] 2.2 `run-review.test.ts` przechodzi, z parą asercji (`[kind]` + `failure-kind=`) dla każdej z czterech klas awarii
+- [x] 2.3 `prompt.test.ts` nadal 6/6
+- [x] 2.4 `git diff` po stronie `.github/**` jest pusty
 
 #### Manual
 
-- [ ] 2.5 Wrapper przeczytany w całości — nie mieści logiki recenzji
-- [ ] 2.6 Potwierdzone, że wrapper nie łapie rzutu z `runReview` (linia `Error:` z unhandled rejection zachowana)
+- [x] 2.5 Wrapper przeczytany w całości — nie mieści logiki recenzji
+- [x] 2.6 Potwierdzone, że wrapper nie łapie rzutu z `runReview` (linia `Error:` z unhandled rejection zachowana)
 
 ### Phase 3: Bramka pakietu agenta (typecheck + testy zależne) w CI
 
