@@ -939,6 +939,93 @@ go nie zauważy poza rachunkiem.
 workflow ALBO nadawać każdemu przebiegowi własny `PROMPTFOO_CACHE_PATH`. Do tego czasu obowiązuje
 zasada operacyjna: przebiegi evali idą SEKWENCYJNIE.
 
+### 3. Kontrakt `null` nie jest bramkowany, bo model go ODRZUCA — a nie dlatego, że go nie zna
+
+Zmierzone w fazie 6 (`measurement-negative-control.md`): na kontroli negatywnej haiku wystawiło
+`swallowedError: 10` i `gateIntegrity: 10` zamiast `null`, z notami mówiącymi WPROST „kryterium nie
+dotyczy, **ale ocena 10 oddaje fakt braku ryzyka**". Model rozpoznał materiał poprawnie i odrzucił
+samą regułę — mimo że `0d3eba5` dopisał do promptu 27 linii, które nazywają ten ruch BŁĘDEM OCENY.
+Ten sam wzorzec widać w `testRiskCoverage: 10` („nie ma zastosowania, więc 10"), czyli nie jest
+ograniczony do dwóch kryteriów warunkowych.
+
+Reguła weszła więc jako OBSERWACJA MIĘKKA (`conditional-null-contract` w `evals/assertions.ts`):
+raportowana w każdym przejściu, nie bramkująca zieleni. Twarda czerwieniłaby każde przejście na
+stanie zmierzonym i świadomie nienaprawionym, a wtedy czerwień przestaje odróżniać NOWĄ regresję od
+ZNANEGO stanu.
+
+**Czym to grozi:** ocena tam, gdzie kryterium nie ma zastosowania, zawyża wynik arytmetycznie.
+Średnia dziewięciu ocen haiku na czystej zmianie tekstowej wyszła **9,56** — zmiana, która nie
+ruszyła żadnej ścieżki zapisu, wypada więc LEPIEJ niż zmiana, która ruszyła ją i obsłużyła
+porządnie. Próg 5 z `scripts/review-verdict.ts` jest daleko, więc dziś werdykt się nie zmienia;
+kalibracja jest zepsuta dokładnie w kierunku, przed którym broni opis kryterium.
+
+**Warunek zamknięcia — PYTANIE DO POMIARU, nie zadanie do zrobienia:**
+
+> Czy regułę „`null` zamiast oceny tam, gdzie kryterium nie ma zastosowania" da się wyegzekwować
+> PROMPTEM u KAŻDEGO modelu-kandydata do tej bramki — czy jest ona własnością MODELU?
+
+Odpowiedź rozstrzyga, co w ogóle jest tu defektem:
+
+- **Da się promptem** → to jest defekt promptu, poprawka wzorem `0d3eba5`, i wtedy obserwacja
+  miękka awansuje na asercję twardą.
+- **Jest własnością modelu** → **to NIE jest defekt do naprawienia, tylko KRYTERIUM KWALIFIKACJI
+  modelu do tej bramki.** Zapisać wtedy trzeba nie „poprawiliśmy prompt", tylko „model X nie
+  kwalifikuje się do roli recenzenta, bo nie dotrzymuje kontraktu `null`" — a to jest odpowiedź na
+  pytanie 2 z `requirements.md` („czy tańszy model wystarcza"), nie obejście go.
+
+Pomiar, który na to odpowiada: ta sama fikstura kontroli negatywnej × wszyscy kandydaci
+(minimum haiku, gemini, sonnet) × prompt bieżący, a przy wyniku negatywnym — × prompt wzmocniony.
+Dopóki tego pomiaru nie ma, **żadna z dwóch odpowiedzi nie jest ustalona**, i to jest cała treść
+tego ryzyka.
+
+### 4. `maxTurns: 2` nie jest własnością agenta, tylko NIENAZWANYM założeniem o wielkości wejścia
+
+Zmierzone w fazie 6: gemini nie dojechało na kontroli negatywnej — druga próba skończyła się
+`error_max_turns` („Reached maximum number of turns (2)"). Sprawdzone osobno, że to NIE jest
+regresja ekstrakcji z fazy 2: `git show 0d3eba5:agents/review/review.ts` ma `maxTurns: 2` z tym
+samym komentarzem, a `run-review.ts` na HEAD ma tę samą wartość.
+
+**Obserwacja warta więcej niż sam limit:** ten sam limit WYSTARCZA na jednym materiale
+(`sample.diff` — gemini kończyło `completed` w Pomiarze II) i NIE WYSTARCZA na drugim (kontrola
+negatywna). Czyli `maxTurns: 2` nie opisuje agenta — opisuje ZAŁOŻENIE O WIELKOŚCI I KSZTAŁCIE
+WEJŚCIA, którego nigdzie nie nazwano. Komentarz przy tej linii („tura 1: model czyta i ocenia |
+tura 2: emituje JSON wg schematu") opisuje ZAMIAR, a nie warunek, przy którym zamiar się spełnia.
+Do dziś nikt tego nie zauważył, bo przez ten harness nie przejechał żaden materiał inny niż
+`sample.diff`. Zestaw evali odsłonił to pierwszym nowym diffem.
+
+**Czym to grozi:** limit leży na PRODUKCYJNEJ ścieżce review — `run-review.ts` jedzie w CI na
+KAŻDYM PR-ze. PR o innym kształcie niż `sample.diff` może dostać `error_max_turns` zamiast
+recenzji, a autor zobaczy awarię agenta bez informacji, że to limit, nie model.
+
+**Warunek zamknięcia — PYTANIE DO POMIARU:**
+
+> Przy jakim materiale dwie tury przestają wystarczać, i czy zależność jest od ROZMIARU wejścia,
+> czy od czegoś innego (liczby plików, obecności materiału dla kryteriów warunkowych, modelu)?
+
+Podniesienie limitu bez tej odpowiedzi zamienia jedno nienazwane założenie na drugie. A ponieważ
+zmiana dotyczy ścieżki produkcyjnej, **domknięcie wymaga PARY DOWODOWEJ na tej właśnie ścieżce**
+(czerwień → poprawka → zieleń, oba numery przebiegów zapisane), tak samo jak bramka z fazy 3 —
+nie samego lokalnego przebiegu evali.
+
+⚑ Do tego samego pomiaru należy rozbieżność zauważona przy okazji: haiku raportuje `numTurns: 3`
+przy `maxTurns: 2` i kończy `completed`, a gemini na tej samej wartości dostaje `error_max_turns`.
+Licznik `num_turns` w wyniku SDK i limit `maxTurns` najwyraźniej nie liczą tego samego — a dopóki
+nie wiadomo, czego liczą, żadna nowa wartość limitu nie jest wyborem, tylko zgadywaniem.
+
+### Stan budżetu w chwili zatrzymania
+
+| pozycja                                           | kwota            |
+| ------------------------------------------------- | ---------------- |
+| licznik klucza `OPENROUTER_REVIEW_KEY` po fazie 6 | **0,946899 USD** |
+| budżet zadania (`requirements.md`, wymaganie 1)   | **1,00 USD**     |
+| **zostaje**                                       | **0,0531 USD**   |
+| faza 7 (dwie zimne komórki `sample.diff`)         | **~0,117 USD**   |
+
+**Zadanie zatrzymuje się na PROGU Z WYMAGANIA 1, a nie dlatego, że coś padło.** Fazy 1-6 są
+zamknięte i zielone w tym, co obiecywały; faza 7 nie mieści się w budżecie i jej uruchomienie jest
+decyzją o podniesieniu budżetu, nie krokiem implementacji. To rozróżnienie ma tu zostać zapisane,
+bo za miesiąc „plan zatrzymany na fazie 7" i „plan, któremu coś padło" wyglądają tak samo.
+
 ## References
 
 - Wymagania: `context/changes/code-review-evals/requirements.md`
@@ -1038,9 +1125,9 @@ zasada operacyjna: przebiegi evali idą SEKWENCYJNIE.
 
 #### Manual
 
-- [ ] 6.3 Notatka pomiarowa zawiera realny rachunek z `/api/v1/key`, nie `total_cost_usd`
-- [ ] 6.4 Decyzja o asercji `=== null` podjęta i uzasadniona
-- [ ] 6.5 Wydatek zsumowany; przekroczenie rezerwy = zatrzymanie i rozmowa, nie dopłata
+- [x] 6.3 Notatka pomiarowa zawiera realny rachunek z `/api/v1/key`, nie `total_cost_usd`
+- [x] 6.4 Decyzja o asercji `=== null` podjęta i uzasadniona
+- [x] 6.5 Wydatek zsumowany; przekroczenie rezerwy = zatrzymanie i rozmowa, nie dopłata
 
 ### Phase 7: Pierwsze pełne przejście macierzy 2×2
 

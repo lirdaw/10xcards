@@ -587,3 +587,131 @@ Duplikacja wobec `scripts/` **nie została zostawiona jako komentarz** — jest 
 otwarte nr 1 w planie, z warunkiem zamknięcia (przeniesienie skali do `criteria.json`, osobną
 zmianą) i z powodem, dla którego nie robimy tego tutaj (kształt `criteria.json` jest bramkowany
 przez `git diff --exit-code` w composite action, czyli leży na produkcyjnej ścieżce CI).
+
+---
+
+## Phase 6 — Pomiar kontroli negatywnej (ZATRZYMANA NA PROGU BUDŻETU)
+
+**Data**: 2026-08-23
+**Wydatek fazy**: **0,090682 USD** (jedyny przebieg obciążony: haiku)
+**Pełny zapis pomiaru**: `measurement-negative-control.md`
+
+### Stan fazy: 6.3-6.5 spełnione, 6.1-6.2 NIE — i tak zostają w Progresie
+
+| kryterium                                          | stan    | dlaczego                                      |
+| -------------------------------------------------- | ------- | --------------------------------------------- |
+| 6.1 oba przebiegi `terminal_reason: completed`     | **NIE** | gemini: dwie próby, `api_error` i `max_turns` |
+| 6.2 `safeParse` przeszedł w obu                    | **NIE** | haiku tak; gemini nie dojechało do walidacji  |
+| 6.3 realny rachunek z `/api/v1/key`                | tak     | 0,856216627 → 0,946898827                     |
+| 6.4 decyzja o asercji `=== null`                   | tak     | wariant C, uzasadniony w notatce pomiarowej   |
+| 6.5 wydatek zsumowany, przekroczenie = zatrzymanie | tak     | patrz „Stan budżetu" niżej                    |
+
+**6.1 i 6.2 zostają NIEODHACZONE świadomie.** „Niezmierzone" i „zmierzone jako w porządku" nie mogą
+wyglądać w Progresie tak samo — a odhaczenie ich z przypisem byłoby dokładnie tym zrównaniem.
+
+### Ustalenie główne: haiku ODRZUCA kontrakt `null`, nie myli się co do materiału
+
+Na kontroli negatywnej haiku wystawiło `swallowedError: 10` i `gateIntegrity: 10` zamiast `null`.
+Noty mówią to wprost:
+
+> „Kryterium nie dotyczy, **ale ocena 10 oddaje fakt braku ryzyka** na tej ścieżce."
+> „Kryterium nie ma zastosowania, **ale ocena 10 oddaje fakt**, że żadna bramka nie została osłabiona."
+
+Model rozpoznał materiał POPRAWNIE i odrzucił samą regułę — mimo 27 linii promptu z `0d3eba5`,
+które nazywają ten ruch błędem oceny. Ten sam wzorzec w `testRiskCoverage: 10` („nie ma
+zastosowania, więc 10") pokazuje, że nie jest ograniczony do kryteriów warunkowych.
+
+Skutek arytmetyczny: średnia dziewięciu ocen **9,56** na czystej zmianie tekstowej — zmiana, która
+nie ruszyła żadnej ścieżki zapisu, wypada lepiej niż zmiana, która ruszyła ją i obsłużyła porządnie.
+
+**Asercje twarde wyszły 5/5 zielone — i to jest dowód, że projekt fazy 5 zadziałał, a nie że wynik
+jest dobry.** Asercji `=== null` celowo tam nie było. Gdyby weszła przed pomiarem, ta komórka
+byłaby czerwona i nie dałoby się odróżnić czerwieni znaczącej „zapisz to" od „regresja".
+
+### Gemini: dwie próby, dwie różne awarie, ZERO wyniku i ZERO kosztu
+
+| próba | `subtype`         | `terminal_reason` | komunikat                           | klasa        |
+| ----- | ----------------- | ----------------- | ----------------------------------- | ------------ |
+| 1     | `success`         | `api_error`       | stream closed before completion     | `[provider]` |
+| 2     | `error_max_turns` | `max_turns`       | Reached maximum number of turns (2) | `[unknown]`  |
+
+Obie komórki CZERWONE i NAZWANE — dokładnie ta własność, dla której faza 4 kazała `callApi` łapać
+rzut i zwracać `{ error }`. Gdyby rzut wyszedł na zewnątrz, „padnięta sieć" i „regresja kontraktu
+wyjścia" wyglądałyby identycznie.
+
+**Sprawdzone, że to NIE jest regresja ekstrakcji z fazy 2**: `git show 0d3eba5:agents/review/review.ts`
+ma `maxTurns: 2` z tym samym komentarzem; `run-review.ts` na HEAD ma tę samą wartość. Nowa jest
+FIKSTURA — na `sample.diff` gemini kończyło `completed`, na kontroli negatywnej nie kończy. Zapisane
+jako ryzyko otwarte nr 4, z obserwacją ważniejszą niż sam limit: `maxTurns: 2` nie jest własnością
+agenta, tylko nienazwanym założeniem o wielkości wejścia.
+
+### Decyzja: wariant C — asercja MIĘKKA
+
+Reguła `null` weszła jako obserwacja raportowana, nie bramkująca (`conditional-null-contract`).
+Pełne uzasadnienie i odrzucenie wariantów A/B: `measurement-negative-control.md`.
+
+Dowód, że obserwacja nie jest ozdobą — cztery przypadki w `evals/assertions.test.ts`: zmierzony
+wynik haiku jest WIDZIANY (`fail`), ten sam wynik NIE rusza ani jednej asercji twardej, materiał
+z poprawnym `null` obserwację dotrzymuje, a rejestry twardy i miękki są rozłączne.
+
+Wyrenderowane na żywym przebiegu (trafienie cache'u, 0,00 USD):
+
+```
+Wszystkie komórki zielone na asercjach twardych.
+
+Obserwacje MIĘKKIE (raportowane, NIE bramkują zieleni) — 1 niedotrzymanych z 1:
+  ✗ anthropic/claude-haiku-4.5 / clean-text-change.diff [conditional-null-contract] ocena zamiast
+    `null` tam, gdzie kryterium nie ma zastosowania: swallowedError = 10, gateIntegrity = 10
+```
+
+### Defekt raportu ZŁAPANY na żywym przebiegu i naprawiony
+
+Przy komplecie trafień raport pokazywał „Suma przejścia: 0.088646 USD" nad wierszem `TRAFIENIE` —
+czyli kwotę czytającą się jak WYDATEK za przebieg, który nie kosztował nic. W bramce kosztowej to
+nie jest kosmetyka: wymaganie 6 („powtórzenie jest darmowe") sprawdza się dokładnie tą liczbą.
+
+Raport rozdziela teraz dwie kwoty:
+
+```
+Koszt komórek: 0.088646 USD z 1/1 komórek; trafienia cache'u: 1/1.
+ZAPŁACONE w tym przejściu: 0.000000 USD (trafienia cache'u nie kosztują).
+```
+
+Przypadek `(A8)` w `report.test.ts` pilnuje tego rozdzielenia — offline, na obiekcie.
+
+⚑ Ten defekt był NIEWIDOCZNY dla wszystkich testów fazy 5, bo tamten przebieg end-to-end miał
+komplet trafień i nikt nie czytał sumy jako kwoty. Znalazł go dopiero przebieg MIESZANY (jedna
+komórka zimna, jedna z cache'u) na prawdziwych danych.
+
+### Rachunek
+
+| moment                           | `usage`         |
+| -------------------------------- | --------------- |
+| przed fazą 6                     | **0,856216627** |
+| po przebiegu haiku               | **0,946898827** |
+| po obu nieudanych próbach gemini | **0,946898827** |
+
+Nasz rachunek dla haiku (0,088646 USD) wobec realnej delty (0,090682 USD) — **iloraz 0,98**, mimo
+że przebieg był TRZYTUROWY. Zastrzeżenie z `pricing.ts` („przy `> 2` kwota jest dolnym
+oszacowaniem") zawęża się więc: rozbieżność nie jest funkcją samej liczby tur.
+
+### Stan budżetu — zadanie zatrzymuje się na PROGU, nie na awarii
+
+| pozycja                      | kwota            |
+| ---------------------------- | ---------------- |
+| licznik klucza po fazie 6    | **0,946899 USD** |
+| budżet zadania (wymaganie 1) | **1,00 USD**     |
+| **zostaje**                  | **0,0531 USD**   |
+| faza 7 potrzebuje            | **~0,117 USD**   |
+
+Faza 7 nie mieści się. Jej uruchomienie jest **decyzją o podniesieniu budżetu**, nie krokiem
+implementacji — i tak zostało zapisane w planie (sekcja „Open Risks", „Stan budżetu w chwili
+zatrzymania"). Rozróżnienie musi być zapisane, bo za miesiąc „plan zatrzymany na fazie 7"
+i „plan, któremu coś padło" wyglądają tak samo.
+
+### Bramki lokalne po fazie 6
+
+```
+npm --prefix agents/review run typecheck   → zielone
+npm --prefix agents/review run test        → 53/53 (było 45 po fazie 5: +6 miękkich, +2 raportu)
+```

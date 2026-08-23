@@ -90,12 +90,23 @@ tests:
   # POPRAWNOŚCI, nie wygodą: definicja „nie dotyczy" dla kryterium 7 wymienia wprost zmianę
   # wyłącznie w treści UI lub dokumentacji, więc tylko przy takim materiale `null` jest legalny.
   #
-  # ⚑ Asercji `swallowedError === null` i `gateIntegrity === null` tu JESZCZE NIE MA. Wchodzą po
-  # fazie 6, czyli po ZMIERZENIU, co modele na tej fiksturze naprawdę zwracają. Kontrola negatywna
-  # najpierw MIERZY, a dopiero potem jej wynik staje się bramką — czerwień znacząca „zapisz to"
-  # i czerwień znacząca „regresja" nie mogą wyglądać tak samo.
+  # ⚑ Asercja `swallowedError === null` / `gateIntegrity === null` NIE JEST TU TWARDA, i to jest
+  # decyzja podjęta PO pomiarze (faza 6), a nie odłożenie. Kontrola negatywna najpierw ZMIERZYŁA:
+  # haiku wystawiło na tej fiksturze 10 i 10 zamiast `null`, z notami mówiącymi wprost „kryterium
+  # nie dotyczy, ale ocena 10 oddaje fakt braku ryzyka" — czyli rozpoznało materiał poprawnie
+  # i odrzuciło samą regułę. Reguła wchodzi więc jako OBSERWACJA MIĘKKA (`expectConditionalNull`
+  # niżej): raportowana w każdym przejściu, nie bramkująca zieleni. Twarda czerwieniłaby każde
+  # przejście na stanie ZMIERZONYM i świadomie nienaprawionym, a wtedy przestałaby odróżniać nową
+  # regresję od znanego stanu. Warunek, po którym staje się bramką, jest zapisany w planie
+  # (Open Risks) jako PYTANIE DO POMIARU, nie jako zadanie do odhaczenia.
   - description: clean-text-change.diff — kontrola negatywna, sama treść UI i dokumentacji
     vars:
       fixture: clean-text-change.diff
       diffPath: evals/fixtures/clean-text-change.diff
       expectedVerdict: pass
+      # Włącza OBSERWACJĘ MIĘKKĄ `conditional-null-contract` — raportowaną, NIE bramkującą.
+      # Zmierzone w fazie 6: haiku wystawia tu `swallowedError: 10` i `gateIntegrity: 10` zamiast
+      # `null`, z notą „kryterium nie dotyczy, ale ocena 10 oddaje fakt braku ryzyka". Twarda
+      # asercja czerwieniłaby każde przejście na defekcie ZMIERZONYM i świadomie nienaprawionym,
+      # a wtedy czerwień przestaje odróżniać nową regresję od znanego stanu.
+      expectConditionalNull: true

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { SOFT_OBSERVATIONS, type AssertionOutcome } from "./assertions.ts";
 import { PRICING_AS_OF, PRICING_SOURCE, pricingAgeDays } from "./pricing.ts";
 
 /**
@@ -58,6 +59,12 @@ export interface ReportRow {
   readonly assertionsFailed: number;
   readonly failedAssertions: readonly string[];
   readonly ok: boolean;
+  /**
+   * Obserwacje MIĘKKIE — raportowane, NIE bramkujące. Osobne pole, a nie doklejone do
+   * `failedAssertions`, bo zlanie ich w jedno kasowałoby całą różnicę: czerwień twarda znaczy
+   * „przejście nie przeszło", miękka znaczy „zmierzone i świadomie nienaprawione".
+   */
+  readonly softObservations: readonly { readonly id: string; readonly outcome: AssertionOutcome }[];
 }
 
 type Unknown = Record<string, unknown>;
@@ -120,6 +127,12 @@ export function rowsFromOutputFile(outputFile: unknown): ReportRow[] {
     const assertions = assertionsOf(asRecord(result["gradingResult"]));
 
     const costUsd = metadata?.["costUsd"];
+    const cell = { output: response["output"], error };
+    const softExpectation = { conditionalCriteriaShouldBeNull: vars["expectConditionalNull"] === true };
+    const softObservations = SOFT_OBSERVATIONS.map((observation) => ({
+      id: observation.id,
+      outcome: observation.run(cell, softExpectation),
+    }));
     return [
       {
         model: asString(metadata?.["model"]) ?? asString(asRecord(result["provider"])?.["label"]) ?? "(nieznany)",
@@ -139,6 +152,7 @@ export function rowsFromOutputFile(outputFile: unknown): ReportRow[] {
         assertionsFailed: assertions.failed,
         failedAssertions: assertions.failedTitles,
         ok: result["success"] === true,
+        softObservations,
       },
     ];
   });
@@ -202,8 +216,15 @@ function renderTotals(rows: readonly ReportRow[], now: Date): string[] {
   const hits = rows.filter((row) => row.cached).length;
   const longRuns = priced.filter((row) => (row.turns ?? 0) > 2);
 
+  // DWIE kwoty, nie jedna, i to jest naprawa defektu zauważonego na żywym przebiegu: przy komplecie
+  // trafień pojedyncza „suma przejścia" pokazywała 0,0886 USD nad wierszem `TRAFIENIE`, czyli
+  // czytała się jak WYDATEK za przebieg, który nie kosztował nic. W bramce kosztowej to nie jest
+  // kosmetyka — wymaganie 6 („powtórzenie jest darmowe") sprawdza się dokładnie tą liczbą.
+  const paid = priced.filter((row) => !row.cached).reduce((sum, row) => sum + (row.costUsd ?? 0), 0);
+
   const lines = [
-    `Suma przejścia: ${usd(total)} USD z ${priced.length}/${rows.length} komórek; trafienia cache'u: ${hits}/${rows.length}.`,
+    `Koszt komórek: ${usd(total)} USD z ${priced.length}/${rows.length} komórek; trafienia cache'u: ${hits}/${rows.length}.`,
+    `ZAPŁACONE w tym przejściu: ${usd(paid)} USD (trafienia cache'u nie kosztują).`,
     `Cennik: ${PRICING_AS_OF} (${pricingAgeDays(now)} dni temu), źródło ${PRICING_SOURCE}. Kwoty liczone z tokenów, NIE z total_cost_usd SDK.`,
   ];
   if (unpriced.length > 0) {
@@ -236,6 +257,39 @@ function renderFailures(rows: readonly ReportRow[]): string[] {
   ];
 }
 
+/**
+ * Obserwacje miękkie. Wypisywane ZAWSZE, gdy któraś ma status inny niż `skip` — także gdy
+ * wszystkie przeszły, bo „zmierzone i w porządku" jest informacją, a nie brakiem informacji.
+ *
+ * Sekcja stoi POD werdyktem przejścia i mówi wprost, że nie bramkuje. Bez tego zdania czytelnik
+ * zobaczyłby czerwony wiersz nad linią „Wszystkie komórki zielone" i musiałby sam zgadywać, które
+ * z nich obowiązuje.
+ */
+function renderSoft(rows: readonly ReportRow[]): string[] {
+  const spoken = rows.flatMap((row) =>
+    row.softObservations
+      .filter((observation) => observation.outcome.status !== "skip")
+      .map((observation) => ({ row, observation })),
+  );
+  if (spoken.length === 0) return [];
+
+  const broken = spoken.filter(({ observation }) => observation.outcome.status === "fail");
+  return [
+    "",
+    `Obserwacje MIĘKKIE (raportowane, NIE bramkują zieleni) — ${broken.length} niedotrzymanych z ${spoken.length}:`,
+    ...spoken.map(
+      ({ row, observation }) =>
+        `  ${observation.outcome.status === "fail" ? "✗" : "✓"} ${row.model} / ${row.fixture} [${observation.id}] ${observation.outcome.reason}`,
+    ),
+    ...(broken.length > 0
+      ? [
+          "  ⚑ Stan ZMIERZONY i świadomie nienaprawiony — patrz sekcja Open Risks w planie zmiany,",
+          "    gdzie warunek zamknięcia jest zapisany jako PYTANIE DO POMIARU, nie jako zadanie.",
+        ]
+      : []),
+  ];
+}
+
 /** Cały raport jako TEKST — żeby dał się przetestować bez przechwytywania stdout. */
 export function renderReport(rows: readonly ReportRow[], now: Date): string {
   if (rows.length === 0) {
@@ -250,6 +304,7 @@ export function renderReport(rows: readonly ReportRow[], now: Date): string {
     ...renderTotals(rows, now),
     "",
     ...renderFailures(rows),
+    ...renderSoft(rows),
     "",
   ].join("\n");
 }

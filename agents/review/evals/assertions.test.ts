@@ -16,6 +16,8 @@ import assert from "node:assert/strict";
 import { CRITERIA, SCORE_MAX, SCORE_MIN, type Review } from "../review-schema.ts";
 import {
   HARD_ASSERTIONS,
+  SOFT_OBSERVATIONS,
+  observeConditionalNullContract,
   type CellExpectation,
   type CellUnderTest,
   type OutcomeStatus,
@@ -107,8 +109,11 @@ for (const { model, scores } of MEASURED_SCORES) {
 }
 
 test("kontrola negatywna (slot 2): obiekt z verdict `pass` przechodzi asercje wspólne", () => {
-  // Materiał SYNTETYCZNY — kontrola negatywna nie jest jeszcze zmierzona (to robi faza 6). Ten
-  // przypadek dowodzi wyłącznie, że asercja werdyktu czyta oczekiwanie z fikstury, a nie ze stałej.
+  // Materiał SYNTETYCZNY, i celowo taki: to jest wynik, jakiego kontrola negatywna OCZEKUJE
+  // (oba kryteria warunkowe `null`), a nie ten, który zmierzono. Zmierzony wynik haiku wygląda
+  // inaczej — 10 zamiast `null` — i siedzi niżej, w sekcji obserwacji miękkich. Rozdzielenie jest
+  // celowe: ten przypadek dowodzi, że asercja werdyktu czyta oczekiwanie z fikstury, a nie ze
+  // stałej; tamten — że defekt jest widziany, ale nie bramkuje.
   const statuses = runAll(cellOf(reviewFrom([8, 8, 9, 7, 8, 9, null, null, 10], "pass")), CLEAN_TEXT, false);
   assert.equal(statuses.size, HARD_ASSERTIONS.length - 1, "asercja slotu 1 nie może się wykonać na slocie 2");
   for (const [id, status] of statuses) {
@@ -165,4 +170,58 @@ test("mutacja: odpowiedź z `error` zamiast obiektu → czerwienieje wyłącznie
 test("mutacja: swallowedError = null przy istniejącym materiale → czerwienieje wyłącznie asercja pary", () => {
   // Druga połowa tej samej pary i druga strona `0d3eba5`: `null` tam, gdzie materiał JEST.
   assertOnlyOneRed(runAll(cellOf(mutate(FROZEN, { swallowedError: null })), SAMPLE_DIFF, true), "swallowed-error-pair");
+});
+
+// ---------------------------------------------------------------------------------------------
+// OBSERWACJE MIĘKKIE — raportowane, NIE bramkujące.
+//
+// Materiałem jest ZMIERZONY zestaw ocen haiku z kontroli negatywnej
+// (`measurement-negative-control.md`, faza 6): oba kryteria warunkowe wyszły 10 zamiast `null`.
+// Test pilnuje trzech rzeczy naraz: że obserwacja to widzi, że NIE rusza zieleni twardej,
+// i że na materiale poprawnym przechodzi — czyli że nie jest wpisana na sztywno w czerwień.
+// ---------------------------------------------------------------------------------------------
+
+/** Dokładnie to, co haiku zwróciło na `clean-text-change.diff` — 9 ocen w kolejności `criteria.json`. */
+const HAIKU_NEGATIVE_CONTROL = reviewFrom([10, 10, 10, 10, 7, 10, 10, 10, 9], "pass");
+
+const EXPECT_NULL = { conditionalCriteriaShouldBeNull: true };
+
+test("miękka: ZMIERZONY wynik haiku (10 zamiast null na obu warunkowych) jest WIDZIANY", () => {
+  const outcome = observeConditionalNullContract(cellOf(HAIKU_NEGATIVE_CONTROL), EXPECT_NULL);
+  assert.equal(outcome.status, "fail", "obserwacja nie zauważyła oceny tam, gdzie kryterium nie dotyczy");
+  assert.match(outcome.reason, /swallowedError = 10/);
+  assert.match(outcome.reason, /gateIntegrity = 10/);
+});
+
+test("miękka: ten sam wynik NIE rusza ani jednej asercji twardej", () => {
+  // To jest sedno decyzji C: defekt jest zmierzony i widoczny, ale przejście zostaje zielone.
+  // Gdyby ta asercja padła, „miękka" byłaby nazwą bez pokrycia.
+  const statuses = runAll(cellOf(HAIKU_NEGATIVE_CONTROL), CLEAN_TEXT, false);
+  for (const [id, status] of statuses) {
+    assert.equal(status, "pass", `asercja twarda ${id} zaczerwieniła się na stanie zmierzonym i świadomie nienaprawionym`);
+  }
+});
+
+test("miękka: `null` na obu warunkowych → obserwacja dotrzymana", () => {
+  const clean = reviewFrom([8, 8, 9, 7, 8, 9, null, null, 10], "pass");
+  assert.equal(observeConditionalNullContract(cellOf(clean), EXPECT_NULL).status, "pass");
+});
+
+test("miękka: fikstura bez deklaracji → POMINIĘCIE, nie ciche zielone", () => {
+  // Slot 1 ma materiał połkniętego błędu, więc `swallowedError` MA tam być liczbą. Gdyby
+  // obserwacja zwracała tam `pass`, raport twierdziłby, że coś sprawdził, choć nie miał czego.
+  const outcome = observeConditionalNullContract(cellOf(FROZEN), { conditionalCriteriaShouldBeNull: false });
+  assert.equal(outcome.status, "skip");
+});
+
+test("miękka: brak recenzji → POMINIĘCIE, o błędzie mówi asercja twarda", () => {
+  const outcome = observeConditionalNullContract({ error: "[provider] stream closed" }, EXPECT_NULL);
+  assert.equal(outcome.status, "skip");
+});
+
+test("rejestry twardy i miękki są ROZŁĄCZNE — nic nie bramkuje dwa razy", () => {
+  const hard = new Set(HARD_ASSERTIONS.map((assertion) => assertion.id));
+  for (const observation of SOFT_OBSERVATIONS) {
+    assert.ok(!hard.has(observation.id), `obserwacja ${observation.id} nosi id asercji twardej`);
+  }
 });

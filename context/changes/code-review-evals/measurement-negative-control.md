@@ -156,7 +156,7 @@ księgowaniu OpenRoutera, znanym już z Pomiaru II.
 Faza 7 potrzebuje dwóch zimnych komórek `sample.diff` (~0,117 USD). **Nie mieści się.**
 Zgodnie z wymaganiem 1 to jest zatrzymanie i rozmowa, nie dopłata.
 
-## Decyzja o asercji `=== null` — DO PODJĘCIA Z CZŁOWIEKIEM
+## Decyzja o asercji `=== null` — warianty przedstawione człowiekowi
 
 Plan (faza 6 §2) przewidywał decyzję binarną. Pomiar dołożył trzecią możliwość, której wtedy nie
 było widać, bo nie znaliśmy jeszcze granicy `maxTurns`.
@@ -181,3 +181,59 @@ Osobno od A/B/C: **gemini pozostaje niezmierzone na tej fiksturze** dopóki nie 
 `maxTurns`. Podniesienie limitu jest zmianą na PRODUKCYJNEJ ścieżce review (`run-review.ts` jedzie
 w CI na każdym PR-ze), więc nie wolno jej zrobić przy okazji — potrzebuje własnej pary dowodowej,
 tak jak każda inna zmiana zachowania agenta.
+
+---
+
+## Decyzja PODJĘTA: wariant C (asercja miękka) — 2026-08-23
+
+Wybrany wariant **C**: reguła `null` wchodzi jako **obserwacja miękka**
+(`conditional-null-contract` w `evals/assertions.ts`) — raportowana w każdym przejściu, NIE
+bramkująca zieleni. Wpięcie przez `vars.expectConditionalNull: true` na slocie 2.
+
+**Dlaczego nie A (poprawka promptu):** nie dlatego, że jest zła — jest merytorycznie najbliżej
+defektu. Odpada, bo unieważniłaby cache i wymusiła ponowny pomiar plus pełne przejście fazy 7
+(~0,23 USD) przy **0,0531 USD** pozostałych pod capem z wymagania 1. Podjęcie jej tutaj byłoby
+dopłatą, a wymaganie 1 mówi w tej sytuacji „zatrzymać się i wrócić z liczbami".
+
+**Dlaczego nie B (asercja nie wchodzi wcale):** defekt zniknąłby z raportu razem z informacją,
+że go zmierzono. Różnica między „zmierzone i świadomie nienaprawione" a „niemierzone" jest tym,
+po co ten zestaw powstał.
+
+**Co C realnie daje i czego NIE daje.** Daje: każde przejście wypisuje, że kryteria warunkowe
+zostały rozstrzygnięte oceną zamiast `null`, z nazwami pól i wartościami. Nie daje: nic tego nie
+BLOKUJE — nowa regresja tej samej klasy przejdzie przez bramkę tak samo jak stan dzisiejszy.
+To jest cena wariantu i ma być czytana jako cena, nie jako kompromis bez kosztu.
+
+Dowód, że obserwacja nie jest ozdobą — trzy przypadki w `evals/assertions.test.ts`, wszystkie
+zielone: zmierzony wynik haiku jest WIDZIANY (`fail`), ten sam wynik NIE rusza ani jednej asercji
+twardej, a materiał z poprawnym `null` obserwację dotrzymuje. Plus czwarty, że rejestr twardy
+i miękki są rozłączne, więc nic nie bramkuje dwa razy.
+
+Wyrenderowane na żywym przebiegu (trafienie cache'u, koszt 0,00 USD):
+
+```
+Wszystkie komórki zielone na asercjach twardych.
+
+Obserwacje MIĘKKIE (raportowane, NIE bramkują zieleni) — 1 niedotrzymanych z 1:
+  ✗ anthropic/claude-haiku-4.5 / clean-text-change.diff [conditional-null-contract] ocena zamiast
+    `null` tam, gdzie kryterium nie ma zastosowania: swallowedError = 10, gateIntegrity = 10
+```
+
+### Warunki zamknięcia zapisane jako PYTANIA DO POMIARU
+
+Oba ryzyka poszły do sekcji „Open Risks" w `plan.md` sformułowane jako pytania, na które trzeba
+ODPOWIEDZIEĆ POMIAREM — nie jako zadania do odhaczenia. Powód jest procedury, nie stylu: warunek
+zapisany jako zadanie ktoś za tydzień „domknie" bez liczby.
+
+- **Ryzyko 3 (kontrakt `null`)**: czy regułę da się wyegzekwować promptem u KAŻDEGO kandydata, czy
+  jest własnością modelu. Jeśli własnością modelu — **to nie jest defekt do naprawienia, tylko
+  kryterium kwalifikacji modelu do tej bramki**, i tak trzeba je zapisać.
+- **Ryzyko 4 (`maxTurns`)**: przy jakim materiale dwie tury przestają wystarczać. Domknięcie wymaga
+  pary dowodowej na ścieżce PRODUKCYJNEJ, bo `run-review.ts` jedzie na każdym PR-ze.
+
+### Gemini: NIEZMIERZONE, i tak to nazywamy
+
+Kolumna gemini na slocie 2 pozostaje pusta. Nie „przeszła", nie „padła" — **niezmierzona**,
+bo dwie próby skończyły się awariami przed dojściem do `safeParse`. Kryteria 6.1 i 6.2 zostają
+w Progresie NIEODHACZONE. Podniesienie `maxTurns` byłoby zmianą produkcyjnej ścieżki review
+podjętą w zmianie o innym celu — dokładnie ta klasa, przed którą broni kryterium 9.

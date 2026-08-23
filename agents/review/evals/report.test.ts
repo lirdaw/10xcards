@@ -51,6 +51,7 @@ const ROW: ReportRow = {
   assertionsFailed: 0,
   failedAssertions: [],
   ok: true,
+  softObservations: [],
 };
 
 test("(A1) tabela niesie komplet kolumn, sumę i WIEK cennika obok kwot", () => {
@@ -249,3 +250,37 @@ test(
     }
   },
 );
+
+test("(A8) trafienie cache'u NIE jest liczone jako wydatek przejścia", () => {
+  // Defekt zauważony na żywym przebiegu fazy 6: pojedyncza „suma przejścia" pokazywała kwotę
+  // komórki nad wierszem `TRAFIENIE`, czyli czytała się jak wydatek za przebieg, który nie
+  // kosztował nic. Wymaganie 6 („powtórzenie jest darmowe") sprawdza się dokładnie tą liczbą.
+  const report = renderReport([{ ...ROW, cached: true }], new Date("2026-08-23T00:00:00Z"));
+  assert.ok(report.includes("Koszt komórek: 0.082941"), "koszt komórki zniknął z raportu");
+  assert.ok(report.includes("ZAPŁACONE w tym przejściu: 0.000000"), "trafienie zostało policzone jako wydatek");
+});
+
+test("(A9) obserwacja miękka jest raportowana OSOBNO i mówi wprost, że nie bramkuje", () => {
+  const rows = rowsFromOutputFile({
+    results: {
+      results: [
+        {
+          success: true,
+          vars: { fixture: "clean-text-change.diff", expectConditionalNull: true },
+          provider: { id: "review:anthropic/claude-haiku-4.5", label: "haiku-4.5" },
+          response: {
+            // Zmierzone wyjście haiku z fazy 6 — oba kryteria warunkowe jako 10 zamiast `null`.
+            output: { verdict: "pass", swallowedError: 10, gateIntegrity: 10 },
+            metadata: { model: "anthropic/claude-haiku-4.5", verdict: "pass" },
+          },
+          gradingResult: { pass: true, componentResults: [{ pass: true, reason: "[verdict] ok" }] },
+        },
+      ],
+    },
+  });
+  const report = renderReport(rows, new Date("2026-08-23T00:00:00Z"));
+  assert.equal(rows[0]?.ok, true, "obserwacja miękka NIE MOŻE czerwienić komórki");
+  assert.ok(report.includes("Wszystkie komórki zielone"), "twarde przeszły, więc przejście jest zielone");
+  assert.ok(report.includes("NIE bramkują zieleni"), "raport nie mówi, że sekcja miękka nie bramkuje");
+  assert.ok(report.includes("swallowedError = 10"), "obserwacja nie wypisała, co konkretnie zobaczyła");
+});

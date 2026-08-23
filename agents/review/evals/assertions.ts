@@ -212,6 +212,70 @@ export function checkSwallowedErrorPair(cell: CellUnderTest): AssertionOutcome {
 }
 
 // ---------------------------------------------------------------------------------------------
+// OBSERWACJE MIĘKKIE — trafiają do raportu, NIE bramkują zieleni.
+//
+// Nie jest to kategoria „na wszelki wypadek". Powstała z konkretnego pomiaru (faza 6,
+// `measurement-negative-control.md`): na kontroli negatywnej haiku wystawiło `swallowedError: 10`
+// i `gateIntegrity: 10` zamiast `null`, z notami mówiącymi WPROST „kryterium nie dotyczy, ale
+// ocena 10 oddaje fakt braku ryzyka". Model rozpoznał materiał poprawnie i odrzucił samą regułę.
+//
+// Twarda asercja `=== null` byłaby tu poprawna merytorycznie i BŁĘDNA proceduralnie: czerwieniłaby
+// każde przejście na defekcie, który jest ZMIERZONY i ŚWIADOMIE nienaprawiony, a wtedy czerwień
+// przestaje odróżniać „nowa regresja" od „znany, opisany stan". Obserwacja miękka utrzymuje
+// różnicę między „zmierzone i nienaprawione" a „niemierzone" — a to jest dokładnie to, po co ten
+// zestaw powstał.
+//
+// Warunek, na którym to przestaje być obserwacją i staje się bramką, jest zapisany w planie
+// (sekcja „Open Risks") jako PYTANIE DO POMIARU, nie jako zadanie do odhaczenia.
+// ---------------------------------------------------------------------------------------------
+
+/** Oczekiwanie miękkie fikstury — czyta się z `vars`, tak samo jak twarde. */
+export interface SoftExpectation {
+  /** `true` wyłącznie dla materiału, w którym OBA kryteria warunkowe są bez zastosowania. */
+  readonly conditionalCriteriaShouldBeNull: boolean;
+}
+
+export interface SoftObservation {
+  readonly id: string;
+  readonly title: string;
+  readonly run: (cell: CellUnderTest, expectation: SoftExpectation) => AssertionOutcome;
+}
+
+/**
+ * Czy kryteria warunkowe zostały rozstrzygnięte przez `null`, czy przez liczbę.
+ *
+ * `null` NIE JEST OCENĄ — mówi, że materiału nie ma. Liczba w jego miejscu zawyża wynik
+ * arytmetycznie: zmiana, która nie ruszyła żadnej ścieżki zapisu, wypada wtedy LEPIEJ niż zmiana,
+ * która ruszyła ją i obsłużyła porządnie. To jest powód, dla którego ta obserwacja w ogóle jest
+ * w raporcie, a nie tylko w notatce pomiarowej.
+ */
+export function observeConditionalNullContract(cell: CellUnderTest, expectation: SoftExpectation): AssertionOutcome {
+  if (!expectation.conditionalCriteriaShouldBeNull) {
+    return skip("fikstura nie deklaruje, że oba kryteria warunkowe są bez zastosowania");
+  }
+  const review = toReview(cell);
+  if (!review) return skip(NO_REVIEW);
+
+  const offenders = CRITERIA.filter((criterion) => criterion.conditional).flatMap((criterion) => {
+    const value = scoreOf(review, criterion.key);
+    return value === null ? [] : [`${criterion.key} = ${JSON.stringify(value)}`];
+  });
+
+  if (offenders.length > 0) {
+    return fail(`ocena zamiast \`null\` tam, gdzie kryterium nie ma zastosowania: ${offenders.join(", ")}`);
+  }
+  return pass("oba kryteria warunkowe rozstrzygnięte przez `null`");
+}
+
+export const SOFT_OBSERVATIONS: readonly SoftObservation[] = [
+  {
+    id: "conditional-null-contract",
+    title: "kryteria warunkowe rozstrzygnięte przez `null`, nie oceną",
+    run: observeConditionalNullContract,
+  },
+];
+
+// ---------------------------------------------------------------------------------------------
 // Rejestr — jedno miejsce, z którego czytają i test, i raport.
 // ---------------------------------------------------------------------------------------------
 
