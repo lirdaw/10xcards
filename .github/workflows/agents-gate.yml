@@ -1,0 +1,95 @@
+name: Agents gate
+
+# Bramka nad `agents/**`, której do tej pory NIE BYŁO — i to nie z przeoczenia, tylko dlatego,
+# że ten katalog jest świadomie poza każdą istniejącą bramką repo: rootowy `tsconfig.json` ma
+# `exclude: [..., "agents"]`, `eslint.config.js` ignoruje `agents/**`, a vitest tam nie zagląda
+# (AGENTS.md §Hard Rules). Granica jest słuszna — pakiet agenta ma własny `package-lock.json`
+# i własne `node_modules` — ale jej ceną było to, że zmiana ruszająca WYŁĄCZNIE ten pakiet nie
+# była sprawdzana przez nic.
+#
+# Filtr `paths` jest tu ODWROTNĄ decyzją niż w `prompt-ratchet.yml` i dlatego wymaga zapisania
+# dlaczego. Tamten plik świadomie nie ma filtra, bo „the job is seconds long with no install, so
+# there is nothing to buy by filtering". Tutaj `npm ci` tego pakietu to najwolniejszy i najbardziej
+# wrażliwy na platformę krok w całym repo (~335 MB rozpakowane, `.github/actions/review-agent/
+# action.yml:124-126`), więc filtr coś realnie kupuje. Klasa błędu, przed którą tamten komentarz
+# przestrzega — filtr zestarzeje się CICHO, gdy strzeżona lista urośnie poza niego — tu nie
+# zachodzi: zbiór strzeżony to `include: ["**/*.ts"]` z `agents/review/tsconfig.json`, który leży
+# WEWNĄTRZ `agents/`, a sam ten plik workflow jest w filtrze wymieniony. Nowy katalog w pakiecie
+# (np. `agents/review/evals/` z fazy 4) wchodzi pod bramkę bez dotykania czegokolwiek tutaj.
+#
+# I nie: `prompt.test.ts` NIE przenosi się tu z `prompt-ratchet.yml`. Jego wartością jest brak
+# zależności runtime, dzięki któremu biega tam bez `npm ci` i w sekundach; testy, które
+# zależności MAJĄ, dostają dlatego inny job, a nie tamten.
+on:
+  push:
+    branches: [main]
+    paths: ["agents/**", ".github/workflows/agents-gate.yml"]
+  pull_request:
+    branches: [main]
+    paths: ["agents/**", ".github/workflows/agents-gate.yml"]
+
+# Tylko odczyt. Ten job czyta checkout i raportuje; nic więcej nie jest mu do niczego potrzebne.
+permissions:
+  contents: read
+
+concurrency:
+  group: agents-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Gwarancja należy do konfiguracji PLIKU, nie do czujności autora (`lessons.md`): jedno miejsce
+# zamiast pamiętania o `pipefail` przy każdej rurze z osobna. `shell: bash` w GitHub Actions to
+# `bash --noprofile --norc -eo pipefail`.
+defaults:
+  run:
+    shell: bash
+    working-directory: agents/review
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          # Pakiet agenta ma WŁASNY lock i nie jest workspace'em roota — bez tego wskazania
+          # `setup-node` szukałby locka w katalogu głównym i cachował nie ten graf zależności.
+          cache-dependency-path: agents/review/package-lock.json
+
+      # Jedyny krok, który filtr `paths` wyżej realnie opłaca.
+      - name: Install the agent package
+        run: npm ci
+
+      - name: Typecheck the agent package
+        run: npm run typecheck
+
+      # `npm test` z FLOOREM NA WYKRYWANIE, i to nie jest ostrożność na zapas — zmierzone:
+      # `node --test`, które nie znajdzie ANI JEDNEGO pliku testowego, wypisuje `tests 0`
+      # i kończy się kodem **0**. Czyli sam skrypt testowy nie odróżnia „wszystko przeszło" od
+      # „nie było czego uruchomić" — a to druga z tych rzeczy jest tu realnym ryzykiem, bo
+      # wykrywanie plików `.ts` przez wbudowany runner zależy od tego, czy w danej wersji Node'a
+      # type-stripping jest włączony. Zielona bramka, która niczego nie uruchomiła, jest gorsza
+      # niż jej brak, bo zdejmuje czujność (`lessons.md`, „Komenda, która ZAWSZE kończy się
+      # kodem 0, nie jest bramką").
+      #
+      # Dlatego werdykt stoi na DWÓCH niezależnych nogach: kodzie wyjścia runnera ORAZ asercji
+      # na POZYTYWNY string w planie TAP (`1..N` dla N ≥ 1). Bez rury — wyjście idzie do pliku
+      # i jest drukowane bezwarunkowo, więc kod wyjścia należy do `node`, a nie do `tee`.
+      - name: Test the agent package
+        run: |
+          tap="${RUNNER_TEMP}/agents-review-tests.tap"
+          set +e
+          npm test --silent -- --test-reporter=tap > "$tap"
+          status=$?
+          set -e
+          cat "$tap"
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Testy pakietu agenta zakończyły się kodem ${status}."
+            exit "$status"
+          fi
+          if ! grep -qE '^1\.\.[1-9][0-9]*$' "$tap"; then
+            echo "::error::Runner nie wykrył ŻADNEGO pliku testowego — bramka nie sprawdziła niczego."
+            exit 1
+          fi

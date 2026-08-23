@@ -932,22 +932,22 @@ dokłada plik workflow — usunięcie go przywraca stan sprzed. Fazy 4-7 żyją 
 
 #### Automated
 
-- [x] 2.1 `review-cli.test.ts` przechodzi bez zmiany ani jednej asercji
-- [x] 2.2 `run-review.test.ts` przechodzi, z parą asercji (`[kind]` + `failure-kind=`) dla każdej z czterech klas awarii
-- [x] 2.3 `prompt.test.ts` nadal 6/6
-- [x] 2.4 `git diff` po stronie `.github/**` jest pusty
+- [x] 2.1 `review-cli.test.ts` przechodzi bez zmiany ani jednej asercji — bc95229
+- [x] 2.2 `run-review.test.ts` przechodzi, z parą asercji (`[kind]` + `failure-kind=`) dla każdej z czterech klas awarii — bc95229
+- [x] 2.3 `prompt.test.ts` nadal 6/6 — bc95229
+- [x] 2.4 `git diff` po stronie `.github/**` jest pusty — bc95229
 
 #### Manual
 
-- [x] 2.5 Wrapper przeczytany w całości — nie mieści logiki recenzji
-- [x] 2.6 Potwierdzone, że wrapper nie łapie rzutu z `runReview` (linia `Error:` z unhandled rejection zachowana)
+- [x] 2.5 Wrapper przeczytany w całości — nie mieści logiki recenzji — bc95229
+- [x] 2.6 Potwierdzone, że wrapper nie łapie rzutu z `runReview` (linia `Error:` z unhandled rejection zachowana) — bc95229
 
 ### Phase 3: Bramka pakietu agenta (typecheck + testy zależne) w CI
 
 #### Automated
 
-- [ ] 3.1 `npm --prefix agents/review run typecheck` zielone lokalnie
-- [ ] 3.2 `npm --prefix agents/review run test` wykrywa i przechodzi wszystkie pliki testowe pakietu
+- [x] 3.1 `npm --prefix agents/review run typecheck` zielone lokalnie
+- [x] 3.2 `npm --prefix agents/review run test` wykrywa i przechodzi wszystkie pliki testowe pakietu
 - [ ] 3.3 `agents-gate.yml` zielony na PR-ze
 
 #### Manual
