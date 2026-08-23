@@ -198,7 +198,11 @@ a nie ukryte.
 - **Fix**: dopisać do fazy 6 §2 jedno zdanie odsyłające do Open Risk 3 („wariant C — obserwacja
   miękka — wybrany po pomiarze; uzasadnienie w Open Risks §3"), zgodnie z konwencją korekt użytą
   w `requirements.md`.
-- **Decision**: PENDING
+- **Decision**: **FIXED** — blok `⛑ KOREKTA PO POMIARZE` dopisany pod kontraktem fazy 6 §2,
+  OBOK oryginalnego akapitu, nie zamiast niego (ta sama konwencja co korekty w `requirements.md`).
+  Nazywa wariant C, mówi wprost, czego „binarne” ujęcie nie obejmowało — model odrzucił samą
+  REGUŁĘ, a nie pomylił się co do materiału — i odsyła do Open Risk 3 po warunek awansu
+  na asercję twardą.
 
 ### F6 — `runEval` ignoruje `child.error`: nieudany spawn raportuje się jako problem z plikiem wyniku
 
