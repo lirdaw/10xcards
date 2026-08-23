@@ -46,6 +46,7 @@ const ROW: ReportRow = {
   cacheReadTokens: 0,
   costUsd: 0.082941,
   costUnavailableReason: null,
+  durationMs: 41233,
   cached: false,
   assertionsPassed: 6,
   assertionsFailed: 0,

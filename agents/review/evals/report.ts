@@ -1,10 +1,18 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SOFT_OBSERVATIONS, type AssertionOutcome } from "./assertions.ts";
+import {
+  RECORD_COMMAND,
+  RECORD_PATH,
+  RECORD_RELATIVE_PATH,
+  buildRecord,
+  serializeRecord,
+} from "./eval-record.ts";
+import { productionPromptFingerprint } from "./fingerprint.ts";
 import { PRICING_AS_OF, PRICING_SOURCE, pricingAgeDays } from "./pricing.ts";
 
 /**
@@ -54,6 +62,14 @@ export interface ReportRow {
   readonly costUsd: number | null;
   /** Powód braku kwoty — wypisywany zamiast zera, bo zero czyta się jak „komórka była darmowa”. */
   readonly costUnavailableReason: string | null;
+  /**
+   * Czas komórki, z `latencyMs` promptfoo (pole wyniku, nie metadanych naszego providera).
+   *
+   * Nie wchodzi do tabeli — wchodzi do DOWODU (`eval-record.json`), bo tam odpowiada na pytanie
+   * „ile trwało to, za co zapłacono", którego kwota sama nie niesie. Wartość MYLĄCA przy trafieniu
+   * cache'u (mierzy odczyt, nie wywołanie), i dlatego rekord niesie obok niej `cached`.
+   */
+  readonly durationMs: number | undefined;
   readonly cached: boolean;
   readonly assertionsPassed: number;
   readonly assertionsFailed: number;
@@ -154,6 +170,7 @@ export function rowsFromOutputFile(outputFile: unknown): ReportRow[] {
         cacheReadTokens: asNumber(completionDetails?.["cacheReadInputTokens"]),
         costUsd: typeof costUsd === "number" ? costUsd : null,
         costUnavailableReason: asString(metadata?.["costUnavailableReason"]) ?? null,
+        durationMs: asNumber(result["latencyMs"]),
         cached: response["cached"] === true || metadata?.["cached"] === true,
         assertionsPassed: assertions.passed,
         assertionsFailed: assertions.failed,
@@ -496,29 +513,155 @@ export function runEval(extraArgs: readonly string[], timeoutMs: number = EVAL_T
   }
 }
 
-// Porównanie po ZNORMALIZOWANEJ ścieżce, nie po surowym `argv[1]`: na Windowsie separatory
-// i wielkość liter potrafią się różnić, a wtedy raport po cichu nigdy by się nie uruchomił.
-/** `--from <plik>` renderuje z zapisanego wyniku; reszta argumentów leci do `promptfoo eval`. */
-function splitArgs(argv: readonly string[]): { from: string | undefined; rest: string[] } {
-  const index = argv.indexOf("--from");
-  if (index === -1) return { from: undefined, rest: [...argv] };
-  const from = argv[index + 1];
-  if (from === undefined) throw new Error("[raport] `--from` wymaga ścieżki do pliku wyniku.");
-  return { from, rest: [...argv.slice(0, index), ...argv.slice(index + 2)] };
+// ---------------------------------------------------------------------------------------------
+// Zapis DOWODU (`--record`).
+// ---------------------------------------------------------------------------------------------
+
+export interface ParsedArgs {
+  /** `--from <plik>`: renderuj z zapisanego wyniku, bez wywołania modelu. */
+  readonly from: string | undefined;
+  /** `--record`: po przejściu zapisz dowód do `eval-record.json`. */
+  readonly record: boolean;
+  /** Reszta, przekazywana `promptfoo eval` bez zmian. */
+  readonly rest: readonly string[];
 }
 
+/**
+ * `--from <plik>` i `--record` są KONSUMOWANE; reszta argumentów leci do `promptfoo eval`.
+ *
+ * Konsumpcja `--record` nie jest detalem stylu: nieskonsumowana reszta jedzie w całości do
+ * `promptfoo eval` (patrz `runEval`), więc flaga zostawiona w `rest` dojechałaby tam jako nieznana
+ * opcja i wywaliłaby przejście — czyli PO zapłaceniu za nie.
+ */
+export function splitArgs(argv: readonly string[]): ParsedArgs {
+  const withoutRecord = argv.filter((arg) => arg !== "--record");
+  const record = withoutRecord.length !== argv.length;
+
+  const index = withoutRecord.indexOf("--from");
+  if (index === -1) return { from: undefined, record, rest: withoutRecord };
+  const from = withoutRecord[index + 1];
+  if (from === undefined) throw new Error("[raport] `--from` wymaga ścieżki do pliku wyniku.");
+  return { from, record, rest: [...withoutRecord.slice(0, index), ...withoutRecord.slice(index + 2)] };
+}
+
+/** Argumenty ZAWĘŻAJĄCE przebieg. Prefiks, nie lista nazw — promptfoo ma ich osiem i przybywa. */
+export function narrowingArgs(rest: readonly string[]): string[] {
+  return rest.filter((arg) => arg.startsWith("--filter"));
+}
+
+/**
+ * Odmowa zapisu rozstrzygana Z ARGUMENTÓW — czyli PRZED przejściem, zanim padnie pierwszy cent.
+ *
+ * Obie odmowy są TWARDE, nie ostrzeżeniami, bo dowód zapisany w tych warunkach jest zgodny
+ * z odciskiem i nic nie znaczy — a to gorzej niż jego brak:
+ *
+ *   * `--from` renderuje raport z ZAPISANEGO wyniku, a odcisk liczy się ŻYWO w chwili zapisu.
+ *     Para `--from --record` wyprodukowałaby więc dowód zgodny z dzisiejszym odciskiem, opisujący
+ *     przebieg sprzed zmiany promptu. To jedyna droga do sfałszowania dowodu, którą otwierałoby
+ *     WŁASNE narzędzie — i dlatego jest domknięta. Ręcznej edycji pliku nie domknie nic i nie
+ *     udajemy, że domykamy.
+ *   * `--filter…` zawęża przebieg, a dowód z jednej kolumny nie jest dowodem. Zapadka złapałaby
+ *     to i tak (macierz niepełna), ale dopiero na CI i już po wydatku.
+ */
+export function recordArgsRefusal(args: ParsedArgs): string | undefined {
+  if (!args.record) return undefined;
+
+  if (args.from !== undefined) {
+    return [
+      "[dowód] ODMOWA: `--record` i `--from` wykluczają się wzajemnie.",
+      "",
+      "`--from` renderuje raport z ZAPISANEGO wyniku, a odcisk wywołania liczy się ŻYWO w chwili",
+      "zapisu — więc ta para wyprodukowałaby dowód zgodny z dzisiejszym odciskiem i opisujący",
+      "przebieg sprzed zmiany promptu. Dowód, który zgadza się z odciskiem i nie opisuje go, jest",
+      "gorszy niż brak dowodu.",
+      "",
+      `Chcesz zapisać dowód → przejedź macierz: ${RECORD_COMMAND}`,
+      "Chcesz tylko przerenderować raport → zostaw samo `--from`.",
+    ].join("\n");
+  }
+
+  const narrowing = narrowingArgs(args.rest);
+  if (narrowing.length > 0) {
+    return [
+      `[dowód] ODMOWA: przebieg jest zawężony (${narrowing.join(", ")}), więc jego wynik nie jest dowodem.`,
+      "",
+      "Zapadka wymaga PEŁNEJ macierzy: kolumna, której się nie zmierzyło, jest kolumną, o której",
+      "nic nie wiadomo. Dowód z zawężonego przejścia byłby zgodny z odciskiem i pusty.",
+      "",
+      `Przejedź pełną macierz: ${RECORD_COMMAND}`,
+    ].join("\n");
+  }
+
+  return undefined;
+}
+
+/** Trzecia odmowa — rozstrzygalna dopiero PO przejściu: zero wierszy to nie jest pomiar. */
+export function recordRowsRefusal(rows: readonly ReportRow[]): string | undefined {
+  if (rows.length > 0) return undefined;
+  return [
+    "[dowód] ODMOWA: przejście zwróciło ZERO wierszy, więc nie ma czego zapisać.",
+    "",
+    "Pusty dowód zgadzałby się z odciskiem i nie mówiłby nic — a zapadka odczytałaby go jako",
+    "macierz niepełną dopiero na CI. Przeczytaj wyjście promptfoo WYŻEJ: przejście najpewniej",
+    "w ogóle się nie odbyło.",
+  ].join("\n");
+}
+
+/**
+ * Zapis połowy AGENCKIEJ dowodu. Read-modify-write: cudzy blok `verdictConfig` przeżywa.
+ *
+ * Nieczytelny albo nieistniejący plik NIE jest błędem — pierwszy zapis tworzy go od zera. Nie ma
+ * tu miejsca na `try/catch` szerszy niż odczyt: awaria SAMEGO zapisu ma dojść do `main`.
+ */
+function writeRecord(rows: readonly ReportRow[], now: Date): void {
+  let existing: unknown;
+  try {
+    existing = JSON.parse(readFileSync(RECORD_PATH, "utf8"));
+  } catch {
+    existing = undefined;
+  }
+  const record = buildRecord({ rows, existing, callFingerprint: productionPromptFingerprint(), now });
+  writeFileSync(RECORD_PATH, serializeRecord(record), "utf8");
+}
+
+// Porównanie po ZNORMALIZOWANEJ ścieżce, nie po surowym `argv[1]`: na Windowsie separatory
+// i wielkość liter potrafią się różnić, a wtedy raport po cichu nigdy by się nie uruchomił.
 const isEntrypoint =
   process.argv[1] !== undefined && resolve(fileURLToPath(import.meta.url)) === resolve(process.argv[1]);
 if (isEntrypoint) {
-  const { from, rest } = splitArgs(process.argv.slice(2));
-  if (from === undefined) {
-    const { exitCode, rows } = runEval(rest);
+  const args = splitArgs(process.argv.slice(2));
+  const argsRefusal = recordArgsRefusal(args);
+
+  if (argsRefusal !== undefined) {
+    // PRZED przejściem — odmowa po wydatku byłaby odmową wartą 0,12 USD.
+    process.stderr.write(`${argsRefusal}\n`);
+    process.exitCode = 1;
+  } else if (args.from === undefined) {
+    const { exitCode, rows } = runEval(args.rest);
     process.stdout.write(renderReport(rows, new Date()));
     process.exitCode = exitCode;
+
+    if (args.record) {
+      const rowsRefusal = recordRowsRefusal(rows);
+      if (rowsRefusal !== undefined) {
+        process.stderr.write(`${rowsRefusal}\n`);
+        process.exitCode = 1;
+      } else {
+        // Zapis idzie także wtedy, gdy któraś komórka jest CZERWONA, i to jest decyzja: dowód ma
+        // opisywać przejście, które się odbyło. Czerwoną komórkę zapadka złapie sama i nazwie —
+        // dowód „poprawiony" przez pominięcie jej byłby dowodem czegoś, czego nie zmierzono.
+        writeRecord(rows, new Date());
+        process.stderr.write(
+          `[dowód] zapisano ${rows.length} komórek do ${RECORD_RELATIVE_PATH}. ` +
+            "Druga połowa (verdictConfig) NIE jest tym zapisem objęta — patrz " +
+            "scripts/run-verdict-config.ts --write.\n",
+        );
+      }
+    }
   } else {
     // Tryb odczytu: raport, ale ŻADNEGO wywołania modelu. Kod wyjścia bierze się z wierszy,
     // bo nie ma procesu promptfoo, którego kodu można by nie zmienić.
-    const rows = rowsFromFile(from);
+    const rows = rowsFromFile(args.from);
     process.stdout.write(renderReport(rows, new Date()));
     process.exitCode = rows.every((row) => row.ok) ? 0 : 1;
   }

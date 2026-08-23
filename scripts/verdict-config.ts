@@ -69,6 +69,19 @@ export const ASSERTIONS_PATH = new URL("../agents/review/evals/assertions.ts", i
 /** Ta sama ścieżka w postaci, w jakiej ma się pojawić w komunikacie dla człowieka. */
 export const ASSERTIONS_RELATIVE_PATH = "agents/review/evals/assertions.ts";
 
+/**
+ * Plik dowodu — czytany i zapisywany jako DANE (JSON), nigdy importem. To jest to samo przejście
+ * granicy co `criteria.json` w `run-review-verdict.ts`: `scripts/` bierze z `agents/` wygenerowany
+ * plik danych, a nie moduł, więc przenośność agenta zostaje nietknięta.
+ */
+export const RECORD_PATH = new URL("../agents/review/evals/eval-record.json", import.meta.url);
+
+/** Ta sama ścieżka dla człowieka. */
+export const RECORD_RELATIVE_PATH = "agents/review/evals/eval-record.json";
+
+/** Komenda wytwarzająca drugą połowę dowodu. KOSZTUJE — cytowana, żeby jej z tą nie mylić. */
+export const RECORD_COMMAND = "npm --prefix agents/review run eval -- --record";
+
 /** Plik, w którym mieszkają trzy liczby — cytowany w remedium, żeby nie trzeba było go szukać. */
 export const VERDICT_SOURCE_RELATIVE_PATH = "scripts/review-verdict.ts";
 
@@ -199,4 +212,59 @@ export function remedyFor(drifts: readonly VerdictConfigDrift[]): string {
   );
 
   return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Zapis — połowa `scripts/`. Drugą połowę pisze `agents/review/evals/report.ts --record`.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Dokładne bajty pliku dowodu.
+ *
+ * ⚑ ZDUBLOWANE z `agents/review/evals/eval-record.ts` i to jest CENA granicy kierunkowej, nie
+ * przeoczenie: dwaj zapisywacze piszą do jednego pliku, a `scripts/` nie wolno importować kodu
+ * agenta. Dlatego każda strona ma WŁASNY test round-tripu, a checker trzeci — na pliku
+ * ZACOMMITOWANYM. Rozjazd tych dwóch linii objawia się natychmiast: plik przeformatowany przez
+ * jednego zapisywacza czerwieni round-trip drugiego, zamiast po cichu podmieniać formatowanie.
+ *
+ * Dwuspacjowe wcięcie i domykający `\n` nie są preferencją: `lint-staged` puszcza
+ * `prettier --write` na każdy zastagowany `*.json`, a `agents/**` nie jest w `.prettierignore`.
+ */
+export function serializeRecord(record: unknown): string {
+  return `${JSON.stringify(record, null, 2)}\n`;
+}
+
+/** Klucze dowodu w kolejności zapisu — druga połowa duplikatu opisanego wyżej. */
+const RECORD_KEYS = ["notes", "generatedAt", "callFingerprint", "verdictConfig", "matrix"] as const;
+
+const asRecord = (value: unknown): Readonly<Record<string, unknown>> | undefined =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Readonly<Record<string, unknown>>)
+    : undefined;
+
+/**
+ * Dowód po zapisie połowy `scripts/` — read-modify-write, który ZACHOWUJE cudze bloki.
+ *
+ * Podmieniany jest WYŁĄCZNIE klucz `verdictConfig`; `callFingerprint` i `matrix` przechodzą co do
+ * bajtu. To nie jest ostrożność, tylko warunek działania obu odcisków naraz: gdyby ten zapisywacz
+ * dotykał macierzy, oś PŁATNA dałaby się zazielenić komendą DARMOWĄ.
+ *
+ * Klucze wychodzą w kolejności `RECORD_KEYS` — takiej samej, jaką emituje zapisywacz agencki —
+ * żeby dwaj niezależni zapisywacze nie przestawiali ich sobie nawzajem przy każdym przebiegu.
+ * Klucze o wartości `undefined` znikają w `JSON.stringify`, więc plik bez `notes` czy `matrix`
+ * (stan przejściowy między dwoma zapisami) nie zyskuje tu pustych pól.
+ */
+export function withVerdictConfig(existing: unknown, config: VerdictConfig): Record<string, unknown> {
+  const record = asRecord(existing) ?? {};
+  const known = new Set<string>(RECORD_KEYS);
+  const unknownKeys = Object.fromEntries(Object.entries(record).filter(([key]) => !known.has(key)));
+
+  return {
+    notes: record.notes,
+    generatedAt: record.generatedAt,
+    callFingerprint: record.callFingerprint,
+    verdictConfig: config,
+    matrix: record.matrix,
+    ...unknownKeys,
+  };
 }

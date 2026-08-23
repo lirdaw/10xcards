@@ -16,6 +16,8 @@ import {
   liveAssertionsDigest,
   liveVerdictConfig,
   remedyFor,
+  serializeRecord,
+  withVerdictConfig,
 } from "../../scripts/verdict-config.ts";
 import type { VerdictConfig, VerdictConfigField } from "../../scripts/verdict-config.ts";
 
@@ -182,5 +184,77 @@ describe("liveAssertionsDigest", () => {
     expect(source).toContain("export function checkScopeDisciplineScored");
     expect(live.assertionsDigest).toMatch(/^[0-9a-f]{64}$/);
     expect(live.assertionsDigest).toBe(liveAssertionsDigest(ASSERTIONS_PATH));
+  });
+});
+
+// Zapisywacz połowy `scripts/`. Dwaj zapisywacze piszą do JEDNEGO pliku i każdy musi przenieść
+// blok drugiego nietknięty — a nie mogą dzielić modułu serializującego, bo `scripts/` nie wolno
+// importować kodu agenta. Stąd dwa egzemplarze `serializeRecord` i dwa testy round-tripu; ten
+// jest tym po stronie `scripts/`.
+//
+// Rzecz, której ten test pilnuje NAPRAWDĘ: gdyby ten zapisywacz dotykał `callFingerprint` albo
+// `matrix`, oś PŁATNA (przejście macierzy) dałaby się zazielenić komendą DARMOWĄ — czyli
+// rozłączność remediów, na której stoi cała ta zapadka, przestałaby obowiązywać.
+describe("withVerdictConfig", () => {
+  const FOREIGN = {
+    notes: { scope: "s", oneMeasurement: "o", costSource: "c", uncovered: "u", fixtures: "f" },
+    generatedAt: "2026-08-23T12:00:00.000Z",
+    callFingerprint: "a".repeat(64),
+    matrix: [{ model: "m", fixture: "f", ok: true }],
+  };
+
+  it("podmienia WYŁĄCZNIE swój blok, a cudze przenosi co do wartości", () => {
+    const written = withVerdictConfig({ ...FOREIGN, verdictConfig: { threshold: 999 } }, live);
+
+    expect(written.callFingerprint).toBe(FOREIGN.callFingerprint);
+    expect(written.matrix).toEqual(FOREIGN.matrix);
+    expect(written.notes).toEqual(FOREIGN.notes);
+    expect(written.generatedAt).toBe(FOREIGN.generatedAt);
+    expect(written.verdictConfig).toEqual({ ...live });
+  });
+
+  it("wypisuje klucze w tej samej kolejności co zapisywacz agencki", () => {
+    const written = withVerdictConfig(FOREIGN, live);
+
+    expect(Object.keys(written)).toEqual(["notes", "generatedAt", "callFingerprint", "verdictConfig", "matrix"]);
+  });
+
+  it("przenosi klucze, których nie zna, zamiast je kasować", () => {
+    const written = withVerdictConfig({ ...FOREIGN, somethingNew: { kept: true } }, live);
+
+    expect(written.somethingNew).toEqual({ kept: true });
+  });
+
+  it("nie dorabia pustych pól, gdy dowodu jeszcze nie ma w całości", () => {
+    const parsed: unknown = JSON.parse(serializeRecord(withVerdictConfig({}, live)));
+
+    expect(Object.keys(parsed as object)).toEqual(["verdictConfig"]);
+  });
+});
+
+describe("serializeRecord", () => {
+  it("round-trip: bajty przeżywają odczyt, a obiekt serializację", () => {
+    const record = withVerdictConfig(
+      {
+        notes: { scope: "s", oneMeasurement: "o", costSource: "c", uncovered: "u", fixtures: "f" },
+        generatedAt: "2026-08-23T12:00:00.000Z",
+        callFingerprint: "a".repeat(64),
+        matrix: [{ model: "m", fixture: "f", ok: true, failures: [{ reason: "r" }] }],
+      },
+      live,
+    );
+    const raw = serializeRecord(record);
+
+    expect(serializeRecord(JSON.parse(raw))).toBe(raw);
+    expect(raw.endsWith("\n")).toBe(true);
+  });
+
+  // Ta sama linia stoi w agents/review/evals/eval-record.ts. Rozjazd między nimi objawiłby się
+  // jako plik przeformatowany przez jednego zapisywacza i czerwony round-trip u drugiego — więc
+  // asertujemy KSZTAŁT wyjścia, nie samą równość dwóch implementacji, których nie wolno importować.
+  it("wcina dwiema spacjami — inaczej lint-staged przepisałby dowód przy pierwszym commicie", () => {
+    const raw = serializeRecord({ a: { b: 1 } });
+
+    expect(raw).toBe('{\n  "a": {\n    "b": 1\n  }\n}\n');
   });
 });

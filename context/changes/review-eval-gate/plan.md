@@ -863,34 +863,34 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 
 #### Automated
 
-- [x] 1.1 Typecheck pakietu agenta
-- [x] 1.2 Testy pakietu agenta bez regresji
-- [x] 1.3 Rootowy type gate
-- [x] 1.4 Lint
-- [x] 1.5 `tests/lib/verdict-config.test.ts` przechodzi
-- [x] 1.6 Odcisk liczy się po `npm ci --omit=dev`
-- [x] 1.7 Odcisk niezmieniony (`59ee111b…`)
+- [x] 1.1 Typecheck pakietu agenta — be29442
+- [x] 1.2 Testy pakietu agenta bez regresji — be29442
+- [x] 1.3 Rootowy type gate — be29442
+- [x] 1.4 Lint — be29442
+- [x] 1.5 `tests/lib/verdict-config.test.ts` przechodzi — be29442
+- [x] 1.6 Odcisk liczy się po `npm ci --omit=dev` — be29442
+- [x] 1.7 Odcisk niezmieniony (`59ee111b…`) — be29442
 
 #### Manual
 
-- [x] 1.8 `git diff` na `cache.ts`/`provider.ts` to wyłącznie przeniesienie i re-eksport
-- [x] 1.9 Komentarz o czterech osiach nie został osierocony
+- [x] 1.8 `git diff` na `cache.ts`/`provider.ts` to wyłącznie przeniesienie i re-eksport — be29442
+- [x] 1.9 Komentarz o czterech osiach nie został osierocony — be29442
 
 ### Phase 2: Zapisywacze dowodu i pomiar prettiera
 
 #### Automated
 
-- [ ] 2.1 Testy pakietu agenta zielone
-- [ ] 2.2 `tests/lib/verdict-config.test.ts` zielony
-- [ ] 2.3 Typecheck (root + agent) i lint
-- [ ] 2.4 `prettier --check` na ścieżce sondującej → kod 0
-- [ ] 2.5 Kontrola dodatnia pomiaru: tablica wartości prostych → kod 1
-- [ ] 2.6 Plik sondujący usunięty w tym samym kroku automatycznym
+- [x] 2.1 Testy pakietu agenta zielone
+- [x] 2.2 `tests/lib/verdict-config.test.ts` zielony
+- [x] 2.3 Typecheck (root + agent) i lint
+- [x] 2.4 `prettier --check` na ścieżce sondującej → kod 0
+- [x] 2.5 Kontrola dodatnia pomiaru: tablica wartości prostych → kod 1
+- [x] 2.6 Plik sondujący usunięty w tym samym kroku automatycznym
 
 #### Manual
 
-- [ ] 2.7 Adnotacja `notes` odpowiada na „co ten plik NIE dowodzi"
-- [ ] 2.8 Para (a)+(b): `git log` na `eval-record.json` pusty, na `cache.ts` niepusty
+- [x] 2.7 Adnotacja `notes` odpowiada na „co ten plik NIE dowodzi"
+- [x] 2.8 Para (a)+(b): `git log` na `eval-record.json` pusty, na `cache.ts` niepusty
 
 ### Phase 3: Przejście macierzy — PŁATNE
 
