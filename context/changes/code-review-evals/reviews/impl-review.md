@@ -6,19 +6,36 @@
 - **Scope**: Phases 1-7 (pełny plan; 6 pozycji `## Progress` świadomie otwartych)
 - **Range**: `380fff6..HEAD` (`a29fae5`), 24 pliki
 - **Date**: 2026-08-23
-- **Verdict**: NEEDS ATTENTION
+- **Verdict**: NEEDS ATTENTION → **APPROVED po triage’u** (8/8 findings rozstrzygniętych, 8 naprawionych)
 - **Findings**: 0 critical, 3 warnings, 5 observations
 
 ## Verdicts
 
-| Dimension           | Verdict | Findings   |
-| ------------------- | ------- | ---------- |
-| Plan Adherence      | WARNING | F2, F5     |
-| Scope Discipline    | PASS    | —          |
-| Safety & Quality    | WARNING | F1, F3, F6 |
-| Architecture        | PASS    | —          |
-| Pattern Consistency | WARNING | F4, F8     |
-| Success Criteria    | WARNING | F7         |
+| Dimension           | Verdict (review) | Po triage’u                                                            |
+| ------------------- | ---------------- | ---------------------------------------------------------------------- |
+| Plan Adherence      | WARNING          | **PASS** — F2, F5 naprawione                                           |
+| Scope Discipline    | PASS             | PASS                                                                   |
+| Safety & Quality    | WARNING          | **PASS** — F1, F3, F6 naprawione                                       |
+| Architecture        | PASS             | PASS                                                                   |
+| Pattern Consistency | WARNING          | **PASS** — F4, F8 naprawione                                           |
+| Success Criteria    | WARNING          | **WARNING ŚWIADOMIE** — F7 naprawione, pięć pozycji otwartych z powodu |
+
+**Success Criteria zostaje na WARNING i to jest wynik, nie zaległość.** Jedyne znalezisko tej
+kategorii (F7 — bramka nigdy nie widziała faz 5-7) jest zamknięte pomiarem, ale pięć pozycji
+`## Progress` (6.1, 6.2, 7.1, 7.2, 7.5) pozostaje nieodhaczonych, bo opisują warunki, które
+NIE zostały spełnione: gemini nie dojechało na kontroli negatywnej, macierz dała trzy komórki
+zmierzone zamiast czterech, a suma wydatków przekroczyła PIERWOTNY próg 1,00 USD. Odhaczenie
+którejkolwiek z nich zrównałoby „niezmierzone” ze „zmierzonym i w porządku” — dokładnie temu
+te wiersze mają zapobiegać.
+
+### Bramki po triage’u
+
+```
+npm --prefix agents/review run typecheck              → zielone
+npm --prefix agents/review run test                   → 70/70 (57 przed triage’em: +7 F1, +2 F4, +4 F6)
+agents-gate.yml (przebieg 32637270773, `74346b0`)     → success, plan TAP `1..70`
+git diff <baza>..HEAD -- .github/actions/ pr-review.yml → PUSTO (nietknięte przez cały triage)
+```
 
 ## Grounding — co zweryfikowałem sam, nie z notatki
 
