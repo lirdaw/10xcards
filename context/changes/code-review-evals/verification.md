@@ -397,5 +397,6 @@ osobna zmiana ma odciążyć przez `--omit=dev`.
 
 ### Koszt: `PR code review` anulowany dalej, przy każdym pushu
 
-Anulowane w fazie 4: **32630687986** (`1b311ce`, po 34 s), **32630858713** (`84c3257`, po 27 s).
-Oba przed instalacją pakietu, więc przed jakimkolwiek wywołaniem modelu.
+Anulowane w fazie 4: **32630687986** (`1b311ce`, po 34 s), **32630858713** (`84c3257`, po 27 s),
+**32630995454** (`04313e6`). Wszystkie przed instalacją pakietu, więc przed jakimkolwiek
+wywołaniem modelu — co potwierdza odczyt klucza na końcu fazy.
