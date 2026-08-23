@@ -80,8 +80,17 @@ złapała na gemini regresję, której nikt by inaczej nie zobaczył. Ta zmiana 
 6. **BUDŻET CAŁEJ ZMIANY: 0,50 USD** na wywołania modeli (kilka ręcznych przebiegów macierzy
    w trakcie developmentu). Przekroczenie = zatrzymać się i wrócić z liczbami, nie dokładać
    przebiegów „żeby już domknąć". Kotwica ze zmierzonego: pełne przejście 2×2 na tanich modelach
-   kosztowało 0,118529 USD, a jego powtórzenie na ciepłym cache'u 0,000000 USD — budżet starcza
-   więc na kilka przejść zimnych, o ile cache nie jest kasowany bez powodu.
+   kosztowało 0,118529 USD, ~~a jego powtórzenie na ciepłym cache'u 0,000000 USD — budżet starcza
+   więc na kilka przejść zimnych, o ile cache nie jest kasowany bez powodu.~~
+
+   > ⚑ **KOREKTA PO POMIARZE (research, sekcja 3.1).** Przekreślona połowa kotwicy jest MARTWA.
+   > Trzy komórki leżące dziś w `~/.promptfoo/cache` niosą odcisk DWUOSIOWY sprzed `c2991a4`,
+   > a dzisiejszy odcisk jest czteroosiowy — zmierzone, że odczyt pod dzisiejszym kluczem to PUDŁO.
+   > Następne przejście macierzy będzie więc ZIMNE we wszystkich komórkach, mimo że promptu nikt nie
+   > ruszył. „Kilka przejść zimnych" trzeba liczyć od ZERA trafień, nie od ciepłego cache'u.
+   > Liczba 0,118529 USD zostaje w mocy; 0,000000 USD nie opisuje już żadnego stanu, który da się
+   > dziś odtworzyć bez ponownego zapłacenia za te komórki.
+
 7. **Diagnostyka czerwieni ma być jednoznaczna.** Komunikat kroku musi rozróżniać „zmieniłeś
    prompt, brakuje dowodu" od „dowód jest, ale dla innego promptu" i mówić wprost, jaką komendą
    dowód się wytwarza. Bramka, po której trzeba czytać źródło skryptu, żeby wiedzieć, co zrobić,
