@@ -753,6 +753,22 @@ binarna i ma być zapisana z uzasadnieniem: **poprawka promptu** (jak `0d3eba5`;
 unieważnia i faza 7 płaci pełną stawkę — na to idzie rezerwa) albo **zniesienie różnicy asercją**
 (wtedy zapisać, co dokładnie przestaje być bramkowane i dlaczego to jeszcze jest bramka).
 
+> **⛑ KOREKTA PO POMIARZE** (2026-08-23). Pomiar wyprodukował trzecią możliwość, której ten
+> akapit nie przewidział, i to ona została wybrana — **wariant C: obserwacja MIĘKKA**
+> (`conditional-null-contract` w `evals/assertions.ts`), raportowana w każdym przejściu
+> i NIEBRAMKUJĄCA. Powodem jest to, czego „binarne” ujęcie nie obejmowało: haiku ODRZUCIŁO samą
+> regułę, a nie pomyliło się co do materiału, więc asercja twarda czerwieniłaby każde przejście
+> na stanie ZMIERZONYM i świadomie nienaprawionym — a wtedy czerwień przestaje odróżniać NOWĄ
+> regresję od ZNANEGO stanu. Zniesienie różnicy asercją (druga opcja wyżej) skasowałoby przy tym
+> sam sygnał; obserwacja miękka go zachowuje.
+>
+> Pełne uzasadnienie i **warunek awansu na asercję twardą** — sformułowany jako PYTANIE DO
+> POMIARU, nie jako zadanie — leżą w sekcji „Open Risks”, ryzyko nr 3. Zapis pomiaru:
+> `measurement-negative-control.md`; zapis decyzji: `verification.md`, faza 6.
+>
+> Akapit powyżej zostaje NIEZMIENIONY, bo taki był stan wiedzy przed pomiarem — korekta stoi
+> obok niego, nie zamiast niego.
+
 ### Success Criteria:
 
 #### Automated Verification:
