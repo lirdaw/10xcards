@@ -102,6 +102,39 @@ budżetujemy po liczbie WYŻSZEJ**, bo pomyłka w tę stronę kosztuje ostrożno
    > wynosi 0,5452 USD z capu 5 USD. Przy zmierzonych kosztach komórki (0,0323 / 0,0846 / 0,1935)
    > reszta budżetu to ~2 przejścia taniej macierzy 2×2 albo 1 przejście z kolumną sonneta.
 
+   > **⚑ PODNIESIENIE PROGU — DECYZJA JAWNA I JEDNORAZOWA** (2026-08-23). Próg z **1,00 USD**
+   > rośnie do **1,20 USD**. Notatka stoi OBOK oryginału, a nie zamiast niego: 1,00 USD było
+   > progiem obowiązującym, kiedy zadanie o niego zahaczyło, i ma taki pozostać w zapisie.
+   >
+   > **Powód.** Faza 7 jest JEDYNYM artefaktem odpowiadającym na pytanie 2 z tego dokumentu
+   > („czy tańszy model wystarcza") — bez pełnego przejścia macierzy nie ma tabeli kosztów per
+   > komórka ani porównania kolumn, czyli zadanie kończy się bez odpowiedzi na połowę swojego
+   > celu. Przekroczenie to **~7%** (~1,064 USD wobec 1,00), więc nie podważa oszacowania
+   > wejściowego — koszty komórki zmierzono z dokładnością rzędu ±2-12% i wszystkie trzy trafiły
+   > w rząd wielkości. Gdyby przekroczenie szło w dziesiątki procent, właściwą odpowiedzią byłoby
+   > zakwestionowanie oszacowania, nie podniesienie progu.
+   >
+   > **Co budżet już kupił — bo to jest druga połowa tego rachunku.** Faza 6 kosztowała
+   > **0,0907 USD** i przyniosła dwa znaleziska, które ZMIENIŁY plan, a nie tylko go potwierdziły:
+   >
+   > 1. **Haiku odrzuca kontrakt `null`** na kontroli negatywnej (`swallowedError: 10`,
+   >    `gateIntegrity: 10`, z notą „kryterium nie dotyczy, ale ocena 10 oddaje fakt braku
+   >    ryzyka"). Zmieniło to fazę 6 z „domknij asercję" na „udokumentuj obserwację miękką"
+   >    i dołożyło Open Risk 3 z pytaniem pomiarowym: czy regułę da się wyegzekwować promptem
+   >    u każdego kandydata, czy jest własnością modelu — bo w drugim przypadku to nie defekt,
+   >    tylko kryterium kwalifikacji modelu do tej bramki.
+   > 2. **`maxTurns: 2` nie jest własnością agenta, tylko nienazwanym założeniem o wielkości
+   >    wejścia** — ten sam limit wystarcza na `sample.diff` i nie wystarcza na kontroli
+   >    negatywnej. Leży na PRODUKCYJNEJ ścieżce review, więc dotyczy każdego PR-a w tym repo.
+   >    Dołożyło Open Risk 4.
+   >
+   > Żadnego z tych dwóch nie dałoby się znaleźć bez wydania tych pieniędzy — to jest dokładnie
+   > to, za co budżet płaci.
+   >
+   > **Zdanie, które ma tu zostać na przyszłość:** budżet podniesiony w momencie, w którym
+   > zaczyna wiązać, przestaje być budżetem. Dlatego to podniesienie jest **jednorazowe i jawne**,
+   > a KOLEJNE wymaga rozmowy, nie kolejnej notatki.
+
 2. **Domyślne przejście zestawu jedzie WYŁĄCZNIE na modelach tanich.** Droga kolumna
    (sonnet-4.6) jest OPCJONALNA i włączana świadomie. Arytmetyka, która to czyni konkretem:
    przejście 2×2 na haiku + gemini to ~$0,18, czyli ~5 przejść w budżecie; dołożenie kolumny
