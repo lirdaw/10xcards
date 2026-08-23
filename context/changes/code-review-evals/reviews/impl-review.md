@@ -261,7 +261,12 @@ a nie ukryte.
   będzie wyglądać na problem z uprawnieniami.
 - **Fix**: dopisać to sprzężenie do uzasadnienia braku `llm-rubric` w `assertions.ts` — jedno
   zdanie tam, gdzie przeczyta je autor przyszłego gradera.
-- **Decision**: PENDING
+- **Decision**: **FIXED** — blok `⛑ A gdyby ktoś tę decyzję kiedyś cofnął — CZYTAJ TO NAJPIERW`
+  dopisany w `assertions.ts` bezpośrednio pod uzasadnieniem braku `llm-rubric`, czyli w miejscu,
+  które autor przyszłego gradera przeczyta ZANIM go dopisze. Nazywa sprzężenie (mutacja globalnego
+  `process.env` wewnątrz procesu promptfoo), mówi, dlaczego sama mutacja jest słuszna, i stawia
+  warunek: kto dokłada gradera, dokłada też jego izolację — albo mierzy, że jej nie potrzebuje.
+  Kod nietknięty (jedna kopia prekondycji zostaje). **70/70**, `typecheck` zielony.
 
 ## Co NIE jest znaleziskiem — zweryfikowane i czyste
 

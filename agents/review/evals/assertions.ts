@@ -10,6 +10,16 @@ import { CRITERIA, SCORE_MAX, SCORE_MIN, type Review } from "../review-schema.ts
  * promptfoo nie raportuje kwoty sędziego w ogóle (`GradingResult` niesie `tokensUsed`, nie `cost`),
  * więc każde wywołanie rubryki byłoby wydatkiem POZA raportowanym budżetem.
  *
+ * ⛑ A gdyby ktoś tę decyzję kiedyś cofnął — CZYTAJ TO NAJPIERW. `runReview` przestawia trzy zmienne
+ * `ANTHROPIC_*` na GLOBALNYM `process.env` (`run-review.ts`, tuż przed `query`), i to jest słuszne:
+ * jeden egzemplarz prekondycji jest jedynym sposobem, żeby CI i eval nie rozjechały się po cichu
+ * na endpoincie i precedencji poświadczeń. Ale w evalu ta funkcja biega WEWNĄTRZ procesu promptfoo,
+ * więc mutuje środowisko CAŁEGO przebiegu — dziś nieszkodliwie, bo nic innego w tym procesie do
+ * modelu nie dzwoni. Sędzia oparty o Anthropica dodany do tej konfiguracji pojechałby na
+ * `ANTHROPIC_API_KEY=""` i na `ANTHROPIC_BASE_URL` OpenRoutera, a jego awaria wyglądałaby na problem
+ * z uprawnieniami sekretu, nie na skutek uboczny naszego providera. Kto dokłada gradera, dokłada
+ * też jego izolację od tych trzech zmiennych — albo mierzy, że jej nie potrzebuje.
+ *
  * ⚑ DWIE ASERCJE, KTÓRE SAME SIĘ PROSZĄ, ZOSTAŁY ŚWIADOMIE POMINIĘTE, bo są TAUTOLOGIAMI:
  * „komplet 20 pól kontraktu” i „kryteria warunkowe są typu `number | null`”. `runReview` oddaje
  * wynik WYŁĄCZNIE po udanym `REVIEW_SCHEMA.safeParse`, a schemat wymaga wszystkich 20 pól — zero
