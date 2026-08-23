@@ -880,19 +880,27 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 
 #### Automated
 
-- [x] 2.1 Testy pakietu agenta zielone
-- [x] 2.2 `tests/lib/verdict-config.test.ts` zielony
-- [x] 2.3 Typecheck (root + agent) i lint
-- [x] 2.4 `prettier --check` na ścieżce sondującej → kod 0
-- [x] 2.5 Kontrola dodatnia pomiaru: tablica wartości prostych → kod 1
-- [x] 2.6 Plik sondujący usunięty w tym samym kroku automatycznym
+- [x] 2.1 Testy pakietu agenta zielone — f8a9e80
+- [x] 2.2 `tests/lib/verdict-config.test.ts` zielony — f8a9e80
+- [x] 2.3 Typecheck (root + agent) i lint — f8a9e80
+- [x] 2.4 `prettier --check` na ścieżce sondującej → kod 0 — f8a9e80
+- [x] 2.5 Kontrola dodatnia pomiaru: tablica wartości prostych → kod 1 — f8a9e80
+- [x] 2.6 Plik sondujący usunięty w tym samym kroku automatycznym — f8a9e80
 
 #### Manual
 
-- [x] 2.7 Adnotacja `notes` odpowiada na „co ten plik NIE dowodzi"
-- [x] 2.8 Para (a)+(b): `git log` na `eval-record.json` pusty, na `cache.ts` niepusty
+- [x] 2.7 Adnotacja `notes` odpowiada na „co ten plik NIE dowodzi" — f8a9e80
+- [x] 2.8 Para (a)+(b): `git log` na `eval-record.json` pusty, na `cache.ts` niepusty — f8a9e80
 
 ### Phase 3: Przejście macierzy — PŁATNE
+
+> ⚑ **FAZA ZATRZYMANA na własnym kryterium 3.6 (2026-08-23), Progress CELOWO otwarty.** Przejście
+> się odbyło i kosztowało 0,235012 USD; 3.1, 3.3 i 3.4 są spełnione, ale dwie z czterech komórek
+> mają `ok: false` (`error_max_turns` przy `maxTurns: 2`, obie na `clean-text-change.diff`).
+> Prompt nietknięty — `callFingerprint` zgadza się z kotwicą — więc sygnał jest o MACIERZY, nie
+> o zapadce. Żaden wiersz nie zostaje odhaczony: odhaczenie 3.1/3.3/3.4 nad niedomkniętą fazą
+> czytałoby się jako postęp tam, gdzie jest zatrzymanie. Rachunek, odrzucone drogi na skróty
+> i propozycja podziału: `verification.md`. Fazy 4 i 5 nie zaczynane.
 
 #### Automated
 
