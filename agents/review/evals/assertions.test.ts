@@ -13,7 +13,9 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { CRITERIA, SCORE_MAX, SCORE_MIN, type Review } from "../review-schema.ts";
+import * as assertionsModule from "./assertions.ts";
 import {
   HARD_ASSERTIONS,
   SOFT_OBSERVATIONS,
@@ -224,4 +226,87 @@ test("rejestry twardy i miękki są ROZŁĄCZNE — nic nie bramkuje dwa razy", 
   for (const observation of SOFT_OBSERVATIONS) {
     assert.ok(!hard.has(observation.id), `obserwacja ${observation.id} nosi id asercji twardej`);
   }
+});
+
+// ---------------------------------------------------------------------------------------------
+// Zapadka rejestr ↔ wpięcia w `promptfooconfig.yaml`.
+//
+// Rejestr, eksporty i wpięcia w YAML-u to TRZY ręcznie utrzymywane listy. `byId` w `assertions.ts`
+// broni jednego kierunku — adaptera bez wpisu w rejestrze — i ten kierunek zostaje. Nie broni
+// natomiast kierunku WAŻNIEJSZEGO: asercja dodana do rejestru i wyeksportowana, ale NIEWPIĘTA
+// w YAML, przechodzi zielono w tym pliku i NIGDY nie jedzie w prawdziwym przejściu, a raport
+// pokazuje komplet. To jest dokładnie bramka, której nie da się zaświecić na czerwono —
+// klasa, przed którą broni komentarz na górze `assertions.ts`.
+//
+// Sprawdzenie jest TEKSTOWE, nie przez parser YAML: `js-yaml` jest w tym pakiecie zależnością
+// tranzytywną promptfoo, a nie zadeklarowaną, więc import z niego byłby fantomem w locku.
+// Ceną jest to, że test mógłby czytać PUSTO i zielenić się na wszystkim — dlatego ma własną
+// kontrolę pozytywną: `assertRatchetSees` odmawia, gdy w pliku nie ma ani jednego wpięcia.
+// ---------------------------------------------------------------------------------------------
+
+const CONFIG_TEXT = readFileSync(new URL("./promptfooconfig.yaml", import.meta.url), "utf8");
+
+/** Znacznik, którym promptfoo wpina funkcję asercji. Jeden kształt, jedno miejsce. */
+const wiringOf = (adapter: string): string => `value: file://assertions.ts:${adapter}`;
+
+/**
+ * `defaultTest:` obowiązuje KAŻDĄ fiksturę, `tests:` wpina asercje pod konkretną. Podział na te
+ * dwa obszary jest tym, co odróżnia „wpięta wszędzie" od „wpięta tylko dla `sample.diff`" —
+ * bez niego zapadka przepuściłaby asercję slotu 1 wpiętą globalnie, czyli czerwieniącą kontrolę
+ * negatywną na materiale, którego nie dotyczy.
+ */
+function configRegions(): { readonly defaults: string; readonly perTest: string } {
+  const marker = "\ntests:\n";
+  const split = CONFIG_TEXT.indexOf(marker);
+  assert.notEqual(split, -1, "w `promptfooconfig.yaml` nie ma sekcji `tests:` — zapadka nie wie, co z czym porównać");
+  return { defaults: CONFIG_TEXT.slice(0, split), perTest: CONFIG_TEXT.slice(split) };
+}
+
+test("(R1) każda asercja z rejestru jest WPIĘTA w promptfooconfig.yaml, i w tym obszarze, w którym deklaruje", () => {
+  const { defaults, perTest } = configRegions();
+
+  // Kontrola pozytywna samego czytania: gdyby ścieżka albo kształt znacznika się rozjechały,
+  // wszystkie asercje niżej przechodziłyby PUSTO — zielono, nie mierząc niczego.
+  const wired = HARD_ASSERTIONS.filter((entry) => CONFIG_TEXT.includes(wiringOf(entry.adapter))).length;
+  assert.ok(wired > 0, "zapadka nie znalazła w konfiguracji ANI JEDNEGO wpięcia — czyta pusto i zieleniłaby się na wszystkim");
+
+  for (const entry of HARD_ASSERTIONS) {
+    const wiring = wiringOf(entry.adapter);
+    assert.equal(
+      typeof (assertionsModule as Record<string, unknown>)[entry.adapter],
+      "function",
+      `rejestr deklaruje adapter \`${entry.adapter}\` dla asercji \`${entry.id}\`, a moduł go nie eksportuje`,
+    );
+    assert.equal(
+      CONFIG_TEXT.split(wiring).length - 1,
+      1,
+      `asercja \`${entry.id}\` ma być wpięta DOKŁADNIE raz jako \`${wiring}\` — inaczej jedna czerwień liczy się dwa razy albo wcale`,
+    );
+
+    const region = entry.sampleDiffOnly ? perTest : defaults;
+    const other = entry.sampleDiffOnly ? defaults : perTest;
+    const where = entry.sampleDiffOnly ? "pod testem `sample.diff`" : "w `defaultTest`";
+    assert.ok(
+      region.includes(wiring),
+      `asercja \`${entry.id}\` nie jest wpięta ${where} — jest w rejestrze, ale prawdziwe przejście jej nie uruchomi, a raport pokaże komplet`,
+    );
+    assert.ok(
+      !other.includes(wiring),
+      `asercja \`${entry.id}\` jest wpięta poza ${where} — zasięg wpięcia nie zgadza się z \`sampleDiffOnly: ${entry.sampleDiffOnly}\``,
+    );
+  }
+});
+
+test("(R2) konfiguracja nie wpina NICZEGO spoza rejestru asercji twardych", () => {
+  const wired = [...CONFIG_TEXT.matchAll(/value: file:\/\/assertions\.ts:([A-Za-z0-9_]+)/g)].map((match) => match[1]);
+  assert.ok(wired.length > 0, "zapadka nie znalazła w konfiguracji ANI JEDNEGO wpięcia — czyta pusto");
+
+  const known = new Set(HARD_ASSERTIONS.map((entry) => entry.adapter));
+  for (const adapter of wired) {
+    assert.ok(
+      known.has(adapter as string),
+      `konfiguracja wpina \`${adapter}\`, którego nie ma w HARD_ASSERTIONS — obserwacja MIĘKKA wpięta jako \`assert:\` przestałaby być miękka`,
+    );
+  }
+  assert.equal(wired.length, HARD_ASSERTIONS.length, `wpięć jest ${wired.length}, a asercji twardych ${HARD_ASSERTIONS.length}`);
 });

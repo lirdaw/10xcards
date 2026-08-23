@@ -163,7 +163,22 @@ a nie ukryte.
   już wzorzec na taki ratchet: `criteria.json` + `git diff --exit-code` w composite action.
 - **Fix**: test czytający `promptfooconfig.yaml` i sprawdzający, że każde `id` z `HARD_ASSERTIONS`
   ma odpowiadające `value: file://assertions.ts:<adapter>` (z uwzględnieniem `sampleDiffOnly`).
-- **Decision**: PENDING
+- **Decision**: **FIXED** — z warunkiem z triage’u: OBA kierunki plus własna kontrola pozytywna.
+  `HardAssertion` dostało pole `adapter` (nazwa eksportu, którą wpina YAML) — zadeklarowane,
+  nie wywnioskowane z `id`, bo to ono jest tym, co zapadka porównuje. Dwa nowe przypadki
+  w `assertions.test.ts`:
+  - **(R1)** każda asercja z rejestru: eksport istnieje, wpięcie występuje DOKŁADNIE raz, i leży
+    w tym obszarze, który deklaruje `sampleDiffOnly` (`defaultTest` vs pod testem `sample.diff`).
+  - **(R2)** kierunek odwrotny, którego broniło dotąd samo `byId`: konfiguracja nie wpina niczego
+    spoza rejestru — obserwacja MIĘKKA wpięta jako `assert:` przestałaby być miękka.
+  - Sprawdzenie jest TEKSTOWE, nie przez parser: `js-yaml` jest w tym pakiecie zależnością
+    tranzytywną promptfoo, więc import z niego byłby fantomem w locku. Ceną jest ryzyko „czyta
+    pusto i zieleni się na wszystkim” — zamknięte asercją `wired > 0` w obu przypadkach.
+  - **Trzy kontrole pozytywne, wykonane realnie:** (A) usunięte wpięcie `notesNonEmpty` → R1+R2
+    czerwone; (B) `swallowedErrorPair` przeniesione do `defaultTest` → **R1 czerwone, R2 zielone**
+    (licznik się zgadza, więc czerwieni się dokładnie kontrola OBSZARU); (C) rozjechany kształt
+    znacznika → R1+R2 czerwone na strażniku `wired > 0`. Po przywróceniu **66/66 zielone**,
+    `typecheck` zielony.
 
 ### F5 — Faza 6 §2 zapisała decyzję jako BINARNĄ, implementacja wybrała trzecią drogę
 

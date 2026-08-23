@@ -286,15 +286,27 @@ export interface HardAssertion {
   readonly run: (cell: CellUnderTest, expectation: CellExpectation) => AssertionOutcome;
   /** `true` → dotyczy wyłącznie `sample.diff`; w konfiguracji wpięta tylko pod tym testem. */
   readonly sampleDiffOnly: boolean;
+  /**
+   * Nazwa eksportowanego adaptera, którą `promptfooconfig.yaml` wpina jako
+   * `value: file://assertions.ts:<adapter>`.
+   *
+   * Zadeklarowana TUTAJ, a nie wywnioskowana z `id`, bo to ona jest tym, co pilnuje
+   * `assertions.test.ts`: rejestr, eksport i wpięcie w YAML-u to trzy listy, a bez tego pola
+   * nie ma czego z czym porównać. `byId` broni kierunku „adapter bez wpisu w rejestrze";
+   * to pole otwiera kierunek ODWROTNY — asercja w rejestrze, której prawdziwe przejście nigdy
+   * nie uruchamia, bo nikt jej nie wpiął. Taka przechodzi zielono w tym pliku, a raport pokazuje
+   * komplet — czyli bramka, której nie da się zaświecić na czerwono.
+   */
+  readonly adapter: string;
 }
 
 export const HARD_ASSERTIONS: readonly HardAssertion[] = [
-  { id: "no-provider-error", title: "odpowiedź nie niesie `error`", run: (cell) => checkNoProviderError(cell), sampleDiffOnly: false },
-  { id: "verdict", title: "verdict zgodny z oczekiwanym dla fikstury", run: checkVerdict, sampleDiffOnly: false },
-  { id: "score-range", title: `oceny w skali ${SCORE_MIN}-${SCORE_MAX}`, run: (cell) => checkScoresWithinScale(cell), sampleDiffOnly: false },
-  { id: "scope-discipline-scored", title: "scopeDiscipline nie jest null", run: (cell) => checkScopeDisciplineScored(cell), sampleDiffOnly: false },
-  { id: "notes-non-empty", title: "uzasadnienia niepuste po trim()", run: (cell) => checkNotesNonEmpty(cell), sampleDiffOnly: false },
-  { id: "swallowed-error-pair", title: "swallowedError liczbą przy gateIntegrity = null", run: (cell) => checkSwallowedErrorPair(cell), sampleDiffOnly: true },
+  { id: "no-provider-error", title: "odpowiedź nie niesie `error`", run: (cell) => checkNoProviderError(cell), sampleDiffOnly: false, adapter: "noProviderError" },
+  { id: "verdict", title: "verdict zgodny z oczekiwanym dla fikstury", run: checkVerdict, sampleDiffOnly: false, adapter: "verdictMatchesFixture" },
+  { id: "score-range", title: `oceny w skali ${SCORE_MIN}-${SCORE_MAX}`, run: (cell) => checkScoresWithinScale(cell), sampleDiffOnly: false, adapter: "scoresWithinScale" },
+  { id: "scope-discipline-scored", title: "scopeDiscipline nie jest null", run: (cell) => checkScopeDisciplineScored(cell), sampleDiffOnly: false, adapter: "scopeDisciplineScored" },
+  { id: "notes-non-empty", title: "uzasadnienia niepuste po trim()", run: (cell) => checkNotesNonEmpty(cell), sampleDiffOnly: false, adapter: "notesNonEmpty" },
+  { id: "swallowed-error-pair", title: "swallowedError liczbą przy gateIntegrity = null", run: (cell) => checkSwallowedErrorPair(cell), sampleDiffOnly: true, adapter: "swallowedErrorPair" },
 ];
 
 // ---------------------------------------------------------------------------------------------
