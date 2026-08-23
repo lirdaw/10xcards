@@ -176,9 +176,75 @@ Niepełnej — bo dowód z jednej kolumny nie jest dowodem (decyzja 2 z `require
 nic nie wie). Sprawdzane STRUKTURALNIE, nie listą nazw modeli: liczba wierszy musi być iloczynem
 liczby różnych modeli i różnych fikstur, przy co najmniej dwóch każdego — dzięki temu późniejsze
 poszerzenie macierzy nie wymaga dotykania zapadki.
-`ok: false` — bo dowód regresji nie jest dowodem jej braku. Cena jest realna i zapisana: gemini bywa
-niestabilne między przebiegami przy tym samym prompcie (`verification.md:809-820`), więc flake na
-asercji TWARDEJ zmusi człowieka do zapłacenia za ponowne przejście. Przyjęte świadomie (Open Risk 2).
+~~`ok: false` — bo dowód regresji nie jest dowodem jej braku. Cena jest realna i zapisana: gemini
+bywa niestabilne między przebiegami przy tym samym prompcie (`verification.md:809-820`), więc flake
+na asercji TWARDEJ zmusi człowieka do zapłacenia za ponowne przejście. Przyjęte świadomie
+(Open Risk 2).~~
+
+> ⚑ **D-6 POPRAWIONA 2026-08-23 po pomiarze 3a.1 — druga połowa (`ok: false`) jest przekreślona
+> i zastąpiona rozróżnieniem dwóch przyczyn.** Pierwsza połowa (macierz NIEPEŁNA) zostaje bez
+> zmian. Pełne uzasadnienie, wraz z ostrzeżeniem o momencie tej decyzji, stoi w `verification.md`
+> („Rozdzielenie przyczyn w rekordzie").
+>
+> **Rekord i zapadka rozróżniają DWIE rzeczy, które `ok: false` zlewało w jedną:**
+>
+> - **(A) MODEL NIE DOWIÓZŁ** — `max_turns`, wyczerpane retry structured output, brak łączności.
+>   Odpowiedzi NIE MA, więc nie ma czego porównywać z promptem. To jest zapisany stan
+>   **KWALIFIKACJI MODELU**: zapisywany, widoczny w rekordzie, raportowany — i **NIE blokuje**.
+> - **(B) PROMPT ZREGRESOWAŁ** — odpowiedź PRZYSZŁA, ale nie spełnia asercji. **Zapadka czerwieni
+>   na (B).**
+>
+> **(A) klasyfikujemy po PODTYPACH WYMIENIONYCH Z IMIENIA, nigdy po koszu na niewiadome.**
+> Pierwsza wersja tej tabeli wpisywała `[unknown]` do (A) i **był to błąd znoszący fail-closed**:
+> `unknown` to jawny KOSZ NA NIEWIADOME (`classifyFailure` kończy się `return "unknown"`, a przy
+> braku wartości konsument też czyta `unknown` — „fail-closed: brak wartości = unknown"). Kosz
+> w klasie nieblokującej odwraca tę własność i przeczy ostatniemu wierszowi tej samej tabeli.
+> Dzisiejsze dwie komórki mają `[unknown]` NIE dlatego, że wiemy, iż to niedowiezienie, tylko
+> dlatego, że klasyfikator **nie umiał ich nazwać** — a tą samą drogą przejdzie kiedyś awaria
+> WYWOŁANA promptem.
+>
+> | warunek komórki                                                                                                | klasa | zapadka                                                                                         |
+> | -------------------------------------------------------------------------------------------------------------- | ----- | ----------------------------------------------------------------------------------------------- |
+> | `contract: "ok"` + `ok: false`                                                                                 | (B)   | **CZERWIEŃ** — odpowiedź jest, asercja pękła                                                    |
+> | `contract: "[contract]"`                                                                                       | (B)   | **CZERWIEŃ** — odpowiedź przyszła i złamała wymuszony schemat; klasa, którą naprawiał `0d3eba5` |
+> | `subtype: "error_max_turns"` **lub** `terminalReason: "max_turns"`                                             | (A)   | raportowana, nie blokuje                                                                        |
+> | `subtype: "error_max_structured_output_retries"` **lub** `terminalReason: "structured_output_retry_exhausted"` | (A)   | raportowana, nie blokuje                                                                        |
+> | `contract: "[provider]"` (brak łączności)                                                                      | (A)   | raportowana, nie blokuje                                                                        |
+> | `contract: "[budget]"`                                                                                         | (A)   | raportowana, nie blokuje                                                                        |
+> | `contract: "[unknown]"` bez dopasowania do żadnego wiersza (A) wyżej                                           | —     | **CZERWIEŃ, FAIL-CLOSED** — kosz na niewiadome nie jest przepustką                              |
+> | `contract: "[config]"`                                                                                         | —     | **CZERWIEŃ** — przejście się NIE ODBYŁO (brak klucza); to nie jest pomiar                       |
+> | cokolwiek innego (`[nienazwana]`)                                                                              | —     | **CZERWIEŃ, FAIL-CLOSED**                                                                       |
+>
+> **Własność, dla której lista jest NAZWANA, a nie „wszystko poza (B)":** nowy podtyp awarii SDK
+> trafi do `[unknown]`, nie dopasuje się do żadnego wiersza (A) — i **zaczerwieni**. Nieznana klasa
+> **domyślnie blokuje, zamiast domyślnie milczeć**. Cicha nieblokowalność jest gorsza niż brak
+> bramki, bo zdejmuje czujność.
+>
+> `[contract]` po stronie (B) jest istotą, nie detalem: „model odpowiedział, ale złamał schemat" to
+> sygnał o PROMPCIE, a wrzucone do (A) byłoby tym samym połknięciem, co pętla udająca niedowiezienie.
+>
+> ⚑ **KOSZT TEJ POPRAWKI: rekord musi urosnąć o DWA POLA STRUKTURALNE** — `subtype`
+> i `terminalReason` w `EvalRecordCell`. Dziś ich NIE MA: `runReview` dostaje oba pola z SDK,
+> przepuszcza je przez `classifyFailure` i **zostawia wyłącznie wynik** (`ReviewFailure` niesie
+> jedno pole, `kind`), a oryginalne wartości lądują już tylko w środku stringa komunikatu
+> (`failures[].reason`). **Prozy nie parsujemy** — to byłaby ta sama klasa, którą tropi lekcja
+> „Stan niesiony przez DWA pola", tyle że drugim polem byłby string przeznaczony dla człowieka.
+>
+> Zmiana jest ADDYTYWNA i tania: `ReviewFailure` dostaje dwa opcjonalne pola niosące to, co SDK
+> i tak dało, dalej przez provider → `ReportRow` → `EvalRecordCell`. **Nie rusza
+> `callFingerprint`** (osiami odcisku są `tools` i `maxTurns`, nie warstwa klasyfikacji), nie
+> zmienia `failure-kind=` czytanego przez `pr-review.yml` i nie zmienia komunikatu.
+> `classifyFailure` zostaje NIETKNIĘTA — przenosimy pola, których ona i tak używa, zamiast
+> dokładać jej gałęzi.
+>
+> ⚑ **STAN OTWARTY, do decyzji człowieka:** dzisiejszy `eval-record.json` powstał PRZED tymi
+> polami, więc jego dwie komórki `[unknown]` **czerwienią pod tą tabelą**. Wartości nie da się
+> uzupełnić z niczego, co leży na dysku: rzut niesie sam `kind`, `reportFailureKind` pisze samo
+> `failure-kind` (i w evalu jest ciche), cache promptfoo trzyma wyłącznie komórki UDANE,
+> a `results.json` przejścia jest kasowane w `finally`. Uzupełnienie wymaga więc **ponownego
+> płatnego przejścia, kotwica ~0,235 USD** (przejście identyczne w kształcie z dzisiejszym,
+> `maxTurns` nietknięty; dzisiejsze kosztowało 0,235012, rozrzut dziesiątek procent). Budżet to
+> unosi (zostaje 0,883251), ale **przejścia nie robimy bez decyzji** — patrz `verification.md`.
 
 **D-7. Ścieżka zapadki nie potrzebuje `promptfoo`.** `fingerprintPrompt` wędruje do nowego modułu
 `agents/review/evals/fingerprint.ts` bez tej zależności; `cache.ts` re-eksportuje. Dzięki temu
@@ -187,12 +253,19 @@ workflow instaluje `npm ci --omit=dev` (~335 MB wg `action.yml:124-125`) zamiast
 Na workflow bez filtra `paths`, biegającym na KAŻDYM PR-ze, to jest różnica warta jednego
 przeniesienia funkcji.
 
-**D-8. ⚑ DOPISANA 2026-08-23, po zatrzymaniu fazy 3: `maxTurns` wchodzi do zakresu, a budżet rośnie
-do 1,50 USD.**
-Faza 3 przejechała macierz i zatrzymała się na własnym kryterium 3.6: dwie z czterech komórek
-oblały na `error_max_turns` przy `maxTurns: 2`, przy prompcie NIETKNIĘTYM (`callFingerprint`
-zgodny z kotwicą). Rozstrzygnięcie tego wewnątrz tej zmiany pociąga trzy rzeczy, wszystkie
-zapisane w `requirements.md` i streszczone tu:
+**D-8. ⚑ DOPISANA 2026-08-23, a jej połowa zakresowa COFNIĘTA tego samego dnia po pomiarze 3a.1.**
+
+> **Co zostało w mocy:** budżet **1,50 USD** (podniesienia nie cofamy — decyzja była podjęta jawnie)
+> oraz faza 3a jako POMIAR.
+> **Co zostało cofnięte:** wejście `maxTurns` do zakresu. Pomiar 3a.1 nie ustalił, co liczy
+> `numTurns`, więc każda nowa wartość byłaby zgadywaniem — tyle że wdrożonym do wywołania
+> produkcyjnego. **`FIXED_CALL_OPTIONS` zostaje NIETKNIĘTE**, zakres wraca do pierwotnego,
+> a rozwiązaniem zatrzymania fazy 3 jest poprawka D-6 + D-9, nie zmiana capu.
+> Akapit niżej zostaje jako Ślad tego, co uzasadniało rozszerzenie, zanim pomiar je unieważnił.
+> Faza 3 przejechała macierz i zatrzymała się na własnym kryterium 3.6: dwie z czterech komórek
+> oblały na `error_max_turns` przy `maxTurns: 2`, przy prompcie NIETKNIĘTYM (`callFingerprint`
+> zgodny z kotwicą). Rozstrzygnięcie tego wewnątrz tej zmiany pociąga trzy rzeczy, wszystkie
+> zapisane w `requirements.md` i streszczone tu:
 
 - **Zakres rośnie o JEDNĄ wartość produkcyjną.** `maxTurns` w `FIXED_CALL_OPTIONS` jedzie na
   każdym PR-ze, więc ta zmiana przestaje dotykać wyłącznie warstwy bramki. Powód: obie połowy
@@ -207,6 +280,32 @@ zapisane w `requirements.md` i streszczone tu:
   obok. ⚑ Budżet podniesiony w momencie, w którym zaczyna wiązać, przestaje być budżetem —
   kolejne podniesienie wymaga rozmowy, nie kolejnej notatki. To DRUGIE podniesienie z rzędu
   w dwóch kolejnych zmianach; rozmowa się odbyła nad rachunkiem zatrzymanej fazy 3.
+
+**D-10. ⚑ PŁATNE PRZEJŚCIE KUPUJEMY DOPIERO PO DOMKNIĘCIU KSZTAŁTU — dopisana 2026-08-23.**
+
+**Przejście macierzy kupujemy dopiero wtedy, gdy sfabrykowany rekord o DOCELOWYM kształcie
+przechodzi przez PRAWDZIWY zapisywacz i PRAWDZIWY checker. Płatny przebieg dostarcza DANE, nigdy
+nie waliduje KSZTAŁTU.**
+
+Powód nie jest oszczędnościowy — jest o kolejności i o tym, żeby nie zapłacić DWA razy. Kształt
+rekordu nie jest zamknięty, dopóki faza 4 (kontrakt checkera) i D-9 (`previousDelivery`) nie są
+zbudowane: każde z nich może wymusić kolejne pole. Kupione wcześniej przejście oddałoby dane
+w kształcie, który zaraz potem trzeba by zmienić — czyli drugie 0,235 USD **za tę samą
+informację**.
+
+Kolejność, w której płacimy RAZ:
+
+1. Rozszerzenie kształtu o `subtype` / `terminalReason` (faza 2). **Za darmo.**
+2. Faza 4 w całości — checkery, workflow, testy na rekordach SFABRYKOWANYCH. **Za darmo.**
+   Kryterium fazy 4 mówi o rekordzie PRZECHODZĄCYM, więc na tym etapie rolę atrapy pełni rekord
+   sfabrykowany — dokładnie jak w fazie 2, gdzie na atrapie zmierzono prettier-czystość.
+3. **BRAMKA PRZED PŁATNOŚCIĄ** (to kryterium). Przechodzi → kształt zamknięty. Nie przechodzi →
+   poprawiasz **za darmo, zanim wydasz cent**.
+4. Dopiero wtedy JEDNO płatne przejście, ~0,235 USD.
+
+To jest ta sama dyscyplina, co „prettier-czystość mierzymy na dowodzie SFABRYKOWANYM, zanim padnie
+pierwszy cent" z Critical Implementation Details — rozszerzona z jednej własności (formatowanie) na
+cały kształt.
 
 ### Wzorce, które kontynuujemy
 
@@ -244,16 +343,67 @@ read-modify-write przez `JSON.parse` → podmiana swojego klucza → `JSON.strin
 Nie mogą dzielić modułu serializującego (granica kierunkowa), więc jedna linia jest zdublowana —
 i dlatego każda strona ma własny test round-tripu, a checker ma trzeci, na pliku zacommitowanym.
 
-### ⚑ Przekotwiczenie `callFingerprint` — jedno miejsce, dwie wartości
+**D-9. ⚑ DOPISANA 2026-08-23 razem z poprawką D-6: PRZEJŚCIE komórki „dowiózł → nie dowiózł" pod
+NOWYM odciskiem jest CZERWIENIĄ.**
 
-Dopisane 2026-08-23 razem z D-8. `maxTurns` jest **osią 4 odcisku** (`FIXED_CALL_OPTIONS` wchodzi
+To jest domknięcie dziury, którą klasa (A) otwiera: **zmiana promptu, która wpycha model w pętlę,
+wywoła `max_turns` — przyczyna jest w PROMPCIE, a objaw wygląda jak niedowiezienie.** Bez tej
+reguły zapadka byłaby zielona nad dokładnie tą regresją, którą ma łapać.
+
+**Mechanizm.** Rekord niesie blok `previousDelivery`: odcisk, pod którym powstał rekord POPRZEDNI,
+plus jego klasyfikacja per komórka (`model`, `fixture`, `delivered`). Pisze go `buildRecord` —
+z `existing`, które już czyta (read-modify-write jest w module od fazy 2, więc to nie jest nowy
+szew). Reguła zapadki: dla każdej komórki, jeżeli
+
+`previousDelivery.fingerprint !== callFingerprint` **ORAZ** poprzednio `delivered === true`
+**ORAZ** dziś `delivered === false` → **CZERWIEŃ** (`deliveryRegression`).
+
+Czyli: przejście na „nie dowiózł" liczy się jako regresja **tylko wtedy, gdy między dwoma pomiarami
+zmieniło się wywołanie**. Ten sam odcisk + ta sama komórka, która raz dowiozła, a raz nie, to
+niestabilność modelu — zmierzona i nieblokująca.
+
+**Dlaczego to mieści się w tej zmianie.** Klasyfikacja `delivered` jest wyprowadzana z `contract`
+(D-6), więc dzisiejszego rekordu **nie trzeba wytwarzać na nowo** — zero wydatku. `previousDelivery`
+jest ADDYTYWNY i opcjonalny: dzisiejszy rekord go nie ma, `checkRecord` przy jego braku po prostu
+tej reguły nie stosuje. Cała robota to jedna czysta funkcja, jedno porównanie w checkerze i jedno
+przeniesienie w `buildRecord` — po jednej stronie granicy kierunkowej, w modułach, które ta zmiana
+i tak buduje (faza 2 i faza 4).
+
+**Trzy ceny, nazwane:**
+
+1. **Reguła jest BEZCZYNNA do następnego przejścia macierzy.** `previousDelivery` powstanie
+   dopiero przy kolejnym `--record`. Testowalna jest w pełni na rekordach SFABRYKOWANYCH
+   (kontrola pozytywna per oś, jak reszta), ale **żywych danych dziś nie ma** i nie udajemy, że są.
+2. **Dwie dzisiejsze komórki (A) są ŚLEPE na regresję dowiezienia**, dopóki raz nie dowiozą — nie
+   da się zregresować z „już nie dowoziłem". Linia bazowa `clean-text-change.diff` jest więc
+   niepilnowana po tej osi.
+3. **Flake w stronę niedowiezienia pod nowym odciskiem kosztuje jedno przejście.** Człowiek czyta
+   powód, rozstrzyga regresja/niestabilność i przy niestabilności płaci za powtórzenie. To ta sama
+   cena co w starym Open Risk 2, tylko na powierzchni DUŻO węższej: nie „każda czerwona asercja",
+   a wyłącznie przejście `delivered → not delivered` przy zmienionym wywołaniu.
+
+### ⚑ Przekotwiczenie `callFingerprint` — ROZWAŻONE I COFNIĘTE
+
+> **Ta sekcja jest ŚLADEM DECYZJI, która się cofnęła na danych — nie instrukcją.** Nie kasujemy
+> jej: plan, z którego znika rozważona i odrzucona droga, czyta się jak plan, który nigdy nie miał
+> wątpliwości.
+>
+> **Przekotwiczenie jest NIEPOTRZEBNE.** Wynikało wyłącznie z D-8, czyli z podniesienia `maxTurns`
+> — a pomiar 3a.1 tę drogę unieważnił (nie wiadomo, co liczy `numTurns`, więc każda nowa wartość
+> jest zgadywaniem). `FIXED_CALL_OPTIONS` zostaje NIETKNIĘTE, wywołanie produkcyjne się nie
+> zmienia, a **kotwicą pozostaje `59ee111bb431f77a4fc01d7f9bf33992f4ab783458c704d20aafb9e42edec8f1`**.
+> Kryteria 3.4 i 5.12 wracają do niej; żadne pole „NOWA kotwica" nie czeka na wypełnienie.
+>
+> Poniżej zostaje zapis tego, co byłoby prawdą, gdyby D-8 doszło do skutku.
+
+~~Dopisane 2026-08-23 razem z D-8. `maxTurns` jest **osią 4 odcisku** (`FIXED_CALL_OPTIONS` wchodzi
 do `fingerprintPrompt`), więc podniesienie go **przesuwa `callFingerprint`**. Kryteria 3.4 i 5.12
-są napisane wokół konkretnej wartości, więc obie potrzebują tego wiersza.
+są napisane wokół konkretnej wartości, więc obie potrzebują tego wiersza.~~
 
-| kotwica                                                                | status                                                                         |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| ~~`59ee111bb431f77a4fc01d7f9bf33992f4ab783458c704d20aafb9e42edec8f1`~~ | **kotwica sprzed podniesienia `maxTurns` w fazie 3a** — nie obowiązuje po 3a.2 |
-| `<NOWA — do wypełnienia w fazie 3a.2>`                                 | obowiązująca od wdrożenia wybranej wartości `maxTurns`                         |
+| kotwica                                                            | status po cofnięciu D-8                                            |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `59ee111bb431f77a4fc01d7f9bf33992f4ab783458c704d20aafb9e42edec8f1` | **OBOWIĄZUJE, niezmieniona** — `maxTurns` nie był ruszany          |
+| ~~`<NOWA — do wypełnienia w fazie 3a.2>`~~                         | **nie powstanie** — 3a.2 odwołane, wywołanie produkcyjne bez zmian |
 
 **Starej wartości NIE podmieniamy w miejscu.** Historia ma pokazywać, że kotwica się przesunęła
 **i dlaczego** — odcisk podmieniony po cichu czyta się jak odcisk, który zawsze taki był, a to
@@ -381,6 +531,11 @@ TUTAJ, na dowodzie sfabrykowanym — zanim padnie pierwszy cent.
 **Intent**: Czysty moduł opisujący kształt pliku dowodu, jego serializację i decyzję „czy ten dowód
 jest aktualny wobec dzisiejszego odcisku". Bez `fs`, bez `console` — runner osobno.
 
+⚑ **Dopisek po poprawce D-6 (2026-08-23):** kształt niesie dodatkowo `subtype` i `terminalReason`
+— surowe pola z SDK, przeniesione przez `ReviewFailure` → provider → `ReportRow`. Są WARUNKIEM
+klasyfikacji (A) po nazwanych podtypach; bez nich jedynym nośnikiem tej informacji jest proza
+w `failures[].reason`, a bramka na prozie jest tą samą klasą błędu, którą ta zmiana tropi.
+
 **Contract**: eksportuje `EvalRecord` (kształt), `RECORD_PATH`, `serializeRecord(record)`
 = `` `${JSON.stringify(record, null, 2)}\n` ``, `MANDATORY_NOTES` (adnotacja z D1),
 `RECORD_COMMAND`, `checkRecord({ record, raw, liveFingerprint })` zwracające listę nazwanych
@@ -403,6 +558,11 @@ prostych (`research.md` §5.2):
       "ok": true,
       "cached": false,
       "contract": "ok",
+      // Dwa pola SUROWE z SDK, dopisane po poprawce D-6. Bez nich klasyfikacja (A) musiałaby
+      // czytać `subtype` z prozy w `failures[].reason` — czyli stan niesiony przez dwa pola
+      // czytany ze stringa dla człowieka. `null` na komórce, która dojechała.
+      "subtype": null,
+      "terminalReason": null,
       "turns": 2,
       "inputTokens": 0,
       "outputTokens": 0,
@@ -509,10 +669,17 @@ pieniądze i jest nieodwracalna.
 
 ---
 
-## Phase 3a: Licznik tur — POMIAR, potem wybór, potem produkcja
+## Phase 3a: Licznik tur — POMIAR WYKONANY, kroki 3a.2-3a.4 ODWOŁANE
 
-⚑ **Faza DOPISANA 2026-08-23** po zatrzymaniu fazy 3 na kryterium 3.6. Kolejność `3a → 3` jest
-WIĄŻĄCA: faza 3 nie startuje, dopóki 3a nie zamknie się wybraną i przećwiczoną wartością.
+⚑ **Faza dopisana 2026-08-23 i tego samego dnia zamknięta na swoim PIERWSZYM kroku.** 3a.1 zostało
+wykonane (sześć przebiegów, 0,381737 USD, tabela w `verification.md`) i **odpowiedziało
+NEGATYWNIE**: nie wiadomo, co liczy `numTurns`. Warunkiem wejścia w 3a.2 była odpowiedź POZYTYWNA,
+więc **3a.2, 3a.3 i 3a.4 się NIE ODBYWAJĄ** — nie są odłożone, są odwołane. Wyjściem z zatrzymania
+fazy 3 jest poprawka **D-6** (rozdzielenie (A)/(B)) i **D-9** (przejście „dowiózł → nie dowiózł"),
+a nie żadna nowa wartość `maxTurns`.
+
+Poniższy opis kroków 1-4 zostaje NIETKNIĘTY jako ślad tego, co ta faza miała zrobić — i po co
+właściwie wydano na nią 0,38 USD: żeby NIE zgadywać.
 
 ### Overview
 
@@ -604,6 +771,12 @@ nie sugestia.
 ⚑ **Faza wymaga domkniętej fazy 3a** (D-8). Pierwsze podejście, 2026-08-23, zatrzymało się na
 własnym kryterium 3.6 — patrz nota nad Progressem fazy 3 i `verification.md`.
 
+⚑ **WARUNEK WEJŚCIA (D-10): przejście macierzy kupujemy dopiero, gdy sfabrykowany rekord
+o docelowym kształcie — z kompletem nowych pól i z `previousDelivery` — przechodzi przez PRAWDZIWY
+zapisywacz i PRAWDZIWY checker. Płatny przebieg dostarcza DANE, nigdy nie waliduje KSZTAŁTU.**
+Czyli faza 3 startuje po fazie 4, a nie przed nią — kolejność numerów nie jest tu kolejnością
+wykonania i to jest zamierzone.
+
 ### Overview
 
 Jedno zimne przejście 2×2, zapis dowodu, rozliczenie budżetu. Faza z jednym krokiem i jedną liczbą,
@@ -653,18 +826,18 @@ Rozjazd między nimi jest informacją, nie błędem.
 - `git add agents/review/evals/eval-record.json && git status` po `pre-commit` — plik nie został
   przeformatowany przez `lint-staged`
 - `agents/review/evals/eval-record.json` niesie 4 wiersze, 2 różne modele, 2 różne fikstury
-- `callFingerprint` w pliku zgadza się z kotwicą OBOWIĄZUJĄCĄ — patrz „Przekotwiczenie" niżej:
-  - ~~`59ee111bb431f77a4fc01d7f9bf33992f4ab783458c704d20aafb9e42edec8f1`~~ — **kotwica sprzed
-    podniesienia `maxTurns` w fazie 3a**, NIE obowiązuje od chwili wdrożenia nowej wartości
-  - `<NOWA KOTWICA — do wypełnienia w fazie 3a.2, po wdrożeniu wybranej wartości `maxTurns`>`
+- `callFingerprint` w pliku = `59ee111b…` (prompt nie był ruszany, więc musi się zgadzać).
+  Kotwica NIEZMIENIONA — przekotwiczenie rozważane pod D-8 i cofnięte po pomiarze 3a.1
 
 #### Manual Verification:
 
 - Odczyt `/api/v1/key` opóźniony wykonany i zapisany; różnica mieści się w budżecie 1,50 USD
   (~~0,50~~ — korekta D-8), licząc RAZEM z 0,235012 wydanymi w przejściu zatrzymanym
-- Wszystkie cztery komórki `ok: true` — jeśli nie, ZATRZYMAJ SIĘ: czerwona komórka na
-  niezmienionym prompcie jest sygnałem o macierzy, nie o zapadce, i wymaga rozstrzygnięcia
-  przed fazą 4
+- ~~Wszystkie cztery komórki `ok: true` — jeśli nie, ZATRZYMAJ SIĘ~~ → **poprawione po D-6/D-9**:
+  żadna komórka w klasie **(B)** (odpowiedź PRZYSZŁA, asercja piękła albo schemat złamany). Komórki
+  w klasie **(A)** (`max_turns`, wyczerpane retry, brak łączności) są dopuszczalne — zapisywane
+  i raportowane jako stan KWALIFIKACJI MODELU. Kryterium w pierwotnym brzmieniu zatrzymało tę fazę
+  2026-08-23 i to zatrzymanie było SŁUSZNE: doprowadziło do pomiaru 3a.1 i do rozdzielenia przyczyn
 - Obserwacje miękkie zapisane bez awansowania ich do twardych
 
 **Implementation Note**: Po tej fazie zatrzymaj się i potwierdź manualnie.
@@ -689,9 +862,21 @@ wypisz adnotacje i kod wyjścia.
 
 **Contract**: importuje `./fingerprint.ts` i `./eval-record.ts` — **nigdy `./provider.ts` ani
 `./cache.ts`**, bo te ciągną `promptfoo`. Czerwieni na: braku pliku (D2), rozjeździe
-`callFingerprint`, niepełnej macierzy (D-6), komórce `ok: false` (D-6), nieudanym round-tripie
-serializacji (plik przeformatowany). Jedna adnotacja `::error` na problem, nie zbiorcza. `try/catch`
-na wierzchu → kod 1 z prefiksem `AWARIA`, żeby awaria bramki nie czytała się jak zgoda.
+`callFingerprint`, niepełnej macierzy (D-6), **komórce w klasie (B)** — czyli `contract: "ok"`
+z `ok: false` ORAZ `contract: "[contract]"` — **komórce `[unknown]`, która nie dopasowała się do
+żadnego NAZWANEGO podtypu niedowiezienia** (fail-closed: kosz na niewiadome nie jest przepustką),
+**komórce o nierozpoznanej klasie awarii**, **komórce `[config]`** (przejście się nie odbyło),
+**przejściu „dowiózł → nie dowiózł" pod nowym odciskiem** (D-9) i nieudanym round-tripie
+serializacji.
+**NIE czerwieni** wyłącznie na komórce dopasowanej do NAZWANEJ pozycji (A) — tę wypisuje jako
+adnotację `::notice` ze stanem kwalifikacji modelu (D-6). Dopasowanie idzie po polach
+`subtype` / `terminalReason`, nigdy po treści `failures[].reason`. Jedna adnotacja na problem, nie zbiorcza. `try/catch` na wierzchu →
+kod 1 z prefiksem `AWARIA`, żeby awaria bramki nie czytała się jak zgoda.
+
+⚑ **Remedium klasy (A) NIE cytuje komendy przejechania macierzy jako naprawy** — bo nie ma czego
+naprawiać promptem: to jest stan modelu. Remedium klasy (B) cytuje ją, z informacją, że kosztuje.
+Pomylenie tych dwóch treści kasuje całą wartość rozdzielenia, więc obie idą pod test tak samo jak
+reszta remediów.
 
 #### 2. Checker połowy `scripts/`
 
@@ -917,9 +1102,7 @@ wiersz w Progress, nie zdanie w prozie.
 - Komunikat czerwieni P2 przeczytany: czy mówi wprost, że macierzy przejeżdżać nie trzeba
 - Komunikat czerwieni P1 przeczytany: czy mówi wprost, że przejście KOSZTUJE
 - `verification.md` niesie obie połowy kontroli i nazwaną zmienną różnicy
-- Rewerty nie zostawiły nic w drzewie (`git status` czysty, odcisk z powrotem na kotwicę
-  OBOWIĄZUJĄCĄ — ~~`59ee111b…`~~ kotwica sprzed podniesienia `maxTurns` w fazie 3a; nowa wartość
-  wpisana w „Przekotwiczenie")
+- Rewerty nie zostawiły nic w drzewie (`git status` czysty, odcisk z powrotem `59ee111b…`)
 
 ---
 
@@ -964,7 +1147,11 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
    Open Risk 1 z archiwum. `verdictConfig` zapisuje kopię ze `scripts/`, bo to ona egzekwuje skalę
    przy werdykcie; kopia agencka zostaje niepilnowana. Ta zmiana ryzyka nie zamyka i nie udaje, że
    zamyka.
-2. **Flake gemini na asercji TWARDEJ zmusi do zapłacenia za ponowne przejście** (D-6). Zmierzone:
+2. ~~**Flake gemini na asercji TWARDEJ zmusi do zapłacenia za ponowne przejście** (D-6).~~
+   **PRZEPISANE 2026-08-23 po poprawce D-6/D-9.** Powierzchnia tego ryzyka skurczyła się z „każda
+   czerwona asercja" do „przejście `dowiózł → nie dowiózł` pod ZMIENIONYM odciskiem" — flake
+   w klasie (A) nie blokuje już niczego, a flake w klasie (B) dalej kosztuje przejechanie macierzy.
+   Nowe, WIĄŻĄCE brzmienie ryzyka jest w D-9, punkt 3. Materiał pierwotny:
    kontrakt `null` bywa u gemini niestabilny między przebiegami przy tym samym prompcie
    (`verification.md:809-820`). Warunek przeglądu tej decyzji: dwa kolejne przebiegi, w których
    czerwień komórki znika bez zmiany promptu.
@@ -977,7 +1164,16 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
    zlałoby dwa remedia, których rozłączność jest treścią D-2. Nazwana w polu `notes.fixtures`
    dowodu. Warunek przeglądu: pierwsza zmiana fikstury, przy której ktoś zauważy, że rekord nie
    zaczerwienił.
-5. **Dziura sonnetowa** (D3): regresja uderzająca w `anthropic/claude-sonnet-4.6`, a omijająca oba
+5. **Powtórzenie przejścia NIE gwarantuje tego samego układu komórek** — dopisane 2026-08-23.
+   Gemini bywa niestabilne między przebiegami przy tym samym prompcie (zmierzone dwukrotnie:
+   `verification.md` poprzedniej zmiany oraz pomiar 3a.1, gdzie trzy capy dały trzy różne
+   zakończenia). Płatne przejście z D-10 punkt 4 może więc oddać UKŁAD INNY niż dzisiejszy: nową
+   klasę awarii, komórkę, która nagle dowiozła, albo czerwień tam, gdzie jej nie było.
+   **Konsekwencja, wprost: taki wynik jest WYNIKIEM do zapisania, a nie powodem do trzeciego
+   przejścia.** Rekord ma opisywać przejście, które się odbyło. Trzecie przejście wymaga ROZMOWY
+   — kupowanie przebiegów do skutku, aż układ komórek się spodoba, zamienia dowód w selekcję.
+
+6. **Dziura sonnetowa** (D3): regresja uderzająca w `anthropic/claude-sonnet-4.6`, a omijająca oba
    tanie modele, przejdzie tę bramkę na ZIELONO z dowodem kompletnym i aktualnym. Nazwana, przyjęta,
    zapisana w adnotacji dowodu. Nie zapisujemy nigdzie, że modele z jednej rodziny regresują razem —
    to jest prawdopodobne i NIEZMIERZONE.
@@ -1033,23 +1229,26 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 
 ### Phase 3a: Licznik tur — POMIAR, potem wybór, potem produkcja
 
-> ⚑ **Faza dopisana 2026-08-23 (D-8).** Kolejność `3a → 3` wiążąca. 3a.1 kończy się STOP-em
-> i rozmową; 3a.2 nie odbywa się, jeśli 3a.1 nie odpowiedziało, co liczy `numTurns`.
+> ⚑ **Faza zamknięta na PIERWSZYM kroku (2026-08-23).** 3a.1 wykonane i odpowiedziało NEGATYWNIE
+> (nie wiadomo, co liczy `numTurns`), a odpowiedź pozytywna była warunkiem wejścia w 3a.2. Kroki
+> 3a.3, 3a.4, 3a.7, 3a.8 i 3a.9 są **ODWOŁANE, nie odłożone** — wszystkie zależały od wyboru
+> wartości `maxTurns`, którego nie będzie (D-8 cofnięte w połowie zakresowej). Nie odhaczam ich
+> i nie kasuję: pusty checkbox z powodem jest informacją, skasowany wiersz nie jest żadną.
 
 #### Automated
 
-- [ ] 3a.1 Sześć przebiegów (`clean-text-change.diff` × 2 modele × `maxTurns` 3/4/5) wykonanych
-- [ ] 3a.2 `git status` po pomiarze czysty w `agents/review/run-review.ts` — pomiar nie wdrożył
-- [ ] 3a.3 Po wyborze wartości: typecheck (root + agent), testy agenta, lint
-- [ ] 3a.4 Nowy `productionPromptFingerprint()` wypisany i wpisany jako NOWA kotwica
+- [x] 3a.1 Sześć przebiegów (`clean-text-change.diff` × 2 modele × `maxTurns` 3/4/5) wykonanych — fadc918
+- [x] 3a.2 `git status` po pomiarze czysty w `agents/review/run-review.ts` — pomiar nie wdrożył — fadc918
+- [ ] 3a.3 ~~Po wyborze wartości: typecheck (root + agent), testy agenta, lint~~ — **ODWOŁANE**
+- [ ] 3a.4 ~~Nowy `productionPromptFingerprint()` wypisany i wpisany jako NOWA kotwica~~ — **ODWOŁANE**, kotwica zostaje `59ee111b…`
 
 #### Manual
 
-- [ ] 3a.5 Tabela sześciu przebiegów w `verification.md`, koszt z `/api/v1/key`, nie z SDK
-- [ ] 3a.6 Odpowiedź WPROST na pytanie, co liczy `numTurns` (rozstrzygnięcie albo jawne „nadal nie wiadomo")
-- [ ] 3a.7 Wartość `maxTurns` wybrana z CYTOWANEGO odczytu, nie z intuicji
-- [ ] 3a.8 Recenzent produkcyjny przećwiczony na `sample.diff`, koszt przed i po zapisany
-- [ ] 3a.9 Nowa projekcja miesięczna policzona i porównana ze starą (~135 USD/mies.)
+- [x] 3a.5 Tabela sześciu przebiegów w `verification.md`, koszt z `/api/v1/key`, nie z SDK — fadc918
+- [x] 3a.6 Odpowiedź WPROST na pytanie, co liczy `numTurns` (rozstrzygnięcie albo jawne „nadal nie wiadomo") — fadc918
+- [ ] 3a.7 ~~Wartość `maxTurns` wybrana z CYTOWANEGO odczytu~~ — **ODWOŁANE**: pomiar nie dał czego cytować
+- [ ] 3a.8 ~~Recenzent produkcyjny przećwiczony na `sample.diff`~~ — **ODWOŁANE**: produkcji nie ruszamy
+- [ ] 3a.9 ~~Nowa projekcja miesięczna~~ — **ODWOŁANE**: koszt produkcyjny się nie zmienia, więc ~135 USD/mies. zostaje w mocy
 
 ### Phase 3: Przejście macierzy — PŁATNE
 
@@ -1063,10 +1262,11 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 
 #### Automated
 
+- [ ] 3.0 BRAMKA D-10: sfabrykowany rekord o docelowym kształcie (komplet pól + `previousDelivery`) przechodzi przez PRAWDZIWY zapisywacz i PRAWDZIWY checker — warunek wydania pierwszego centa
 - [ ] 3.1 `prettier --check` na dowodzie prawdziwym → kod 0
 - [ ] 3.2 `lint-staged` nie przeformatował dowodu przy `git add`
 - [ ] 3.3 Dowód niesie 4 wiersze, 2 modele, 2 fikstury
-- [ ] 3.4 `callFingerprint` = kotwica OBOWIĄZUJĄCA (~~`59ee111b…`~~ sprzed podniesienia `maxTurns` w fazie 3a; nowa z 3a.4)
+- [ ] 3.4 `callFingerprint` = `59ee111b…` (kotwica niezmieniona — przekotwiczenie cofnięte po 3a.1)
 
 #### Manual
 
@@ -1082,6 +1282,10 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 - [ ] 4.2 Typecheck (root + agent) i lint
 - [ ] 4.3 Oba checkery na czystym drzewie → kod 0
 - [ ] 4.4 Oba checkery na podmienionym dowodzie → kod 1 z właściwym komunikatem
+- [ ] 4.4a Komórka (A) NIE czerwieni, komórka (B) czerwieni — obie na rekordach sfabrykowanych (D-6)
+- [ ] 4.4b `[unknown]` BEZ nazwanego podtypu czerwieni (fail-closed), `[config]` czerwieni jako brak przejścia
+- [ ] 4.4d Komórka z NAZWANYM podtypem (`error_max_turns`, `structured_output_retry_exhausted`) nie czerwieni
+- [ ] 4.4c Przejście „dowiózł → nie dowiózł" pod NOWYM odciskiem czerwieni; pod TYM SAMYM — nie (D-9)
 - [ ] 4.5 Oba checkery uruchomione po `npm ci --omit=dev`, wynik pokazany
 - [ ] 4.6 `check-prompt-sources.ts` zielony po edycji AGENTS.md
 
@@ -1109,4 +1313,4 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 - [ ] 5.9 Komunikat P2 mówi wprost, że macierzy przejeżdżać nie trzeba
 - [ ] 5.10 Komunikat P1 mówi wprost, że przejście kosztuje
 - [ ] 5.11 `verification.md` niesie obie połowy i nazwaną zmienną różnicy
-- [ ] 5.12 Rewerty czyste, odcisk z powrotem na kotwicę OBOWIĄZUJĄCĄ (~~`59ee111b…`~~ → nowa z 3a.4)
+- [ ] 5.12 Rewerty czyste, odcisk z powrotem `59ee111b…` (kotwica niezmieniona — D-8 cofnięte)

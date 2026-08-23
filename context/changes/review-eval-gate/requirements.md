@@ -121,6 +121,15 @@ złapała na gemini regresję, której nikt by inaczej nie zobaczył. Ta zmiana 
    > Rozmowa się odbyła: zatrzymanie fazy 3 wróciło do człowieka z liczbami i z trzema odrzuconymi
    > drogami na skróty, a podniesienie jest jego decyzją podjętą nad tym rachunkiem — nie
    > dopisaniem sobie miejsca przez agenta, któremu zabrakło.
+   >
+   > ⚑ **DOMKNIĘCIE (ten sam dzień, po pomiarze 3a.1): podniesiony budżet NIE ZOSTAŁ wykorzystany —
+   > i to jest WYNIK, nie przeoczenie.** Wydatek kończy się na **0,616749 USD** (0,235012 faza 3 +
+   > 0,381737 faza 3a.1) z 1,50 USD. Dalsze fazy **nie wołają modeli**: rozwiązaniem okazało się
+   > rozdzielenie przyczyn w zapadce (D-6, D-9), a nie kolejne przejście macierzy — **dzisiejszy
+   > rekord staje się ważnym dowodem TAKIM, JAKI JEST**, z dwiema komórkami w stanie „model nie
+   > dowiózł". Podniesienie budżetu zostaje w mocy jako decyzja podjęta jawnie; nie cofamy go, bo
+   > cofnięcie zacierałoby fakt, że zostało podjęte. Ale nie wolno go czytać jako środków do
+   > wydania: **1,50 to sufit, którego ta zmiana nie dotknęła.**
 
 7. **Diagnostyka czerwieni ma być jednoznaczna.** Komunikat kroku musi rozróżniać „zmieniłeś
    prompt, brakuje dowodu" od „dowód jest, ale dla innego promptu" i mówić wprost, jaką komendą
@@ -201,7 +210,21 @@ albo obalić; żadna z nich nie jest tu decyzją.
   asercji — oba zapisane w archiwum jako pytania do pomiaru, oba niezależne od tej zmiany.
 - Uruchamianie macierzy w CI w jakiejkolwiek postaci — wykluczone decyzją 1.
 
-## ⚑ ROZSZERZENIE ZAKRESU — 2026-08-23, po zatrzymaniu fazy 3
+## ⚑ ROZSZERZENIE ZAKRESU — ROZWAŻONE, UZASADNIONE, COFNIĘTE NA DANYCH
+
+> **Ta sekcja jest ŚLADEM, nie obowiązującą deklaracją zakresu.** Rozszerzenie zostało rozważone
+> 2026-08-23 po zatrzymaniu fazy 3, faza 3a miała je uzasadnić pomiarem — i **pomiar je
+> unieważnił**: 3a.1 nie ustaliło, co liczy `numTurns`, więc każda nowa wartość `maxTurns` byłaby
+> zgadywaniem wdrożonym do wywołania produkcyjnego. **Zakres WRACA do pierwotnego: ta zmiana nie
+> dotyka `FIXED_CALL_OPTIONS` ani niczego innego w wywołaniu recenzenta produkcyjnego.**
+> Zatrzymanie fazy 3 rozwiązuje poprawka D-6 (rozdzielenie „model nie dowiózł" od „prompt
+> zregresował") plus D-9 — obie po stronie ZAPADKI, czyli w pierwotnym zakresie.
+>
+> Nie kasujemy tej sekcji, bo decyzja, która się cofnęła na danych, jest warta dokładnie tyle, co
+> pomiar, który ją cofnął — a dokument, z którego znika rozważona droga, czyta się jak dokument,
+> który nigdy nie miał wątpliwości. Poniżej ORYGINALNE brzmienie.
+
+### Oryginalne brzmienie (nieobowiązujące)
 
 **Ta zmiana od teraz modyfikuje także wywołanie recenzenta PRODUKCYJNEGO**: wartość `maxTurns`
 w `FIXED_CALL_OPTIONS` (`agents/review/run-review.ts`), czyli parametr, z którym agent review jedzie

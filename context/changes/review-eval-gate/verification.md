@@ -360,3 +360,171 @@ PRODUKCYJNEGO (D-8) na takiej podstawie byłoby zgadywaniem, tyle że droższym 
 
 **Wobec tego 3a.2 się NIE odbywa.** Warunkiem wejścia w wybór wartości było, żeby 3a.1
 odpowiedziało na pytanie o licznik. Nie odpowiedziało. Wracamy do rozmowy.
+
+---
+
+## Decyzja po pomiarze 3a.1 — rozdzielenie przyczyn w rekordzie
+
+**Data**: 2026-08-23, po `fadc918`
+**Rozstrzygnął**: człowiek, nad tabelą sześciu przebiegów
+
+Pomiar rozstrzygnął sprawę **w drugą stronę, niż zakładała faza 3a**. Nie wybieramy capu — zmieniamy
+to, co zapadka uznaje za czerwień.
+
+### Co się zmienia
+
+Rekord i zapadka rozróżniają DWIE rzeczy, które `ok: false` zlewało w jedną:
+
+- **(A) MODEL NIE DOWIÓZŁ** — `max_turns`, wyczerpane retry structured output, brak łączności.
+  Odpowiedzi NIE MA, więc nie ma czego porównywać z promptem. Stan **KWALIFIKACJI MODELU**:
+  zapisywany, widoczny, raportowany — **nie blokuje**.
+- **(B) PROMPT ZREGRESOWAŁ** — odpowiedź przyszła, ale nie spełnia asercji. **Zapadka czerwieni.**
+
+`maxTurns` i `FIXED_CALL_OPTIONS` **zostają NIETKNIĘTE**. Wywołanie produkcyjne się nie zmienia,
+`callFingerprint` `59ee111b…` zostaje kotwicą, przekotwiczenie z fazy 3a jest niepotrzebne
+i zostało cofnięte (ślad w planie, sekcja „Przekotwiczenie — ROZWAŻONE I COFNIĘTE").
+
+### ⚑ Dlaczego to NIE jest poluzowanie pod presją — i dlaczego to ostrzeżenie tu stoi
+
+To jest **dokładnie pytanie o D-6, rozstrzygane w momencie, w którym jego rozstrzygnięcie nas
+odblokowuje** — czyli w tym, przed którym sam ostrzegałem w sekcji „Pytanie projektowe" wyżej.
+Ostrzeżenie zostaje zapisane **razem z decyzją, nie zamiast niej**: kto to czyta za rok, ma zobaczyć
+obie rzeczy naraz, a nie samo rozstrzygnięcie z wygodną datą.
+
+Dwa argumenty, które mimo to przeważają:
+
+**1. To repo już ma ten kontrakt — piętro wyżej, i to dosłownie.** `pr-review.yml:10-15` mówi
+o bramce review: _„A red run here means REVIEW DID NOT HAPPEN — never that review went badly."_
+Bramka produkcyjna **od początku** oddziela BRAK WYKONANIA od ZŁEGO WYNIKU. D-6 wprowadzało w tym
+samym repo kontrakt **ODWROTNY**: czerwień z „nie dowiózł" i czerwień z „wynik zły" zlane w jedną.
+Zmiana nie rozluźnia standardu — **usuwa niespójność z kontraktem, który już obowiązuje**.
+
+**2. Decyzja stoi na NOWEJ WIEDZY, nie na wygodzie.** Pomiar 3a.1 (0,381737 USD) ustalił trzy
+rzeczy, których 2026-08-23 rano nie wiedzieliśmy: czerwień bierze się z `error_max_turns`
+i `error_max_structured_output_retries` **przy niezmienionym promptcie**; `numTurns` potrafi
+przekroczyć cap; podnoszenie capu **nie pomaga monotonicznie** (przy 5 czeka inny licznik). Gdyby
+decyzja zapadła przed pomiarem, byłaby tym, przed czym ostrzegałem. Zapadła po nim i na nim.
+
+### ⚑ Dziura, której trzeba pilnować — i odpowiedź, czy zamyka się w tej zmianie
+
+**Dziura jest realna**: zmiana promptu, która wpycha model w pętlę, **wywoła `max_turns`** —
+przyczyna siedzi w promptcie, a objaw wygląda jak niedowiezienie. Zapadka zostałaby wtedy zielona
+nad regresją, którą miała łapać.
+
+**Odpowiedź: TAK, zamyka się w tej zmianie i nie rozdmuchuje zakresu.** Mechanizm to D-9 w planie.
+Trzy rzeczy o tym rozstrzygają:
+
+1. **Klasyfikacja (A)/(B) NIE wymaga nowego przejścia macierzy.** Jest wyprowadzalna z pola, które
+   rekord **już niesie** — `contract`. `contract === "ok"` zachodzi dokładnie wtedy, gdy `runReview`
+   nie rzuciło, bo `response.error` ustawia wyłącznie nasz provider (`report.ts:148-149`).
+   Mapowanie idzie po KLASIE AWARII, nigdy przez parsowanie tekstu komunikatu — inaczej złamałoby
+   lekcję „Stan niesiony przez DWA pola". **Koszt: zero.** Dzisiejszy rekord zostaje bez zmian.
+2. **Reguła przejścia jest ADDYTYWNA.** `previousDelivery` (odcisk poprzedniego rekordu + jego
+   klasyfikacja per komórka) pisze `buildRecord` z `existing`, które **już czyta** — read-modify-write
+   jest w module od fazy 2, więc to nie jest nowy szew. Przy braku bloku checker po prostu reguły
+   nie stosuje.
+3. **Robota mieści się w modułach, które ta zmiana i tak buduje**: jedna czysta funkcja, jedno
+   porównanie w checkerze, jedno przeniesienie w zapisywaczu — faza 2 i faza 4, po jednej stronie
+   granicy kierunkowej.
+
+**Reguła**, dla każdej komórki: `previousDelivery.fingerprint !== callFingerprint` **ORAZ**
+poprzednio `delivered` **ORAZ** dziś `!delivered` → **CZERWIEŃ**. Czyli przejście na „nie dowiózł"
+jest regresją **tylko wtedy, gdy między pomiarami zmieniło się wywołanie**. Ten sam odcisk i inny
+wynik to niestabilność modelu — zmierzona, nieblokująca.
+
+**Trzy ceny, nazwane — bo bez nich to zamknięcie byłoby deklaracją, nie mechanizmem:**
+
+1. **Reguła jest BEZCZYNNA do następnego przejścia macierzy.** `previousDelivery` powstanie dopiero
+   przy kolejnym `--record`. Testowalna w pełni na rekordach sfabrykowanych, ale **żywych danych
+   dziś nie ma** i nie udajemy, że są.
+2. **Dwie dzisiejsze komórki (A) są ŚLEPE po tej osi**, dopóki raz nie dowiozą — nie da się
+   zregresować z „już nie dowoziłem". `clean-text-change.diff` jest więc niepilnowany na
+   dowiezieniu, i to jest bezpośrednia konsekwencja przyjęcia (A) jako stanu dopuszczalnego.
+3. **Flake w stronę niedowiezienia pod nowym odciskiem kosztuje jedno przejście.** Ta sama cena co
+   w starym Open Risk 2, ale na powierzchni DUŻO węższej: nie „każda czerwona asercja", tylko
+   przejście `dowiózł → nie dowiózł` przy zmienionym wywołaniu.
+
+Dodatkowo, przy okazji mapowania klas, dwie rzeczy, których „(A) nie blokuje" **nie obejmuje** —
+obie czerwienią:
+
+- **`[contract]` jest po stronie (B), nie (A).** „Model odpowiedział, ale złamał wymuszony schemat"
+  to sygnał o PROMPCIE — dokładnie klasa, którą naprawiał `0d3eba5`. Wrzucona do (A) byłaby tym
+  samym połknięciem, co pętla udająca niedowiezienie.
+- **Klasa NIEROZPOZNANA czerwieni (fail-closed)**, tak samo `[config]` (przejście się nie odbyło).
+  Inaczej nowy podtyp awarii SDK stałby się po cichu nieblokujący — a cicha nieblokowalność jest
+  gorsza niż brak bramki, bo zdejmuje czujność.
+
+### Budżet — podniesiony i NIEWYKORZYSTANY
+
+Wydatek kończy się na **0,616749 USD** (0,235012 + 0,381737) z 1,50 USD. Dalsze fazy nie wołają
+modeli: rozwiązaniem okazało się rozdzielenie przyczyn w zapadce, a nie kolejne przejście macierzy —
+**dzisiejszy rekord staje się ważnym dowodem takim, jaki jest**. Podniesienia nie cofamy (decyzja
+była podjęta jawnie), ale 1,50 to **sufit, którego ta zmiana nie dotknęła**, a nie środki do wydania.
+
+### ⚑ Poprawka mapowania klas — `[unknown]` wraca do czerwieni (2026-08-23, po zatwierdzeniu D-9)
+
+Pierwsza wersja tabeli D-6 wpisywała `[unknown]` do klasy (A), nieblokującej. **To był błąd
+znoszący fail-closed** i człowiek go złapał, zanim cokolwiek na nim stanęło.
+
+`unknown` jest w tym repo **jawnym KOSZEM NA NIEWIADOME**: `classifyFailure` kończy się
+`return "unknown"`, a komentarz przy `reportFailureKind` mówi wprost „konsument traktuje brak
+wartości jak `unknown`, czyli fail-closed". Kosz umieszczony w klasie nieblokującej **odwraca** tę
+własność — i przeczy ostatniemu wierszowi tej samej tabeli, który obiecywał czerwień dla klasy
+nierozpoznanej. Dzisiejsze dwie komórki mają `[unknown]` nie dlatego, że wiemy, iż to
+niedowiezienie, tylko dlatego, że **klasyfikator nie umiał ich nazwać** — a tą samą drogą przejdzie
+kiedyś awaria WYWOŁANA promptem.
+
+Poprawka: (A) klasyfikowane po **podtypach wymienionych z imienia**
+(`error_max_turns` / `max_turns`, `error_max_structured_output_retries` /
+`structured_output_retry_exhausted`, `[provider]`, `[budget]`), a wszystko, co nie dopasuje się do
+nazwanego wiersza — łącznie z `[unknown]` — **czerwieni**. Nowy podtyp awarii SDK trafia do kosza
+i blokuje, zamiast milczeć.
+
+### Gdzie giną `subtype` i `terminal_reason` — prześledzone do końca
+
+**Rekord NIE niesie ich strukturalnie. Są wyłącznie w prozie `failures[].reason`.**
+
+| ogniwo               | co przenosi                                                                                  |
+| -------------------- | -------------------------------------------------------------------------------------------- |
+| SDK → `runReview`    | `subtype`, `terminal_reason` jako pola wiadomości                                            |
+| `classifyFailure`    | czyta oba, zwraca **wyłącznie** `FailureKind`                                                |
+| `reviewFailure`      | `Object.assign(new Error(...), { kind })` — **jedno pole**; oryginały tylko wewnątrz stringa |
+| provider (`runCell`) | `{ ok, failureKind, message }`                                                               |
+| promptfoo            | `metadata.failureKind` + `response.error` (proza)                                            |
+| `eval-record.json`   | `contract` + `failures[].reason` (proza)                                                     |
+
+Sprawdzone też trzy miejsca, w których wartości mogłyby przetrwać poza tym łańcuchem, i **żadne
+ich nie ma**: `reportFailureKind` zapisuje samo `failure-kind=` do `$GITHUB_OUTPUT` (a w evalu jest
+CICHE, bo `GITHUB_OUTPUT` nie istnieje); cache promptfoo trzyma **wyłącznie komórki UDANE**
+(`writeCell` woła się na sukcesie); `results.json` przejścia leży w katalogu tymczasowym kasowanym
+w `finally`.
+
+### Co z tego wynika — i czego NIE zrobiłem
+
+**Rekord trzeba rozszerzyć o `subtype` i `terminalReason`.** Zmiana kodu jest addytywna i tania:
+`ReviewFailure` dostaje dwa opcjonalne pola niosące to, co SDK i tak dało, dalej przez provider →
+`ReportRow` → `EvalRecordCell`. **Nie rusza `callFingerprint`** (osiami odcisku są `tools`
+i `maxTurns`, nie warstwa klasyfikacji), nie zmienia `failure-kind=` czytanego przez
+`pr-review.yml`, nie zmienia komunikatu. `classifyFailure` zostaje nietknięta — przenosimy pola,
+których ona i tak używa, zamiast dokładać jej gałęzi.
+
+**Ale kodu nie da się wypełnić danymi.** Dla dzisiejszego rekordu wartości istnieją na dysku
+wyłącznie w prozie, a prozy nie parsujemy: to byłaby ta sama klasa, którą tropi lekcja „Stan
+niesiony przez DWA pola", tyle że drugim polem byłby string przeznaczony dla człowieka.
+
+> **Wypełnienie wymaga PONOWNEGO PŁATNEGO PRZEJŚCIA — i nie zostało wykonane.**
+> **Kotwica: ~0,235 USD.** Przejście identyczne w kształcie z dzisiejszym (`maxTurns` nietknięty,
+> więc znów 2 komórki dowiozą i 2 wypalą); dzisiejsze kosztowało **0,235012**, rozrzut dziesiątek
+> procent. Budżet to unosi: wydane 0,616749 z 1,50, **zostaje 0,883251**.
+> **Ryzyko do zapisania:** gemini bywa niestabilne między przebiegami, więc powtórzenie NIE
+> gwarantuje tego samego układu komórek.
+
+**Droga za 0 USD, wymieniona i NIEPOLECANA:** przepisać dwie wartości z prozy ręcznie, raz, z
+zapisem tutaj. Wada nie jest formalna — to wpisanie **danych pomiarowych ręką** do pliku, którego
+cała doktryna brzmi „wytwarzany komendą, nie pisany ręcznie" (`remedyFor`, gałąź `malformed`),
+czyli dokładnie ta powierzchnia fałszowania, o której Open Risk 3 mówi, że jej nie domykamy.
+Adnotacja `notes.redCells` była KOMENTARZEM; to byłby POMIAR.
+
+**Stan otwarty:** dopóki decyzja nie zapadnie, dzisiejszy `eval-record.json` **czerwieni pod
+poprawioną tabelą** — jego dwie komórki `[unknown]` nie mają nazwanego podtypu. To jest uczciwa
+konsekwencja fail-closed, a nie nowa awaria.
