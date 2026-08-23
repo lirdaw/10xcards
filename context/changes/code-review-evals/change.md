@@ -38,6 +38,9 @@ Pełny zapis: `verification.md` (dowody per faza), `plan.md` (sekcja „Open Ris
 - **Cztery ryzyka otwarte**, każde z warunkiem zamknięcia sformułowanym jako PYTANIE DO POMIARU:
   duplikacja `SCORE_MIN`/`SCORE_MAX`, wyścig cache'u promptfoo, kontrakt `null` odrzucany przez
   model, `maxTurns: 2` jako nienazwane założenie o wielkości wejścia.
-- **Pięć pozycji `## Progress` zostaje NIEODHACZONYCH** (6.1, 6.2, 7.1, 7.2, 7.5) — świadomie.
-  Każda z nich opisuje warunek, który NIE został spełniony, a odhaczenie z przypisem zrównałoby
-  „niezmierzone" ze „zmierzonym i w porządku". Powody per pozycja: `verification.md`, faza 7.
+- **Sześć pozycji `## Progress` zostaje NIEODHACZONYCH** (6.1, 6.2, 7.1, 7.2, 7.3, 7.5) —
+  świadomie. Każda opisuje warunek, który NIE został spełniony, a odhaczenie z przypisem
+  zrównałoby „niezmierzone" ze „zmierzonym i w porządku". Powody per pozycja: `verification.md`,
+  faza 7. **7.3 różni się od pozostałych**: `typecheck` i `test` są zielone lokalnie, ale
+  `agents-gate.yml` wymaga przebiegu CI, a gałąź nie została wypchnięta — to jedyna z tych sześciu
+  pozycji, którą zamyka czynność, a nie pomiar.
