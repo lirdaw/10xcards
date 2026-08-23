@@ -9,8 +9,9 @@ import type {
   TokenUsage,
 } from "promptfoo";
 import { REVIEW_JSON_SCHEMA, type Review } from "../review-schema.ts";
-import { SYSTEM_PROMPT } from "../prompt.ts";
+import { SYSTEM_PROMPT, wrapDiff } from "../prompt.ts";
 import {
+  FIXED_CALL_OPTIONS,
   isReviewFailure,
   runReview,
   type FailureKind,
@@ -20,6 +21,7 @@ import {
 import {
   cellCacheKey,
   deleteCell,
+  FINGERPRINT_NONCE,
   fingerprintPrompt,
   isCacheEnabled,
   readCell,
@@ -155,9 +157,22 @@ export async function forgetCell(input: Pick<RunCellInput, "diff" | "model" | "p
   await deleteCell(cellCacheKey({ fixture: input.diff, model: input.model, promptFingerprint: input.promptFingerprint }));
 }
 
-/** Odcisk promptu i schematu, którymi jedzie PRODUKCYJNA ścieżka. Jedno miejsce, jeden egzemplarz. */
+/**
+ * Odcisk PRODUKCYJNEGO wywołania — jedno miejsce, jeden egzemplarz, cztery osie.
+ *
+ * Wszystkie cztery wartości pochodzą stąd, skąd bierze je `runReview`, a nie z kopii: `SYSTEM_PROMPT`
+ * i `REVIEW_JSON_SCHEMA` z modułów kontraktu, kształt wiadomości z tego samego `wrapDiff`
+ * (z nonce'em ustalonym, bo losowy uczyniłby cache martwym kodem), a stałe wywołania z
+ * `FIXED_CALL_OPTIONS`. Dzięki temu odcisk NIE MOŻE opisywać innego wywołania niż wysłane —
+ * tak samo jak trzy zmienne `ANTHROPIC_*` nie mogą się rozjechać, bo mają jeden egzemplarz.
+ */
 export function productionPromptFingerprint(): string {
-  return fingerprintPrompt(SYSTEM_PROMPT, REVIEW_JSON_SCHEMA);
+  return fingerprintPrompt({
+    systemPrompt: SYSTEM_PROMPT,
+    jsonSchema: REVIEW_JSON_SCHEMA,
+    userMessageShape: wrapDiff("", FINGERPRINT_NONCE),
+    callOptions: FIXED_CALL_OPTIONS,
+  });
 }
 
 const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;

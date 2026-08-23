@@ -29,25 +29,60 @@ const CACHE_FORMAT_VERSION = "v1";
 const sha256 = (text: string): string => createHash("sha256").update(text, "utf8").digest("hex");
 
 /**
- * Odcisk tego, co realnie jedzie do modelu poza samym materiałem: instrukcji systemowej i schematu
- * wymuszonego wyjścia.
+ * Nonce podstawiany pod `wrapDiff` WYŁĄCZNIE na potrzeby odcisku.
  *
- * Prompt i schemat idą jako ARGUMENTY, a nie jako import stałych — z dwóch powodów naraz.
- * Po pierwsze, test może wtedy wyrazić „prompt się zmienił" bez mutowania modułu, czyli kierunek
- * unieważnienia da się w ogóle sprawdzić. Po drugie, wywołujący (provider) podaje te same wartości,
- * które `runReview` naprawdę wysyła, więc odcisk nie może opisywać innego promptu niż wysłany.
- *
- * **Nonce z `wrapDiff` NIE WCHODZI tutaj i nie może.** Jest losowy per wywołanie i siedzi wyłącznie
- * w wiadomości użytkownika, więc ani prefiksu cache'u Anthropica, ani porównywalności przebiegów
- * nie rusza — ale wpuszczony do klucza czyniłby cache martwym kodem, który zawsze pudłuje.
+ * Prawdziwy nonce jest losowy per wywołanie i do klucza wejść NIE MOŻE — wpuszczony tam czyniłby
+ * cache martwym kodem, który zawsze pudłuje. Ale sam KSZTAŁT wiadomości użytkownika (dwa zdania
+ * instrukcji plus etykieta ogranicznika) jest stały, jedzie do modelu tak samo jak prompt
+ * systemowy, i do klucza wejść MUSI. Stała wartość zdejmuje losowość, zostawiając kształt.
  */
-export function fingerprintPrompt(systemPrompt: string, jsonSchema: unknown): string {
+export const FINGERPRINT_NONCE = "fingerprint";
+
+/**
+ * Cztery osie odcisku — czyli CAŁE wywołanie poza materiałem, a nie sam prompt systemowy.
+ *
+ * Osie idą ARGUMENTAMI, a nie importem stałych, z dwóch powodów naraz. Po pierwsze, test może
+ * wtedy wyrazić „to się zmieniło" bez mutowania modułu, czyli kierunek unieważnienia da się
+ * w ogóle sprawdzić. Po drugie, wywołujący (provider) podaje te same wartości, które `runReview`
+ * naprawdę wysyła, więc odcisk nie może opisywać innego wywołania niż wysłane.
+ */
+export interface CallFingerprintParts {
+  /** Instrukcja systemowa (`SYSTEM_PROMPT`). */
+  readonly systemPrompt: string;
+  /** Schemat wymuszonego wyjścia (`REVIEW_JSON_SCHEMA`). */
+  readonly jsonSchema: unknown;
+  /** Kształt wiadomości użytkownika bez materiału i bez losowego nonce'u — `wrapDiff("", FINGERPRINT_NONCE)`. */
+  readonly userMessageShape: string;
+  /** Stałe opcje wywołania SDK — `FIXED_CALL_OPTIONS` z `run-review.ts` (`tools`, `maxTurns`). */
+  readonly callOptions: unknown;
+}
+
+/**
+ * Odcisk CAŁEGO wywołania poza materiałem.
+ *
+ * Nazwa historyczna (`…Prompt`) zostaje, bo tak nazywa się pole klucza — ale ZAKRESEM jest
+ * wywołanie, i tak ma zostać: każda nowa wartość przekazywana do `query(...)` w `runReview`
+ * należy TUTAJ, a nie do komentarza „pamiętaj podbić wersję". Wąski odcisk jest groźniejszy niż
+ * brak cache'u: pominięta oś oznacza, że zmiana w niej zostaje zaserwowana ze STAREGO wyniku
+ * i wygląda jak zielona bramka.
+ *
+ * Każda oś jest pilnowana osobno przez `cache.test.ts` — przypadkiem unieważnienia ORAZ kontrolą
+ * pozytywną: wariant odcisku ślepy na tę oś musi zaczerwienić DOKŁADNIE jej przypadek i tylko jego.
+ */
+export function fingerprintPrompt(parts: CallFingerprintParts): string {
   // Separator, który NIE MOŻE wystąpić w żadnym z łączonych tekstów — inaczej `(A, BC)` i `(AB, C)`
-  // dawałyby ten sam odcisk, czyli zmiana promptu mogłaby zostać zamaskowana zmianą schematu.
+  // dawałyby ten sam odcisk, czyli zmiana na jednej osi mogłaby zostać zamaskowana zmianą na innej.
   // Zapisany ESCAPE'em, nie literalnie: literalny bajt NUL w źródle sprawia, że git widzi ten plik
   // jako binarny i przestaje pokazywać jego diff.
   const SEPARATOR = "\u0000";
-  return sha256(`${systemPrompt}${SEPARATOR}${JSON.stringify(jsonSchema)}`);
+  return sha256(
+    [
+      parts.systemPrompt,
+      JSON.stringify(parts.jsonSchema),
+      parts.userMessageShape,
+      JSON.stringify(parts.callOptions),
+    ].join(SEPARATOR),
+  );
 }
 
 export interface CacheKeyParts {

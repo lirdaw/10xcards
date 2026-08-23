@@ -210,6 +210,29 @@ export interface RunReviewResult {
 }
 
 /**
+ * Stałe opcje wywołania SDK — te, które nie zależą ani od materiału, ani od modelu, ani od capa.
+ *
+ * Wyniesione ze środka `query(...)` do JEDNEGO egzemplarza z tego samego powodu, dla którego
+ * jednym egzemplarzem są trzy zmienne `ANTHROPIC_*`: ma je czytać jeszcze KTOŚ POZA tą funkcją.
+ * Tym kimś jest odcisk cache'u zestawu evali (`evals/cache.ts`), któremu wolno serwować stary
+ * wynik wyłącznie wtedy, gdy CAŁE wywołanie jest to samo. Zapisane tu literałem, a odciśnięte
+ * tam z kopii, dawałyby cache trafiający po zmianie `maxTurns` — czyli nieświeży wynik podany
+ * jako zielona bramka.
+ */
+export const FIXED_CALL_OPTIONS = {
+  /** ODCINAMY narzędzia: recenzja ma być wąska i przewidywalna. */
+  tools: [] as readonly string[],
+  /**
+   * tura 1: model czyta i ocenia | tura 2: emituje JSON wg schematu.
+   *
+   * ⚑ To jest ZAŁOŻENIE O WIELKOŚCI I KSZTAŁCIE WEJŚCIA, nie własność agenta — ten sam limit
+   * wystarcza na `sample.diff` i nie wystarcza na kontroli negatywnej (`error_max_turns`).
+   * Warunek zmiany opisany w planie zmiany `code-review-evals` jako Open Risk 4.
+   */
+  maxTurns: 2,
+} as const;
+
+/**
  * Ta sama funkcja jedzie w CI i w evalu. Przy awarii RZUCA, niosąc `[FailureKind]` na początku
  * komunikatu — bo to ten prefiks, po sformatowaniu przez Node jako unhandled rejection, trafia
  * w `grep -m1 -E '^[A-Za-z]*Error:'` z `pr-review.yml:529`.
@@ -240,8 +263,10 @@ export async function runReview(
     options: {
       systemPrompt: SYSTEM_PROMPT, // własna rola zamiast presetu claude_code
       model, // pin, nie alias — patrz komentarz przy REVIEW_MODEL
-      tools: [], // ODCINAMY narzędzia: recenzja ma być wąska i przewidywalna
-      maxTurns: 2, // tura 1: model czyta i ocenia | tura 2: emituje JSON wg schematu
+      // Stałe wywołania z JEDNEGO egzemplarza — patrz `FIXED_CALL_OPTIONS`. Literał w tym
+      // miejscu byłby drugą kopią, a jej drugim czytelnikiem jest odcisk cache'u evali.
+      tools: [...FIXED_CALL_OPTIONS.tools],
+      maxTurns: FIXED_CALL_OPTIONS.maxTurns,
       // Limit wydatku na przebieg — patrz DEFAULT_MAX_BUDGET_USD. Przekroczenie daje wynik
       // o podtypie `error_max_budget_usd`, więc zatrzymanie jest odróżnialne od awarii dostawcy.
       maxBudgetUsd,

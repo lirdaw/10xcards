@@ -858,3 +858,53 @@ git diff <baza>..HEAD -- .github/                                          → t
 Kryterium 7.7 spełnione i zmierzone, nie zadeklarowane: przez cały plan composite action
 i `pr-review.yml` nie zmieniły ani jednej linii. W `.github/` przybył wyłącznie nowy workflow
 bramki pakietu agenta.
+
+---
+
+## Triage impl-review — F1: odcisk cache'u rozszerzony z dwóch osi na cztery
+
+**Data**: 2026-08-23
+**Koszt**: **0,00 USD** — wszystkie przypadki offline, stub `query`, zero wywołań modelu.
+
+Przegląd implementacji (`reviews/impl-review.md`, F1) zmierzył, że `fingerprintPrompt` niósł
+WYŁĄCZNIE `SYSTEM_PROMPT` i `REVIEW_JSON_SCHEMA`, a poza kluczem zostawało wszystko pozostałe,
+co `runReview` realnie wysyła: dwa zdania instrukcji i etykieta ogranicznika z `wrapDiff`,
+`tools: []` i `maxTurns: 2`. Ryzyko nie jest teoretyczne — Open Risk 4 ZAPOWIADA podniesienie
+`maxTurns`, a wtedy `npm run eval` oddałby komplet TRAFIEŃ i zieloną tabelę ze STARYCH wyników.
+To jest dokładnie „nieświeży wynik podany jako zielona bramka", czyli klasa nazwana w planie jako
+ryzyko pierwszej kategorii — tylko na osi, której nikt nie pilnował.
+
+### Co się zmieniło
+
+| plik            | zmiana                                                                                     |
+| --------------- | ------------------------------------------------------------------------------------------ |
+| `run-review.ts` | `tools`/`maxTurns` wyniesione do eksportowanego `FIXED_CALL_OPTIONS` — jeden egzemplarz    |
+| `cache.ts`      | `fingerprintPrompt(parts: CallFingerprintParts)` — cztery osie; `FINGERPRINT_NONCE`        |
+| `provider.ts`   | `productionPromptFingerprint()` składa cztery osie ze ŹRÓDEŁ, którymi jedzie `runReview`   |
+| `cache.test.ts` | +7 przypadków: `(ix/<oś>)` ×4, `(x)` kontrola pozytywna, `(xi/<oś>)` ×2 na żywym magazynie |
+
+Wyniesienie `FIXED_CALL_OPTIONS` jest tą samą decyzją, co jeden egzemplarz trzech zmiennych
+`ANTHROPIC_*`: literał w środku `query(...)` i odcisk liczony z kopii rozjeżdżają się CICHO.
+
+### Para dowodowa — mutacja funkcji odcisku, nie mutacja wejścia
+
+Warunek postawiony w triage'u: nowe przypadki mają dowodzić **PUDŁA**, nie trafienia, a każda nowa
+oś potrzebuje **własnej** mutacji czerwieniącej dokładnie swój przypadek i tylko jego. Inaczej
+rozszerzamy odcisk o pola, o których nie wiadomo, czy naprawdę weszły do klucza — ta sama dziura,
+tylko szersza.
+
+| mutacja `fingerprintPrompt`     | czerwone                                                 | kolateralne       |
+| ------------------------------- | -------------------------------------------------------- | ----------------- |
+| ślepy na `callOptions`          | `ix/callOptions`, `x`, `xi/callOptions` — **3 z 64**     | **0**             |
+| ślepy na `userMessageShape`     | `ix/userMessageShape`, `x`, `xi/userMessageShape` — 3/64 | **0**             |
+| brak mutacji (stan przywrócony) | —                                                        | **64/64 zielone** |
+
+Przypadek `(x)` czerwieni się w obu probe'ach z założenia: to on porównuje, KTÓRE osie ślepy
+odcisk nadal unieważnia, więc jest agregatem obu kierunków naraz. `typecheck` zielony.
+
+### Koszt zapisany, nie ukryty
+
+Zmiana odcisku **unieważnia trzy istniejące wpisy cache'u** (dwie komórki `sample.diff` plus
+haiku/kontrola negatywna), więc następne przejście macierzy będzie ZIMNE i zapłaci ~0,08 USD.
+To jest cena za to, że klucz przestaje być węższy niż wywołanie — i jest to cena jednorazowa,
+w odróżnieniu od kosztu przebiegu, który po cichu mierzył stary prompt.
