@@ -24,7 +24,7 @@ import type { ReviewMetrics } from "../run-review.ts";
 import { cellCacheKey, isCacheEnabled, writeCell } from "./cache.ts";
 import { PRICING_AS_OF } from "./pricing.ts";
 import { productionPromptFingerprint } from "./provider.ts";
-import { renderReport, rowsFromOutputFile, runEval, type ReportRow } from "./report.ts";
+import { describeSpawnFailure, renderReport, rowsFromOutputFile, runEval, type ReportRow } from "./report.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = join(HERE, "..");
@@ -353,4 +353,38 @@ test("(A13) w tabeli wiersz bez wyniku ma `BRAK`, a nie ten sam znak co brakują
   assert.ok(row, "wiersz zniknął z tabeli");
   assert.ok(row.includes("BRAK"), `wiersz bez wyniku nie jest oznaczony jako BRAK: ${row}`);
   assert.ok(!row.includes("—"), `wiersz bez wyniku używa znaku zarezerwowanego dla braku licznika: ${row}`);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Diagnoza awarii spawnu. Kod wyjscia jej NIE niesie: proces nieuruchomiony i proces ubity
+// limitem czasu daja `status: null`, czyli ten sam `exitCode = 1` co przebieg z czerwona
+// asercja. Bez odczytu `child.error` operator dostawalby komunikat o pliku wyniku.
+// ---------------------------------------------------------------------------------------------
+
+test("(A14) brak bledu spawnu to BRAK komunikatu, a nie pusty komunikat", () => {
+  assert.equal(describeSpawnFailure(undefined, 1000), undefined);
+});
+
+test("(A15) limit czasu jest NAZWANY jako limit, z liczba, i mowi ze wyniku NIE MA", () => {
+  const timeout: NodeJS.ErrnoException = Object.assign(new Error("spawnSync ETIMEDOUT"), { code: "ETIMEDOUT" });
+  const message = describeSpawnFailure(timeout, 1_200_000);
+  assert.ok(message, "limit czasu bez komunikatu czytalby sie jak brak wynikow");
+  assert.match(message, /limitu czasu/, "komunikat ma nazwac LIMIT, a nie sam brak wyniku");
+  assert.match(message, /1200000/, "komunikat ma niesc liczbe, na ktorej limit stanal");
+  assert.doesNotMatch(message, /wczytac wyniku/, "limit czasu nie jest problemem z plikiem wyniku");
+});
+
+test("(A16) nieudany spawn cytuje KOD i tresc bledu, i nie udaje limitu czasu", () => {
+  const missing: NodeJS.ErrnoException = Object.assign(new Error("spawnSync node ENOENT"), { code: "ENOENT" });
+  const message = describeSpawnFailure(missing, 1_200_000);
+  assert.ok(message);
+  assert.match(message, /ENOENT/, "komunikat ma cytowac kod bledu");
+  assert.match(message, /spawnSync node ENOENT/, "komunikat ma cytowac tresc bledu");
+  assert.doesNotMatch(message, /limitu czasu/, "brak binarki to nie jest przekroczony limit");
+});
+
+test("(A17) blad BEZ pola `code` nadal daje komunikat, a nie ciche `undefined`", () => {
+  const message = describeSpawnFailure(new Error("cos poszlo nie tak"), 1_000);
+  assert.ok(message, "blad bez kodu jest nadal bledem — cisza tutaj to ta sama dziura, tylko wezsza");
+  assert.match(message, /bez kodu/);
 });

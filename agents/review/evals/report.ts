@@ -445,6 +445,22 @@ export function rowsFromFile(path: string): ReportRow[] {
  */
 const EVAL_TIMEOUT_MS = 20 * 60_000;
 
+/**
+ * Nazwanie awarii, której kod wyjścia nie odróżnia — czysta funkcja, stąd jej test.
+ *
+ * Stan niesiony przez DWA pola czyta się z dwóch: `status` mówi, że nie było zera, a `error`
+ * mówi DLACZEGO nie było. Ten sam kształt co `subtype` + `is_error` w wyniku SDK
+ * (`run-review.ts`), gdzie sam `subtype === \"success\"` okazał się fałszywym oraklem.
+ */
+export function describeSpawnFailure(error: Error | undefined, timeoutMs: number): string | undefined {
+  if (!error) return undefined;
+  const code = (error as NodeJS.ErrnoException).code;
+  if (code === "ETIMEDOUT") {
+    return `[raport] przejście PRZERWANE po ${timeoutMs} ms limitu czasu — to nie jest wynik: kwot ani werdyktów z tego przebiegu nie ma`;
+  }
+  return `[raport] promptfoo NIE URUCHOMIŁO SIĘ (${code ?? "bez kodu"}): ${error.message} — czy \`npm ci\` w agents/review przeszło?`;
+}
+
 /** Uruchomienie przejścia + odczyt wyniku. Katalog tymczasowy, bo plik wyniku nie jest artefaktem repo. */
 export function runEval(extraArgs: readonly string[], timeoutMs: number = EVAL_TIMEOUT_MS): RunResult {
   const workDir = mkdtempSync(join(tmpdir(), "review-eval-"));
@@ -456,7 +472,16 @@ export function runEval(extraArgs: readonly string[], timeoutMs: number = EVAL_T
       { stdio: "inherit", env: process.env, timeout: timeoutMs, killSignal: "SIGKILL" },
     );
     // Kod ≠ 0 NIE przerywa raportu: to właśnie przebieg z czerwoną asercją najbardziej go potrzebuje.
+    //
+    // Ale kod wyjścia to POŁOWA stanu, który `spawnSync` niesie. Proces, który się nie uruchomił
+    // (ENOENT, EPERM), i proces ubity limitem czasu (ETIMEDOUT) dają `status: null`, czyli ten sam
+    // `exitCode = 1` co przebieg zamknięty czerwoną asercją. Rozróżnia je WYŁĄCZNIE `child.error`
+    // — i bez jego odczytu jedynym komunikatem byłoby „nie udało się wczytać wyniku”, czyli diagnoza
+    // PLIKU zamiast diagnozy przyczyny, dokładnie wtedy, gdy przyczyna jest najbardziej potrzebna.
     const exitCode = child.status ?? 1;
+    const spawnFailure = describeSpawnFailure(child.error, timeoutMs);
+    if (spawnFailure !== undefined) process.stderr.write(`${spawnFailure}
+`);
     let rows: ReportRow[] = [];
     try {
       rows = rowsFromOutputFile(JSON.parse(readFileSync(outputPath, "utf8")));

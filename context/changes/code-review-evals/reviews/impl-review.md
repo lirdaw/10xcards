@@ -216,7 +216,13 @@ a nie ukryte.
   wyniku zamiast o nieudanym spawnie. `review-cli.test.ts:123` przy tym samym `spawnSync` sprawdza
   `child.error` jawnie.
 - **Fix**: wypisać `child.error.message` (albo rzucić) przed próbą odczytu pliku wyniku.
-- **Decision**: PENDING
+- **Decision**: **FIXED** — diagnoza wyniesiona do czystej funkcji `describeSpawnFailure(error, timeoutMs)`
+  (stąd jej test) i wypisywana PRZED próbą odczytu pliku wyniku. Rozróżnia dwa przypadki, których
+  kod wyjścia nie odróżnia: **limit czasu** (`ETIMEDOUT`, z liczbą ms i zdaniem „to nie jest
+  wynik”) i **proces, który się nie uruchomił** (kod + treść błędu + podpowiedź o `npm ci`).
+  Cztery przypadki w `report.test.ts` (A14-A17): brak błędu → brak komunikatu; limit → nazwany
+  jako limit i NIE jako problem z plikiem; ENOENT → cytuje kod i treść i NIE udaje limitu;
+  błąd bez pola `code` → nadal komunikat, nie ciche `undefined`. **70/70**, `typecheck` zielony.
 
 ### F7 — 7.3 zamyka CZYNNOŚĆ, nie pomiar: bramka nigdy nie widziała faz 5-7
 
