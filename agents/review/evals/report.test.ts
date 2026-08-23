@@ -38,6 +38,8 @@ const ROW: ReportRow = {
   fixture: "sample.diff",
   verdict: "fail",
   contract: "ok",
+  subtype: "success",
+  terminalReason: "completed",
   errorMessage: null,
   turns: 2,
   inputTokens: 10,
@@ -184,6 +186,7 @@ function seededReview(verdict: Review["verdict"]): Review {
 
 const seededMetrics = (model: string): ReviewMetrics => ({
   model,
+  subtype: "success",
   numTurns: 2,
   durationMs: 1000,
   totalCostUsd: 0.42,

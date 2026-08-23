@@ -21,7 +21,11 @@ import {
   buildRecord,
   cellFromRow,
   checkRecord,
+  observationsFor,
   serializeRecord,
+  type EvalRecord,
+  type EvalRecordCell,
+  type EvalRecordProblem,
   type RecordSourceRow,
 } from "./eval-record.ts";
 import { narrowingArgs, recordArgsRefusal, recordRowsRefusal, splitArgs, type ReportRow } from "./report.ts";
@@ -37,6 +41,8 @@ function row(overrides: Partial<RecordSourceRow> = {}): RecordSourceRow {
     fixture: "sample.diff",
     verdict: "fail",
     contract: "ok",
+    subtype: "success",
+    terminalReason: "completed",
     errorMessage: null,
     turns: 2,
     inputTokens: 10,
@@ -91,6 +97,17 @@ test("(A2) klucze wychodzą w kolejności RECORD_KEYS, niezależnie od kolejnoś
   const record = buildRecord({ rows: MATRIX_ROWS, existing: scrambled, callFingerprint: FINGERPRINT, now: NOW });
 
   assert.deepEqual(Object.keys(record), [...RECORD_KEYS]);
+
+  // ⚑ Pin LITERAŁEM, obok pinu przez stałą, i to nie jest powtórzenie tej samej asercji.
+  // `RECORD_KEYS` jest współdzielone przez kod i ten test, więc samo porównanie z nim przechodzi
+  // także wtedy, gdy ktoś zmieni listę — a druga kopia tej kolejności żyje po drugiej stronie
+  // granicy kierunkowej, w `scripts/verdict-config.ts`, i o zmianie się nie dowie. Literał tutaj
+  // zmusza do świadomego dotknięcia OBU miejsc. Bliźniaczy pin: tests/lib/verdict-config.test.ts.
+  assert.deepEqual(
+    [...RECORD_KEYS],
+    ["notes", "generatedAt", "callFingerprint", "verdictConfig", "previousDelivery", "matrix"],
+    "kolejność kluczy zmieniła się TUTAJ — druga kopia listy jest w scripts/verdict-config.ts i musi dostać to samo",
+  );
 });
 
 test("(A3) zapisywacz agencki przenosi CUDZY blok verdictConfig co do wartości", () => {
@@ -167,6 +184,8 @@ test("(A9) `ReportRow` jest przypisywalny do `RecordSourceRow` — kontrakt stru
     fixture: "sample.diff",
     verdict: "fail",
     contract: "ok",
+    subtype: "success",
+    terminalReason: "completed",
     errorMessage: null,
     turns: 2,
     inputTokens: 10,
@@ -233,4 +252,195 @@ test("(B4) odmowa: przejście zwróciło zero wierszy", () => {
 test("(B5) bez `--record` żadna z odmów nie obowiązuje — zwykły przebieg zostaje zwykłym", () => {
   assert.equal(recordArgsRefusal(splitArgs(["--from", "wynik.json"])), undefined);
   assert.equal(recordArgsRefusal(splitArgs(["--filter-first-n", "1"])), undefined);
+});
+
+// ---------------------------------------------------------------------------------------------
+// (D) Rozdzielenie przyczyn: (A) model nie dowiózł vs (B) prompt zregresował — decyzja D-6.
+//
+// Każdy przypadek jest DWUSTRONNY: mutacja ma zaczerwienić DOKŁADNIE swój przypadek i tylko jego.
+// Wzorzec `blindTo` z `cache.test.ts:92-104`.
+// ---------------------------------------------------------------------------------------------
+
+/** Komórka rekordu w kształcie po zapisie — punkt wyjścia mutacji. */
+function cell(overrides: Partial<EvalRecordCell> = {}): EvalRecordCell {
+  return { ...cellFromRow(row()), ...overrides };
+}
+
+/** Rekord z podanymi komórkami, gotowy do `checkRecord` (macierz 2x2, żeby nie czerwienić na kompletności). */
+function recordWith(cells: readonly EvalRecordCell[], extra: Record<string, unknown> = {}): { raw: string; parsed: unknown } {
+  const built = {
+    notes: MANDATORY_NOTES,
+    generatedAt: NOW.toISOString(),
+    callFingerprint: FINGERPRINT,
+    ...extra,
+    matrix: cells,
+  };
+  const raw = serializeRecord(built);
+  return { raw, parsed: JSON.parse(raw) };
+}
+
+const FOUR_CELLS: readonly EvalRecordCell[] = [
+  cell({ model: "m1", fixture: "f1" }),
+  cell({ model: "m1", fixture: "f2" }),
+  cell({ model: "m2", fixture: "f1" }),
+  cell({ model: "m2", fixture: "f2" }),
+];
+
+function problemsOf(cells: readonly EvalRecordCell[], extra: Record<string, unknown> = {}): EvalRecordProblem[] {
+  const { raw, parsed } = recordWith(cells, extra);
+  return checkRecord({ raw, record: parsed, liveFingerprint: FINGERPRINT });
+}
+
+/** Podmiana JEDNEJ komórki macierzy — reszta zostaje zielona, więc czerwień ma jednego autora. */
+function withCell(patch: Partial<EvalRecordCell>): EvalRecordCell[] {
+  return [{ ...FOUR_CELLS[0]!, ...patch }, FOUR_CELLS[1]!, FOUR_CELLS[2]!, FOUR_CELLS[3]!];
+}
+
+test("(D1) kontrola zerowa: cztery komórki dowiezione i zielone nie dają ŻADNEGO problemu", () => {
+  assert.deepEqual(problemsOf(FOUR_CELLS), []);
+});
+
+test("(D2) (A) NAZWANY podtyp `error_max_turns` NIE czerwieni — to stan kwalifikacji modelu", () => {
+  const problems = problemsOf(
+    withCell({ ok: false, contract: "[unknown]", subtype: "error_max_turns", terminalReason: "max_turns" }),
+  );
+  assert.deepEqual(
+    problems,
+    [],
+    "albo klasa (A) czerwieni, choć nie powinna, albo przestała być rozpoznawana po nazwanym podtypie",
+  );
+});
+
+test("(D3) (A) rozpoznawana też po samym `terminalReason` — dwa pola opisują ten sam moment", () => {
+  const problems = problemsOf(
+    withCell({ ok: false, contract: "[unknown]", subtype: null, terminalReason: "structured_output_retry_exhausted" }),
+  );
+  assert.deepEqual(problems, [], "czytamy OBA pola, nie jedno — inaczej brak `subtype` wywraca rozpoznanie");
+});
+
+test("(D4) ⚑ `[unknown]` BEZ nazwanego podtypu CZERWIENI — kosz na niewiadome nie jest przepustką", () => {
+  // To jest test na FAIL-CLOSED i on jest powodem, dla którego lista (A) jest wymieniona z imienia.
+  // Gdyby (A) brzmiało „wszystko, co nie jest (B)", ten przypadek przeszedłby na zielono — i tą
+  // samą drogą przeszłaby kiedyś awaria WYWOŁANA promptem.
+  const problems = problemsOf(withCell({ ok: false, contract: "[unknown]", subtype: "error_nowy_podtyp_sdk", terminalReason: null }));
+
+  assert.equal(problems.length, 1, "albo kosz nie czerwieni, albo czerwieni cudzy przypadek");
+  assert.equal(problems[0]!.kind, "cellUnclassified");
+  assert.match(problems[0]!.detail, /error_nowy_podtyp_sdk/, "komunikat ma nieść SUROWY podtyp, nie samą klasę");
+});
+
+test("(D5) (B) `contract: ok` z `ok: false` czerwieni jako regresja, nie jako niedowiezienie", () => {
+  const problems = problemsOf(withCell({ ok: false, contract: "ok" }));
+
+  assert.equal(problems.length, 1);
+  assert.equal(problems[0]!.kind, "cellRed");
+});
+
+test("(D6) ⚑ `[contract]` czerwieni jako (B), NIE jako niedowiezienie — odpowiedź PRZYSZŁA", () => {
+  // Model odpowiedział i złamał wymuszony schemat. To jest sygnał o PROMPCIE — dokładnie klasa,
+  // którą naprawiał `0d3eba5`. Wrzucona do (A) byłaby połknięciem regresji.
+  const problems = problemsOf(
+    withCell({ ok: false, contract: "[contract]", subtype: "success", terminalReason: "completed" }),
+  );
+
+  assert.equal(problems.length, 1, "albo `[contract]` nie czerwieni, albo czerwieni jako cudza klasa");
+  assert.equal(problems[0]!.kind, "cellRed");
+});
+
+test("(D7) `[config]` czerwieni WŁASNĄ klasą — „nie odbyło się” to nie „nie umiemy nazwać”", () => {
+  const problems = problemsOf(withCell({ ok: false, contract: "[config]", subtype: null, terminalReason: null }));
+
+  assert.equal(problems.length, 1);
+  assert.equal(problems[0]!.kind, "cellNotRun", "diagnoza wskazująca nie tę przyczynę jest tu całym defektem");
+});
+
+test("(D8) obserwacje (A) trafiają do OSOBNEGO kanału, a komórka nierozpoznana NIE trafia tam wcale", () => {
+  const cells = [
+    { ...FOUR_CELLS[0]!, ok: false, contract: "[unknown]", subtype: "error_max_turns", terminalReason: "max_turns" },
+    { ...FOUR_CELLS[1]!, ok: false, contract: "[unknown]", subtype: "error_nieznany", terminalReason: null },
+    FOUR_CELLS[2]!,
+    FOUR_CELLS[3]!,
+  ];
+  const { parsed } = recordWith(cells);
+  const observations = observationsFor(parsed as EvalRecord);
+
+  assert.equal(observations.length, 1, "obserwacje to NIE „reszta po odfiltrowaniu problemów”");
+  assert.match(observations[0]!.title, /Model nie dowiózł/);
+  assert.match(observations[0]!.detail, /KWALIFIKACJI MODELU/);
+});
+
+// ---------------------------------------------------------------------------------------------
+// (E) D-9: przejście „dowiózł → nie dowiózł" pod NOWYM odciskiem.
+// ---------------------------------------------------------------------------------------------
+
+const PREVIOUS_DELIVERED = {
+  fingerprint: OTHER_FINGERPRINT,
+  cells: [
+    { model: "m1", fixture: "f1", delivered: true },
+    { model: "m1", fixture: "f2", delivered: true },
+    { model: "m2", fixture: "f1", delivered: true },
+    { model: "m2", fixture: "f2", delivered: true },
+  ],
+};
+
+test("(E1) ⚑ komórka, która PRZESTAŁA dowozić pod ZMIENIONYM odciskiem, czerwieni", () => {
+  // Bez tej reguły klasa (A) połknęłaby regresję: zmiana promptu wpychająca model w pętlę kończy
+  // się `max_turns`, czyli objawem nieodróżnialnym od niedowiezienia.
+  const problems = problemsOf(
+    withCell({ ok: false, contract: "[unknown]", subtype: "error_max_turns", terminalReason: "max_turns" }),
+    { previousDelivery: PREVIOUS_DELIVERED },
+  );
+
+  assert.equal(problems.length, 1, "albo przejście nie czerwieni, albo czerwieni komórkę, która się nie zmieniła");
+  assert.equal(problems[0]!.kind, "deliveryRegression");
+  assert.match(problems[0]!.detail, /m1 \/ f1/);
+});
+
+test("(E2) to samo przejście pod TYM SAMYM odciskiem NIE czerwieni — to niestabilność modelu", () => {
+  const problems = problemsOf(
+    withCell({ ok: false, contract: "[unknown]", subtype: "error_max_turns", terminalReason: "max_turns" }),
+    { previousDelivery: { ...PREVIOUS_DELIVERED, fingerprint: FINGERPRINT } },
+  );
+
+  assert.deepEqual(problems, [], "reguła D-9 ma się opierać na RÓŻNICY odcisków, a nie na samym przejściu");
+});
+
+test("(E3) komórka, która NIE dowoziła też poprzednio, nie czerwieni — nie da się zregresować z zera", () => {
+  const problems = problemsOf(
+    withCell({ ok: false, contract: "[unknown]", subtype: "error_max_turns", terminalReason: "max_turns" }),
+    {
+      previousDelivery: {
+        ...PREVIOUS_DELIVERED,
+        cells: [{ model: "m1", fixture: "f1", delivered: false }, ...PREVIOUS_DELIVERED.cells.slice(1)],
+      },
+    },
+  );
+
+  assert.deepEqual(problems, [], "to jest NAZWANA ślepota linii bazowej, a nie przeoczenie");
+});
+
+test("(E4) brak bloku `previousDelivery` nie czerwieni niczego — reguła jest wtedy bezczynna", () => {
+  const problems = problemsOf(
+    withCell({ ok: false, contract: "[unknown]", subtype: "error_max_turns", terminalReason: "max_turns" }),
+  );
+  assert.deepEqual(problems, []);
+});
+
+test("(E5) `buildRecord` PRZENOSI klasyfikację zastępowanego rekordu razem z jego odciskiem", () => {
+  const existing = {
+    notes: MANDATORY_NOTES,
+    generatedAt: NOW.toISOString(),
+    callFingerprint: OTHER_FINGERPRINT,
+    matrix: [cell({ model: "m1", fixture: "f1" })],
+  };
+  const built = buildRecord({ rows: [row()], existing, callFingerprint: FINGERPRINT, now: NOW });
+  const previous = built["previousDelivery"] as { fingerprint: string; cells: { delivered: boolean | null }[] };
+
+  assert.equal(previous.fingerprint, OTHER_FINGERPRINT, "odcisk POPRZEDNI, nie dzisiejszy — inaczej reguła nigdy nie odpali");
+  assert.deepEqual(previous.cells, [{ model: "m1", fixture: "f1", delivered: true }]);
+});
+
+test("(E6) pierwszy zapis (brak pliku) nie wymyśla bloku `previousDelivery`", () => {
+  const built = buildRecord({ rows: [row()], existing: undefined, callFingerprint: FINGERPRINT, now: NOW });
+  assert.equal(built["previousDelivery"], undefined, "pusty blok byłby twierdzeniem o przeszłości, której nie było");
 });

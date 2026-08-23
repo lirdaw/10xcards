@@ -114,6 +114,19 @@ export type FailureKind = "budget" | "provider" | "contract" | "unknown";
  */
 export interface ReviewFailure extends Error {
   readonly kind: FailureKind;
+  /**
+   * SUROWY `subtype` z wyniku SDK, przeniesiony obok `kind` — nie zamiast niego.
+   *
+   * `kind` jest WNIOSKIEM (`classifyFailure` zwija cztery osie w cztery wartości i kończy koszem
+   * `unknown`), a to jest FAKT, z którego ten wniosek powstał. Zapadka evali potrzebuje faktu:
+   * niedowiezienie klasyfikuje po podtypach WYMIENIONYCH Z IMIENIA, żeby nowy podtyp awarii SDK
+   * wpadł do kosza i ZACZERWIENIŁ, zamiast po cichu trafić do klasy nieblokującej. Bez tego pola
+   * jedynym nośnikiem tej informacji jest proza komunikatu — czyli bramka na stringu pisanym dla
+   * człowieka, dokładnie ta klasa błędu, którą pole `kind` już raz z tej ścieżki usunęło.
+   */
+  readonly subtype: string | undefined;
+  /** To samo dla `terminal_reason` — drugie pole SDK opisujące ten sam moment. */
+  readonly terminalReason: TerminalReason | undefined;
 }
 
 /** Strażnik dla drugiego konsumenta: rzut BEZ pola `kind` istnieje i nie wolno go udawać. */
@@ -121,9 +134,24 @@ export function isReviewFailure(err: unknown): err is ReviewFailure {
   return err instanceof Error && typeof (err as { kind?: unknown }).kind === "string";
 }
 
-/** Jedyne miejsce, które składa rzut recenzji — żeby prefiks i pole nie mogły się rozjechać. */
-function reviewFailure(kind: FailureKind, detail: string): ReviewFailure {
-  return Object.assign(new Error(`[${kind}] ${detail}`), { kind });
+/**
+ * Jedyne miejsce, które składa rzut recenzji — żeby prefiks i pole nie mogły się rozjechać.
+ *
+ * `subtype` i `terminalReason` są OPCJONALNE po stronie wywołującego, bo istnieje ścieżka rzutu
+ * bez wiadomości `result` (strumień skończył się bez niej). `undefined` znaczy tam „SDK nie
+ * podało", a nie „podało pustkę" — i ta różnica ma przeżyć aż do rekordu, tak samo jak przeżywa
+ * w `ReviewMetrics`.
+ */
+function reviewFailure(
+  kind: FailureKind,
+  detail: string,
+  raw?: { readonly subtype: string | undefined; readonly terminalReason: TerminalReason | undefined },
+): ReviewFailure {
+  return Object.assign(new Error(`[${kind}] ${detail}`), {
+    kind,
+    subtype: raw?.subtype,
+    terminalReason: raw?.terminalReason,
+  });
 }
 
 /** Rozpoznanie po faktach STRUKTURALNYCH tam, gdzie SDK je daje; po tekście tylko tam, gdzie nie daje. */
@@ -189,6 +217,8 @@ export interface ReviewMetrics {
   readonly cacheReadInputTokens: number | undefined;
   readonly outputTokens: number | undefined;
   readonly terminalReason: TerminalReason | undefined;
+  /** SUROWY `subtype` z SDK, obok `terminalReason` — dwa pola opisujace ten sam moment. */
+  readonly subtype: string | undefined;
 }
 
 export interface RunReviewOptions {
@@ -288,7 +318,10 @@ export async function runReview(
       const parsed = REVIEW_SCHEMA.safeParse(message.structured_output);
       if (!parsed.success) {
         reportFailureKind("contract");
-        throw reviewFailure("contract", `Niepoprawny structured output: ${parsed.error.message}`);
+        throw reviewFailure("contract", `Niepoprawny structured output: ${parsed.error.message}`, {
+          subtype: message.subtype,
+          terminalReason: message.terminal_reason,
+        });
       }
 
       // Metryki jako DANE — surowe wartości z SDK, łącznie z ich brakiem. Podstawienie tutaj
@@ -306,6 +339,7 @@ export async function runReview(
           cacheReadInputTokens: message.usage?.cache_read_input_tokens,
           outputTokens: message.usage?.output_tokens,
           terminalReason: message.terminal_reason,
+          subtype: message.subtype,
         },
       };
     }
@@ -321,6 +355,7 @@ export async function runReview(
       kind,
       `Review nie powiodło się (subtype: ${message.subtype}, is_error: ${message.is_error}, ` +
         `terminal_reason: ${message.terminal_reason ?? "n/d"}): ${detail || "brak szczegółów"}`,
+      { subtype: message.subtype, terminalReason: message.terminal_reason },
     );
   }
 

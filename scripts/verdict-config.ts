@@ -235,7 +235,25 @@ export function serializeRecord(record: unknown): string {
 }
 
 /** Klucze dowodu w kolejności zapisu — druga połowa duplikatu opisanego wyżej. */
-const RECORD_KEYS = ["notes", "generatedAt", "callFingerprint", "verdictConfig", "matrix"] as const;
+/**
+ * Kolejność kluczy pliku dowodu — DRUGA KOPIA tej listy.
+ *
+ * ⚑ Pierwsza mieszka w `agents/review/evals/eval-record.ts` jako `RECORD_KEYS`. Dwie kopie
+ * istnieją, bo istnieć MUSZĄ: granica kierunkowa zabrania `scripts/` importować kod z `agents/`,
+ * a obaj zapisywacze robią read-modify-write na tym samym pliku. Nie da się tego „posprzątać"
+ * wspólnym modułem bez złamania tej granicy.
+ *
+ * Cena tej duplikacji jest ZMIERZONA, nie teoretyczna: przy dopisywaniu bloku `previousDelivery`
+ * (D-9) lista po stronie agenta urosła, a ta NIE — i wtedy każdy z dwóch zapisywaczy emitował
+ * INNĄ kolejność bajtów tego samego rekordu, więc checker czerwieniał na round-tripie zależnie
+ * od tego, który pisał ostatni. Złapała to bramka D-10 na dowodzie SFABRYKOWANYM, zanim padł
+ * pierwszy cent — i to jest dokładnie to, po co ta bramka jest.
+ *
+ * **Dopisując klucz do rekordu, dopisz go w OBU miejscach.** Zgodności pilnują dwa testy
+ * round-tripu (`tests/lib/verdict-config.test.ts` i `agents/review/evals/eval-record.test.ts`),
+ * każdy pinujący tę kolejność literałem po swojej stronie granicy.
+ */
+const RECORD_KEYS = ["notes", "generatedAt", "callFingerprint", "verdictConfig", "previousDelivery", "matrix"] as const;
 
 const asRecord = (value: unknown): Readonly<Record<string, unknown>> | undefined =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -264,6 +282,10 @@ export function withVerdictConfig(existing: unknown, config: VerdictConfig): Rec
     generatedAt: record.generatedAt,
     callFingerprint: record.callFingerprint,
     verdictConfig: config,
+    // Przechodzi NIETKNIĘTY, tak samo jak `matrix`: to jest blok agencki (D-9), a ten zapisywacz
+    // ma prawo wyłącznie do `verdictConfig`. `JSON.stringify` kasuje klucz o wartości `undefined`,
+    // więc rekord, który go nie ma, po prostu go dalej nie ma.
+    previousDelivery: record.previousDelivery,
     matrix: record.matrix,
     ...unknownKeys,
   };

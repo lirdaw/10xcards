@@ -71,6 +71,16 @@ export interface ReportRow {
    */
   readonly durationMs: number | undefined;
   readonly cached: boolean;
+  /**
+   * SUROWE pola z SDK, przeniesione do rekordu obok `contract`.
+   *
+   * `contract` jest WNIOSKIEM (`failureKind` kończy się koszem `unknown`); te dwa są FAKTAMI.
+   * Zapadka klasyfikuje niedowiezienie po podtypach WYMIENIONYCH Z IMIENIA — bez nich jedynym
+   * nośnikiem tej informacji byłaby proza w `errorMessage`, czyli bramka na stringu pisanym dla
+   * człowieka.
+   */
+  readonly subtype: string | null;
+  readonly terminalReason: string | null;
   readonly assertionsPassed: number;
   readonly assertionsFailed: number;
   readonly failedAssertions: readonly string[];
@@ -172,6 +182,8 @@ export function rowsFromOutputFile(outputFile: unknown): ReportRow[] {
         costUnavailableReason: asString(metadata?.["costUnavailableReason"]) ?? null,
         durationMs: asNumber(result["latencyMs"]),
         cached: response["cached"] === true || metadata?.["cached"] === true,
+        subtype: asString(metadata?.["subtype"]) ?? null,
+        terminalReason: asString(metadata?.["terminalReason"]) ?? null,
         assertionsPassed: assertions.passed,
         assertionsFailed: assertions.failed,
         failedAssertions: assertions.failedTitles,

@@ -136,6 +136,21 @@ export interface EvalRecordCell {
   readonly cached: boolean;
   /** `ok` albo klasa awarii (`[contract]`, `[provider]`, `[budget]`, `[config]`). */
   readonly contract: string;
+  /**
+   * SUROWY `subtype` z SDK. `null` = SDK go nie podało (albo nie zostało zawołane).
+   *
+   * ⚑ To pole jest WARUNKIEM poprawności zapadki, nie ozdobą sprawozdawczą. Klasa (A)
+   * („model nie dowiózł") jest rozpoznawana po podtypach WYMIENIONYCH Z IMIENIA, bo `contract`
+   * kończy się koszem `[unknown]` — a kosz w klasie nieblokującej odwróciłby fail-closed: nowy
+   * podtyp awarii SDK po cichu przestałby blokować. Z tym polem nowy podtyp nie dopasowuje się do
+   * żadnej nazwanej pozycji i CZERWIENI.
+   *
+   * Alternatywą byłoby czytanie `subtype` z prozy w `failures[].reason` — czyli stan niesiony
+   * przez dwa pola czytany ze stringa przeznaczonego dla człowieka. Tego nie robimy.
+   */
+  readonly subtype: string | null;
+  /** To samo dla `terminal_reason` — drugie pole SDK opisujące ten sam moment. */
+  readonly terminalReason: string | null;
   readonly turns: number | null;
   readonly inputTokens: number | null;
   readonly outputTokens: number | null;
@@ -159,11 +174,98 @@ export interface EvalRecord {
   readonly generatedAt: string;
   readonly callFingerprint: string;
   readonly verdictConfig?: Readonly<Record<string, unknown>>;
+  /** D-9. Nieobecny w pierwszym rekordzie — wtedy reguła przejścia po prostu nie ma czego porównać. */
+  readonly previousDelivery?: EvalRecordPreviousDelivery;
   readonly matrix: readonly EvalRecordCell[];
 }
 
+/**
+ * Blok D-9: klasyfikacja dowiezienia z rekordu POPRZEDNIEGO, przeniesiona przy zapisie.
+ *
+ * Istnieje po to, żeby zapadka umiała odróżnić „ta komórka nie dowozi od zawsze" od „ta komórka
+ * PRZESTAŁA dowozić, i to pod zmienionym wywołaniem". Bez tego klasa (A) połknęłaby regresję
+ * wywołaną promptem: zmiana, która wpycha model w pętlę, kończy się `max_turns` — przyczyna jest
+ * w PROMPCIE, a objaw wygląda jak niedowiezienie.
+ */
+export interface EvalRecordPreviousDelivery {
+  /** Odcisk, pod którym powstał rekord POPRZEDNI. Różnica wobec dzisiejszego = wywołanie się zmieniło. */
+  readonly fingerprint: string;
+  /** Tablica OBIEKTÓW, nie mapa — patrz uzasadnienie kształtu przy `EvalRecordNotes`. */
+  readonly cells: readonly { readonly model: string; readonly fixture: string; readonly delivered: boolean | null }[];
+}
+
 /** Klucze pliku w kolejności zapisu — patrz `buildRecord`. */
-export const RECORD_KEYS = ["notes", "generatedAt", "callFingerprint", "verdictConfig", "matrix"] as const;
+export const RECORD_KEYS = [
+  "notes",
+  "generatedAt",
+  "callFingerprint",
+  "verdictConfig",
+  "previousDelivery",
+  "matrix",
+] as const;
+
+// ---------------------------------------------------------------------------------------------
+// Klasyfikacja komórki: (A) model nie dowiózł vs (B) prompt zregresował.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * NAZWANE podtypy niedowiezienia. Lista jest wymieniona z imienia, i to jest cała jej wartość.
+ *
+ * ⚑ Alternatywa — „(A) to wszystko, co nie jest (B)" — ODWRACA fail-closed. `contract` kończy się
+ * koszem `[unknown]` (`classifyFailure` nie ma gałęzi dla tych podtypów), a kosz umieszczony
+ * w klasie NIEBLOKUJĄCEJ sprawia, że nowy podtyp awarii SDK po cichu przestaje blokować. Z listą
+ * nazwaną nowy podtyp nie dopasowuje się do niczego i CZERWIENI — nieznana klasa domyślnie
+ * blokuje, zamiast domyślnie milczeć.
+ *
+ * Dopisanie tu pozycji jest DECYZJĄ: mówi „zmierzyliśmy tę awarię i wiemy, że nie niesie
+ * informacji o prompcie". Nie wolno jej dopisać, żeby uciszyć czerwień.
+ */
+export const NOT_DELIVERED_SUBTYPES = ["error_max_turns", "error_max_structured_output_retries"] as const;
+
+/** Drugie pole SDK opisujące ten sam moment — czytamy OBA, nie jedno. */
+export const NOT_DELIVERED_TERMINAL_REASONS = ["max_turns", "structured_output_retry_exhausted"] as const;
+
+/** Klasy awarii, które są niedowiezieniem bez pomocy `subtype` (SDK nie zdążył go podać). */
+export const NOT_DELIVERED_CONTRACTS = ["[provider]", "[budget]"] as const;
+
+/**
+ * Werdykt zapadki dla JEDNEJ komórki.
+ *
+ * `red` — blokuje. `reported` — zapisywane i widoczne, nie blokuje (klasa (A)).
+ */
+export type CellVerdict = "red" | "reported";
+
+/** Czy komórka DOWIOZŁA odpowiedź. `null` = nie wiadomo, i to jest wartość, nie brak. */
+export function deliveredOf(cell: EvalRecordCell): boolean | null {
+  if (cell.contract === "ok") return true;
+  // Odpowiedź PRZYSZŁA i złamała wymuszony schemat — model dowiózł, tyle że śmieć. To jest sygnał
+  // o PROMPCIE (klasa, którą naprawiał `0d3eba5`), więc nie wolno go czytać jako niedowiezienia.
+  if (cell.contract === "[contract]") return true;
+  if (isNamedNotDelivered(cell)) return false;
+  return null;
+}
+
+function isNamedNotDelivered(cell: EvalRecordCell): boolean {
+  if (cell.subtype !== null && (NOT_DELIVERED_SUBTYPES as readonly string[]).includes(cell.subtype)) return true;
+  if (cell.terminalReason !== null && (NOT_DELIVERED_TERMINAL_REASONS as readonly string[]).includes(cell.terminalReason)) {
+    return true;
+  }
+  return (NOT_DELIVERED_CONTRACTS as readonly string[]).includes(cell.contract);
+}
+
+/**
+ * Werdykt komórki — rozdzielenie (A) od (B) z decyzji D-6.
+ *
+ * Kolejność gałęzi jest wiążąca: (B) rozstrzyga się PRZED (A), bo `[contract]` niesie `subtype`
+ * z udanego wywołania i bez tego pierwszeństwa mógłby trafić do nazwanej pozycji (A).
+ */
+export function verdictOf(cell: EvalRecordCell): CellVerdict {
+  if (cell.contract === "ok") return cell.ok ? "reported" : "red";
+  if (cell.contract === "[contract]") return "red";
+  if (isNamedNotDelivered(cell)) return "reported";
+  // `[unknown]` bez nazwanego podtypu, `[config]`, `[nienazwana]` i cokolwiek nowego: FAIL-CLOSED.
+  return "red";
+}
 
 // ---------------------------------------------------------------------------------------------
 // Serializacja.
@@ -210,6 +312,8 @@ export interface RecordSourceRow {
   readonly costUsd: number | null;
   readonly durationMs: number | undefined;
   readonly cached: boolean;
+  readonly subtype: string | null;
+  readonly terminalReason: string | null;
   readonly failedAssertions: readonly string[];
   readonly ok: boolean;
   readonly softObservations: readonly {
@@ -241,6 +345,8 @@ export function cellFromRow(row: RecordSourceRow): EvalRecordCell {
     ok: row.ok,
     cached: row.cached,
     contract: row.contract,
+    subtype: row.subtype,
+    terminalReason: row.terminalReason,
     turns: orNull(row.turns),
     inputTokens: orNull(row.inputTokens),
     outputTokens: orNull(row.outputTokens),
@@ -271,6 +377,30 @@ export function cellFromRow(row: RecordSourceRow): EvalRecordCell {
  * człowiek ma prawo dopisać dziurę, której dziś nie znamy — a nadpisywanie kasowałoby to przy
  * każdym przejściu, czyli karałoby za jedyną rzecz, którą ten plik prosi zrobić ręcznie.
  */
+/**
+ * Blok D-9 z rekordu zastępowanego. `undefined`, gdy nie ma czego przenieść.
+ *
+ * Nie rzuca na złym kształcie: pierwszy `--record` widzi plik nieistniejący albo niepełny, a to
+ * jest stan NORMALNY, nie awaria. Reguła przejścia po prostu nie ma wtedy czego porównać.
+ */
+function previousDeliveryFrom(existing: Readonly<Record<string, unknown>>): EvalRecordPreviousDelivery | undefined {
+  const fingerprint = existing["callFingerprint"];
+  const matrix = existing["matrix"];
+  if (typeof fingerprint !== "string" || !Array.isArray(matrix)) return undefined;
+
+  const cells = matrix
+    .map((raw) => asRecord(raw))
+    .filter((cell): cell is Readonly<Record<string, unknown>> => cell !== undefined)
+    .filter((cell) => isString(cell["model"]) && isString(cell["fixture"]) && isString(cell["contract"]))
+    .map((cell) => ({
+      model: cell["model"] as string,
+      fixture: cell["fixture"] as string,
+      delivered: deliveredOf(cell as unknown as EvalRecordCell),
+    }));
+
+  return cells.length === 0 ? undefined : { fingerprint, cells };
+}
+
 export function buildRecord(input: {
   readonly rows: readonly RecordSourceRow[];
   readonly existing: unknown;
@@ -286,6 +416,9 @@ export function buildRecord(input: {
     generatedAt: input.now.toISOString(),
     callFingerprint: input.callFingerprint,
     verdictConfig: existing["verdictConfig"],
+    // D-9: klasyfikacja rekordu, który WŁAŚNIE zastępujemy, razem z odciskiem, pod którym powstał.
+    // Liczona z `existing`, bo tylko ono wie, co było — po zapisie ta informacja przestaje istnieć.
+    previousDelivery: previousDeliveryFrom(existing),
     matrix: input.rows.map(cellFromRow),
     // Klucze, których ten moduł nie zna, przeżywają zapis — inaczej pierwszy `--record` po
     // rozszerzeniu pliku przez kogoś innego cicho by je skasował.
@@ -302,8 +435,27 @@ export type EvalRecordProblemKind =
   | "malformed"
   | "callFingerprint"
   | "matrixIncomplete"
+  /** (B): odpowiedź PRZYSZŁA i nie spełnia asercji albo złamała schemat. Remedium PŁATNE. */
   | "cellRed"
+  /** Klasa awarii, której nie umiemy nazwać. FAIL-CLOSED — kosz na niewiadome nie jest przepustką. */
+  | "cellUnclassified"
+  /** Komórka w ogóle się nie odbyła (brak klucza). To nie jest pomiar, więc nie jest dowodem. */
+  | "cellNotRun"
+  /** D-9: komórka PRZESTAŁA dowozić, i to pod zmienionym wywołaniem. */
+  | "deliveryRegression"
   | "reformatted";
+
+/**
+ * Obserwacja NIEBLOKUJĄCA — klasa (A), „model nie dowiózł".
+ *
+ * Osobny typ, a nie `EvalRecordProblem` z flagą: gdyby dzieliły typ, jedno `filter` pominięte
+ * w runnerze zamieniłoby stan kwalifikacji modelu w czerwień albo odwrotnie. Rozdzielone nie mają
+ * jak się pomylić.
+ */
+export interface EvalRecordObservation {
+  readonly title: string;
+  readonly detail: string;
+}
 
 /** Jeden nazwany problem dowodu. Runner robi z niego JEDNĄ adnotację `::error`, nie zbiorczą. */
 export interface EvalRecordProblem {
@@ -329,6 +481,13 @@ function cellShapeError(value: unknown, index: number): string | undefined {
   if (!cell) return `matrix[${index}] nie jest obiektem`;
   for (const key of ["model", "fixture", "verdict", "contract"]) {
     if (!isString(cell[key])) return `matrix[${index}].${key} nie jest stringiem`;
+  }
+  // `string | null`, i BRAK klucza jest tu odrzucany osobno: rekord sprzed dopisania tych pól
+  // przeszedłby walidację „null albo string" na `undefined`, a wtedy zapadka klasyfikowałaby
+  // niedowiezienie po polu, którego nie ma — czyli po cichu wpuszczała każdą komórkę `[unknown]`.
+  for (const key of ["subtype", "terminalReason"]) {
+    if (!(key in cell)) return `matrix[${index}].${key} nie istnieje — rekord sprzed rozdzielenia przyczyn (D-6)`;
+    if (cell[key] !== null && !isString(cell[key])) return `matrix[${index}].${key} nie jest stringiem ani null`;
   }
   for (const key of ["ok", "cached"]) {
     if (typeof cell[key] !== "boolean") return `matrix[${index}].${key} nie jest booleanem`;
@@ -364,6 +523,14 @@ function parseRecord(value: unknown): { record: EvalRecord } | { problem: EvalRe
   const fingerprint = raw["callFingerprint"];
   if (!isString(fingerprint) || !/^[0-9a-f]{64}$/.test(fingerprint)) {
     return { problem: shapeProblem("`callFingerprint` nie jest sha256 w postaci 64 znaków hex") };
+  }
+
+  const previous = raw["previousDelivery"];
+  if (previous !== undefined) {
+    const block = asRecord(previous);
+    if (!block || !isString(block["fingerprint"]) || !Array.isArray(block["cells"])) {
+      return { problem: shapeProblem("`previousDelivery` istnieje, ale nie ma kształtu { fingerprint, cells[] }") };
+    }
   }
 
   const matrix = raw["matrix"];
@@ -404,6 +571,25 @@ function matrixProblem(matrix: readonly EvalRecordCell[]): EvalRecordProblem | u
  * Lista, bo czerwień ma powiedzieć, KTÓRA własność się rozjechała i jakie jest JEJ remedium;
  * `false` zostawiałby jeden dostępny ruch — odruchowe przepisanie pliku.
  */
+/**
+ * Klasa (A) do RAPORTOWANIA — osobna funkcja, bo osobny kanał wyjścia runnera (`::notice`).
+ *
+ * Nie jest to „reszta po odfiltrowaniu problemów": komórka bez nazwanego podtypu jest problemem,
+ * a nie obserwacją, i musi tu NIE trafić.
+ */
+export function observationsFor(record: EvalRecord): EvalRecordObservation[] {
+  return record.matrix
+    .filter((cell) => verdictOf(cell) === "reported" && deliveredOf(cell) === false)
+    .map((cell) => ({
+      title: `Model nie dowiózł: ${cell.model} / ${cell.fixture}`,
+      detail:
+        `komórka ${cell.model} / ${cell.fixture} nie oddała recenzji ` +
+        `(subtype: ${cell.subtype ?? "brak"}, terminal_reason: ${cell.terminalReason ?? "brak"}, ` +
+        `kontrakt ${cell.contract}). To jest zapisany stan KWALIFIKACJI MODELU, nie regresja promptu: ` +
+        "odpowiedzi nie ma, więc nie ma czego porównywać z promptem.",
+    }));
+}
+
 export function checkRecord(input: {
   /** Bajty pliku. `undefined` = pliku nie ma (to jest czerwień, nie „brak danych"). */
   readonly raw: string | undefined;
@@ -442,15 +628,59 @@ export function checkRecord(input: {
   if (incomplete) problems.push(incomplete);
 
   // Jedna adnotacja NA KOMÓRKĘ, nie zbiorcza: człowiek ma zobaczyć, która komórka i dlaczego,
-  // bez otwierania pliku. Dowód regresji nie jest dowodem jej braku.
-  for (const cell of record.matrix.filter((candidate) => !candidate.ok)) {
+  // bez otwierania pliku. Podział (A)/(B) z D-6 rozstrzyga `verdictOf`.
+  for (const cell of record.matrix) {
+    const where = `${cell.model} / ${cell.fixture}`;
+    const reasons = cell.failures.map((failure) => failure.reason).join("; ");
+    if (verdictOf(cell) === "reported") continue;
+
+    if (cell.contract === "ok" || cell.contract === "[contract]") {
+      problems.push({
+        kind: "cellRed",
+        title: `Czerwona komórka w dowodzie: ${where}`,
+        detail:
+          `komórka ${where} ma ok: false (kontrakt ${cell.contract})` + (reasons === "" ? "" : `: ${reasons}`),
+      });
+      continue;
+    }
+
+    if (cell.contract === "[config]") {
+      problems.push({
+        kind: "cellNotRun",
+        title: `Komórka się NIE ODBYŁA: ${where}`,
+        detail: `komórka ${where} skończyła się jako [config]` + (reasons === "" ? "" : `: ${reasons}`),
+      });
+      continue;
+    }
+
     problems.push({
-      kind: "cellRed",
-      title: `Czerwona komórka w dowodzie: ${cell.model} / ${cell.fixture}`,
+      kind: "cellUnclassified",
+      title: `Nierozpoznana klasa awarii: ${where}`,
       detail:
-        `komórka ${cell.model} / ${cell.fixture} ma ok: false (kontrakt ${cell.contract})` +
-        (cell.failures.length === 0 ? "" : `: ${cell.failures.map((failure) => failure.reason).join("; ")}`),
+        `komórka ${where} skończyła się jako ${cell.contract} ` +
+        `(subtype: ${cell.subtype ?? "brak"}, terminal_reason: ${cell.terminalReason ?? "brak"}), ` +
+        `czyli poza listą NAZWANYCH podtypów niedowiezienia` + (reasons === "" ? "" : `: ${reasons}`),
     });
+  }
+
+  // D-9: przejście „dowiózł → nie dowiózł" liczy się jako regresja WYŁĄCZNIE wtedy, gdy między
+  // dwoma pomiarami zmieniło się wywołanie. Ten sam odcisk i inny wynik to niestabilność modelu —
+  // zmierzona, nieblokująca.
+  const previous = record.previousDelivery;
+  if (previous !== undefined && previous.fingerprint !== record.callFingerprint) {
+    for (const cell of record.matrix) {
+      if (deliveredOf(cell) !== false) continue;
+      const before = previous.cells.find((candidate) => candidate.model === cell.model && candidate.fixture === cell.fixture);
+      if (before?.delivered !== true) continue;
+      problems.push({
+        kind: "deliveryRegression",
+        title: `Komórka PRZESTAŁA dowozić pod zmienionym wywołaniem: ${cell.model} / ${cell.fixture}`,
+        detail:
+          `komórka ${cell.model} / ${cell.fixture} dowiozła pod odciskiem ${previous.fingerprint.slice(0, 12)}…, ` +
+          `a pod dzisiejszym (${record.callFingerprint.slice(0, 12)}…) kończy się jako ${cell.contract} ` +
+          `(subtype: ${cell.subtype ?? "brak"})`,
+      });
+    }
   }
 
   if (serializeRecord(record) !== input.raw) {
@@ -582,6 +812,66 @@ export function remedyFor(problem: EvalRecordProblem): string {
         `  3. Flake → przejedź macierz ponownie (TO JEST WYDATEK): ${RECORD_COMMAND}`,
         "  4. Nigdy nie przepisuj `ok` w pliku ręcznie. To jedyny ruch, który zamienia tę zapadkę",
         "     w ozdobę.",
+        "",
+        REFRESH_IS_NOT_A_CHECK,
+      ].join("\n");
+
+    case "cellNotRun":
+      return [
+        head,
+        "",
+        "Ta komórka NIE ZOSTAŁA URUCHOMIONA — najczęściej dlatego, że zabrakło klucza albo fikstury.",
+        "Rekord opisuje wtedy przejście, którego nie było, a to nie jest dowód: pusta komórka",
+        "zgadzałaby się z odciskiem i nie mówiła nic.",
+        "",
+        "Co zrobić:",
+        `  1. Przeczytaj powód WYŻEJ — komunikat [config] nazywa brakującą rzecz wprost.`,
+        `  2. Uzupełnij ją i przejedź macierz od nowa (TO JEST WYDATEK): ${RECORD_COMMAND}`,
+        "     (klucz OpenRoutera mapowany NA CZAS komendy, nigdy na stałe).",
+        "",
+        REFRESH_IS_NOT_A_CHECK,
+      ].join("\n");
+
+    case "cellUnclassified":
+      return [
+        head,
+        "",
+        "Ta komórka skończyła się awarią, której NIE UMIEMY NAZWAĆ — i dlatego bramka jest czerwona.",
+        "To jest FAIL-CLOSED, nie usterka: `[unknown]` to kosz na niewiadome, a kosz w klasie",
+        "nieblokującej sprawiłby, że nowy podtyp awarii SDK po cichu przestaje blokować.",
+        "",
+        "Co zrobić, w tej kolejności:",
+        "  1. Przeczytaj `subtype` i `terminal_reason` WYŻEJ. To są surowe pola z SDK, nie nasza",
+        "     interpretacja.",
+        "  2. Rozstrzygnij, czym ta awaria JEST: czy model nie dowiózł odpowiedzi (klasa A), czy",
+        "     odpowiedź przyszła i jest zła (klasa B). Odpowiedź na to pytanie jest CAŁĄ decyzją.",
+        "  3. Jeśli to niedowiezienie i wiesz, że nie niesie informacji o prompcie — dopisz podtyp",
+        "     do `NOT_DELIVERED_SUBTYPES` albo `NOT_DELIVERED_TERMINAL_REASONS`",
+        "     w agents/review/evals/eval-record.ts. To jest DECYZJA zapisana w kodzie, pod testem.",
+        "  4. Nie dopisuj tam niczego po to, żeby uciszyć czerwień. Lista nazwana ma wartość",
+        "     dokładnie tak długo, jak długo każda jej pozycja została zmierzona.",
+        "",
+        REFRESH_IS_NOT_A_CHECK,
+      ].join("\n");
+
+    case "deliveryRegression":
+      return [
+        head,
+        "",
+        "Ta komórka DOWOZIŁA pod poprzednim odciskiem, a pod dzisiejszym już nie — czyli przestała",
+        "dowozić dokładnie wtedy, gdy zmieniło się wywołanie. Objaw wygląda jak niedowiezienie",
+        "(klasa A, nieblokująca), ale przyczyna może siedzieć w PROMPCIE: zmiana, która wpycha model",
+        "w pętlę, kończy się `max_turns`. Dlatego ta jedna sytuacja jest wyjęta z klasy A i czerwieni.",
+        "",
+        "Co zrobić, w tej kolejności:",
+        "  1. Przeczytaj, co zmieniło się w wywołaniu — prompt systemowy, schemat wyjścia, kształt",
+        "     wiadomości albo stałe SDK. To są cztery osie odcisku i tylko one go ruszają.",
+        "  2. Rozstrzygnij, czy nowa treść może wpychać model w pętlę albo w retry schematu.",
+        "  3. Jeśli TAK — to jest regresja promptu. Napraw prompt, nie rekord.",
+        `  4. Jeśli NIE — to niestabilność modelu; przejedź macierz ponownie (TO JEST WYDATEK): ${RECORD_COMMAND}`,
+        "     Gemini bywa niestabilne między przebiegami przy tym samym prompcie — zmierzone.",
+        "",
+        PAID_REMEDY,
         "",
         REFRESH_IS_NOT_A_CHECK,
       ].join("\n");

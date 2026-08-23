@@ -528,3 +528,101 @@ Adnotacja `notes.redCells` była KOMENTARZEM; to byłby POMIAR.
 **Stan otwarty:** dopóki decyzja nie zapadnie, dzisiejszy `eval-record.json` **czerwieni pod
 poprawioną tabelą** — jego dwie komórki `[unknown]` nie mają nazwanego podtypu. To jest uczciwa
 konsekwencja fail-closed, a nie nowa awaria.
+
+---
+
+## Kroki 1–2 po decyzji D-6/D-9 — kształt rekordu i zapadka. ZERO wydatku
+
+**Data**: 2026-08-23, po `35f3874`
+**Wydatek**: **0,00 USD.** Żaden model nie został zawołany.
+
+### Krok 1 — pola strukturalne `subtype` / `terminalReason`
+
+Przeniesione przez cały łańcuch, tam gdzie dotąd ginęły: `ReviewFailure` (obok `kind`, nie zamiast
+niego) → `ReviewMetrics` → `CellResult` providera → `metadata` promptfoo → `ReportRow` →
+`EvalRecordCell`. `classifyFailure` **nietknięta** — przenosimy pola, których ona i tak używa,
+zamiast dokładać jej gałęzi. `callFingerprint` niezmieniony: osiami odcisku są `tools` i `maxTurns`,
+nie warstwa klasyfikacji.
+
+Pod testem stoi to, po co ta zmiana jest, a nie sam fakt istnienia pól: rzut z `error_max_turns`
+niesie `subtype` JAKO POLE przy `kind === "unknown"` — czyli w przypadku, w którym kosz na
+niewiadome sam z siebie nie odróżnia niczego. Drugi test pilnuje, że ścieżka bez wiadomości
+`result` **nie udaje**, że zna `subtype`: `undefined`, nie pusty string.
+
+Walidacja kształtu odrzuca rekord sprzed tej zmiany z NAZWANYM powodem, zamiast po cichu czytać
+brakujące pole jako `null`:
+
+```
+matrix[0].subtype nie istnieje — rekord sprzed rozdzielenia przyczyn (D-6)
+```
+
+To jest zamierzone: rekord bez tych pól kazałby zapadce klasyfikować niedowiezienie po polu,
+którego nie ma, czyli wpuszczać KAŻDĄ komórkę `[unknown]`.
+
+### Krok 2 — zapadka
+
+`agents/review/evals/check-eval-record.ts`, `scripts/check-verdict-config.ts`,
+`.github/workflows/eval-ratchet.yml`. Klasyfikacja (A)/(B), fail-closed na koszu, D-9 i osobna
+klasa `cellNotRun` dla `[config]` — „nie odbyło się" to nie „nie umiemy nazwać", a diagnoza
+wskazująca nie tę przyczynę jest tu całym defektem, nie niedogodnością.
+
+Czternaście nowych przypadków testowych, każdy dwustronny (wzorzec `blindTo`): nazwany podtyp NIE
+czerwieni, kosz CZERWIENI, `[contract]` czerwieni jako (B) a nie jako niedowiezienie, obserwacje
+(A) idą osobnym kanałem i komórka nierozpoznana NIE trafia tam wcale, przejście D-9 czerwieni pod
+zmienionym odciskiem i NIE czerwieni pod tym samym.
+
+### ⚑ BRAMKA D-10 — i defekt, który złapała, zanim padł cent
+
+Sfabrykowany rekord o docelowym kształcie przepuszczony przez PRAWDZIWY zapisywacz agencki
+(`buildRecord` + `serializeRecord`, czyli rdzeń `writeRecord` z `report.ts`), PRAWDZIWY zapisywacz
+`scripts/` (`run-verdict-config.ts --write`) i OBA prawdziwe checkery. Dwa scenariusze, bo jeden
+nie dowodzi niczego:
+
+| scenariusz                                               | `run-verdict-config` | `check-verdict-config` | `check-eval-record`        | `prettier` |
+| -------------------------------------------------------- | -------------------- | ---------------------- | -------------------------- | ---------- |
+| **S1** — stan OCZEKIWANY po zapłaceniu                   | 0                    | 0                      | **0**                      | 0          |
+| **S2** — kontrola pozytywna: komórka poprzednio DOWOZIŁA | 0                    | 0                      | **1**, „PRZESTAŁA dowozić" | 0          |
+
+**Pierwszy przebieg bramki NIE PRZESZEDŁ i to jest jej cała wartość.** Znalazł defekt, którego
+żaden z istniejących testów nie widział: **dwaj zapisywacze trzymają DWIE KOPIE kolejności kluczy
+rekordu** (granica kierunkowa zabrania wspólnego modułu), a przy dopisywaniu bloku
+`previousDelivery` urosła tylko kopia po stronie agenta. Skutek: każdy z zapisywaczy emitował INNĄ
+kolejność bajtów tego samego rekordu, więc checker czerwieniałby na round-tripie **zależnie od
+tego, który pisał ostatni** — czerwień nie do zdiagnozowania z komunikatu.
+
+Naprawione w obu kopiach, a zgodność jest teraz PINOWANA z obu stron granicy: literał w
+`tests/lib/verdict-config.test.ts` i literał w `agents/review/evals/eval-record.test.ts`, każdy
+z komentarzem wskazującym drugą kopię. Istniejący pin z fazy 2 zaświecił się przy tej zmianie na
+czerwono — dokładnie tak, jak miał.
+
+**Gdyby przejście macierzy kupiono PRZED tą bramką, dane wróciłyby w kształcie, który zaraz potem
+trzeba by zmienić — czyli drugie ~0,235 USD za tę samą informację.** Kolejność z D-10 zapłaciła za
+siebie przy pierwszym użyciu.
+
+### Co to znaczy dla płatnego przejścia
+
+**Kształt jest ZAMKNIĘTY.** Płatny przebieg dostarczy już tylko DANE. Warunek wejścia w fazę 3
+(kryterium 3.0) jest spełniony.
+
+### Kryterium 4.5 — oba checkery po `npm ci --omit=dev`
+
+Na KOPII drzewa, nie na roboczym: `--omit=dev` usunąłby `promptfoo` i `tsx`, czyli zepsuł każde
+następne przejście macierzy do czasu ponownej instalacji.
+
+```
+promptfoo: nieobecny (tak ma być)
+tsx:       nieobecny (tak ma być)
+node_modules: 354 MB   (pełny graf: ~2 099 MB)
+
+check-eval-record.ts    -> exit 0   (+ dwie adnotacje ::notice, klasa (A))
+check-verdict-config.ts -> exit 0
+```
+
+⚑ **Sprawdzenie nieobecności `promptfoo` i `tsx` jest częścią POMIARU, nie porządkiem.** Gdyby
+którykolwiek został zainstalowany, przebieg zieleniłby się nad drzewem, w którym `--omit=dev`
+niczego nie odjęło — czyli mierzyłby, że kod działa tam, gdzie i tak by działał. Bez tej kontroli
+`ERR_MODULE_NOT_FOUND` wyszedłby dopiero na CI, gdzie czyta się go jako awarię bramki, a nie jako
+brakującą zależność.
+
+Adnotacje klasy (A) wychodzą jako `::notice` i **nie blokują** — to jest D-6 w działaniu na
+prawdziwym runnerze, nie tylko w teście.

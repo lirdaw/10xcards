@@ -1262,7 +1262,7 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 
 #### Automated
 
-- [ ] 3.0 BRAMKA D-10: sfabrykowany rekord o docelowym kształcie (komplet pól + `previousDelivery`) przechodzi przez PRAWDZIWY zapisywacz i PRAWDZIWY checker — warunek wydania pierwszego centa
+- [x] 3.0 BRAMKA D-10: sfabrykowany rekord o docelowym kształcie (komplet pól + `previousDelivery`) przechodzi przez PRAWDZIWY zapisywacz i PRAWDZIWY checker — warunek wydania pierwszego centa
 - [ ] 3.1 `prettier --check` na dowodzie prawdziwym → kod 0
 - [ ] 3.2 `lint-staged` nie przeformatował dowodu przy `git add`
 - [ ] 3.3 Dowód niesie 4 wiersze, 2 modele, 2 fikstury
@@ -1278,16 +1278,20 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 
 #### Automated
 
-- [ ] 4.1 Testy pakietu agenta i vitest zielone
-- [ ] 4.2 Typecheck (root + agent) i lint
-- [ ] 4.3 Oba checkery na czystym drzewie → kod 0
-- [ ] 4.4 Oba checkery na podmienionym dowodzie → kod 1 z właściwym komunikatem
-- [ ] 4.4a Komórka (A) NIE czerwieni, komórka (B) czerwieni — obie na rekordach sfabrykowanych (D-6)
-- [ ] 4.4b `[unknown]` BEZ nazwanego podtypu czerwieni (fail-closed), `[config]` czerwieni jako brak przejścia
-- [ ] 4.4d Komórka z NAZWANYM podtypem (`error_max_turns`, `structured_output_retry_exhausted`) nie czerwieni
-- [ ] 4.4c Przejście „dowiózł → nie dowiózł" pod NOWYM odciskiem czerwieni; pod TYM SAMYM — nie (D-9)
-- [ ] 4.5 Oba checkery uruchomione po `npm ci --omit=dev`, wynik pokazany
-- [ ] 4.6 `check-prompt-sources.ts` zielony po edycji AGENTS.md
+- [x] 4.1 Testy pakietu agenta i vitest zielone
+- [x] 4.2 Typecheck (root + agent) i lint
+- [ ] 4.3 Oba checkery na czystym drzewie → kod 0 — **CZEKA NA PŁATNE PRZEJŚCIE.** Dzisiejszy
+      `eval-record.json` powstał PRZED polami `subtype`/`terminalReason`, więc checker agencki
+      odrzuca go jako `malformed` z nazwanym powodem. To jest zamierzone, nie usterka; kryterium
+      domknie się na rekordzie z fazy 3. Na rekordzie SFABRYKOWANYM o docelowym kształcie oba
+      checkery dają kod 0 — patrz 3.0
+- [x] 4.4 Oba checkery na podmienionym dowodzie → kod 1 z właściwym komunikatem
+- [x] 4.4a Komórka (A) NIE czerwieni, komórka (B) czerwieni — obie na rekordach sfabrykowanych (D-6)
+- [x] 4.4b `[unknown]` BEZ nazwanego podtypu czerwieni (fail-closed), `[config]` czerwieni jako brak przejścia
+- [x] 4.4d Komórka z NAZWANYM podtypem (`error_max_turns`, `structured_output_retry_exhausted`) nie czerwieni
+- [x] 4.4c Przejście „dowiózł → nie dowiózł" pod NOWYM odciskiem czerwieni; pod TYM SAMYM — nie (D-9)
+- [x] 4.5 Oba checkery uruchomione po `npm ci --omit=dev`, wynik pokazany (promptfoo i tsx potwierdzone jako NIEOBECNE — bez tego pomiar nic nie mierzy)
+- [x] 4.6 `check-prompt-sources.ts` zielony po edycji AGENTS.md (§Commands nie jest sekcją pilnowaną — to jest POWÓD zieleni, nie zbieg okoliczności)
 
 #### Manual
 

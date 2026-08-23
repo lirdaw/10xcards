@@ -200,6 +200,9 @@ describe("withVerdictConfig", () => {
     notes: { scope: "s", oneMeasurement: "o", costSource: "c", uncovered: "u", fixtures: "f" },
     generatedAt: "2026-08-23T12:00:00.000Z",
     callFingerprint: "a".repeat(64),
+    // Blok agencki D-9 — tu po to, żeby fikstura niosła KOMPLET kluczy rekordu. Bez niego pin
+    // kolejności sprawdzałby kolejność listy, w której brakuje jednej pozycji.
+    previousDelivery: { fingerprint: "b".repeat(64), cells: [{ model: "m", fixture: "f", delivered: true }] },
     matrix: [{ model: "m", fixture: "f", ok: true }],
   };
 
@@ -216,7 +219,19 @@ describe("withVerdictConfig", () => {
   it("wypisuje klucze w tej samej kolejności co zapisywacz agencki", () => {
     const written = withVerdictConfig(FOREIGN, live);
 
-    expect(Object.keys(written)).toEqual(["notes", "generatedAt", "callFingerprint", "verdictConfig", "matrix"]);
+    // ⚑ `previousDelivery` (D-9) dopisane 2026-08-23. Ten pin zaświecił się wtedy na czerwono
+    // i to było jego zadanie: lista kluczy po stronie agenta urosła, a ta po stronie `scripts/`
+    // nie, więc dwaj zapisywacze emitowaliby INNĄ kolejność bajtów tego samego rekordu.
+    // Asercja przez `Object.keys` na obiekcie, a nie na serializacji, jest tu ZAMIERZONA:
+    // `FOREIGN` niesie wszystkie klucze, więc żaden nie jest `undefined` i nie ma czego zgubić.
+    expect(Object.keys(written)).toEqual([
+      "notes",
+      "generatedAt",
+      "callFingerprint",
+      "verdictConfig",
+      "previousDelivery",
+      "matrix",
+    ]);
   });
 
   it("przenosi klucze, których nie zna, zamiast je kasować", () => {
@@ -256,5 +271,65 @@ describe("serializeRecord", () => {
     const raw = serializeRecord({ a: { b: 1 } });
 
     expect(raw).toBe('{\n  "a": {\n    "b": 1\n  }\n}\n');
+  });
+});
+
+describe("kolejność kluczy rekordu — DRUGA kopia listy", () => {
+  it("zapisywacz `scripts/` emituje dokładnie tę samą kolejność co zapisywacz agencki", () => {
+    // ⚑ Ten test istnieje z powodu ZMIERZONEGO defektu, nie z ostrożności. Przy dopisywaniu bloku
+    // `previousDelivery` (D-9) lista po stronie agenta urosła, a ta po stronie `scripts/` nie —
+    // i wtedy każdy z dwóch zapisywaczy emitował INNĄ kolejność bajtów tego samego rekordu, więc
+    // checker czerwieniał na round-tripie zależnie od tego, który pisał ostatni. Złapała to bramka
+    // D-10 na dowodzie SFABRYKOWANYM, zanim padł pierwszy cent.
+    //
+    // Literał jest tu CELOWO, zamiast importu z `agents/review/evals/eval-record.ts`: granica
+    // kierunkowa zabrania `scripts/` (i jego testom) sięgać po kod agenta. Bliźniaczy pin stoi
+    // w `agents/review/evals/eval-record.test.ts`; zmiana kolejności musi dotknąć OBU.
+    const built = withVerdictConfig(
+      {
+        notes: { scope: "…" },
+        generatedAt: "2026-08-23T00:00:00.000Z",
+        callFingerprint: "a".repeat(64),
+        previousDelivery: { fingerprint: "b".repeat(64), cells: [] },
+        matrix: [],
+      },
+      { threshold: 5, scoreMin: 1, scoreMax: 10, assertionsDigest: "c".repeat(64) },
+    );
+
+    // Asercja idzie przez SERIALIZACJĘ, nie przez `Object.keys` na obiekcie: klucz o wartości
+    // `undefined` jest własnością obiektu, a znika dopiero w `JSON.stringify`. Kontraktem są BAJTY
+    // pliku — to na nich checker liczy round-trip.
+    expect(Object.keys(JSON.parse(serializeRecord(built)) as Record<string, unknown>)).toEqual([
+      "notes",
+      "generatedAt",
+      "callFingerprint",
+      "verdictConfig",
+      "previousDelivery",
+      "matrix",
+    ]);
+  });
+
+  it("blok `previousDelivery` przechodzi przez zapis NIETKNIĘTY — to cudza własność", () => {
+    const previousDelivery = {
+      fingerprint: "b".repeat(64),
+      cells: [{ model: "m", fixture: "f", delivered: false }],
+    };
+    const built = withVerdictConfig(
+      { notes: {}, generatedAt: "x", callFingerprint: "a".repeat(64), previousDelivery, matrix: [] },
+      { threshold: 5, scoreMin: 1, scoreMax: 10, assertionsDigest: "c".repeat(64) },
+    );
+
+    expect(built.previousDelivery).toEqual(previousDelivery);
+  });
+
+  it("rekord BEZ `previousDelivery` nie zyskuje go przy zapisie — pusty blok byłby twierdzeniem", () => {
+    const built = withVerdictConfig(
+      { notes: {}, generatedAt: "x", callFingerprint: "a".repeat(64), matrix: [] },
+      { threshold: 5, scoreMin: 1, scoreMax: 10, assertionsDigest: "c".repeat(64) },
+    );
+
+    expect(Object.keys(JSON.parse(serializeRecord(built)) as Record<string, unknown>)).not.toContain(
+      "previousDelivery",
+    );
   });
 });
