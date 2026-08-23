@@ -1271,16 +1271,16 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 #### Automated
 
 - [x] 3.0 BRAMKA D-10: sfabrykowany rekord o docelowym kształcie (komplet pól + `previousDelivery`) przechodzi przez PRAWDZIWY zapisywacz i PRAWDZIWY checker — warunek wydania pierwszego centa
-- [x] 3.1 `prettier --check` na dowodzie prawdziwym → kod 0
-- [ ] 3.2 `lint-staged` nie przeformatował dowodu przy `git add`
-- [x] 3.3 Dowód niesie 4 wiersze, 2 modele, 2 fikstury
-- [x] 3.4 `callFingerprint` = `59ee111b…` (kotwica niezmieniona — przekotwiczenie cofnięte po 3a.1)
+- [x] 3.1 `prettier --check` na dowodzie prawdziwym → kod 0 — 2b6835d
+- [x] 3.2 `lint-staged` nie przeformatował dowodu przy `git add` — 2b6835d
+- [x] 3.3 Dowód niesie 4 wiersze, 2 modele, 2 fikstury — 2b6835d
+- [x] 3.4 `callFingerprint` = `59ee111b…` (kotwica niezmieniona — przekotwiczenie cofnięte po 3a.1) — 2b6835d
 
 #### Manual
 
-- [x] 3.5 Odczyt `/api/v1/key` opóźniony wykonany; różnica w budżecie ~~0,50~~ **1,50 USD** (D-8)
-- [x] 3.6 ~~Wszystkie cztery komórki `ok: true`~~ → **żadna komórka w klasie (B)** (poprawka D-6; komórki klasy (A) dopuszczalne i raportowane)
-- [x] 3.7 Obserwacje miękkie zapisane bez awansowania do twardych
+- [x] 3.5 Odczyt `/api/v1/key` opóźniony wykonany; różnica w budżecie ~~0,50~~ **1,50 USD** (D-8) — 2b6835d
+- [x] 3.6 ~~Wszystkie cztery komórki `ok: true`~~ → **żadna komórka w klasie (B)** (poprawka D-6; komórki klasy (A) dopuszczalne i raportowane) — 2b6835d
+- [x] 3.7 Obserwacje miękkie zapisane bez awansowania do twardych — 2b6835d
 
 ### Phase 4: Zapadka
 
@@ -1288,11 +1288,12 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 
 - [x] 4.1 Testy pakietu agenta i vitest zielone
 - [x] 4.2 Typecheck (root + agent) i lint
-- [x] 4.3 Oba checkery na czystym drzewie → kod 0 — **DOMKNIĘTE na rekordzie z fazy 3** (drugie przejście, 19:23Z). Rekord, który to kryterium blokował,
-      `eval-record.json` powstał PRZED polami `subtype`/`terminalReason`, więc checker agencki
-      odrzuca go jako `malformed` z nazwanym powodem. To jest zamierzone, nie usterka; kryterium
-      domknie się na rekordzie z fazy 3. Na rekordzie SFABRYKOWANYM o docelowym kształcie oba
-      checkery dają kod 0 — patrz 3.0
+- [x] 4.3 Oba checkery na czystym drzewie → kod 0 — **DOMKNIĘTE na rekordzie z fazy 3** (drugie
+      przejście, 19:23Z); oba dają kod 0, agencki dokłada jedną adnotację `::notice` klasy (A).
+      Źródło blokady, dla zapisu: poprzedni `eval-record.json` powstał PRZED polami
+      `subtype`/`terminalReason`, więc checker agencki odrzucał go jako `malformed` z nazwanym
+      powodem — zamierzone, nie usterka. Na rekordzie SFABRYKOWANYM o docelowym kształcie oba
+      checkery dawały kod 0 już wcześniej — patrz 3.0 — 2b6835d
 - [x] 4.4 Oba checkery na podmienionym dowodzie → kod 1 z właściwym komunikatem
 - [x] 4.4a Komórka (A) NIE czerwieni, komórka (B) czerwieni — obie na rekordach sfabrykowanych (D-6)
 - [x] 4.4b `[unknown]` BEZ nazwanego podtypu czerwieni (fail-closed), `[config]` czerwieni jako brak przejścia
@@ -1303,26 +1304,26 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 
 #### Manual
 
-- [ ] 4.7 `eval-ratchet.yml` bez sekretu — sprawdzone wzrokowo
-- [ ] 4.8 Komunikaty czerwieni spełniają wymaganie 7
-- [ ] 4.9 Nazwa i komunikaty nie sugerują „prompt sprawdzony" (D3)
+- [x] 4.7 `eval-ratchet.yml` bez sekretu — sprawdzone wzrokowo
+- [x] 4.8 Komunikaty czerwieni spełniają wymaganie 7
+- [x] 4.9 Nazwa i komunikaty nie sugerują „prompt sprawdzony" (D3)
 
 ### Phase 5: Dwustronna kontrola pozytywna na żywym CI
 
 #### Automated
 
-- [ ] 5.1 `PR code review` wyłączony przed otwarciem PR-a (`disabled_manually`)
-- [ ] 5.2 PR `review-eval-gate` → `main` otwarty, `Eval ratchet` na liście checków
-- [ ] 5.3 `Eval ratchet` CZERWONY na sondzie P1
-- [ ] 5.4 `Eval ratchet` CZERWONY na sondzie P2 z cytatem `5 → 8`
-- [ ] 5.5 `Eval ratchet` ZIELONY po rewertach
-- [ ] 5.6 Brak `--no-verify` w historii; sondy weszły zwykłym pushem
+- [x] 5.1 `PR code review` wyłączony przed otwarciem PR-a (`disabled_manually`)
+- [x] 5.2 PR `review-eval-gate` → `main` otwarty, `Eval ratchet` na liście checków
+- [x] 5.3 `Eval ratchet` CZERWONY na sondzie P1
+- [x] 5.4 `Eval ratchet` CZERWONY na sondzie P2 z cytatem `5 → 8`
+- [x] 5.5 `Eval ratchet` ZIELONY po rewertach
+- [x] 5.6 Brak `--no-verify` w historii; sondy weszły zwykłym pushem
 - [ ] 5.7 `PR code review` WŁĄCZONY z powrotem (`active`) — warunek zamknięcia fazy
-- [ ] 5.8 Pełny zestaw bramek zielony na finalnym stanie gałęzi
+- [x] 5.8 Pełny zestaw bramek zielony na finalnym stanie gałęzi
 
 #### Manual
 
-- [ ] 5.9 Komunikat P2 mówi wprost, że macierzy przejeżdżać nie trzeba
-- [ ] 5.10 Komunikat P1 mówi wprost, że przejście kosztuje
-- [ ] 5.11 `verification.md` niesie obie połowy i nazwaną zmienną różnicy
-- [ ] 5.12 Rewerty czyste, odcisk z powrotem `59ee111b…` (kotwica niezmieniona — D-8 cofnięte)
+- [x] 5.9 Komunikat P2 mówi wprost, że macierzy przejeżdżać nie trzeba
+- [x] 5.10 Komunikat P1 mówi wprost, że przejście kosztuje
+- [x] 5.11 `verification.md` niesie obie połowy i nazwaną zmienną różnicy
+- [x] 5.12 Rewerty czyste, odcisk z powrotem `59ee111b…` (kotwica niezmieniona — D-8 cofnięte)

@@ -828,3 +828,255 @@ nie deklaruje, że oba kryteria warunkowe są bez zastosowania"; gemini / `clean
 powodem: jedyna komórka, która tę obserwację w ogóle rozstrzygnęła, to ta sama komórka, o której
 akapit „Fakt 1 wymaga korekty" mówi, że jej wynik jest losem przebiegu. Twarda asercja postawiona
 na niej byłaby asercją na rzucie monetą.
+
+---
+
+## Faza 5 — Dwustronna kontrola pozytywna NA ŻYWYM CI. DOMKNIĘTA
+
+Bramka, której nie widziano na czerwono, jest deklaracją. `lessons.md` („Gwarancja w workflow
+należy do konfiguracji PLIKU, nie do czujności autora") żąda próby czerwieni **na tej ścieżce, na
+której bramka będzie żyła** — nie lokalnie. Ta faza ją wykonuje: dwie sondy, każda z JEDNĄ zmienną
+różnicy, każda odwrócona rewertem, wszystko zwykłym `git push` przez `pull_request` na PR #49.
+
+Wydatek fazy: **0,00 USD.** Zapadka nie ma sekretu i nie może wydać centa; jedyne pieniądze, które
+tu groziły, to cudza bramka — patrz strażnik niżej.
+
+### Strażnik kosztu (krok 0a) — zmierzony, nie zadeklarowany
+
+`PR code review` **wyłączony PRZED otwarciem PR-a**, `gh workflow disable "PR code review"` →
+`gh workflow list --all` pokazuje `disabled_manually`. Powód: `pr-review.yml:33-36` deklaruje
+`types: [opened, synchronize, reopened, labeled]` i **nie ma warunku na draft**, więc otwarcie
+draftu to `opened` = jeden przebieg, a każdy z czterech pushy sondy to `synchronize` = kolejny.
+Kotwica: 0,6447345 USD za przebieg (PR #48, run `32637738782`, `sonnet-4.6`).
+
+**Dowód, że strażnik zadziałał, jest odczytem, nie deklaracją:** ostatni przebieg `pr-review.yml`
+w repo to `989b062` z **12:39Z**, a cała faza 5 biegła między **19:43Z i 19:56Z**. Pięć zdarzeń
+`pull_request` (1 × `opened`, 4 × `synchronize`) nie wywołało ANI JEDNEGO przebiegu review. Bez
+strażnika byłoby to ~3,22 USD — czterokrotność budżetu 1,50 USD całej tej zmiany, na bramce, która
+z nią nie ma nic wspólnego.
+
+### Otwarcie ścieżki (krok 0b)
+
+PR **#49** `review-eval-gate` → `main`, draft: https://github.com/lirdaw/10xcards/pull/49.
+`Eval ratchet` pojawia się na liście checków PR-a i biegnie od zdarzenia `opened` — plik workflow
+brany z merge-refa gałęzi, mimo że na `main` jeszcze go nie ma. Kryterium 5.2 domknięte.
+
+Przebieg bazowy `2b6835d` → **ZIELONY** w 23 s, z jedną adnotacją `::notice` klasy (A)
+(gemini / `clean-text-change.diff`, `error_max_turns`). To jest pierwszy dowód NA CI, że
+rozdzielenie przyczyn z D-6 działa nie tylko lokalnie: klasa (A) wychodzi jako `notice`, job kończy
+się kodem 0.
+
+### Para P1 — oś `callFingerprint`. Zmienna różnicy: JEDEN ZNAK
+
+| przebieg  | commit    | co się różniło                                                 | `Eval ratchet`                                                                                |
+| --------- | --------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| P1        | `3b905af` | `uzasadnieniem.` → `uzasadnieniem!` w `ROLE` (`prompt.ts:244`) | **CZERWONY** ([run 32662246416](https://github.com/lirdaw/10xcards/actions/runs/32662246416)) |
+| rewert P1 | `1b2c9ed` | ten sam znak z powrotem                                        | ZIELONY ([run 32662469988](https://github.com/lirdaw/10xcards/actions/runs/32662469988))      |
+
+Miejsce mutacji wybrane pod kontrakt planu: `prompt.test.ts` twierdzi o `SYSTEM_PROMPT` dokładnie
+dwie rzeczy (brak `MATERIAL-DOWODOWY-`, obecność „ogłoszonymi w PIERWSZEJ linii"), a znak leży poza
+obiema — sprawdzone lokalnie PRZED pushem: **6/6 zielone**.
+
+Cytat czerwieni (`::error`, log joba):
+
+```
+Odcisk wywołania rozjechał się z dowodem: dowód opisuje wywołanie 59ee111bb431…,
+a dziś do modelu pojechałoby 2b652e1f8398….
+
+Zmieniła się któraś z czterech osi wywołania: prompt systemowy (agents/review/prompt.ts),
+schemat wymuszonego wyjścia (agents/review/review-schema.ts, w tym opisy kryteriów),
+kształt wiadomości użytkownika albo stałe wywołania SDK (agents/review/run-review.ts).
+Dowód w drzewie opisuje przejście na POPRZEDNIM wywołaniu i nie mówi nic o dzisiejszym.
+
+Ta oś wymaga PRZEJŚCIA MACIERZY i KOSZTUJE — kotwica zimnego przejścia 2x2 to
+~0.12 USD, z rozrzutem dziesiątek procent między przebiegami.
+```
+
+**Kryterium 5.10 (komunikat mówi wprost, że przejście KOSZTUJE): spełnione, dosłownie** — kwota
+pada liczbą, razem z ostrzeżeniem o rozrzucie. Komunikat dokłada też wskazanie osi sąsiedniej
+(„To NIE jest oś `verdictConfig` — tamta jest DARMOWA"), czyli sam odsyła od remedium droższego do
+tańszego, gdy czytelnik trafił nie tam.
+
+**Izolacja P1 — wynik mocniejszy, niż kryterium wymagało.** Na `3b905af` czerwieni się DOKŁADNIE
+jedna bramka: `Eval ratchet` **failure**, `CI` success, `Agents gate` success, `Prompt ratchet`
+success. Zieleń `Prompt ratchet` nie jest zbiegiem okoliczności: `prompt-sources.json` niesie
+digesty SEKCJI ŹRÓDŁOWYCH (`AGENTS.md` ×2, `test-plan.md` §2), nigdy samego `prompt.ts` — tamta
+zapadka pilnuje kierunku „źródło ruszyło, destylat nie", a nie odwrotnego. Sonda zaczerwieniła
+zatem to, co miała, i nic poza tym.
+
+### Para P2 — oś `verdictConfig` i ZASIĘG WYZWALACZA
+
+| przebieg  | commit    | co się różniło                                               | `Eval ratchet`                                                                                |
+| --------- | --------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| P2        | `bef7696` | `SCORE_THRESHOLD = 5` → `8` (`scripts/review-verdict.ts:35`) | **CZERWONY** ([run 32662531587](https://github.com/lirdaw/10xcards/actions/runs/32662531587)) |
+| rewert P2 | `ea93869` | ta sama liczba z powrotem                                    | ZIELONY ([run 32662797663](https://github.com/lirdaw/10xcards/actions/runs/32662797663))      |
+
+Cytat czerwieni:
+
+```
+Blok `verdictConfig` w agents/review/evals/eval-record.json opisuje INNE wartości niż dzisiejsze drzewo.
+
+Ta oś NIE wymaga przejścia macierzy evali i nie kosztuje ani centa. Macierz mierzy ODPOWIEDŹ
+modelu; te pola opisują wyłącznie sposób, w jaki tę odpowiedź się ODCZYTUJE.
+
+Co się rozjechało:
+  - próg akceptacji (SCORE_THRESHOLD w scripts/review-verdict.ts): 5 → 8
+```
+
+**Kryterium 5.4 (cytat `5 → 8`): spełnione dosłownie.** **Kryterium 5.9 (mówi wprost, że macierzy
+przejeżdżać nie trzeba): spełnione** — i to zdaniem, które podaje POWÓD („macierz mierzy odpowiedź
+modelu; te pola opisują sposób, w jaki tę odpowiedź się odczytuje"), a nie samą instrukcją.
+
+**Kolejność kroków z D-1 opłaciła się mierzalnie.** Na P2 job padł na kroku PIERWSZYM, a kroki
+`npm ci --omit=dev` i checker agencki są w logu **`skipped`**. Rozjazd progu — czyli oś, której
+remedium jest darmowe — kosztuje więc sekundy, nie instalację pakietu agenta. To jedyne miejsce
+w tym workflow, gdzie kolejność ma znaczenie funkcjonalne, i to znaczenie zostało zaobserwowane,
+nie tylko zapisane w komentarzu.
+
+**Czerwień `CI` na P2 — PRZEWIDZIANA, nie defekt sondy.** `tests/lib/review-verdict.test.ts`
+przypina `expect(SCORE_THRESHOLD).toBe(5)`; przebieg dał 6 czerwonych testów (5 w `review-verdict`,
+1 w `verdict-config`), pierwszy z komunikatem `expected 'fail' to be 'pass'`. Plan tę czerwień
+zapowiadał i dlatego status czytamy per job. Zapisane, żeby nikt później nie odczytał tego jako
+usterki.
+
+#### ⚑ Korekta do uzasadnienia D-1 — sonda dowiodła MNIEJ, niż plan zakładał
+
+Plan uzasadniał odrzucenie `agents-gate.yml` jako domu tym, że jego filtr `paths: ["agents/**", …]`
+nie sięga `scripts/review-verdict.ts`, więc „zapadka milczałaby dokładnie na PR-ze zmieniającym
+próg". Na tym PR-ze **`Agents gate` NIE zamilkł: pobiegł i był zielony.**
+
+Powód jest mechaniką, nie przypadkiem: przy `pull_request` filtr `paths` liczy się względem
+**całego diffa PR-a**, nie ostatniego commita — a diff #49 dotyka 11 plików pod `agents/`, więc
+filtr przepuścił. `Agents gate` był zatem zielony na PR-ze, który ruszał próg — bo jego JOB progu
+nie sprawdza, a nie dlatego, że filtr go odsiał.
+
+Co z tego zostaje: **wniosek D-1 trzyma, jego uzasadnienie było za wąskie.** Ta sonda dowiodła
+rzeczy słabszej, ale wystarczającej — że wyzwalacz `Eval ratchet` (bez `paths` w ogóle) SIĘGA
+zmiany zamkniętej w `scripts/`. Przypadek, w którym filtr `agents-gate` naprawdę by odsiał, to PR
+dotykający WYŁĄCZNIE `scripts/review-verdict.ts`; ten PR nim nie był i fazy 5 na niego nie
+naciągam. Zapis wprost, bo to dokładnie klasa „prawdziwe liczby, wniosek, którego nie unoszą".
+
+### Połowa zielona (krok 3) i stan końcowy
+
+Na `ea93869` — po OBU rewertach, na tej samej gałęzi i tym samym workflow — **pełny zestaw
+zielony**: `Eval ratchet` success (21 s), `CI` success (4 m 21 s), `Agents gate` success (1 m 38 s),
+`Prompt ratchet` success (9 s). Bez tej połowy dowód przechodziłby także dla zapadki czerwieniącej
+ZAWSZE (wymaganie 3).
+
+Rewerty czyste, i to sprawdzone najmocniejszym dostępnym testem, nie oglądaniem plików:
+`git diff 2b6835d HEAD --stat` **pusty** — drzewo po obu rewertach jest co do bajtu tym samym
+drzewem, co przed pierwszą sondą. Odcisk wywołania z powrotem `59ee111b…` (kotwica niezmieniona,
+D-8 cofnięte), oba checkery lokalnie kod 0.
+
+### Dlaczego `pre-push` sond nie zablokował — i dlaczego to NIE jest obejście
+
+Żadna sonda nie użyła `--no-verify`; hook biegł za każdym razem i **wypisał `typecheck: OK — 180
+plików`** na wszystkich czterech pushach (`core.hooksPath` = `.husky/_`, husky zainstalowany).
+Powody, że przepuścił:
+
+- **P1**: `.husky/pre-push` to jedna linia `npm run typecheck`, czyli ROOTOWY type gate, a
+  `agents/**` jest świadomie poza rootowym `tsconfig.json`. Zmiana znaku w stringu i tak nie jest
+  błędem typu.
+- **P2**: `8` to poprawny `number` w miejscu, gdzie stoi `5`. Sprzeczność jest z ASERCJĄ testu
+  (`review-verdict.test.ts`), a testów `pre-push` nie uruchamia — złapało ją dopiero `CI`.
+
+Precedens przewidziany w planie (sonda `de97385`, `agents/review/probe.ts`) potwierdzony: droga
+przez GitHub Contents API była tu zbędna.
+
+### Weryfikacja RĘCZNA fazy 5 — wykonana, z jednym znaleziskiem
+
+Cztery wiersze fazy 5 (5.9–5.12) i trzy zaległe z fazy 4 (4.7–4.9). Każdy sprawdzony wykonaniem,
+nie odczytaniem z pamięci przebiegu.
+
+**5.9 / 5.10 — komunikaty czerwieni.** Oba cytaty wyżej, z logów żywych jobów. P2: „Ta oś NIE
+wymaga przejścia macierzy evali i nie kosztuje ani centa" + POWÓD („macierz mierzy ODPOWIEDŹ
+modelu; te pola opisują sposób, w jaki tę odpowiedź się ODCZYTUJE"). P1: „Ta oś wymaga PRZEJŚCIA
+MACIERZY i KOSZTUJE — kotwica zimnego przejścia 2x2 to ~0.12 USD". Oba spełnione dosłownie.
+
+**5.11 — zapis niesie obie połowy i zmienną różnicy.** Dwie tabele z kolumną „co się różniło",
+cztery linki do przebiegów (`32662246416`, `32662469988`, `32662531587`, `32662797663`), cytaty obu
+czerwieni, opis zieleni końcowej.
+
+**5.12 — rewerty czyste, w formie MOCNIEJSZEJ niż oglądanie plików.** `git diff 2b6835d HEAD --stat`
+z wyłączeniem `context/changes` → **pusty**: kod jest co do bajtu tym samym kodem, co przed pierwszą
+sondą. Odcisk **POLICZONY** (`productionPromptFingerprint()` uruchomione na drzewie), nie odczytany
+z rekordu: `59ee111bb431f77a4fc01d7f9bf33992f4ab783458c704d20aafb9e42edec8f1` = kotwica. Odczyt
+z rekordu byłby tu bezwartościowy — rekord jest właśnie tym, co odcisk ma sprawdzać.
+
+**4.7 — `eval-ratchet.yml` bez sekretu, z KONTROLĄ DODATNIĄ metody.** Samo „grep nic nie znalazł"
+nie jest dowodem, dopóki nie wiadomo, czy grep umie znaleźć. Wynik: w `eval-ratchet.yml` jedyne
+wystąpienie ciągu `env:` jest w KOMENTARZU (linia 8, proza uzasadniająca), `secrets.` zero, jedyne
+`with:` to konfiguracja `setup-node` (`node-version`, `cache`, `cache-dependency-path`). Ten sam
+grep na `pr-review.yml` — bramce, która sekret MA — daje **15** dopasowań. Zero jest więc wynikiem,
+nie ślepotą narzędzia. `permissions: contents: read` zawęża resztę do `none`.
+
+**4.8 — wymaganie 7, sprawdzone na OBU stanach, nie na jednym.** Wymaganie żąda rozróżnienia
+„zmieniłeś prompt, brakuje dowodu" od „dowód jest, ale dla innego promptu". Stan drugi mam z
+żywego CI (P1). Stan pierwszy wywołany lokalnie: plik dowodu odsunięty na bok, checker uruchomiony,
+plik przywrócony — i przywrócenie sprawdzone `sha256sum` przed i po (**identyczne**) oraz `git
+status` (czysty), bo „przywróciłem" bez porównania hasza jest deklaracją. Wynik:
+
+| stan             | tytuł adnotacji                            | treść                            |
+| ---------------- | ------------------------------------------ | -------------------------------- |
+| dowodu brak      | `Brak dowodu przejścia evali`              | „… nie istnieje"                 |
+| dowód dla innego | `Odcisk wywołania rozjechał się z dowodem` | podaje OBA odciski, stary i nowy |
+
+Różne tytuły, różne treści, obie gałęzie cytują komendę wytwarzającą
+(`npm --prefix agents/review run eval -- --record`) i obie kończą się zdaniem, że sam krok
+zapisujący niczego nie sprawdza. Wymaganie 7 spełnione.
+
+**4.9 — i tu weryfikacja ręczna ZNALAZŁA USTERKĘ.**
+
+Sama treść kryterium przechodzi: nazwa (`Eval ratchet`, job `ratchet`, kroki „Check the eval
+evidence against today's call fingerprint") nigdzie nie sugeruje „prompt sprawdzony", a
+`notes.scope` mówi dokładnie to, czego żąda D3 — „reakcję DWÓCH TANICH MODELI …, NIE zachowanie
+recenzenta produkcyjnego", razem z odmową tezy o wspólnym regresowaniu rodziny („to jest
+prawdopodobne i NIEZMIERZONE").
+
+Ale D3 wymienia adnotację jako jedną z trzech powierzchni, które muszą mówić prawdę — i **klucz
+`notes.redCells` był NIEAKTUALNY, sprzeczny z macierzą, obok której stał**:
+
+- ogłaszał „STAN DWÓCH CZERWONYCH KOMÓREK" i „obie komórki `clean-text-change.diff` — haiku-4.5
+  i gemini-2.5-flash — mają `ok: false`", podczas gdy dzisiejszy rekord ma **jedną** komórkę
+  `ok: false` (gemini), a haiku na tej samej fiksturze **dowiozło**;
+- niósł zdanie „granica `maxTurns: 2` jest własnością TEJ FIKSTURY, nie własnością gemini", które
+  `change.md` już odnotowuje jako **zmierzone i nieprawdziwe**;
+- podawał rachunek pierwszego przejścia (0,235012 / 0,110343 USD) jako rachunek tego rekordu;
+- opisywał przejście `generatedAt 2026-08-23T16:58:56.006Z`, a rekord niesie
+  `2026-08-23T19:25:09.445Z`.
+
+Zadziałało dokładnie to, co ta adnotacja sama o sobie przewidywała: jej ostrzeżenie o świeżości
+mówi, że `--record` **zachowuje** zastany blok `notes`, więc zdanie przeżywa każde następne
+przejście — i kazało sprawdzić `generatedAt`, zanim się mu uwierzy. Sprawdzenie wykonane, warunek
+się spełnił, remedium wykonane: klucz przepisany i przemianowany na **`undeliveredCell`** (stara
+nazwa opisywała stan, którego w tym rekordzie nie ma), z jawną korektą tezy o „własności fikstury"
+i z rachunkiem tego przejścia (0,139255 USD).
+
+Dlaczego to było bezpieczne: `redCells` nie występuje w `NOTES_KEYS`
+(`eval-record.ts:79` — obowiązkowe są `scope`, `oneMeasurement`, `costSource`, `uncovered`,
+`fixtures`), nie jest referencjonowany przez żaden kod, test ani workflow (sprawdzone gremem po
+całym repo), i nie wchodzi do `callFingerprint`. Po zmianie: **diff to JEDNA linia**,
+`npx prettier --check` kod 0, oba checkery kod 0, testy pakietu agenta **101/101**.
+
+Warta zapisania jest sama mechanika, bo to jest wzorzec do powtórzenia: adnotacja, która niesie
+WŁASNY warunek nieświeżości i pole, po którym się go sprawdza, dała się złapać zwykłym odczytem —
+zamiast zestarzeć się cicho i być czytana jako opis dzisiejszego stanu. Kosztem jest to, że ktoś
+musi ten warunek sprawdzić; tu zrobiła to weryfikacja ręczna kryterium 4.9 i to jest jedyny powód,
+dla którego ta usterka nie pojechała na `main`.
+
+### Krok 5 — przywrócenie bramki review
+
+`gh workflow enable "PR code review"` → `gh workflow list --all` pokazuje `active`. To warunek
+zamknięcia fazy, nie sprzątanie: bramka wyłączona po cichu i niewłączona z powrotem jest stanem
+GORSZYM niż brak tej zmiany — krok 0a otworzył okno, ten je zamyka, a między nimi nie ma nic, co
+zamknęłoby je samo.
+
+**Kolejność, i to jest odstępstwo od planu warte nazwania:** włączenie idzie **PO** pushu commita
+fazy 5, nie przed. Powód jest ten sam, który stoi za krokiem 0a: push commita z tym zapisem jest
+także zdarzeniem `synchronize`, a warunek joba review (`pr-review.yml:105-108`) przy
+`synchronize` z tego samego repo jest spełniony bez żadnej etykiety. Włączenie przed pushem
+kupiłoby więc recenzję za ~0,64 USD za PROTOKÓŁ tej fazy — z budżetu, którego zostało ~0,73 USD.
+Plan mówił „po domknięciu wszystkich sond"; to jest to samo miejsce, tyle że policzone o jeden
+push dalej. Okno zamyka się w tej samej sesji i przed ogłoszeniem fazy za domkniętą, więc klasa
+z `lessons.md` („gwarancja, która przestała pilnować, a nikt tego nie widzi") się nie
+materializuje.
