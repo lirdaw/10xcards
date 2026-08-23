@@ -948,13 +948,13 @@ dokłada plik workflow — usunięcie go przywraca stan sprzed. Fazy 4-7 żyją 
 
 - [x] 3.1 `npm --prefix agents/review run typecheck` zielone lokalnie — 1bbbbe1
 - [x] 3.2 `npm --prefix agents/review run test` wykrywa i przechodzi wszystkie pliki testowe pakietu — 1bbbbe1
-- [x] 3.3 `agents-gate.yml` zielony na PR-ze
+- [x] 3.3 `agents-gate.yml` zielony na PR-ze — 3b674fd
 
 #### Manual
 
-- [x] 3.4 Para dowodowa na ścieżce CI: czerwień → poprawka → zieleń, oba numery przebiegów zapisane
-- [x] 3.5 Potwierdzone, że sondę da się wypchnąć zwykłym gitem, bez `--no-verify`
-- [x] 3.6 Potwierdzone, że przebieg wystartował z powodu filtra `paths`, a nie mimo niego
+- [x] 3.4 Para dowodowa na ścieżce CI: czerwień → poprawka → zieleń, oba numery przebiegów zapisane — 3b674fd
+- [x] 3.5 Potwierdzone, że sondę da się wypchnąć zwykłym gitem, bez `--no-verify` — 3b674fd
+- [x] 3.6 Potwierdzone, że przebieg wystartował z powodu filtra `paths`, a nie mimo niego — 3b674fd
 
 ### Phase 4: Szkielet promptfoo — provider, cennik, cache. Zero wywołań modelu
 
