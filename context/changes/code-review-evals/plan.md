@@ -919,14 +919,14 @@ dokłada plik workflow — usunięcie go przywraca stan sprzed. Fazy 4-7 żyją 
 
 #### Automated
 
-- [ ] 1.1 Nowy test przechodzi na niezmienionym `review.ts`
-- [ ] 1.2 `prompt.test.ts` nadal 6/6
-- [ ] 1.3 `git diff --stat` pokazuje wyłącznie nowy plik testu
+- [x] 1.1 Nowy test przechodzi na niezmienionym `review.ts`
+- [x] 1.2 `prompt.test.ts` nadal 6/6
+- [x] 1.3 `git diff --stat` pokazuje wyłącznie nowy plik testu
 
 #### Manual
 
-- [ ] 1.4 Każda asercja przeczytana obok `review.ts:78-209` i potwierdzona wobec action/workflow
-- [ ] 1.5 Kolejność efektów potwierdzona w pliku (cap → `model=` → klucz → env → stdin)
+- [x] 1.4 Każda asercja przeczytana obok `review.ts:78-209` i potwierdzona wobec action/workflow
+- [x] 1.5 Kolejność efektów potwierdzona w pliku (cap → `model=` → klucz → env → stdin)
 
 ### Phase 2: Ekstrakcja `runReview` i cienki wrapper CLI
 
