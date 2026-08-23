@@ -303,3 +303,52 @@ Nowy kontrakt jest pod siatką: `assertFailure` w `run-review.test.ts` asertuje 
 naraz — prefiks, `failure-kind=` w `$GITHUB_OUTPUT` i pole `kind` — dla każdej z czterech klas
 awarii, a przypadek „brak wiadomości `result`" asertuje, że pola NIE MA (bo tam klasy nie znamy
 i nie wolno jej zgadnąć).
+
+### Bramka na PR-ze: pierwsze podejście CZERWONE, i czerwień była prawdziwa (kryterium 4.4)
+
+| Przebieg                                                                   | Commit    | Wynik       | Gdzie padło                           |
+| -------------------------------------------------------------------------- | --------- | ----------- | ------------------------------------- |
+| [32630687994](https://github.com/lirdaw/10xcards/actions/runs/32630687994) | `1b311ce` | **failure** | `Install the agent package`, `npm ci` |
+
+Treść, dosłownie z loga:
+
+```
+npm error code EUSAGE
+npm error `npm ci` can only install packages when your package.json and package-lock.json
+npm error or npm-shrinkwrap.json are in sync. Please update your lock file with `npm install` before continuing.
+npm error
+npm error Missing: gcp-metadata@7.0.1 from lock file
+```
+
+**To jest defekt, którego żaden przebieg lokalny nie mógł zobaczyć — i dlatego warto go zapisać.**
+Lokalnie `npm ci` w `agents/review` przeszedł SZEŚĆ razy pod rząd (pomiar 4.6) i jeszcze raz przy
+weryfikacji. Różnicą nie jest system operacyjny, tylko **wersja npm**:
+
+| gdzie    | Node     | npm         | werdykt o tym samym locku |
+| -------- | -------- | ----------- | ------------------------- |
+| lokalnie | v24.18.0 | **11.16.0** | `npm ci` OK               |
+| CI       | v22.23.2 | **10.9.8**  | `npm ci` EUSAGE           |
+
+Mechanizm: `mongoose/node_modules/mongodb` deklaruje `gcp-metadata: ^7.0.1` jako zależność
+opcjonalną. **npm 11 przycina ten wpis z locka**, uznając go za niespełniony opcjonalny peer;
+**npm 10 uważa jego brak za rozjazd** między `package.json` a lockiem i odmawia instalacji. Lock
+wygenerowany nowszym npm jest więc dla starszego NIEKOMPLETNY — a ponieważ `npm install` biegnie
+tylko na maszynie autora, a `npm ci` tylko w CI, rozjazd nie ma jak ujawnić się przed pushem.
+
+Naprawa: lock zregenerowany **wersją npm z CI** (`npx npm@10.9.8 install`), co dokłada
+`node_modules/mongoose/node_modules/gcp-metadata@7.0.1`. Wybór kierunku nie jest dowolny — starszy
+npm czyta lock lockfileVersion 3 obu generacji, nowszy nie akceptuje braków, więc **lock generuje
+się wersją CI, nie lokalną**.
+
+Kontrola wykonana PRZED pushem poprawki, żeby drugie podejście nie było kolejnym zgadywaniem:
+
+| sprawdzenie                                               | wynik             |
+| --------------------------------------------------------- | ----------------- |
+| `npx npm@10.9.8 ci` na kopii locka poza repo (parytet CI) | **exit 0**        |
+| `npm ci` lokalnym npm 11.16.0                             | **exit 0**        |
+| `npm --prefix agents/review run typecheck`                | **exit 0**        |
+| `npm --prefix agents/review run test`                     | **exit 0**, 25/25 |
+
+Para dowodowa dla kryterium 4.4 jest więc mimowolna, ale pełna: **czerwień** (`1b311ce`, lock
+niespójny dla npm 10) → **poprawka** (regeneracja locka) → **zieleń**, przy zmianie dokładnie
+jednej rzeczy.
