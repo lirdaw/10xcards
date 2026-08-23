@@ -24,7 +24,7 @@ import type {
   SDKResultSuccess,
 } from "@anthropic-ai/claude-agent-sdk";
 import { CRITERIA } from "./review-schema.ts";
-import { runReview, type FailureKind, type QueryFn } from "./run-review.ts";
+import { isReviewFailure, runReview, type FailureKind, type QueryFn } from "./run-review.ts";
 
 const MODEL = "anthropic/claude-sonnet-4.6";
 /** Cap bez znaczenia dla tych przypadków — żaden z nich nie dochodzi do SDK. */
@@ -102,6 +102,15 @@ function validReviewOutput(): Record<string, unknown> {
 interface FailureObservation {
   /** Komunikat rzutu — to on, po sformatowaniu przez Node, wpada w grep z `pr-review.yml:529`. */
   readonly message: string;
+  /**
+   * `kind` odczytany z POLA na rzucie, nie z prefiksu komunikatu.
+   *
+   * To jest kanał DRUGIEGO konsumenta: provider evali woła `runReview` w tym samym procesie i bez
+   * tego pola musiałby wyłuskiwać `[kind]` z tekstu — czyli zbudować bramkę na TREŚCI komunikatu
+   * między dwoma plikami tego samego pakietu. Asercja obok tej na prefiks pilnuje, że oba kanały
+   * niosą TĘ SAMĄ wartość i nie mogą się rozjechać.
+   */
+  readonly structuralKind: FailureKind | undefined;
   /** Zawartość pliku po przebiegu BEZ `$GITHUB_OUTPUT` — dowód, że w evalu funkcja jest cicha. */
   readonly writtenWithoutGithubOutput: string;
   /** Zawartość TEGO SAMEGO pliku po następnym przebiegu, już Z podstawioną zmienną. */
@@ -129,27 +138,32 @@ async function observeFailure(
   writeFileSync(githubOutputPath, "", "utf8");
   const previous = process.env.GITHUB_OUTPUT;
 
-  const run = async (): Promise<string> => {
+  const run = async (): Promise<{ message: string; structuralKind: FailureKind | undefined }> => {
     try {
       await runReview(DIFF, { model: MODEL, maxBudgetUsd: MAX_BUDGET_USD, query: stubQuery(...messages) });
     } catch (err) {
-      return err instanceof Error ? err.message : String(err);
+      return {
+        message: err instanceof Error ? err.message : String(err),
+        structuralKind: isReviewFailure(err) ? err.kind : undefined,
+      };
     }
     assert.fail("runReview nie rzuciło — a ten przypadek jest ścieżką awarii");
   };
 
   try {
     delete process.env.GITHUB_OUTPUT;
-    const message = await run();
+    const { message, structuralKind } = await run();
     const writtenWithoutGithubOutput = readFileSync(githubOutputPath, "utf8");
 
     process.env.GITHUB_OUTPUT = githubOutputPath;
-    const messageWithGithubOutput = await run();
+    const withGithubOutput = await run();
     // Ten sam przypadek ma dawać ten sam komunikat niezależnie od obecności zmiennej CI.
-    assert.equal(messageWithGithubOutput, message, "komunikat rzutu zależy od $GITHUB_OUTPUT");
+    assert.equal(withGithubOutput.message, message, "komunikat rzutu zależy od $GITHUB_OUTPUT");
+    assert.equal(withGithubOutput.structuralKind, structuralKind, "pole `kind` zależy od $GITHUB_OUTPUT");
 
     return {
       message,
+      structuralKind,
       writtenWithoutGithubOutput,
       writtenWithGithubOutput: readFileSync(githubOutputPath, "utf8"),
     };
@@ -168,7 +182,9 @@ async function observeFailure(
  *     `grep -m1 -E '^[A-Za-z]*Error:'` z `pr-review.yml:529` i mówi czytelnikowi komentarza,
  *     czy zawiódł dostawca, czy kontrakt wyjścia;
  * (b) `$GITHUB_OUTPUT` dostaje DOKŁADNIE `failure-kind=<kind>\n` — ani bajtu więcej — a bez tej
- *     zmiennej nie dostaje niczego.
+ *     zmiennej nie dostaje niczego;
+ * (c) rzut niesie `kind` jako POLE, o tej samej wartości co prefiks — to jest kanał providera
+ *     evali, który woła tę funkcję w tym samym procesie i nie ma powodu czytać tekstu.
  */
 function assertFailure(observed: FailureObservation, kind: FailureKind, expectedPrefix: string): void {
   assert.ok(
@@ -177,6 +193,7 @@ function assertFailure(observed: FailureObservation, kind: FailureKind, expected
   );
   assert.equal(observed.writtenWithGithubOutput, `failure-kind=${kind}\n`);
   assert.equal(observed.writtenWithoutGithubOutput, "");
+  assert.equal(observed.structuralKind, kind, "rzut nie niesie `kind` jako pola — provider musiałby parsować tekst");
 }
 
 test("sukces: kontrakt dziewięciu ocen i dziewięciu not wraca sparsowany, metryki jako dane", async () => {
@@ -371,4 +388,8 @@ test("brak wiadomości `result` w strumieniu kończy się własnym rzutem", asyn
   // Bez `[kind]` i bez `failure-kind=` — świadomie: to nie jest awaria recenzji, tylko strumień,
   // który się skończył, nie mówiąc nic. Wrapper i tak zamienia to na kod wyjścia 1.
   assert.equal(thrown?.message, "Agent nie zwrócił wyniku");
+  // Ten sam brak po stronie POLA, i to też jest zamrożone: provider evali ma tu dostać `unknown`
+  // z własnej gałęzi, a nie zgadniętą klasę. Gdyby ktoś „dla porządku" dokleił tu `[unknown]`,
+  // zmieniłby przy okazji linię, którą czyta `pr-review.yml:529`.
+  assert.equal(isReviewFailure(thrown), false, "rzut bez klasy awarii udaje, że ją ma");
 });

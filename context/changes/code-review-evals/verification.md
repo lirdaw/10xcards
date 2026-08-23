@@ -94,7 +94,7 @@ działać.
 - Test położony w **podkatalogu** (`probe-dir/probe.test.ts`) został wykryty (`tests 18`)
   i zaczerwienił runner (`EXIT=1`) — ta sama gwarancja po stronie testów.
 
-### Koszt: `PR code review` anulowany na tym PR-ze, cztery razy
+### Koszt: `PR code review` anulowany na tym PR-ze, przy KAŻDYM pushu
 
 `pr-review.yml` nie ma filtra ścieżek i odpala się na `opened` i każdym `synchronize`, a jest
 przypięty do `anthropic/claude-sonnet-4.6`. Przefiltrowany diff tej gałęzi to 1391 linii /
@@ -104,8 +104,202 @@ fazy 6–7 potrzebują ~0,23 USD.
 
 Decyzja: przebiegi recenzji anulowane ręcznie zaraz po starcie, ZANIM dojdzie do wywołania
 modelu (instalacja pakietu agenta to ~335 MB i 1–2 minuty, więc okno jest szerokie).
-Anulowane: **32627834180** (`1bbbbe1`), **32627895581** (`de97385`), **32627937670** (`c4b2901`),
-**32628026747** (`070559a`) — cztery, po jednym na każdy push tej fazy.
+Anulowane w fazie 3: **32627834180** (`1bbbbe1`), **32627895581** (`de97385`),
+**32627937670** (`c4b2901`), **32628026747** (`070559a`), **32628170660** (`07fd32e`) — po jednym
+na każdy push. Reguła obowiązuje do końca zmiany: każdy kolejny push na tę gałąź odpala
+`synchronize`, więc każdy dostaje to samo anulowanie, a lista rośnie razem z fazami.
 `pr-review.yml` i composite action pozostają NIETKNIĘTE — kryterium 7.7 nie jest tym naruszone.
 Recenzja tego PR-a jest doradcza (nagłówek `pr-review.yml`: nie jest w `needs:`, nie jest
 required check), więc anulowanie nie zdejmuje żadnej bramki.
+
+## Phase 4 — Szkielet promptfoo: provider, cennik, cache. Zero wywołań modelu
+
+**Data**: 2026-08-23
+**PR**: [#48](https://github.com/lirdaw/10xcards/pull/48) (ta sama gałąź co faza 3)
+
+### Zużycie klucza: NIEZMIENIONE (kryterium 4.7)
+
+Odczyt `/api/v1/key` przed fazą i po niej, co do dziewiątego miejsca po przecinku:
+
+| moment     | `usage`         |
+| ---------- | --------------- |
+| przed fazą | **0,856216627** |
+| po fazie   | **0,856216627** |
+
+Cały szkielet — provider, cennik, cache, testy, dwa przebiegi `promptfoo eval` — powstał i został
+sprawdzony **bez ani jednego wywołania modelu**. Delta wynosi dokładnie zero, nie „w granicach
+szumu".
+
+> ⚑ **Ta liczba nie zgadza się z zapisem w `requirements.md`** i jest to ustalenie tej fazy, nie
+> literówka. Po Pomiarze II zapisano zużycie **0,5452 USD**; dziś, przed dotknięciem czegokolwiek
+> w fazie 4, klucz stoi na **0,8562 USD** — czyli **+0,3110 USD** przybyło POMIĘDZY tamtym odczytem
+> a startem tej fazy. Wszystkie pięć przebiegów `PR code review` z fazy 3 zostało anulowanych po
+> 10–63 s (potwierdzone w `gh run list`: pięć razy `cancelled`), czyli przed instalacją pakietu —
+> więc nie one. Najprawdopodobniejsze wyjaśnienie to opóźnienie księgowania po stronie OpenRoutera,
+> zapisane jako zastrzeżenie już w samym Pomiarze II („okno gemini zamknęło się na niezmienionej
+> wartości"); kwota 0,3110 jest przy tym uderzająco bliska sumie trzech przebiegów Pomiaru II
+> (0,3104). Rozstrzygnąć się tego nie da: `/api/v1/activity` wymaga klucza zarządzającego
+> (`403: Only management keys can fetch activity`), a innego rozbicia OpenRouter nie udostępnia.
+>
+> **Konsekwencja dla budżetu jest realna i nie znika przez to, że przyczyna jest niepewna.** Jeżeli
+> licznik klucza jest miarą wydatku tego zadania, to wydano ~0,86 USD z 1 USD, a nie ~0,50 — czyli
+> na fazy 6–7 (~0,23 USD) zostaje ~0,14 USD, mniej niż potrzeba. Wymaganie 1 mówi w tej sytuacji
+> „zatrzymać się i wrócić z liczbami", a nie „dopłacić" — więc **przed fazą 6 ta rozbieżność musi
+> zostać rozstrzygnięta z człowiekiem**, a nie obejść.
+
+### `npm ci` przed i po dodaniu promptfoo (kryterium 4.6)
+
+Trzy przebiegi na komplet, ciepły cache npm, ten sam katalog (`agents/review`), Windows, Node
+v24.18.0. Mediana z trzech:
+
+| stan            | przebiegi (ms)           | **mediana**   | `node_modules` |
+| --------------- | ------------------------ | ------------- | -------------- |
+| przed promptfoo | 9 795 / 3 501 / 14 386   | **9 795 ms**  | 390 MB         |
+| po promptfoo    | 71 035 / 72 861 / 73 092 | **72 861 ms** | **2,1 GB**     |
+
+**Wzrost mediany: +63 066 ms (+644%).** Próg z planu to „≥ 15 s LUB ≥ 25%" — przekroczony
+czterokrotnie na osi sekundowej i dwudziestopięciokrotnie na procentowej. Nie jest to przypadek
+graniczny wymagający interpretacji.
+
+Rozrzut bazowy w tym pomiarze jest duży (3,5–14,4 s, czyli 4×), więc powtórzyłem go **czysto**:
+kopia ZACOMMITOWANEGO `package.json` + locka (`git show HEAD:…`) i kopia stanu obecnego, każda
+w osobnym katalogu tymczasowym poza repo — ten sam warunek startowy, bez zastanego `node_modules`
+i bez narzutu katalogu synchronizowanego w chmurze:
+
+| stan (katalog izolowany) | przebiegi (ms)           | **mediana**   | `node_modules` |
+| ------------------------ | ------------------------ | ------------- | -------------- |
+| przed promptfoo          | 4 147 / 5 758 / 6 102    | **5 758 ms**  | 392 MB         |
+| po promptfoo             | 19 205 / 44 382 / 38 302 | **38 302 ms** | **2 099 MB**   |
+
+**Wzrost mediany: +32 544 ms (+565%).** Oba pomiary — w repo i izolowany — dają tę samą odpowiedź,
+różniąc się wyłącznie skalą (+644% wobec +565%). Rozstrzygające jest to, że przedziały się NIE
+STYKAJĄ: **najszybszy przebieg „po" (19,2 s) jest o 13,1 s wolniejszy od najwolniejszego „przed"
+(6,1 s)**, więc wniosek nie zależy od tego, którą miarę położenia się wybierze ani jak szeroki
+jest rozrzut. Katalog rozrasta się 5,4× i to jest liczba niezależna od zegara.
+
+**DECYZJA: fallback TAK.** `tsx` → `dependencies` + `npm ci --omit=dev` w
+`.github/actions/review-agent/action.yml` zostaje otwarty jako **OSOBNA zmiana z własną parą
+dowodową, przed zarchiwizowaniem tej** — zgodnie z warunkiem z planu (faza 4 §1). Nie robimy tego
+tutaj: to produkcyjna ścieżka CI, a pierwszy dowód, że nie zepsuła review, przyszedłby na cudzym
+PR-ze.
+
+Ustalenie, które tamtej zmianie oszczędzi połowy pracy: **ciężar siedzi w `optionalDependencies`
+promptfoo, nie w jego własnym kodzie.** Najwięksi pasażerowie: `@openai` 407 MB, `@anthropic-ai`
+330 MB, sam `promptfoo` 296 MB, `onnxruntime-node` 211 MB, `onnxruntime-web` 133 MB. promptfoo
+deklaruje 80 zależności zwykłych i **42 opcjonalne**, a wśród tych ostatnich
+`@playwright/browser-chromium`, `@huggingface/transformers`, `sharp` i `@swc/core`.
+`npm ci --omit=optional` jest więc drugą dźwignią obok `--omit=dev` i warto ją zmierzyć obok niej.
+
+### Probe mutacyjny cache'u — WYKONANY, czerwień dokładnie tam, gdzie miała być (kryterium 4.5)
+
+Mutacja: `cellCacheKey` w `agents/review/evals/cache.ts` przestaje uwzględniać odcisk promptu.
+
+```diff
+-  return `review-eval:${CACHE_FORMAT_VERSION}:${model}:${sha256(fixture)}:${promptFingerprint}`;
++  void promptFingerprint; // PROBE MUTACYJNY
++  return `review-eval:${CACHE_FORMAT_VERSION}:${model}:${sha256(fixture)}`;
+```
+
+Wynik `npm --prefix agents/review run test` pod mutacją: **exit 1, 24 pass / 1 fail** — i tym
+jednym failem jest przypadek (ii), czyli dokładnie ten, którego probe dotyczy. Treść czerwieni,
+dosłownie:
+
+```
+AssertionError [ERR_ASSERTION]: zmieniony prompt TRAFIŁ w cache — nieświeży wynik zostałby podany jako zielona bramka
+
+true !== false
+
+    at .../agents/review/evals/cache.test.ts:190:14
+```
+
+Warunek, który czyni to KONTROLĄ, a nie zbiorem czerwieni, jest spełniony: mutacja zaczerwieniła
+**swoją** asercję i **tylko** ją — przypadki (i) oraz (iii)–(viii), a także wszystkie 17 testów
+pozostałych plików, przeszły. Po cofnięciu mutacji: **exit 0, 25/25**.
+
+### Trzy rzeczy, które ta faza ZMIERZYŁA zamiast założyć
+
+**1. promptfoo NIE rozwija `file://` w `vars` dla rozszerzenia `.diff` — i robi to po cichu.**
+Pierwsza wersja konfiguracji miała `vars: { diff: file://../sample.diff }`, zgodnie z dokumentacją
+o referencjach plikowych. Odczyt wyniku przebiegu (`--output out.json`) pokazał, że do providera
+trafia **string o długości 21 znaków**: `"file://..\sample.diff"`. Źródło rozstrzyga sprawę:
+`loadFileReference` w `promptfoo/dist/src/providers-BPravRNA.js` obsługuje `.json`, `.yaml`/`.yml`,
+pliki JS/TS, `.py`, `.txt`, `.md` oraz brak rozszerzenia, a dla każdego innego rzuca
+`Unsupported file extension` — ścieżka ładowania zmiennych ten rzut połyka i zostawia tekst.
+
+Gdyby to weszło na przebieg za pieniądze, **model recenzowałby ŚCIEŻKĘ**: zwróciłby poprawny
+dwudziestopolowy kontrakt, sensownie wyglądający werdykt i zielone asercje — nad materiałem,
+którego nikt nie przeczytał. Defekt jest cichy po obu stronach: promptfoo nie zgłasza błędu,
+a agent nie ma jak zauważyć, że dostał ścieżkę zamiast diffa. Naprawione zmianą kontraktu zmiennej
+(`diffPath` = zwykła ścieżka względem `agents/review/`, rozwijana przez provider) plus **twardą
+odmową na wartość zaczynającą się od `file://`**, z komunikatem nazywającym przyczynę. Pokryte
+przypadkami (vi)–(viii) — w tym oraklem na DŁUGOŚĆ wczytanej treści, bo asercja „zaczyna się od
+`diff --git`" przeszłaby także dla nierozwiniętej referencji, gdyby ktoś ją tak nazwał.
+
+**2. Rekonstrukcja kosztu z cennika zgadza się z rachunkiem — ale tylko przy DWÓCH turach.**
+Plan zapisał ją jako potwierdzoną („gemini 0,026 wobec 0,032; haiku 0,083 wobec 0,085"). Przeliczenie
+na stawkach odczytanych dziś z `https://openrouter.ai/api/v1/models` daje obraz ostrzejszy:
+
+| przebieg (z `measurement-cheap-models.md`) | tury | policzone | rachunek OpenRoutera | iloraz   |
+| ------------------------------------------ | ---- | --------- | -------------------- | -------- |
+| haiku-4.5 (Pomiar II)                      | 2    | 0,082941  | 0,084648             | 0,98     |
+| sonnet-4.6 (Pomiar II)                     | 2    | 0,188797  | 0,193523             | 0,98     |
+| gemini-2.5-flash (Pomiar I, przebieg 5)    | 2    | 0,013508  | 0,012074             | 1,12     |
+| gemini-2.5-flash (Pomiar II)               | 3    | 0,017300  | 0,032321             | **0,54** |
+
+Trzy pierwsze mieszczą się w ±12%, czwarty myli się prawie dwukrotnie — i różni się od nich
+**wyłącznie liczbą tur**. Wyjaśnienie jest w samym Pomiarze I: `usage` pochodzi z OSTATNIEJ
+wiadomości SDK, nie z sumy po turach, więc przy `numTurns > 2` liczniki nie obejmują całego
+przebiegu. Konsekwencja zapisana w kodzie (`pricing.ts`) i przenoszona do raportu z fazy 5:
+**kwota jest DOLNYM oszacowaniem, gdy `numTurns > 2`**, a `numTurns` ma stać w tabeli obok kwoty.
+Świadomie NIE korygujemy tego współczynnikiem — dopasowanie do jednego punktu byłoby zgadywaniem
+udającym pomiar.
+
+**3. Literalny bajt NUL w źródle czyni plik binarnym dla gita.**
+`fingerprintPrompt` łączy prompt i schemat separatorem, którego nie może zawierać żaden z nich —
+i separator ten wylądował w pliku jako **literalny bajt NUL**. `grep` zaczął odpowiadać
+`Binary file evals/cache.ts matches`, a git przestałby pokazywać diff tego pliku. Wykryte
+skanowaniem bajtów wszystkich nowych plików, nie przypadkiem. Naprawione zapisem escape'owym
+(`"\u0000"`) — wartość odcisku bez zmiany, źródło znów tekstowe. Skan powtórzony na komplecie
+plików fazy: zero znaków sterujących, a `git diff --numstat` liczy linie (a nie `-`) dla każdego
+z nich.
+
+### Bramki lokalne
+
+| komenda                                    | wynik                                       |
+| ------------------------------------------ | ------------------------------------------- |
+| `npm --prefix agents/review run typecheck` | **exit 0** (nowe pliki `evals/` w zakresie) |
+| `npm --prefix agents/review run test`      | **exit 0**, `tests 25 / pass 25 / fail 0`   |
+| `npm run eval` bez `ANTHROPIC_AUTH_TOKEN`  | **exit 100**, `1 error (100%)`              |
+
+Odmowa bez klucza, dosłownie z tabeli przebiegu:
+
+```
+[ERROR] [config] Brak ANTHROPIC_AUTH_TOKEN — zestaw evali NIE wykonał wywołania.
+Zmapuj klucz na jedno uruchomienie, np. `ANTHROPIC_AUTH_TOKEN=$OPENROUTER_REVIEW_KEY npm run eval`.
+```
+
+To jest odmowa **z właściwego powodu**: komunikat mówi o kluczu, a nie o fiksturze — czyli
+`diffPath` rozwinął się poprawnie i zatrzymała dopiero bramka poświadczeń. Gdyby fikstura nie
+dojechała, w tym samym miejscu stałby komunikat `[config]` o `diffPath`, a kryterium 4.3
+zaliczyłoby się z niewłaściwego powodu.
+
+Liczba testów pakietu rośnie 17 → 25: osiem nowych przypadków w `evals/cache.test.ts`.
+
+### Dwa odstępstwa od planu, oba zapisane jako decyzje
+
+**(a) `promptfooconfig.yaml` powstaje w fazie 4, nie w fazie 5.** Plan wymienia go jako nowy plik
+fazy 5, ale kryterium 4.3 mówi o „uruchomieniu ZESTAWU" bez klucza — a bez konfiguracji nie ma
+czego uruchomić i kryterium spełniałoby się na atrapie, nie na zestawie. Powstała wersja MINIMALNA
+(jeden provider, jedna fikstura, zero asercji), którą faza 5 rozwija do macierzy 2×2; nagłówek
+pliku mówi to wprost. Zakres fazy 5 się przez to nie zmniejsza — zmienia się „utwórz" na „rozszerz".
+
+**(b) `run-review.ts` (plik fazy 2) dostaje pole `kind` na rzucie.** Plan wymaga, żeby provider
+wyciągał `FailureKind` „nie parsowaną z tekstu ponownie" — a bez nośnika strukturalnego jedyną
+drogą byłoby wyłuskanie `[kind]` z `err.message`, czyli bramka na TREŚCI między dwoma plikami tego
+samego pakietu. Dodane: `ReviewFailure`, `isReviewFailure`, prywatna fabryka `reviewFailure`.
+**Kształt rzutu nie zmienia się o bajt**: prototypem zostaje `Error` (żadnej podklasy — `ReviewError:`
+zmieniłoby linię czytaną przez `pr-review.yml:529`), a prefiks `[kind]` w komunikacie zostaje.
+Nowy kontrakt jest pod siatką: `assertFailure` w `run-review.test.ts` asertuje teraz TRZY rzeczy
+naraz — prefiks, `failure-kind=` w `$GITHUB_OUTPUT` i pole `kind` — dla każdej z czterech klas
+awarii, a przypadek „brak wiadomości `result`" asertuje, że pola NIE MA (bo tam klasy nie znamy
+i nie wolno jej zgadnąć).

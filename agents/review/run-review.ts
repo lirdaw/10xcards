@@ -96,6 +96,36 @@ export function resolveMaxBudgetUsd(raw: string | undefined): MaxBudgetResolutio
  */
 export type FailureKind = "budget" | "provider" | "contract" | "unknown";
 
+/**
+ * Rzut recenzji niesie `FailureKind` STRUKTURALNIE, obok komunikatu — nie zamiast niego.
+ *
+ * Powód jest jeden i pochodzi od drugiego konsumenta tej funkcji. CI czyta rodzaj awarii z tekstu,
+ * bo jego kanałem jest stderr i nic innego mieć nie może: `pr-review.yml:529` wyciąga powód przez
+ * `grep -m1 -E '^[A-Za-z]*Error:'`. Provider evali woła tę funkcję W TYM SAMYM PROCESIE i gdyby
+ * wyłuskiwał `[kind]` z `err.message`, zbudowałby bramkę na TREŚCI komunikatu (`lessons.md`:
+ * „Wartość kontraktowa … nigdy nie trafia do promptu" ma tę samą oś — jedna wartość, jedna rola)
+ * między dwoma plikami tego samego pakietu. Pole załatwia to bez ani jednego parsowania.
+ *
+ * **Kształt rzutu nie zmienia się o bajt** i to jest tu warunek, nie uwaga: prototypem zostaje
+ * `Error` (żadnej podklasy), więc unhandled rejection nadal drukuje `Error: [kind] …` — dokładnie
+ * tę linię, którą tamten `grep` czyta i której kształt zmierzono na przebiegu 32534464639.
+ * Podklasa nazwałaby tę linię inaczej (`ReviewError:`) i zmieniłaby treść komentarza na publicznym
+ * PR-ze, mimo że sam regex by ją jeszcze złapał.
+ */
+export interface ReviewFailure extends Error {
+  readonly kind: FailureKind;
+}
+
+/** Strażnik dla drugiego konsumenta: rzut BEZ pola `kind` istnieje i nie wolno go udawać. */
+export function isReviewFailure(err: unknown): err is ReviewFailure {
+  return err instanceof Error && typeof (err as { kind?: unknown }).kind === "string";
+}
+
+/** Jedyne miejsce, które składa rzut recenzji — żeby prefiks i pole nie mogły się rozjechać. */
+function reviewFailure(kind: FailureKind, detail: string): ReviewFailure {
+  return Object.assign(new Error(`[${kind}] ${detail}`), { kind });
+}
+
 /** Rozpoznanie po faktach STRUKTURALNYCH tam, gdzie SDK je daje; po tekście tylko tam, gdzie nie daje. */
 export function classifyFailure(
   subtype: string,
@@ -233,7 +263,7 @@ export async function runReview(
       const parsed = REVIEW_SCHEMA.safeParse(message.structured_output);
       if (!parsed.success) {
         reportFailureKind("contract");
-        throw new Error(`[contract] Niepoprawny structured output: ${parsed.error.message}`);
+        throw reviewFailure("contract", `Niepoprawny structured output: ${parsed.error.message}`);
       }
 
       // Metryki jako DANE — surowe wartości z SDK, łącznie z ich brakiem. Podstawienie tutaj
@@ -262,11 +292,17 @@ export async function runReview(
     const detail = "result" in message ? message.result : message.errors.join("; ");
     const kind = classifyFailure(message.subtype, message.terminal_reason, detail);
     reportFailureKind(kind);
-    throw new Error(
-      `[${kind}] Review nie powiodło się (subtype: ${message.subtype}, is_error: ${message.is_error}, ` +
+    throw reviewFailure(
+      kind,
+      `Review nie powiodło się (subtype: ${message.subtype}, is_error: ${message.is_error}, ` +
         `terminal_reason: ${message.terminal_reason ?? "n/d"}): ${detail || "brak szczegółów"}`,
     );
   }
 
+  // Jedyny rzut tej funkcji BEZ `FailureKind` — i zostaje bez niego świadomie. Dorobienie prefiksu
+  // zmieniłoby linię, którą czyta `pr-review.yml:529`, a zgadnięcie klasy („na pewno provider")
+  // jest dokładnie tym mylącym przypisaniem, które `FailureKind` ma likwidować: strumień skończył
+  // się bez wiadomości `result`, więc nie wiemy, kto zawiódł. Drugi konsument ma na to `unknown`
+  // przez `isReviewFailure` zwracające `false`.
   throw new Error("Agent nie zwrócił wyniku");
 }

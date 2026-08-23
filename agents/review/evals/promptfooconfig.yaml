@@ -1,0 +1,41 @@
+# Zestaw evali agenta code review.
+#
+# W TEJ FAZIE (4 — szkielet) konfiguracja jest MINIMALNA: jeden provider, jedna fikstura, zero
+# asercji. Istnieje po to, żeby `npm --prefix agents/review run eval` dało się w ogóle uruchomić —
+# a bez tego kryterium „uruchomienie zestawu bez klucza kończy się czytelną odmową" nie da się
+# sprawdzić na zestawie, tylko na atrapie. Macierz 2×2, druga fikstura i asercje wchodzą w fazie 5.
+#
+# ⚑ Diff jedzie przez `vars`, NIE przez prompt. Prompt tej macierzy jest ZNACZNIKIEM fikstury i ma
+# nim zostać: materiał trafia do modelu dopiero przez `wrapDiff` wewnątrz `runReview`, czyli z tym
+# samym noncem i tą samą obroną, co na PR-ze. Wklejenie `{{diff}}` do prompta niczego by nie
+# naprawiło, a zaśmieciłoby tabelę półtorakilobajtowym diffem w kolumnie prompta.
+#
+# ⚑ `diffPath` to ZWYKŁA ścieżka względem `agents/review/`, nigdy `file://` — i to jest pomiar,
+# nie preferencja. `loadFileReference` w promptfoo rozwija `file://` w `vars` dla `.json`, `.yaml`,
+# `.js`/`.ts`, `.py`, `.txt`, `.md` i plików bez rozszerzenia; dla `.diff` przepuszcza ścieżkę jako
+# TEKST — sprawdzone na tej konfiguracji: do providera trafił string `"file://..\sample.diff"`
+# (21 znaków), czyli model recenzowałby ścieżkę i zwracał poprawny kontrakt nad niczym. Provider
+# odmawia teraz przy wartości zaczynającej się od `file://`, więc ta pomyłka nie może być cicha.
+
+description: Code review agent — matrix over cheap models
+
+prompts:
+  - "fikstura: {{fixture}}"
+
+providers:
+  - id: file://provider.ts
+    label: haiku-4.5
+    config:
+      model: anthropic/claude-haiku-4.5
+      # Bezpiecznik od patologii, NIE bramka kosztowa: SDK liczy go z cennika Anthropica, w którym
+      # identyfikatorów OpenRoutera nie ma. 0,60 leży POWYŻEJ najgorszego zimnego przebiegu (0,4530
+      # wg licznika SDK) — cap ustawiony niżej produkuje bramkę flaky, w której „model przestał
+      # łapać klasę błędu" jest nieodróżnialne od „cache był zimny". Bramką kosztową jest
+      # `pricing.ts` liczący tokeny × cennik OpenRoutera.
+      maxBudgetUsd: 0.6
+
+tests:
+  - description: sample.diff — agent nadal widzi ten diff jako zły
+    vars:
+      fixture: sample.diff
+      diffPath: sample.diff

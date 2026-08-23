@@ -960,16 +960,16 @@ dokłada plik workflow — usunięcie go przywraca stan sprzed. Fazy 4-7 żyją 
 
 #### Automated
 
-- [ ] 4.1 `typecheck` zielony z nowymi plikami w zakresie
-- [ ] 4.2 Testy cache'u zielone
-- [ ] 4.3 Uruchomienie bez klucza kończy się czytelną odmową, nie próbą wywołania
+- [x] 4.1 `typecheck` zielony z nowymi plikami w zakresie
+- [x] 4.2 Testy cache'u zielone
+- [x] 4.3 Uruchomienie bez klucza kończy się czytelną odmową, nie próbą wywołania
 - [ ] 4.4 `agents-gate.yml` zielony na PR-ze z tymi plikami
 
 #### Manual
 
-- [ ] 4.5 Probe mutacyjny wykonany: klucz bez hasha promptu → przypadek (ii) czerwony, wynik zapisany
-- [ ] 4.6 Mediana `npm ci` przed/po zmierzona, liczba wpisana obok progu, decyzja o fallbacku podjęta
-- [ ] 4.7 Zużycie klucza niezmienione (odczyt `/api/v1/key` przed fazą i po)
+- [x] 4.5 Probe mutacyjny wykonany: klucz bez hasha promptu → przypadek (ii) czerwony, wynik zapisany
+- [x] 4.6 Mediana `npm ci` przed/po zmierzona, liczba wpisana obok progu, decyzja o fallbacku podjęta
+- [x] 4.7 Zużycie klucza niezmienione (odczyt `/api/v1/key` przed fazą i po)
 
 ### Phase 5: Fikstury, macierz i asercje
 
