@@ -23,57 +23,39 @@ import { readFileSync } from "node:fs";
 import {
   RECORD_PATH,
   RECORD_RELATIVE_PATH,
-  REFRESH_COMMAND,
   compareVerdictConfig,
   liveVerdictConfig,
+  recordedVerdictConfig,
   remedyFor,
   VERDICT_CONFIG_FIELDS,
+  type RecordedConfig,
 } from "./verdict-config.ts";
 
-const MISSING_RECORD = [
-  `Brak dowodu evali: ${RECORD_RELATIVE_PATH} nie istnieje albo jest nieczytelny.`,
-  "",
-  "Ta połowa zapadki pilnuje wyłącznie bloku `verdictConfig`, więc bez pliku nie ma czego",
-  "porównać. Plik wytwarza PRZEJŚCIE MACIERZY (to kosztuje), a ten blok dopisuje się osobno",
-  `i za darmo: ${REFRESH_COMMAND}`,
-].join("\n");
-
-const MISSING_BLOCK = [
-  `Dowód ${RECORD_RELATIVE_PATH} istnieje, ale NIE MA w nim bloku \`verdictConfig\`.`,
-  "",
-  "To jest stan po pierwszym `--record`: zapisywacz agencki tworzy plik i CELOWO nie dotyka",
-  "cudzego bloku. Druga połowa dowodu dopisuje się osobno i NIE KOSZTUJE:",
-  `  ${REFRESH_COMMAND}`,
-  "",
-  "Sam krok zapisujący niczego nie sprawdza — zapisze zgodę na próg, którego nikt nie przeczytał.",
-].join("\n");
-
-/** Blok `verdictConfig` z rekordu, albo NAZWANY powód, dla którego go nie ma. */
-function readRecordedConfig(): { ok: true; value: Record<string, unknown> } | { ok: false; message: string } {
+/**
+ * Odczyt pliku. Tylko I/O — który stan zaszedł i co z nim zrobić, rozstrzyga
+ * `recordedVerdictConfig` w rdzeniu, żeby dało się to przetestować bez uruchamiania skryptu.
+ *
+ * Nieudany `JSON.parse` i nieudany `readFileSync` schodzą się w `undefined` celowo: dla tej połowy
+ * zapadki „pliku nie ma" i „pliku nie da się przeczytać" mają JEDNO remedium, a rozdzielanie ich
+ * dałoby dwa komunikaty prowadzące do tej samej komendy.
+ */
+function readRecordedConfig(): RecordedConfig {
   let parsed: unknown;
   try {
     parsed = JSON.parse(readFileSync(RECORD_PATH, "utf8"));
   } catch {
-    return { ok: false, message: MISSING_RECORD };
+    parsed = undefined;
   }
-
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    return { ok: false, message: MISSING_RECORD };
-  }
-
-  const block = (parsed as Record<string, unknown>).verdictConfig;
-  if (typeof block !== "object" || block === null || Array.isArray(block)) {
-    return { ok: false, message: MISSING_BLOCK };
-  }
-  return { ok: true, value: block as Record<string, unknown> };
+  return recordedVerdictConfig(parsed);
 }
 
 function main(): number {
   const recorded = readRecordedConfig();
   if (!recorded.ok) {
-    console.error(
-      `::error file=${RECORD_RELATIVE_PATH},title=Brak bloku verdictConfig w dowodzie::${recorded.message}`,
-    );
+    // Tytuł idzie ZA rozstrzygniętym stanem, nie jest jeden na oba: „brak bloku" nad brakującym
+    // PLIKIEM wysyłałby po darmową komendę tam, gdzie remedium jest płatne.
+    const title = recorded.reason === "missingRecord" ? "Brak dowodu evali" : "Brak bloku verdictConfig w dowodzie";
+    console.error(`::error file=${RECORD_RELATIVE_PATH},title=${title}::${recorded.message}`);
     return 1;
   }
 

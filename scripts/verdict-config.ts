@@ -290,3 +290,56 @@ export function withVerdictConfig(existing: unknown, config: VerdictConfig): Rec
     ...unknownKeys,
   };
 }
+
+// ---------------------------------------------------------------------------------------------
+// Decyzja „czy w tym rekordzie w ogóle jest co porównywać".
+//
+// ⚑ Mieszka W RDZENIU, a nie w runnerze, i to jest poprawka po impl-review: obie te odpowiedzi są
+// DECYZJAMI (który stan zaszedł i co człowiek ma z nim zrobić), a ten moduł jest miejscem, w którym
+// ten projekt trzyma decyzje — `check-*.ts` ma zostać przy I/O i kodzie wyjścia. Dopóki siedziały
+// w runnerze, nie dało się ich przetestować bez uruchamiania skryptu, więc nikt ich nie testował,
+// a runner wykonuje `main()` w module scope. Wejściem jest tu WYNIK odczytu (`unknown` albo
+// `undefined` = pliku nie ma / nie da się sparsować), nigdy sam plik — `fs` zostaje po tamtej stronie.
+// ---------------------------------------------------------------------------------------------
+
+/** Odczytany blok `verdictConfig`, albo NAZWANY powód, dla którego go nie ma. */
+export type RecordedConfig =
+  | { readonly ok: true; readonly value: Readonly<Record<string, unknown>> }
+  | { readonly ok: false; readonly reason: "missingRecord" | "missingBlock"; readonly message: string };
+
+/** Dowodu nie ma wcale — remedium jest PŁATNE, bo plik wytwarza przejście macierzy. */
+export const MISSING_RECORD_MESSAGE = [
+  `Brak dowodu evali: ${RECORD_RELATIVE_PATH} nie istnieje albo jest nieczytelny.`,
+  "",
+  "Ta połowa zapadki pilnuje wyłącznie bloku `verdictConfig`, więc bez pliku nie ma czego",
+  "porównać. Plik wytwarza PRZEJŚCIE MACIERZY (to kosztuje), a ten blok dopisuje się osobno",
+  `i za darmo: ${REFRESH_COMMAND}`,
+].join("\n");
+
+/** Dowód jest, brakuje CUDZEJ połowy — remedium jest DARMOWE i to musi paść wprost. */
+export const MISSING_BLOCK_MESSAGE = [
+  `Dowód ${RECORD_RELATIVE_PATH} istnieje, ale NIE MA w nim bloku \`verdictConfig\`.`,
+  "",
+  "To jest stan po pierwszym `--record`: zapisywacz agencki tworzy plik i CELOWO nie dotyka",
+  "cudzego bloku. Druga połowa dowodu dopisuje się osobno i NIE KOSZTUJE:",
+  `  ${REFRESH_COMMAND}`,
+  "",
+  "Sam krok zapisujący niczego nie sprawdza — zapisze zgodę na próg, którego nikt nie przeczytał.",
+].join("\n");
+
+/**
+ * Rozstrzyga trzy stany rekordu: nie ma pliku / jest bez bloku / jest z blokiem.
+ *
+ * Rozdzielenie dwóch pierwszych jest treścią, nie kosmetyką: pierwszy stan ma remedium PŁATNE,
+ * drugi DARMOWE, a zlanie ich w jedno „coś nie tak z dowodem" wysłałoby człowieka po pieniądze
+ * tam, gdzie wystarczy jedna darmowa komenda.
+ */
+export function recordedVerdictConfig(parsed: unknown): RecordedConfig {
+  const record = asRecord(parsed);
+  if (!record) return { ok: false, reason: "missingRecord", message: MISSING_RECORD_MESSAGE };
+
+  const block = asRecord(record.verdictConfig);
+  if (!block) return { ok: false, reason: "missingBlock", message: MISSING_BLOCK_MESSAGE };
+
+  return { ok: true, value: block };
+}
