@@ -283,7 +283,8 @@ jobs:
             ':(exclude)**/package-lock.json' \
             ':(exclude)src/db/database.types.ts' \
             ':(exclude)agents/review/criteria.json' \
-            ':(exclude)agents/review/prompt-sources.json' > "$DIFF_PATH"
+            ':(exclude)agents/review/prompt-sources.json' \
+            ':(exclude)agents/review/evals/eval-record.json' > "$DIFF_PATH"
 
           # FOUR input states, decided here by logic — by comparing the filtered diff with the
           # unfiltered one and by measuring it — never by prose:

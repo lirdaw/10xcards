@@ -1,0 +1,105 @@
+name: Eval ratchet
+
+# Zapadka na DOWODZIE, nie uruchamianie macierzy. Ten workflow sprawdza wyłącznie, czy w drzewie
+# leży AKTUALNY wynik ręcznego przejścia zestawu evali agenta review — i **nie woła modelu ani
+# razu**. Macierz odpala człowiek, lokalnie, za pieniądze.
+#
+# Wymaganie „koszt bramki w CI = 0 USD" jest tu sprawdzalne WZROKOWO i dokładnie przez jeden fakt:
+# w całym pliku nie ma ŻADNEGO `env:` z sekretem. Krok bez sekretu nie może wydać pieniędzy nawet
+# przez pomyłkę — i to jest mocniejsza gwarancja niż czyjakolwiek czujność.
+#
+# ── DLACZEGO OSOBNY PLIK ────────────────────────────────────────────────────────────────────────
+# `prompt-ratchet.yml` odpada, mimo że pilnuje sąsiedniej rzeczy: bezzależnościowość jest tym, co
+# tamten plik deklaruje o sobie jako powód swojego kształtu, a ta zapadka MA zależności runtime
+# (odcisk wywołania ciągnie `zod` i SDK agenta). Ta sama reguła jest zapisana o dwa pliki dalej —
+# `agents-gate.yml`: „testy, które zależności MAJĄ, dostają dlatego inny job".
+#
+# `agents-gate.yml` odpada NIEPOPRAWNOŚCIĄ, nie gorszością: jego filtr `paths: ["agents/**", …]`
+# nie sięga `scripts/review-verdict.ts`, a skoro próg werdyktu wchodzi do dowodu, zapadka
+# milczałaby dokładnie na pull requeście zmieniającym próg.
+#
+# ── DLACZEGO BEZ `paths` I BEZ `paths-ignore` ──────────────────────────────────────────────────
+# Ta sama decyzja co w `prompt-ratchet.yml` i z tego samego powodu. Pilnowane wejścia leżą po OBU
+# stronach granicy `agents/` ↔ `scripts/`, więc każdy filtr, który dziś je obejmuje, zestarzeje
+# się CICHO przy pierwszym nowym wejściu. `paths-ignore` filtruje przy tym cały WORKFLOW, nie job,
+# więc dopisanie tego do istniejącego pliku nie dałoby się uratować warunkiem na jobie.
+# Cena to ~38 s wall-clocku na pull request; repozytorium jest publiczne, a standardowe runnery są
+# darmowe — to jest cena, nie problem.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Tylko odczyt. Ten job ogląda pliki i raportuje; nic więcej nie jest mu do niczego potrzebne.
+permissions:
+  contents: read
+
+concurrency:
+  group: eval-ratchet-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# KAŻDY nowy plik workflow w tym repo dostaje to na starcie — jedno miejsce zamiast pamiętania
+# o `pipefail` przy każdej rurze z osobna (lekcja „Gwarancja w workflow należy do konfiguracji
+# PLIKU, nie do czujności autora").
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ratchet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      # PRZED krokiem bezzależnościowym, i to nie jest niuans, tylko warunek jego działania:
+      # `node --experimental-strip-types` wymaga Node ≥ 22.6, a przed `setup-node` biegnie Node
+      # preinstalowany w obrazie `ubuntu-latest`, którego to repo nie pinuje NIGDZIE. Oszczędność,
+      # o którą chodzi w kolejności kroków niżej, siedzi w `npm ci` (~38 s), nie w `setup-node`
+      # (sekundy) — więc poprawna kolejność nic z niej nie oddaje. Wszystkie trzy istniejące
+      # runnery bezzależnościowe w tym repo robią dokładnie to samo.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: agents/review/package-lock.json
+
+      # ⚑ KOLEJNOŚĆ KROKÓW JEST ODWROTNA DO KOLEJNOŚCI FAZ, i to jest jedyne miejsce w tym pliku,
+      # gdzie kolejność ma znaczenie funkcjonalne. Ten krok ma ZERO zależności runtime, więc
+      # rozjazd progu werdyktu czerwieni się w sekundach, a nie po instalacji pakietu agenta.
+      #
+      # Remedium tej osi jest DARMOWE (przepisanie wartości) — w odróżnieniu od remedium kroku
+      # niżej, które wymaga przejechania macierzy i kosztuje. Rozłączność tych dwóch remediów jest
+      # powodem, dla którego dowód niesie DWA odciski, a nie jeden.
+      - name: Check the verdict-config half of the evidence
+        run: node --experimental-strip-types scripts/check-verdict-config.ts
+
+      # `--omit=dev` nakłada warunki na kod uruchamiany krok niżej i nie jest optymalizacją,
+      # z której można zrezygnować bez konsekwencji:
+      #   * `promptfoo` jest devDependency, więc checkera NIE WOLNO wiązać z `evals/cache.ts` ani
+      #     `evals/provider.ts` — oba importują go WARTOŚCIOWO. Odcisk mieszka dlatego
+      #     w `evals/fingerprint.ts`, którego zależnościami są tylko `zod` i SDK agenta.
+      #   * `tsx` też jest devDependency, więc runner idzie przez `node --experimental-strip-types`,
+      #     a nie przez `npm --prefix agents/review run …`, mimo że tak uruchamia się tu wszystko
+      #     inne. Instynkt prowadzi tu wprost pod `ERR_MODULE_NOT_FOUND`.
+      # Zysk: ~335 MB zamiast ~2 099 MB pełnego grafu.
+      #
+      # `--ignore-scripts` nie jest ostrożnością na wszelki wypadek, tylko ZMIERZONYM zerem: ten
+      # krok instaluje z `package.json` i lockfile'a POBRANEGO PR-a, więc bez tej flagi kroki
+      # `preinstall`/`postinstall` zależności biegną na runnerze przy każdym pull requeście, także
+      # z forka. Zasięg jest wąski (ten workflow nie ma żadnego sekretu, `contents: read`,
+      # wyzwalacz to `pull_request`, nie `pull_request_target`), więc to nie jest dziura — ale
+      # flaga kosztuje zero. Sprawdzone, że NIC nie wyłącza: prod-graf tego pakietu to dokładnie
+      # dwa pakiety (`zod`, `@anthropic-ai/claude-agent-sdk`) i ŻADEN nie ma kroku
+      # `preinstall`/`install`/`postinstall`/`prepare`. Gdyby któryś kiedyś miał, ta flaga go
+      # wyłączy — i dowiemy się o tym tutaj, jako `ERR_MODULE_NOT_FOUND`, a nie po cichu.
+      - name: Install the agent package without dev dependencies
+        run: npm ci --omit=dev --ignore-scripts
+        working-directory: agents/review
+
+      # Druga połowa: odcisk WYWOŁANIA, kompletność macierzy, klasa (B), przejście
+      # „dowiózł → nie dowiózł" pod nowym odciskiem i round-trip serializacji. Klasa (A) — model
+      # nie dowiózł — wychodzi stąd jako `::notice` i NIE blokuje.
+      - name: Check the eval evidence against today's call fingerprint
+        run: node --experimental-strip-types agents/review/evals/check-eval-record.ts

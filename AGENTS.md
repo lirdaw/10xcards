@@ -31,6 +31,34 @@
 - `node --experimental-strip-types scripts/run-prompt-sources.ts --write` — refreshes `agents/review/prompt-sources.json`, the digests of the three sections the review agent's prompt was distilled from (§Hard Rules and §Conventions here, `test-plan.md` §2). `tests/lib/review-prompt-sources.test.ts` reds when one of those sections changes and `agents/review/prompt.ts` does not. Run it **after** updating the distillate, never instead of it — running it first records agreement with a prompt nobody re-read, which is the one move that makes the gate worse than useless.
 - `node --experimental-strip-types scripts/check-prompt-sources.ts` — the CI half of that same ratchet, run by `.github/workflows/prompt-ratchet.yml` on every push and pull request to `main`. It exists because the vitest assertion above could not reach the case it was built for: `npm test` runs only in `ci.yml`'s `ci` job, whose triggers carry `paths-ignore: ["**/*.md", "context/**"]`, and every guarded section lives in `AGENTS.md` or `test-plan.md` — so a docs-only change skipped the workflow and the gate stayed silent. `paths-ignore` filters the workflow, not a job, which is why the ratchet needed its own file. Both callers share the decision in `scripts/prompt-sources.ts`; only the reporting surface differs.
 
+- `npm --prefix agents/review run eval -- --record` — runs the review agent's promptfoo matrix
+  (2 cheap models × 2 fixtures) and writes the result to `agents/review/evals/eval-record.json`.
+  **This COSTS money** and calls the models. Budget the **billed** figure — the delta between two
+  `/api/v1/key` readings, not the cost sum the pass reports: a cell that burns its turns pays and
+  returns no `usage`, so it is missing from the report and present on the bill. Two cold passes of
+  the same shape were billed **0.139255 and 0.235012 USD**, so treat `~0.24` as the anchor and the
+  pair as the range, never a point. Map the key for the one
+  command (`ANTHROPIC_AUTH_TOKEN=$OPENROUTER_REVIEW_KEY`, never `OPENROUTER_EVAL_KEY`, never a
+  permanent export). `--record` REFUSES with a named reason when combined with `--from`, when the
+  run is narrowed by any `--filter…`, or when the pass returned zero rows — evidence produced
+  under those conditions agrees with the fingerprint and means nothing. It writes only its own
+  half; the free half is the next command.
+- `node --experimental-strip-types scripts/run-verdict-config.ts --write` — refreshes the
+  `verdictConfig` block of that same file (threshold, score scale, digest of
+  `agents/review/evals/assertions.ts`). Costs NOTHING and calls no model. The two writers share
+  one file, each preserving the other's block, and each emits the record's keys in the same order
+  — that order is a DUPLICATED literal (`RECORD_KEYS` in `agents/review/evals/eval-record.ts` and
+  in `scripts/verdict-config.ts`), because the directional boundary forbids sharing a module. Add
+  a key to one and you must add it to the other; two pinned tests fail if you don't.
+- `.github/workflows/eval-ratchet.yml` runs both halves as a gate on every pull request to `main`
+  and holds NO secret — the zero-cost guarantee is the absence of `env:`, not anyone's care. It
+  reds when the evidence is missing, describes a different call fingerprint, carries an incomplete
+  matrix, carries a cell whose answer ARRIVED and failed (class B), carries a failure class it
+  cannot name (fail-closed), or shows a cell that stopped delivering under a changed fingerprint.
+  A cell the model simply failed to deliver (`max_turns`, exhausted structured-output retries) is
+  reported as a `::notice` and does NOT block: no answer means nothing to compare against the
+  prompt.
+
 ## Conventions
 
 - Node 22 (`.nvmrc`). Two husky hooks: `pre-commit` runs `lint-staged` (`eslint --fix` on `*.{ts,tsx,astro}`, `prettier --write` on `*.{json,css,md}`), so commits auto-fix; `pre-push` runs `npm run typecheck` over the whole project. Never bypass either with `--no-verify`. **Both need husky installed in your checkout** — `core.hooksPath` is per-repository git config that `git worktree add` does not copy, so run `npm install` (which runs `prepare`) once per worktree. Until 2026-08-03 this bullet claimed commits auto-fix and that was **false in every checkout**: `package.json` had no `prepare` script, so husky had never installed itself and `.git/hooks/` held only samples. If you are unsure, check `git config --get core.hooksPath` returns `.husky/_` rather than trusting this line.

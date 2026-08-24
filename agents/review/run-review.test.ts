@@ -115,6 +115,9 @@ interface FailureObservation {
   readonly writtenWithoutGithubOutput: string;
   /** Zawartość TEGO SAMEGO pliku po następnym przebiegu, już Z podstawioną zmienną. */
   readonly writtenWithGithubOutput: string;
+  /** SUROWY `subtype` z rzutu — kanał, którym zapadka evali klasyfikuje niedowiezienie. */
+  readonly structuralSubtype: string | undefined;
+  readonly structuralTerminalReason: string | undefined;
 }
 
 /**
@@ -138,13 +141,20 @@ async function observeFailure(
   writeFileSync(githubOutputPath, "", "utf8");
   const previous = process.env.GITHUB_OUTPUT;
 
-  const run = async (): Promise<{ message: string; structuralKind: FailureKind | undefined }> => {
+  const run = async (): Promise<{
+    message: string;
+    structuralKind: FailureKind | undefined;
+    structuralSubtype: string | undefined;
+    structuralTerminalReason: string | undefined;
+  }> => {
     try {
       await runReview(DIFF, { model: MODEL, maxBudgetUsd: MAX_BUDGET_USD, query: stubQuery(...messages) });
     } catch (err) {
       return {
         message: err instanceof Error ? err.message : String(err),
         structuralKind: isReviewFailure(err) ? err.kind : undefined,
+        structuralSubtype: isReviewFailure(err) ? err.subtype : undefined,
+        structuralTerminalReason: isReviewFailure(err) ? err.terminalReason : undefined,
       };
     }
     assert.fail("runReview nie rzuciło — a ten przypadek jest ścieżką awarii");
@@ -152,7 +162,7 @@ async function observeFailure(
 
   try {
     delete process.env.GITHUB_OUTPUT;
-    const { message, structuralKind } = await run();
+    const { message, structuralKind, structuralSubtype, structuralTerminalReason } = await run();
     const writtenWithoutGithubOutput = readFileSync(githubOutputPath, "utf8");
 
     process.env.GITHUB_OUTPUT = githubOutputPath;
@@ -164,6 +174,8 @@ async function observeFailure(
     return {
       message,
       structuralKind,
+      structuralSubtype,
+      structuralTerminalReason,
       writtenWithoutGithubOutput,
       writtenWithGithubOutput: readFileSync(githubOutputPath, "utf8"),
     };
@@ -237,6 +249,10 @@ test("sukces: kontrakt dziewięciu ocen i dziewięciu not wraca sparsowany, metr
     cacheReadInputTokens: 4321,
     outputTokens: 567,
     terminalReason: "completed",
+    // SUROWY `subtype` obok `terminalReason` — dwa pola SDK opisujące ten sam moment. Wchodzi do
+    // metryk, bo rekord evali klasyfikuje niedowiezienie po podtypach WYMIENIONYCH Z IMIENIA,
+    // a nie po koszu `unknown`; `deepEqual` jest tu oraklem na to, że pole nie wypadnie po drodze.
+    subtype: "success",
   });
 });
 
@@ -392,4 +408,47 @@ test("brak wiadomości `result` w strumieniu kończy się własnym rzutem", asyn
   // z własnej gałęzi, a nie zgadniętą klasę. Gdyby ktoś „dla porządku" dokleił tu `[unknown]`,
   // zmieniłby przy okazji linię, którą czyta `pr-review.yml:529`.
   assert.equal(isReviewFailure(thrown), false, "rzut bez klasy awarii udaje, że ją ma");
+});
+
+// ---------------------------------------------------------------------------------------------
+// Surowe pola SDK na ścieżce awarii — kanał zapadki evali.
+// ---------------------------------------------------------------------------------------------
+
+test("rzut niesie `subtype` i `terminalReason` JAKO POLA, nie tylko w prozie komunikatu", async () => {
+  // ⚑ Powód tego testu jest bramkowy, nie sprawozdawczy. `kind` kończy się koszem `unknown`
+  // (`classifyFailure` nie ma gałęzi dla `error_max_turns`), a zapadka evali musi odróżnić
+  // NAZWANE niedowiezienie od niewiadomej — inaczej kosz trafiłby do klasy nieblokującej
+  // i nowy podtyp awarii SDK po cichu przestałby blokować. Bez tych pól jedynym nośnikiem tej
+  // informacji jest proza komunikatu, czyli bramka na stringu pisanym dla człowieka.
+  const observed = await observeFailure([
+    {
+      type: "result",
+      subtype: "error_max_turns",
+      is_error: true,
+      num_turns: 3,
+      duration_ms: 1,
+      total_cost_usd: 0,
+      terminal_reason: "max_turns",
+      errors: ["Reached maximum number of turns (2)"],
+      usage: USAGE,
+    },
+  ]);
+
+  assert.equal(observed.structuralKind, "unknown", "ten podtyp NIE ma własnej gałęzi w classifyFailure — i to jest założenie tego testu");
+  assert.equal(observed.structuralSubtype, "error_max_turns");
+  assert.equal(observed.structuralTerminalReason, "max_turns");
+});
+
+test("rzut BEZ wiadomości `result` nie udaje, że zna `subtype` — `undefined`, nie pusty string", async () => {
+  // Ta ścieżka istnieje (strumień skończył się bez `result`) i nie niesie żadnego pola SDK.
+  // Podstawienie tu `""` albo `"unknown"` zamieniłoby „SDK nie podało" na „SDK podało coś",
+  // a rekord straciłby różnicę, której już nie da się odzyskać.
+  let observed: unknown;
+  try {
+    await runReview(DIFF, { model: MODEL, maxBudgetUsd: MAX_BUDGET_USD, query: stubQuery() });
+  } catch (err) {
+    observed = err;
+  }
+  assert.ok(observed instanceof Error, "ta ścieżka ma rzucać");
+  assert.equal(isReviewFailure(observed), false, "rzut bez `kind` jest tu ZAŁOŻENIEM — patrz komentarz w run-review.ts");
 });
