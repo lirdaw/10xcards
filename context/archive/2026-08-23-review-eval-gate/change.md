@@ -1,10 +1,10 @@
 ---
 change_id: review-eval-gate
 title: Wire the promptfoo eval suite as a regression gate on prompt changes
-status: impl_reviewed
+status: archived
 created: 2026-08-23
-updated: 2026-08-23
-archived_at: null
+updated: 2026-08-24
+archived_at: 2026-08-24T11:04:55Z
 ---
 
 ## Notes
