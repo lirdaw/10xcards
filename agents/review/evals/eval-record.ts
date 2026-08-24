@@ -43,8 +43,31 @@ export const RECORD_COMMAND = "npm --prefix agents/review run eval -- --record";
 /** Komenda odświeżająca CUDZY blok. NIE kosztuje — cytowana, żeby nie mylić jej z powyższą. */
 export const VERDICT_CONFIG_COMMAND = "node --experimental-strip-types scripts/run-verdict-config.ts --write";
 
-/** Kotwica kosztu jednego ZIMNEGO przejścia 2×2 — zmierzona na fazie 7 poprzedniej zmiany. */
-export const COLD_PASS_COST_ANCHOR_USD = 0.12;
+/**
+ * Dwa zmierzone RACHUNKI zimnego przejścia 2×2 o tym samym kształcie — delty odczytów
+ * `/api/v1/key`, zapisane w `context/changes/review-eval-gate/verification.md`.
+ *
+ * Trzymane jako para, nie jako jedna liczba, bo remedium ma cytować ZAKRES. Pojedyncza liczba
+ * w komunikacie sugeruje precyzję, której nie ma — a adnotacja `oneMeasurement` w tym samym pliku
+ * mówi wprost, że rozrzut sięga dziesiątek procent. Bramka nie może łamać doktryny rekordu,
+ * którego pilnuje.
+ */
+const COLD_PASS_BILLED_OBSERVATIONS_USD = [0.139255, 0.235012] as const;
+
+/**
+ * Kotwica RACHUNKU jednego ZIMNEGO przejścia 2×2 — NAJWYŻSZA ze zmierzonych, nie średnia.
+ *
+ * ⚑ Nazwa niesie, KTÓRA to wielkość, i to jest cała poprawka. Są dwie i przez jedną zmianę
+ * chodziły pod jedną nazwą: **rachunek** (delta odczytów `/api/v1/key`) i **suma z raportu
+ * przejścia** (`costUsd` po komórkach). Różnią się o komórki, które ZAPŁACIŁY i nie oddały
+ * licznika — `error_max_turns` nie zwraca `usage`, więc do sumy nie wchodzi wcale. Poprzednia
+ * kotwica 0,12 USD była prawdziwa jako suma z raportu i fałszywa jako rachunek, a remedium czyta
+ * się w chwili decyzji „czy zapłacić", czyli w kontekście, w którym liczy się wyłącznie rachunek.
+ *
+ * Górna wartość, nie średnia, bo przy decyzji o wydatku niedoszacowanie kosztuje więcej niż
+ * przeszacowanie.
+ */
+export const COLD_PASS_BILLED_COST_ANCHOR_USD = Math.max(...COLD_PASS_BILLED_OBSERVATIONS_USD);
 
 // ---------------------------------------------------------------------------------------------
 // Kształt.
@@ -247,7 +270,10 @@ export function deliveredOf(cell: EvalRecordCell): boolean | null {
 
 function isNamedNotDelivered(cell: EvalRecordCell): boolean {
   if (cell.subtype !== null && (NOT_DELIVERED_SUBTYPES as readonly string[]).includes(cell.subtype)) return true;
-  if (cell.terminalReason !== null && (NOT_DELIVERED_TERMINAL_REASONS as readonly string[]).includes(cell.terminalReason)) {
+  if (
+    cell.terminalReason !== null &&
+    (NOT_DELIVERED_TERMINAL_REASONS as readonly string[]).includes(cell.terminalReason)
+  ) {
     return true;
   }
   return (NOT_DELIVERED_CONTRACTS as readonly string[]).includes(cell.contract);
@@ -329,6 +355,60 @@ const asRecord = (value: unknown): Readonly<Record<string, unknown>> | undefined
   typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Readonly<Record<string, unknown>>)
     : undefined;
+
+// ---------------------------------------------------------------------------------------------
+// Znacznik prozy PRZENIESIONEJ przez zapis.
+//
+// ⚑ Oś ryzyka nie jest taka, że klucz jest NIEZNANY — tylko taka, że proza opisuje KONKRETNE
+// PRZEJŚCIE. Pięć pól `NOTES_KEYS` to doktryna BEZCZASOWA („koszt komórki to zmienna losowa"),
+// która się nie starzeje i dlatego znacznika nie dostaje. Klucz dopisany ręcznie pod jedno
+// przejście (`undeliveredCell`, wcześniej `redCells`) starzeje się natychmiast — a `--record`
+// przenosi go nietkniętego, więc przeżyje przejście, którego już nie opisuje.
+//
+// ZMIERZONE, nie hipotetyczne: `redCells` ogłaszał dwie czerwone komórki, gdy rekord miał jedną,
+// i podawał rachunek cudzego przejścia. Złapała to weryfikacja RĘCZNA kryterium 4.9 — czyli
+// człowiek, jednorazowo. Ten znacznik zamienia tę czujność na warunek zapisany w pliku.
+//
+// Znacznik siedzi W TREŚCI, a nie w osobnym kluczu rekordu, i to jest decyzja: ostrzeżenie stoi
+// tam, gdzie stoi proza, którą opisuje, a `RECORD_KEYS` — literał ZDUBLOWANY po obu stronach
+// granicy kierunkowej — zostaje nietknięty.
+// ---------------------------------------------------------------------------------------------
+
+const CARRIED_STAMP_RE = /^\[przeniesione z przejścia ([^\]]+)\] /;
+
+/** Zdejmuje poprzedni znacznik, żeby przy kolejnych przejściach nie narastał łańcuch. */
+const withoutCarriedStamp = (value: string): string => value.replace(CARRIED_STAMP_RE, "");
+
+/** Stempluje prozę przejściem, Z KTÓREGO została przeniesiona — nie tym, do którego trafia. */
+const stampCarried = (value: string, fromGeneratedAt: string): string =>
+  `[przeniesione z przejścia ${fromGeneratedAt}] ${withoutCarriedStamp(value)}`;
+
+/** `generatedAt` odczytane ze znacznika, albo `undefined` — proza nigdy nieprzeniesiona. */
+export function carriedFrom(value: unknown): string | undefined {
+  return isString(value) ? CARRIED_STAMP_RE.exec(value)?.[1] : undefined;
+}
+
+const isMandatoryNote = (key: string): boolean => (NOTES_KEYS as readonly string[]).includes(key);
+
+/**
+ * Blok `notes` do zapisu: obowiązkowa piątka bez zmian, doraźna proza ZE ZNACZNIKIEM.
+ *
+ * Bez `existing.generatedAt` nie ma czym stemplować, więc proza jedzie nietknięta — brak daty
+ * jest brakiem informacji, a znacznik bez daty byłby ostrzeżeniem, którego nie da się sprawdzić.
+ */
+function notesForWrite(existing: Readonly<Record<string, unknown>>): Record<string, unknown> {
+  const notes = asRecord(existing["notes"]);
+  if (!notes) return { ...MANDATORY_NOTES };
+
+  const from = existing["generatedAt"];
+  if (!isString(from)) return { ...notes };
+
+  return Object.fromEntries(
+    Object.entries(notes).map(([key, value]) =>
+      isMandatoryNote(key) || !isString(value) ? [key, value] : [key, stampCarried(value, from)],
+    ),
+  );
+}
 
 /**
  * Komórka rekordu z wiersza przejścia.
@@ -412,7 +492,9 @@ export function buildRecord(input: {
   const unknownKeys = Object.fromEntries(Object.entries(existing).filter(([key]) => !known.has(key)));
 
   return {
-    notes: asRecord(existing["notes"]) ?? MANDATORY_NOTES,
+    // Obowiązkowa piątka przechodzi bez zmian; doraźna proza dostaje znacznik przejścia,
+    // z którego jest przenoszona — patrz `notesForWrite`.
+    notes: notesForWrite(existing),
     generatedAt: input.now.toISOString(),
     callFingerprint: input.callFingerprint,
     verdictConfig: existing["verdictConfig"],
@@ -577,7 +659,41 @@ function matrixProblem(matrix: readonly EvalRecordCell[]): EvalRecordProblem | u
  * Nie jest to „reszta po odfiltrowaniu problemów": komórka bez nazwanego podtypu jest problemem,
  * a nie obserwacją, i musi tu NIE trafić.
  */
+/**
+ * Proza spoza `NOTES_KEYS`, która PRZEŻYŁA przejście, którego nie opisuje.
+ *
+ * WARUNKOWA, nie stała: adnotacja wypisywana na każdym przebiegu zetarłaby się do szumu, a bramka,
+ * która zawsze coś mówi, przestaje być czytana. Milczy więc, dopóki znacznika nie ma (proza nigdy
+ * nieprzeniesiona) albo dopóki wskazuje BIEŻĄCE przejście (proza przepisana razem z nim).
+ */
+function staleNotesObservations(record: EvalRecord): EvalRecordObservation[] {
+  const notes = record.notes as unknown as Readonly<Record<string, unknown>>;
+
+  return Object.entries(notes).flatMap(([key, value]) => {
+    if (isMandatoryNote(key)) return [];
+    const from = carriedFrom(value);
+    if (from === undefined || from === record.generatedAt) return [];
+
+    return [
+      {
+        title: `Adnotacja \`notes.${key}\` opisuje POPRZEDNIE przejście`,
+        detail:
+          `\`notes.${key}\` została PRZENIESIONA przez zapis: powstała pod przejściem ${from}, ` +
+          `a ten rekord opisuje ${record.generatedAt}. To nie jest czerwień — proza może być nadal ` +
+          "prawdziwa. Ale nikt tego nie sprawdził, a zdanie o „dwóch czerwonych komórkach” nad " +
+          "rekordem z jedną już się w tym pliku zdarzyło. Przeczytaj ją przy macierzy obok " +
+          "i albo przepisz, albo usuń. Przepisując, ZDEJMIJ prefiks `[przeniesione z przejścia …]` " +
+          "— on jest jedynym nośnikiem tego, że proza jest starsza niż pomiar.",
+      },
+    ];
+  });
+}
+
 export function observationsFor(record: EvalRecord): EvalRecordObservation[] {
+  return [...staleNotesObservations(record), ...undeliveredObservations(record)];
+}
+
+function undeliveredObservations(record: EvalRecord): EvalRecordObservation[] {
   return record.matrix
     .filter((cell) => verdictOf(cell) === "reported" && deliveredOf(cell) === false)
     .map((cell) => ({
@@ -638,8 +754,7 @@ export function checkRecord(input: {
       problems.push({
         kind: "cellRed",
         title: `Czerwona komórka w dowodzie: ${where}`,
-        detail:
-          `komórka ${where} ma ok: false (kontrakt ${cell.contract})` + (reasons === "" ? "" : `: ${reasons}`),
+        detail: `komórka ${where} ma ok: false (kontrakt ${cell.contract})` + (reasons === "" ? "" : `: ${reasons}`),
       });
       continue;
     }
@@ -659,7 +774,8 @@ export function checkRecord(input: {
       detail:
         `komórka ${where} skończyła się jako ${cell.contract} ` +
         `(subtype: ${cell.subtype ?? "brak"}, terminal_reason: ${cell.terminalReason ?? "brak"}), ` +
-        `czyli poza listą NAZWANYCH podtypów niedowiezienia` + (reasons === "" ? "" : `: ${reasons}`),
+        `czyli poza listą NAZWANYCH podtypów niedowiezienia` +
+        (reasons === "" ? "" : `: ${reasons}`),
     });
   }
 
@@ -670,7 +786,9 @@ export function checkRecord(input: {
   if (previous !== undefined && previous.fingerprint !== record.callFingerprint) {
     for (const cell of record.matrix) {
       if (deliveredOf(cell) !== false) continue;
-      const before = previous.cells.find((candidate) => candidate.model === cell.model && candidate.fixture === cell.fixture);
+      const before = previous.cells.find(
+        (candidate) => candidate.model === cell.model && candidate.fixture === cell.fixture,
+      );
       if (before?.delivered !== true) continue;
       problems.push({
         kind: "deliveryRegression",
@@ -699,8 +817,10 @@ export function checkRecord(input: {
 // ---------------------------------------------------------------------------------------------
 
 const PAID_REMEDY = [
-  "Ta oś wymaga PRZEJŚCIA MACIERZY i KOSZTUJE — kotwica zimnego przejścia 2x2 to",
-  `~${COLD_PASS_COST_ANCHOR_USD.toFixed(2)} USD, z rozrzutem dziesiątek procent między przebiegami.`,
+  `Ta oś wymaga PRZEJŚCIA MACIERZY i KOSZTUJE — kotwica RACHUNKU zimnego przejścia 2x2 to ~${COLD_PASS_BILLED_COST_ANCHOR_USD.toFixed(2)} USD.`,
+  "To delta odczytów /api/v1/key, NIE suma kosztów z raportu przejścia: komórka, która wypaliła",
+  "tury, PŁACI i nie oddaje licznika, więc do sumy raportu nie wchodzi wcale, a do rachunku owszem.",
+  `Traktuj to jak ZAKRES, nie punkt — dwa przejścia o TYM SAMYM kształcie dały ${COLD_PASS_BILLED_OBSERVATIONS_USD.join(" i ")} USD.`,
   "Nie da się jej domknąć przepisaniem wartości: odcisk opisuje to, CO MODEL ODPOWIEDZIAŁ,",
   "a tego nie wie nikt, kto modelu nie zawołał.",
 ].join("\n");

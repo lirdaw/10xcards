@@ -33,7 +33,11 @@
 
 - `npm --prefix agents/review run eval -- --record` — runs the review agent's promptfoo matrix
   (2 cheap models × 2 fixtures) and writes the result to `agents/review/evals/eval-record.json`.
-  **This COSTS money** (~0.24 USD for a cold pass) and calls the models; map the key for the one
+  **This COSTS money** and calls the models. Budget the **billed** figure — the delta between two
+  `/api/v1/key` readings, not the cost sum the pass reports: a cell that burns its turns pays and
+  returns no `usage`, so it is missing from the report and present on the bill. Two cold passes of
+  the same shape were billed **0.139255 and 0.235012 USD**, so treat `~0.24` as the anchor and the
+  pair as the range, never a point. Map the key for the one
   command (`ANTHROPIC_AUTH_TOKEN=$OPENROUTER_REVIEW_KEY`, never `OPENROUTER_EVAL_KEY`, never a
   permanent export). `--record` REFUSES with a named reason when combined with `--from`, when the
   run is narrowed by any `--filter…`, or when the pass returned zero rows — evidence produced

@@ -15,11 +15,12 @@ import {
   compareVerdictConfig,
   liveAssertionsDigest,
   liveVerdictConfig,
+  recordedVerdictConfig,
   remedyFor,
   serializeRecord,
   withVerdictConfig,
 } from "../../scripts/verdict-config.ts";
-import type { VerdictConfig, VerdictConfigField } from "../../scripts/verdict-config.ts";
+import type { RecordedConfig, VerdictConfig, VerdictConfigField } from "../../scripts/verdict-config.ts";
 
 // Oś INTERPRETACJI dowodu evali: cztery pola, których zmiana zmienia ODCZYT odpowiedzi modelu,
 // a nie samą odpowiedź — więc ich remedium jest DARMOWE i nie wolno go pomylić z płatnym
@@ -331,5 +332,63 @@ describe("kolejność kluczy rekordu — DRUGA kopia listy", () => {
     expect(Object.keys(JSON.parse(serializeRecord(built)) as Record<string, unknown>)).not.toContain(
       "previousDelivery",
     );
+  });
+});
+
+// Trzy stany rekordu widziane przez tę połowę zapadki. Rozdzielenie dwóch pierwszych jest
+// treścią, nie kosmetyką: brak PLIKU ma remedium PŁATNE (plik wytwarza przejście macierzy),
+// brak BLOKU — darmowe. Zlanie ich wysłałoby człowieka po pieniądze tam, gdzie wystarczy
+// jedna darmowa komenda, a to jest dokładnie ten rodzaj pomyłki, przed którym broni D-2.
+//
+// Decyzja siedziała do impl-review w runnerze (`scripts/check-verdict-config.ts`), który wykonuje
+// `main()` w module scope — więc nie dało się jej dotknąć testem i nikt jej nie testował.
+// Przeniesiona do rdzenia, gdzie ten projekt trzyma decyzje; runnerowi zostało I/O.
+describe("recordedVerdictConfig", () => {
+  const BLOCK = { threshold: 5, scoreMin: 1, scoreMax: 10, assertionsDigest: "d".repeat(64) };
+
+  /**
+   * Odmowa albo natychmiastowy rzut. Rzut jest tu DRUGĄ stroną każdego przypadku: bez niego
+   * asercja na `reason` przechodziłaby milcząco nad stanem, który wcale nie zaczerwienił.
+   */
+  function refused(parsed: unknown): Extract<RecordedConfig, { ok: false }> {
+    const recorded = recordedVerdictConfig(parsed);
+    if (recorded.ok) throw new Error("oczekiwano odmowy, a rekord został odczytany jako poprawny");
+    return recorded;
+  }
+
+  it("czyta blok, gdy rekord go niesie", () => {
+    expect(recordedVerdictConfig({ notes: {}, verdictConfig: BLOCK, matrix: [] })).toEqual({ ok: true, value: BLOCK });
+  });
+
+  it.each([
+    ["pliku nie da się przeczytać ani sparsować", undefined],
+    ["JSON niesie null", null],
+    ["JSON niesie tablicę", []],
+    ["JSON niesie wartość prostą", 42],
+  ])("brak rekordu (%s) → `missingRecord`, z remedium PŁATNYM", (_label, parsed) => {
+    const recorded = refused(parsed);
+
+    expect(recorded.reason).toBe("missingRecord");
+    expect(recorded.message).toContain("PRZEJŚCIE MACIERZY (to kosztuje)");
+  });
+
+  it.each([
+    ["klucza nie ma wcale", {}],
+    ["blok jest nullem", { verdictConfig: null }],
+    ["blok jest tablicą", { verdictConfig: [] }],
+    ["blok jest liczbą", { verdictConfig: 5 }],
+  ])("rekord bez bloku (%s) → `missingBlock`, z remedium DARMOWYM", (_label, parsed) => {
+    const recorded = refused(parsed);
+
+    expect(recorded.reason).toBe("missingBlock");
+    expect(recorded.message).toContain("NIE KOSZTUJE");
+    expect(recorded.message).toContain(REFRESH_COMMAND);
+  });
+
+  it("komunikat braku PLIKU nie udaje, że wystarczy darmowa komenda", () => {
+    // Gdyby oba stany dostały jeden komunikat, ta asercja byłaby jedyną, która to zauważy —
+    // a różnica jest w cenie remedium, nie w brzmieniu.
+    expect(refused(undefined).message).not.toBe(refused({}).message);
+    expect(refused(undefined).message).toContain("nie istnieje albo jest nieczytelny");
   });
 });

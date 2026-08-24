@@ -5,13 +5,7 @@ import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SOFT_OBSERVATIONS, type AssertionOutcome } from "./assertions.ts";
-import {
-  RECORD_COMMAND,
-  RECORD_PATH,
-  RECORD_RELATIVE_PATH,
-  buildRecord,
-  serializeRecord,
-} from "./eval-record.ts";
+import { RECORD_COMMAND, RECORD_PATH, RECORD_RELATIVE_PATH, buildRecord, serializeRecord } from "./eval-record.ts";
 import { productionPromptFingerprint } from "./fingerprint.ts";
 import { PRICING_AS_OF, PRICING_SOURCE, pricingAgeDays } from "./pricing.ts";
 
@@ -98,7 +92,8 @@ type Unknown = Record<string, unknown>;
 const asRecord = (value: unknown): Unknown | undefined =>
   typeof value === "object" && value !== null ? (value as Unknown) : undefined;
 
-const asNumber = (value: unknown): number | undefined => (typeof value === "number" && Number.isFinite(value) ? value : undefined);
+const asNumber = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) ? value : undefined;
 
 const asString = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined);
 
@@ -244,7 +239,20 @@ function renderTable(rows: readonly ReportRow[]): string[] {
     // Wiersz, który nie dojechał, dostaje `BRAK` we WSZYSTKICH kolumnach wynikowych — nie `—`.
     // Kolumna `kontrakt` niesie przy tym klasę awarii, więc wiersz sam mówi, czym ten brak jest.
     if (isMeasuredAbsence(row)) {
-      return [row.model, row.fixture, ABSENT, row.contract, ABSENT, ABSENT, ABSENT, ABSENT, ABSENT, ABSENT, ABSENT, ABSENT];
+      return [
+        row.model,
+        row.fixture,
+        ABSENT,
+        row.contract,
+        ABSENT,
+        ABSENT,
+        ABSENT,
+        ABSENT,
+        ABSENT,
+        ABSENT,
+        ABSENT,
+        ABSENT,
+      ];
     }
     return [
       row.model,
@@ -258,7 +266,9 @@ function renderTable(rows: readonly ReportRow[]): string[] {
       num(row.cacheReadTokens),
       usd(row.costUsd),
       row.cached ? "TRAFIENIE" : "zimna",
-      row.assertionsPassed + row.assertionsFailed === 0 ? "—" : `${row.assertionsPassed}/${row.assertionsPassed + row.assertionsFailed}`,
+      row.assertionsPassed + row.assertionsFailed === 0
+        ? "—"
+        : `${row.assertionsPassed}/${row.assertionsPassed + row.assertionsFailed}`,
     ];
   });
 
@@ -509,7 +519,8 @@ export function runEval(extraArgs: readonly string[], timeoutMs: number = EVAL_T
     // PLIKU zamiast diagnozy przyczyny, dokładnie wtedy, gdy przyczyna jest najbardziej potrzebna.
     const exitCode = child.status ?? 1;
     const spawnFailure = describeSpawnFailure(child.error, timeoutMs);
-    if (spawnFailure !== undefined) process.stderr.write(`${spawnFailure}
+    if (spawnFailure !== undefined)
+      process.stderr.write(`${spawnFailure}
 `);
     let rows: ReportRow[] = [];
     try {
@@ -546,8 +557,39 @@ export interface ParsedArgs {
  * opcja i wywaliłaby przejście — czyli PO zapłaceniu za nie.
  */
 export function splitArgs(argv: readonly string[]): ParsedArgs {
+  // ⚑ Postać `--flaga=wartość` jest KONSUMOWANA tak samo jak `--flaga wartość`, i to jest jedna
+  // klasa błędu, nie dwa drobiazgi. Dopasowanie po DOKŁADNEJ wartości (`filter(a => a !== …)`,
+  // `indexOf(…)`) puszcza `--record=true` i `--from=plik` do `rest`, a `rest` leci w całości do
+  // `promptfoo eval` (patrz komentarz przy `runEval`). Skutek jest gorszy niż literówka:
+  // `--record=true --from=plik` NIE wywoła odmowy wykluczającej te dwie flagi, bo dla tego
+  // parsera żadnej z nich tam nie ma.
+  //
+  // Traktowanie różni się ARNOŚCIĄ flagi, nie kaprysem: `--from` ma wartość, więc postać z `=`
+  // jest jednoznaczna i po prostu działa. `--record` jest boolean, więc `--record=false`
+  // czytane jako „zapisuj" byłoby dokładnie tą cichą pułapką, przed którą reszta odmów broni —
+  // stąd twarda odmowa zamiast zgadywania.
+  const recordEquals = argv.find((arg) => arg.startsWith("--record="));
+  if (recordEquals !== undefined) {
+    throw new Error(
+      `[raport] \`${recordEquals}\` nie jest obsługiwane: \`--record\` jest flagą bez wartości. ` +
+        "Napisz samo `--record` — postać z `=` nie zostałaby rozpoznana i pojechałaby do promptfoo " +
+        "jako nieznana opcja, a `--record=false` czytane jako „zapisuj” byłoby cichą pułapką.",
+    );
+  }
+
   const withoutRecord = argv.filter((arg) => arg !== "--record");
   const record = withoutRecord.length !== argv.length;
+
+  const equalsIndex = withoutRecord.findIndex((arg) => arg.startsWith("--from="));
+  if (equalsIndex !== -1) {
+    const from = withoutRecord[equalsIndex]!.slice("--from=".length);
+    if (from === "") throw new Error("[raport] `--from` wymaga ścieżki do pliku wyniku.");
+    return {
+      from,
+      record,
+      rest: [...withoutRecord.slice(0, equalsIndex), ...withoutRecord.slice(equalsIndex + 1)],
+    };
+  }
 
   const index = withoutRecord.indexOf("--from");
   if (index === -1) return { from: undefined, record, rest: withoutRecord };
@@ -556,9 +598,20 @@ export function splitArgs(argv: readonly string[]): ParsedArgs {
   return { from, record, rest: [...withoutRecord.slice(0, index), ...withoutRecord.slice(index + 2)] };
 }
 
-/** Argumenty ZAWĘŻAJĄCE przebieg. Prefiks, nie lista nazw — promptfoo ma ich osiem i przybywa. */
+/**
+ * Argumenty ZAWĘŻAJĄCE przebieg. Prefiks, nie lista nazw — promptfoo ma ich osiem i przybywa.
+ *
+ * ⚑ `-c` / `--config` jest tu OBOK `--filter…`, choć nie wygląda na zawężanie: wskazuje inny
+ * `promptfooconfig`, a więc inną macierz — i dowód z niej byłby zgodny z odciskiem, opisując
+ * przejście, którego ten odcisk nie dotyczy. Dziś zapadka złapałaby to i tak (`matrixProblem`
+ * żąda ≥2 modeli × ≥2 fikstur), ale dopiero NA CI i już po wydatku, czyli w dokładnie tym
+ * miejscu, którego reszta odmów unika. A ta osłona wygasa w dniu, w którym macierz urośnie
+ * ponad 2×2 — bo wtedy okrojona konfiguracja może dać komplet wierszy.
+ */
 export function narrowingArgs(rest: readonly string[]): string[] {
-  return rest.filter((arg) => arg.startsWith("--filter"));
+  return rest.filter(
+    (arg) => arg.startsWith("--filter") || arg === "-c" || arg === "--config" || arg.startsWith("--config="),
+  );
 }
 
 /**

@@ -566,10 +566,25 @@ którego nie ma, czyli wpuszczać KAŻDĄ komórkę `[unknown]`.
 klasa `cellNotRun` dla `[config]` — „nie odbyło się" to nie „nie umiemy nazwać", a diagnoza
 wskazująca nie tę przyczynę jest tu całym defektem, nie niedogodnością.
 
-Czternaście nowych przypadków testowych, każdy dwustronny (wzorzec `blindTo`): nazwany podtyp NIE
-czerwieni, kosz CZERWIENI, `[contract]` czerwieni jako (B) a nie jako niedowiezienie, obserwacje
-(A) idą osobnym kanałem i komórka nierozpoznana NIE trafia tam wcale, przejście D-9 czerwieni pod
-zmienionym odciskiem i NIE czerwieni pod tym samym.
+Czternaście nowych przypadków testowych, każdy dwustronny: mutacja WEJŚCIA daje DOKŁADNIE swój
+rodzaj problemu i tylko jego, przy kontroli zerowej w (D1). Nazwany podtyp NIE czerwieni, kosz
+CZERWIENI, `[contract]` czerwieni jako (B) a nie jako niedowiezienie, obserwacje (A) idą osobnym
+kanałem i komórka nierozpoznana NIE trafia tam wcale, przejście D-9 czerwieni pod zmienionym
+odciskiem i NIE czerwieni pod tym samym.
+
+⚑ **Korekta po impl-review (2026-08-24).** Ten akapit brzmiał wcześniej „każdy dwustronny (wzorzec
+`blindTo`)" i to twierdzenie było MOCNIEJSZE niż to, co robi kod: `blindTo` z `cache.test.ts:92-104`
+mutuje FUNKCJĘ decydującą, a te testy mutują WEJŚCIE. Zapis, który nazywa słabszy dowód mocniejszym,
+jest tym samym kształtem, który ta zmiana tropi u innych — stąd korekta zamiast nadpisania.
+
+**I dlaczego `blindTo` tutaj NIE zarabia na siebie** (rozstrzygnięcie, nie brak zasobów): tamten
+wzorzec istnieje, bo w `cache.ts` wyjściem jest HASH — po zmienionym odcisku nie da się powiedzieć,
+KTÓRA oś go ruszyła, więc oślepienie funkcji jest jedyną drogą do przypisania skutku osi. Tutaj
+wyjściem jest `problems[].kind`, czyli NAZWA osi. Gdyby checker przestał czytać oś X, nie byłoby
+ŻADNEGO problemu i test padłby na `length`. Blindness-testing zarabia na siebie przy wyjściu
+NIEPRZEZROCZYSTYM; przy wyjściu, które samo się nazywa, dokłada szew w module produkcyjnym i nie
+kupuje nowej informacji. Kontrakt fazy 4 wymieniał `blindTo` z nazwy — i to jest ta jedna pozycja
+kontraktu, którą świadomie zrealizowano inaczej, z zapisanym powodem.
 
 ### ⚑ BRAMKA D-10 — i defekt, który złapała, zanim padł cent
 

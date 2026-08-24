@@ -1178,6 +1178,24 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
    zapisana w adnotacji dowodu. Nie zapisujemy nigdzie, że modele z jednej rodziny regresują razem —
    to jest prawdopodobne i NIEZMIERZONE.
 
+7. **Dane z rekordu wchodzą do adnotacji GitHuba bez ucieczki** — dopisane 2026-08-24 z triażu
+   impl-review (F6, Świadomie POMINIĘTE, nie przeoczone). `check-eval-record.ts:73,91` i
+   `check-verdict-config.ts` wstawiają wartości prosto w komendę `::notice`/`::error`; znak nowej
+   linii albo przecinek w tych danych urywa komendę. Skutkiem jest wyłącznie fałszowanie
+   logu/adnotacji — kod wyjścia bierze się z wartości zwróconej przez `main()`, więc bramki to
+   nie dotyczy (prześledzone).
+
+   **Dlaczego nie teraz, mimo że poprawka jest mała.** (a) Wzorzec jest DZIEDZICZONY:
+   `scripts/check-prompt-sources.ts:95` robi dokładnie to samo, więc poprawka po jednej stronie
+   rozjechałaby trio, którego spójność jest tu wartością — a dotknięcie tamtego pliku wychodzi
+   poza tę zmianę, która już raz rozszerzyła zakres i cofnęła to na danych. (b) Powierzchnia jest
+   DZIŚ PUSTA: `cell.model` i `cell.fixture` pochodzą z `promptfooconfig.yaml` i z nazw plików
+   w repo, `subtype` to enum SDK — żadne z tych pól nie może dziś nieść nowej linii ani przecinka.
+
+   **Warunek domknięcia, nazwany:** wspólny helper ucieczki (`%0A`/`%0D`/`%2C`/`%3A`) dla OBU
+   checkerów — jedną zmianą, obejmującą także `check-prompt-sources.ts` — w dniu, w którym
+   którekolwiek z tych trzech pól zacznie pochodzić z danych SPOZA repo.
+
 ## References
 
 - Wymagania: `context/changes/review-eval-gate/requirements.md`
@@ -1270,7 +1288,7 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 
 #### Automated
 
-- [x] 3.0 BRAMKA D-10: sfabrykowany rekord o docelowym kształcie (komplet pól + `previousDelivery`) przechodzi przez PRAWDZIWY zapisywacz i PRAWDZIWY checker — warunek wydania pierwszego centa
+- [x] 3.0 BRAMKA D-10: sfabrykowany rekord o docelowym kształcie (komplet pól + `previousDelivery`) przechodzi przez PRAWDZIWY zapisywacz i PRAWDZIWY checker — warunek wydania pierwszego centa — 35f3874
 - [x] 3.1 `prettier --check` na dowodzie prawdziwym → kod 0 — 2b6835d
 - [x] 3.2 `lint-staged` nie przeformatował dowodu przy `git add` — 2b6835d
 - [x] 3.3 Dowód niesie 4 wiersze, 2 modele, 2 fikstury — 2b6835d
@@ -1286,21 +1304,21 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 
 #### Automated
 
-- [x] 4.1 Testy pakietu agenta i vitest zielone
-- [x] 4.2 Typecheck (root + agent) i lint
+- [x] 4.1 Testy pakietu agenta i vitest zielone — 6eb9bb4
+- [x] 4.2 Typecheck (root + agent) i lint — 6eb9bb4
 - [x] 4.3 Oba checkery na czystym drzewie → kod 0 — **DOMKNIĘTE na rekordzie z fazy 3** (drugie
       przejście, 19:23Z); oba dają kod 0, agencki dokłada jedną adnotację `::notice` klasy (A).
       Źródło blokady, dla zapisu: poprzedni `eval-record.json` powstał PRZED polami
       `subtype`/`terminalReason`, więc checker agencki odrzucał go jako `malformed` z nazwanym
       powodem — zamierzone, nie usterka. Na rekordzie SFABRYKOWANYM o docelowym kształcie oba
       checkery dawały kod 0 już wcześniej — patrz 3.0 — 2b6835d
-- [x] 4.4 Oba checkery na podmienionym dowodzie → kod 1 z właściwym komunikatem
-- [x] 4.4a Komórka (A) NIE czerwieni, komórka (B) czerwieni — obie na rekordach sfabrykowanych (D-6)
-- [x] 4.4b `[unknown]` BEZ nazwanego podtypu czerwieni (fail-closed), `[config]` czerwieni jako brak przejścia
-- [x] 4.4d Komórka z NAZWANYM podtypem (`error_max_turns`, `structured_output_retry_exhausted`) nie czerwieni
-- [x] 4.4c Przejście „dowiózł → nie dowiózł" pod NOWYM odciskiem czerwieni; pod TYM SAMYM — nie (D-9)
-- [x] 4.5 Oba checkery uruchomione po `npm ci --omit=dev`, wynik pokazany (promptfoo i tsx potwierdzone jako NIEOBECNE — bez tego pomiar nic nie mierzy)
-- [x] 4.6 `check-prompt-sources.ts` zielony po edycji AGENTS.md (§Commands nie jest sekcją pilnowaną — to jest POWÓD zieleni, nie zbieg okoliczności)
+- [x] 4.4 Oba checkery na podmienionym dowodzie → kod 1 z właściwym komunikatem — 6eb9bb4
+- [x] 4.4a Komórka (A) NIE czerwieni, komórka (B) czerwieni — obie na rekordach sfabrykowanych (D-6) — 6eb9bb4
+- [x] 4.4b `[unknown]` BEZ nazwanego podtypu czerwieni (fail-closed), `[config]` czerwieni jako brak przejścia — 6eb9bb4
+- [x] 4.4d Komórka z NAZWANYM podtypem (`error_max_turns`, `structured_output_retry_exhausted`) nie czerwieni — 6eb9bb4
+- [x] 4.4c Przejście „dowiózł → nie dowiózł" pod NOWYM odciskiem czerwieni; pod TYM SAMYM — nie (D-9) — 6eb9bb4
+- [x] 4.5 Oba checkery uruchomione po `npm ci --omit=dev`, wynik pokazany (promptfoo i tsx potwierdzone jako NIEOBECNE — bez tego pomiar nic nie mierzy) — 6eb9bb4
+- [x] 4.6 `check-prompt-sources.ts` zielony po edycji AGENTS.md (§Commands nie jest sekcją pilnowaną — to jest POWÓD zieleni, nie zbieg okoliczności) — 6eb9bb4
 
 #### Manual
 
@@ -1309,6 +1327,25 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 - [x] 4.9 Nazwa i komunikaty nie sugerują „prompt sprawdzony" (D3) — 5d7c5ad
 
 ### Phase 5: Dwustronna kontrola pozytywna na żywym CI
+
+> ⛑ **5.8 POZOSTAJE OTWARTE po impl-review (2026-08-24)** — i to jest jedyny wiersz tej fazy,
+> który nie jest domknięty. Komplet bramek widziano na `5d7c5ad`; lokalny HEAD jest dalej
+> (`11f75a7` — epilog, plus commity triażu impl-review), a PR #49 tego stanu nie niesie.
+>
+> **Push jest świadomie ODŁOŻONY do `/ship`, nie pominięty.** Powód jest kosztowy: `pr-review.yml`
+> liczy diff od merge-base, nie z commita, więc każdy push kupuje recenzję CAŁEGO PR-a (~0,64 USD).
+> Push w trakcie triażu zapłaciłby za stan pośredni, a potem trzeba by zapłacić drugi raz za finalny.
+>
+> Kolejność domknięcia, jako krok `/ship`:
+>
+> 1. domknięcie triażu i wszystkie commity lokalnie
+> 2. `git push` (`11f75a7` + commity triażu razem)
+> 3. `gh pr ready 49`
+> 4. potwierdzenie kompletu bramek **NA TYM sha** — to jest właściwe domknięcie 5.8
+>
+> ⚡ `Eval ratchet` jest JEDYNĄ bramką bez filtra `paths`, więc pobiegnie także na commicie
+> czysto dokumentacyjnym — czego jeszcze nikt nie widział. Ten stan zobaczymy pierwszy raz
+> dokładnie w punkcie 4, i to jest część tego, co on potwierdza.
 
 #### Automated
 
@@ -1319,7 +1356,7 @@ nie pilnuje; usunięcie odwrotne zostawia bramkę bez dowodu, czyli stałą czer
 - [x] 5.5 `Eval ratchet` ZIELONY po rewertach — 5d7c5ad
 - [x] 5.6 Brak `--no-verify` w historii; sondy weszły zwykłym pushem — 5d7c5ad
 - [x] 5.7 `PR code review` WŁĄCZONY z powrotem (`active`) — warunek zamknięcia fazy — 5d7c5ad
-- [x] 5.8 Pełny zestaw bramek zielony na finalnym stanie gałęzi — 5d7c5ad
+- [ ] 5.8 Pełny zestaw bramek zielony na finalnym stanie gałęzi — spełnione dla `5d7c5ad`, **OTWARTE dla stanu finalnego** (patrz nota nad tą fazą; domyka `/ship`, punkt 4)
 
 #### Manual
 

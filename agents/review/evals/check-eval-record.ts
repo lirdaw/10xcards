@@ -1,8 +1,12 @@
-/* eslint-disable no-console -- ten plik JEST raportem: nazywa własność dowodu, która się
-   rozjechała, i mówi, co z tym zrobić. Mieszka w `agents/`, nie w `src/`, więc skan
-   tests/lib/no-logging.test.ts go nie dotyczy. */
-
 // AGENCKA połowa zapadki evali: czy w drzewie leży AKTUALNY wynik ręcznego przejścia macierzy.
+//
+// ⚑ Ten plik PISZE na stderr i tak ma być: jego produktem jest RAPORT — nazwanie własności dowodu,
+// która się rozjechała, i tego, co z nią zrobić — a kod wyjścia jest tylko jego streszczeniem.
+// Wypis idzie na stderr, nie na stdout, bo adnotacje `::error`/`::notice` czyta GitHub Actions
+// z obu strumieni, a stdout zostawiamy wolny dla ewentualnego potoku. Stał tu wcześniej
+// `/* eslint-disable no-console */`, który NICZEGO nie wyłączał: `eslint.config.js:130` ignoruje
+// `agents/**` w całości, więc lint tego pliku nigdy nie widział, a dyrektywa sugerowała zasięg,
+// którego nie ma. Skanu `tests/lib/no-logging.test.ts` też nie dotyczy — ten chodzi po `src/`.
 //
 // Ten runner NIE WOŁA MODELU ani razu i nie ma do tego klucza — cały jego wkład to odczyt pliku,
 // policzenie dzisiejszego odcisku i oddanie decyzji z rdzenia (`./eval-record.ts`). Macierz odpala

@@ -84,8 +84,18 @@ jobs:
       #     a nie przez `npm --prefix agents/review run …`, mimo że tak uruchamia się tu wszystko
       #     inne. Instynkt prowadzi tu wprost pod `ERR_MODULE_NOT_FOUND`.
       # Zysk: ~335 MB zamiast ~2 099 MB pełnego grafu.
+      #
+      # `--ignore-scripts` nie jest ostrożnością na wszelki wypadek, tylko ZMIERZONYM zerem: ten
+      # krok instaluje z `package.json` i lockfile'a POBRANEGO PR-a, więc bez tej flagi kroki
+      # `preinstall`/`postinstall` zależności biegną na runnerze przy każdym pull requeście, także
+      # z forka. Zasięg jest wąski (ten workflow nie ma żadnego sekretu, `contents: read`,
+      # wyzwalacz to `pull_request`, nie `pull_request_target`), więc to nie jest dziura — ale
+      # flaga kosztuje zero. Sprawdzone, że NIC nie wyłącza: prod-graf tego pakietu to dokładnie
+      # dwa pakiety (`zod`, `@anthropic-ai/claude-agent-sdk`) i ŻADEN nie ma kroku
+      # `preinstall`/`install`/`postinstall`/`prepare`. Gdyby któryś kiedyś miał, ta flaga go
+      # wyłączy — i dowiemy się o tym tutaj, jako `ERR_MODULE_NOT_FOUND`, a nie po cichu.
       - name: Install the agent package without dev dependencies
-        run: npm ci --omit=dev
+        run: npm ci --omit=dev --ignore-scripts
         working-directory: agents/review
 
       # Druga połowa: odcisk WYWOŁANIA, kompletność macierzy, klasa (B), przejście
