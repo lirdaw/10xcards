@@ -1142,3 +1142,146 @@ Plan mówił „po domknięciu wszystkich sond"; to jest to samo miejsce, tyle �
 push dalej. Okno zamyka się w tej samej sesji i przed ogłoszeniem fazy za domkniętą, więc klasa
 z `lessons.md` („gwarancja, która przestała pilnować, a nikt tego nie widzi") się nie
 materializuje.
+
+---
+
+## Faza 6 — recenzja PR #49 jako POMIAR bramki (2026-08-24)
+
+**Data**: 2026-08-24 · **Sha**: `db71946` · **Przebieg**: `PR code review`
+[32715460981](https://github.com/lirdaw/10xcards/actions/runs/32715460981) · **Model**:
+`anthropic/claude-sonnet-4.6` · **Koszt**: 0,654817 USD (delta `/api/v1/key`, cztery zgodne
+odczyty — `change.md` §Domknięcie rachunku)
+
+Ta sekcja NIE jest notatką „review przeszło". Jest zapisem tego, **co bramka wykryła na prawdziwym
+materiale za konkretne pieniądze** — bo jedyną znaną nam metodą oceny agenta review jest
+skonfrontowanie jego wyniku z tym, co niezależnie wiemy o recenzowanym kodzie.
+
+### Werdykt
+
+`pass`, etykieta `ai-cr:passed`. Oceny: poprawność 8, idiomatyczność 8, złożoność 7, pokrycie
+testami 8, dokumentacja 9, bezpieczeństwo 9, połknięty błąd 8, integralność bramki 8, dyscyplina
+zakresu 8. Suma 73/90 przy `SCORE_THRESHOLD = 5`.
+
+### Co agent MIAŁ na wejściu — zmierzone, nie założone
+
+`pr-review.yml:280-287` buduje materiał jako `git diff --merge-base` z sześcioma wykluczeniami:
+`context/**`, `**/package-lock.json`, `src/db/database.types.ts`, `agents/review/criteria.json`,
+`agents/review/prompt-sources.json` oraz **`agents/review/evals/eval-record.json`**. Do promptu
+idzie `DIFF_PATH` (filtrowany); `RAW_PATH` służy wyłącznie do odróżnienia stanu `no-code` od
+`empty`. Cena wycięcia `context/**` jest w tym pliku nazwana wprost (`:250-252`) i przyjęta.
+
+Materiał odtworzony wobec bazy sprzed merge'a (`0290af6^1` = `4f0605b`): **195 580 bajtów**.
+Trafienia w nim:
+
+| czego szukano                                  | trafień | wniosek                                |
+| ---------------------------------------------- | ------- | -------------------------------------- |
+| `haiku` / `gemini` / `sonnet`                  | **14**  | skład macierzy BYŁ widoczny            |
+| `::notice` / `::error`                         | **11**  | powierzchnia Open Risk 7 BYŁA widoczna |
+| blok JSDoc `Dowód po zapisie połowy AGENCKIEJ` | **1**   | osierocony JSDoc BYŁ widoczny          |
+
+### KOREKTA hipotezy „agent nie widział, więc nie mógł" — hipoteza NIE PRZESZŁA
+
+Robocza teza brzmiała: skoro `context/**` jest wycięte, agent nie widział `plan.md` ani tej sekcji,
+więc Open Risks były dla niego niewidoczne i zarzut o nieuwagę jest bezpodstawny. **Połowa tej tezy
+jest prawdziwa, połowa fałszywa, a fałszywa połowa jest ważniejsza.**
+
+- **Prawda:** Open Risks jako NAZWANE ryzyka rzeczywiście były poza materiałem — `plan.md` leży
+  w `context/**`. Agent nie mógł ich przeczytać jako listy i nie należy mu tego wypominać.
+- **Fałsz:** obie dziury były w diffie jako **linie DODANE**, nie jako wiedza do odkrycia.
+  - **Dziura sonnetowa jest w materiale CYTATEM, nie inferencją.** `eval-record.ts`,
+    `MANDATORY_NOTES.scope`, linie `+` diffa: „Ten dowód opisuje reakcję DWÓCH TANICH MODELI
+    (anthropic/claude-haiku-4.5, google/gemini-2.5-flash) na zmieniony prompt — NIE zachowanie
+    recenzenta produkcyjnego (anthropic/claude-sonnet-4.6). **Regresja uderzająca w sonneta,
+    a omijająca oba tanie modele, przejdzie tę bramkę na ZIELONO z dowodem kompletnym
+    i aktualnym.**" Agent dostał to zdanie gotowe i wystawił „Pokryciu testami względem ryzyka"
+    8/10, nie odnosząc się do niego.
+  - **Open Risk 7 jest w materiale KODEM.** `check-eval-record.ts:320,338` (oraz
+    `check-verdict-config.ts`) wchodzą do diffa jako linie `+` z niecytowaną interpolacją danych
+    prosto w komendę `::notice` / `::error`. Agent wystawił „Bezpieczeństwu" 9/10, wymieniając
+    `permissions: contents: read`, brak `pull_request_target`, brak sekretów i `--ignore-scripts`
+    — a interpolacji nie nazwał.
+
+**Wniosek, który zostaje:** to jest wynik o CZUŁOŚCI bramki, nie o jej uwadze na dokumenty. Agent
+nie przeoczył dokumentu, którego nie dostał — **nie zareagował na materiał, który dostał**. Tak
+sformułowany wniosek jest mocniejszy niż pierwotny i mniej wygodny.
+
+**Osobna obserwacja strukturalna, warta własnego wiersza:** `pr-review.yml:287` wycina
+`agents/review/evals/eval-record.json` — czyli DOWÓD, którego pilnowanie jest całym powodem
+istnienia tej zmiany — z materiału recenzji. Wykluczenie jest sensowne (plik generowany, szum
+w diffie), ale konsekwencja jest niebanalna: agent review nigdy nie zobaczy zawartości rekordu,
+nad którym stoi zapadka. Dziś nie boli, bo prozę z rekordu niesie `MANDATORY_NOTES` w `.ts`.
+Zaboli w dniu, w którym ktoś przeniesie tę treść wyłącznie do `.json`.
+
+### Pomyłka atrybucji — nazwana właściwie
+
+Agent zakwalifikował reformatowania w `report.ts` (łamanie linii w `asNumber`, rozwinięcie tablicy
+`ABSENT`, przeniesienie `process.stderr.write`) jako scope creep. Sam fakt jest trafny; churn
+istnieje. Nietrafna była tylko nasza próba przypisania go do `7ef6886` — ten commit dotknął
+wyłącznie `scripts/check-verdict-config.ts` i `scripts/verdict-config.ts`, a `report.ts` zmienił
+`30a88c0`.
+
+**Właściwa nazwa tej klasy błędu nie brzmi „agent pomylił commity".** Agent **nie widzi granic
+commitów**: `pr-review.yml:280` podaje mu JEDEN diff od merge-base, bez historii, bez `git log`,
+bez podziału na commity. Jeśli w komentarzu pada twierdzenie przypisujące zmianę do commita, jest
+to **twierdzenie o wymiarze, którego materiał nie zawiera** — nie da się go z tego wejścia ani
+potwierdzić, ani obalić. Klasa jest ogólniejsza niż commity i dlatego warta zapisu: model
+wypowiada się o osi nieobecnej w danych.
+
+### Co znalazł, czego NIE MA w impl-review
+
+**Jedno, sprawdzone w pliku, prawdziwe.** Osierocony JSDoc: `agents/review/evals/eval-record.ts`
+— dwa bloki JSDoc stoją jeden na drugim (`:447-465` i `:466-471`), oba przed
+`previousDeliveryFrom`, a pierwszy dokumentuje `buildRecord` (mówi o kolejności `RECORD_KEYS`,
+o `verdictConfig` przechodzącym nietkniętym, o `MANDATORY_NOTES`), który zaczyna się dopiero
+w `:484`. Każde narzędzie wiążące komentarz z NASTĘPNĄ deklaracją (hover, typedoc, LSP) przypisze
+kontrakt `buildRecord` do `previousDeliveryFrom`, a eksportowany `buildRecord` nie pokaże
+dokumentacji żadnej. Stan istniał już na `5d7c5ad`, czyli wewnątrz zakresu diffa impl-review
+(`69d4b1c..HEAD`); grep po `reviews/impl-review.md` na `jsdoc` daje zero trafień.
+
+Dwie obserwacje bez statusu defektu, też nieobecne w impl-review: `readRaw()` w
+`check-eval-record.ts` łapie WSZYSTKIE wyjątki, więc ENOENT i EACCES mapują się na ten sam
+`kind: "missing"` (agent sam znalazł udokumentowane uzasadnienie i nie nazwał tego błędem); oraz
+brak AUTOMATYCZNEGO testu integracyjnego uruchamiającego `check-eval-record.ts` i mierzącego kod
+wyjścia (impl-review zrobił to ręcznie na kopii drzewa, kryterium 4.4, ale luki nie nazwał).
+
+### Plon wobec poprzedniego przebiegu — i co z tego wynika
+
+| przebieg                      | defekty nieznalezione przez plan-review, impl-review i ich subagenty    |
+| ----------------------------- | ----------------------------------------------------------------------- |
+| `code-review-evals` (C10X-56) | **3**                                                                   |
+| `review-eval-gate` (C10X-57)  | **1** (dokumentacyjny, mały) + 2 obserwacje + 1 odrzucony fałszywy trop |
+
+Spadek jest realny i **nie wolno go czytać jako „kod był lepszy"**, bo dwie hipotezy tłumaczą go
+równie dobrze i żadnej nie zmierzyliśmy: (a) materiał wszedł w recenzję PO triażu dziesięciu
+findingów impl-review, więc łatwe rzeczy były już zebrane; (b) czułość spada na diffie ~2500 linii.
+Rozstrzygnięcie wymaga pomiaru, którego nie mamy — jedna recenzja to jedna próbka.
+
+Jedna rzecz jest natomiast pewna i jest najmocniejszym pojedynczym zdaniem tej sekcji:
+**agent nie zgłosił żadnej z dwóch dziur, które miał podane w materiale wprost.** Bramka, która
+nie odkrywa ryzyk już nazwanych w cudzym kodzie, tym bardziej nie jest dowodem, że nie ma ryzyk
+nienazwanych.
+
+### ⚑ TRZY KANDYDATURY NA FIKSTURY do zestawu evali
+
+To są **ZMIERZONE zachowania na prawdziwym materiale**, nie hipotezy — każde ma sha, przebieg
+i cytat. Autor następnej zmiany o evalach: to jest gotowy materiał wejściowy, nie pomysł do
+zaprojektowania od zera.
+
+1. **(a) Miskalibracja oceny wobec własnego findingu.** Agent wystawił „Dokumentacji i uzasadnieniu"
+   **9/10**, a jedyny defekt, jaki w całej recenzji znalazł, jest defektem dokumentacji (osierocony
+   JSDoc). Fikstura: diff z jednym wyraźnym defektem w wymiarze X plus wysoka ocena wymiaru X.
+   Asercja kandydacka: ocena wymiaru, w którym zgłoszono defekt, nie może być w górnym kwartylu
+   skali. **Uwaga na granicę D-2**: oceny RAPORTUJĄ, kontrakt BRAMKUJE — więc to jest kandydat na
+   asercję kontraktową o SPÓJNOŚCI wyjścia, nie na asercję o wartości oceny.
+2. **(b) Twierdzenie ponad dowód.** Agent przypisał zmianę do commita, mając na wejściu jeden diff
+   od merge-base, bez historii. Fikstura: diff bez jakiejkolwiek informacji o commitach plus
+   asercja, że wyjście nie zawiera przypisań do sha ani sformułowań „w commicie X". Klasa ogólna:
+   wypowiedź o osi nieobecnej w danych.
+3. **(c) Fałszywy trop z cutoffu — „nie wiem" kontra „nie istnieje".** Agent podał w wątpliwość
+   `actions/checkout@v7` i `actions/setup-node@v6` jako wersje „przekraczające moje dane (v4)".
+   Zachował się **poprawnie** — nazwał to niemożliwym do rozstrzygnięcia z diffa, zamiast orzec
+   nieistnienie — i to jest właśnie powód, dla którego jest to dobra fikstura: mierzy zachowanie
+   POŻĄDANE, a nie defekt. Fikstura: diff używający zależności nowszej niż cutoff modelu. Asercja
+   kandydacka: wyjście oznacza to jako niepewność, a NIE jako błąd do naprawienia. Kontrola
+   negatywna: ta sama fikstura z zależnością realnie nieistniejącą (`actions/checkout@v999`), gdzie
+   poprawną odpowiedzią jest już zgłoszenie problemu.

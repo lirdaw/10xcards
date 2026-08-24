@@ -281,3 +281,37 @@
 - **Problem**: `notes.redCells` ogłaszał „dwie czerwone komórki" nad rekordem, który miał jedną, cytował rachunek poprzedniego przejścia i niósł tezę, którą `change.md` odnotowuje jako zmierzoną i nieprawdziwą. Bramka była ZIELONA, bo walidowała wyłącznie, czy pięć obowiązkowych pól to niepuste stringi. Złapał to CZŁOWIEK, robiąc ręcznie kryterium 4.9 — raz — i `verification.md` mówi wprost, że to jedyny powód, dla którego usterka nie pojechała na `main`. Adnotacja niosła nawet WŁASNE ostrzeżenie o świeżości („sprawdź `generatedAt`, zanim uwierzysz") — i to ostrzeżenie starzeje się pierwsze, bo nic nie zmusza nikogo do jego przeczytania.
 - **Rule**: Rozdziel **doktrynę bezczasową** od **obserwacji z jednego przebiegu**. Doktrynę wolno przenosić dosłownie; obserwację o konkretnym przebiegu **stempluj w chwili przenoszenia** przebiegiem, z którego pochodzi, a checker ma się odzywać WYŁĄCZNIE wtedy, gdy stempel nie zgadza się z bieżącym przebiegiem. Warunkowo, nie stale — adnotacja drukowana na każdym przebiegu zetrze się do szumu i przestanie być czytana. Stempel wstaw w samą treść, gdy alternatywą jest nowy klucz najwyższego poziomu w schemacie, którego lista kluczy jest ZDUBLOWANA po dwóch stronach granicy kierunkowej. I nie „naprawiaj" tego kasowaniem nieznanych kluczy przy zapisie: ta reguła zwykle chroni blok CUDZEGO zapisywacza.
 - **Applies to**: plan, implement, impl-review
+
+## Wynik recenzji agenta jest DANYMI o czułości bramki, a nie oceną kodu — i mierzy się go tym, co agent miał na wejściu
+
+- **Context**: Każda bramka, w której ocenia MODEL, a nie deterministyczny checker — w tym repo
+  `PR code review` (`.github/workflows/pr-review.yml`). Moment: po każdej płatnej recenzji, zanim
+  ktokolwiek napisze „review przeszło". Zmierzone na `db71946` (PR #49, `sonnet-4.6`, 0,654817 USD)
+  i porównane z poprzednim przebiegiem na `code-review-evals`.
+- **Problem**: `pass` czyta się jak orzeczenie o kodzie, a jest **pojedynczą próbką czułości
+  recenzenta** — i to próbką, której nie da się zinterpretować bez odtworzenia MATERIAŁU. Zmierzone:
+  `pr-review.yml:280-287` wycina z diffa `context/**` oraz `agents/review/evals/eval-record.json`,
+  więc plan i rejestr pomiarów są dla agenta niewidzialne, a rekord — którego pilnowanie jest całym
+  powodem istnienia zapadki — również. Bez tego odtworzenia obie interpretacje są równie łatwe
+  i obie fałszywe: „nie znalazł, bo nie ma" oraz „nie znalazł, bo nie widział". Na tym przebiegu
+  odtworzenie diffa (195 580 B wobec `0290af6^1`) obaliło wygodniejszą z nich: dwie świadomie
+  zapisane dziury — brak sonneta w macierzy i niecytowana interpolacja w `::notice` — były
+  w materiale jako linie DODANE (14 trafień na nazwy modeli, 11 na `::notice`/`::error`), a jedna
+  z nich CYTATEM nazywającym skutek wprost. Agent nie zgłosił żadnej i wystawił obu wymiarom 8/10
+  i 9/10. Osobno: przypisał churn do commita, mając wejście bez granic commitów — twierdzenie
+  o osi nieobecnej w danych. Plon spadł 3 → 1 wobec poprzedniego przebiegu, przy dwóch
+  niezmierzonych hipotezach (materiał po triażu / spadek czułości na diffie ~2500 linii).
+- **Rule**: Po każdej płatnej recenzji zapisz **dane, nie werdykt**: (1) odtwórz materiał, który
+  agent DOSTAŁ — z pathspecem z workflow i bazą sprzed merge'a (`<merge-commit>^1`, bo po merge'u
+  `git diff --merge-base origin/main <sha>` jest PUSTY i cicho daje zero trafień); (2) policz
+  trafienia na rzeczy, o których wiesz niezależnie, że tam są, i dopiero wtedy orzekaj, czy agent
+  je przeoczył, czy ich nie widział — to rozróżnia zarzut o czułość od zarzutu o nieuwagę;
+  (3) zestaw plon z poprzednim przebiegiem i **nazwij hipotezy, których nie zmierzyłeś**, zamiast
+  czytać spadek jako komplement dla kodu. Nieznalezienie znanego ryzyka to brak dowodu o kodzie
+  i **dowód o recenzencie** — nigdy odwrotnie. Zachowania wychwycone w ten sposób (miskalibracja
+  oceny wobec własnego findingu, twierdzenie ponad dowód, mylenie „nie wiem" z „nie istnieje") są
+  gotowymi **fiksturami do zestawu evali** — zapisz je z sha, cytatem i proponowaną asercją, bo
+  zmierzone zachowanie na prawdziwym materiale jest warte więcej niż wymyślona fikstura. Pilnuj
+  przy tym granicy D-2: oceny RAPORTUJĄ, kontrakt BRAMKUJE — asercja idzie na spójność wyjścia,
+  nie na wartość oceny.
+- **Applies to**: plan, implement, impl-review, evals
