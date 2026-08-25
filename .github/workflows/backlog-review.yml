@@ -68,9 +68,8 @@ jobs:
             exit 1
           }
 
-      - name: Branch, commit, PR
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Push jest fail-closed: bez brancha nie ma czego oglądać.
+      - name: Branch, commit, push
         run: |
           BRANCH="backlog-review/${{ github.run_id }}"
           git config user.name "github-actions[bot]"
@@ -79,7 +78,29 @@ jobs:
           git add context/foundation/backlog-review.md
           git commit -m "docs(backlog): przegląd Parked ideas (run ${{ github.run_id }})"
           git push origin "$BRANCH"
+
+      # ZMIERZONE 2026-08-25 (run 32844478407), nie założone: ten krok pada z
+      #   `GraphQL: GitHub Actions is not permitted to create or approve pull requests`
+      # `permissions: pull-requests: write` NIE wystarcza — decyduje osobny przełącznik
+      # repozytorium (Settings → Actions → General → Workflow permissions), domyślnie wyłączony.
+      #
+      # Zostaje wyłączony ŚWIADOMIE. Włączenie go rozszerza uprawnienia KAŻDEGO workflow w tym
+      # repozytorium, a jedynym beneficjentem byłby przebieg ćwiczeniowy — zła wymiana.
+      # Dlatego krok jest ADVISORY: raportuje `::warning` i wypisuje komendę do ręcznego PR-a,
+      # zamiast czerwienić przebieg powodem, który jest udokumentowany i zamierzony.
+      #
+      # Ta sama asymetria co w `ci.yml`: fail-closed dla dowodu o kodzie, advisory dla kroku,
+      # którego uzasadnienie jest wygodą. Czerwień musi znaczyć „przegląd się nie odbył".
+      - name: Pull request (advisory — patrz komentarz)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="backlog-review/${{ github.run_id }}"
           gh pr create \
             --title "Przegląd backlogu — run ${{ github.run_id }}" \
             --body "Automatyczny przegląd sekcji Parked ideas. Kontrakt i checklista review: \`context/changes/backlog-review-routine/run-contract.md\`. Zielony przebieg to NIE sukces — sprawdź dowody." \
-            --base main --head "$BRANCH"
+            --base main --head "$BRANCH" || {
+            echo "::warning title=PR nie powstał::Actions nie ma prawa tworzyć PR-ów w tym repozytorium — to decyzja, nie awaria."
+            echo "Branch jest wypchnięty. PR utwórz ręcznie:"
+            echo "  gh pr create --base main --head $BRANCH"
+          }
