@@ -1,0 +1,85 @@
+# Ćwiczenie M5L5 (tryb 3 — pętle i rutyny): agent przegląda sekcję "Parked ideas"
+# w roadmap.md i wystawia każdej pozycji werdykt poparty dowodem z kodu.
+#
+# Wynik trafia na osobny branch i do PR-a. Agent nie dostaje gita do ręki — branch,
+# commit i PR robi ten workflow. Zakres wymusza środowisko, nie obietnica w promptcie.
+name: Backlog review
+
+on:
+  # Jedyny aktywny wyzwalacz. `schedule:` niżej jest świadomie zakomentowany:
+  # ten sam powód, co w `schema-diff.yml` — cykliczny przebieg bez kanału powiadomień
+  # i bez właściciela wyniku produkuje PR-y, których nikt nie czyta.
+  # Odkomentować dopiero, gdy jedno i drugie istnieje.
+  workflow_dispatch:
+  # schedule:
+  #   - cron: "0 6 * * 1"   # poniedziałek 06:00 UTC
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      # Bramka klucza PRZED instalacją: brak sekretu ma być widoczny w sekundach,
+      # nie po minucie ściągania CLI.
+      - name: Wymagaj klucza
+        env:
+          API_KEY: ${{ secrets.OPENROUTER_BACKLOG_KEY }}
+        run: |
+          test -n "$API_KEY" || {
+            echo "::error title=Brak klucza::Ustaw sekret OPENROUTER_BACKLOG_KEY."
+            echo "To WŁASNY klucz tego przebiegu. Nie celuj nim w OPENROUTER_REVIEW_KEY"
+            echo "ani OPENROUTER_EVAL_KEY — tamte mają własne capy i własne budżety."
+            exit 1
+          }
+
+      - name: Zainstaluj Claude Code
+        run: npm i -g @anthropic-ai/claude-code
+
+      # `ANTHROPIC_AUTH_TOKEN`, NIGDY `OPENROUTER_API_KEY` — ta druga nazwa przerywa
+      # (agents/review/run-review.ts:109). Base URL kieruje SDK na OpenRoutera.
+      # Model pinowany jawnie: alias "sonnet" nie jest identyfikatorem OpenRoutera.
+      - name: Przegląd backlogu
+        env:
+          ANTHROPIC_BASE_URL: https://openrouter.ai/api
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.OPENROUTER_BACKLOG_KEY }}
+        run: |
+          claude -p "$(cat .github/prompts/backlog-review.md)" \
+            --model anthropic/claude-sonnet-4.6 \
+            --allowedTools "Read,Grep,Glob,Write" \
+            --max-turns 15
+
+      # Trzecia granica, obok promptu i allowedTools: jeśli agent dotknął czegokolwiek
+      # poza raportem, przebieg jest czerwony niezależnie od jakości raportu.
+      - name: Sprawdź zakres zmian
+        run: |
+          CHANGED=$(git status --porcelain | awk '{print $2}')
+          echo "Zmienione: $CHANGED"
+          test "$CHANGED" = "context/foundation/backlog-review.md" || {
+            echo "::error title=Agent wyszedł poza zakres::Oczekiwano wyłącznie backlog-review.md."
+            exit 1
+          }
+
+      - name: Branch, commit, PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="backlog-review/${{ github.run_id }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add context/foundation/backlog-review.md
+          git commit -m "docs(backlog): przegląd Parked ideas (run ${{ github.run_id }})"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "Przegląd backlogu — run ${{ github.run_id }}" \
+            --body "Automatyczny przegląd sekcji Parked ideas. Kontrakt i checklista review: \`context/changes/backlog-review-routine/run-contract.md\`. Zielony przebieg to NIE sukces — sprawdź dowody." \
+            --base main --head "$BRANCH"
