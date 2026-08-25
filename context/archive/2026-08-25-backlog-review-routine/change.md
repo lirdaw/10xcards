@@ -1,10 +1,10 @@
 ---
 change_id: backlog-review-routine
 title: Recurring agent review of the 15 parked roadmap ideas
-status: new
+status: archived
 created: 2026-08-25
 updated: 2026-08-25
-archived_at: null
+archived_at: 2026-08-25T12:55:04Z
 ---
 
 ## Notes
